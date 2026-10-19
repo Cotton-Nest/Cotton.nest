@@ -216,7 +216,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2C2420]/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative bg-[#FAF7F2] w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[#EAE2D5] shadow-2xl z-10 text-[#2C2420]">
+      <div className="relative bg-[var(--color-surface,#FFFFFF)] w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--color-border,#EAE2D5)] shadow-2xl z-10 text-[var(--color-text,#2C2420)]">
         
         {/* Owner Edit Bar or Unlock Prompt */}
         {isOwnerMode ? (
@@ -879,7 +879,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     className={`w-full py-3 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                       added
                         ? 'bg-emerald-700 text-white'
-                        : 'bg-[#B83F60] hover:bg-[#A33452] text-white shadow-sm'
+                        : 'bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] shadow-sm'
                     }`}
                   >
                     {added ? (

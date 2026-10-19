@@ -18,21 +18,28 @@ export const Footer: React.FC<FooterProps> = ({
   onLockOwnerMode,
 }) => {
   return (
-    <footer className="bg-[#FAF7F2] border-t border-[#EAE2D5] pt-12 pb-24 md:pb-12 text-[#6B5D55]">
+    <footer
+      className="border-t border-[var(--color-border,#EAE2D5)] pt-12 pb-24 md:pb-12 transition-colors"
+      style={{
+        backgroundColor: 'var(--color-footer,#2C2420)',
+        color: 'var(--color-footer-text,#FAF7F2)',
+      }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-10 border-b border-[#EAE2D5]">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-10 border-b border-white/10">
           
           {/* Brand Info */}
           <div className="md:col-span-5 space-y-4">
             <button
               onClick={() => onNavClick('home')}
-              className="text-left font-serif-luxury text-2xl font-bold text-[#2C2420] hover:text-[#B83F60] transition-colors"
+              className="text-left font-serif-luxury text-2xl font-bold transition-colors cursor-pointer"
+              style={{ color: 'var(--color-footer-text,#FAF7F2)' }}
             >
               Cotton Nest
             </button>
             
-            <p className="text-xs sm:text-sm text-[#7A6458] max-w-sm leading-relaxed">
+            <p className="text-xs sm:text-sm max-w-sm leading-relaxed opacity-85">
               Crafting premium 100% pure cotton bedsheets with serene comfort, subtle floral elegance, 
               and oversized 108″ × 108″ King proportions for Indian homes.
             </p>

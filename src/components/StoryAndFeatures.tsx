@@ -52,7 +52,10 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
   ];
 
   return (
-    <section className="py-12 sm:py-16 bg-[#FAF7F2]">
+    <section
+      className="py-12 sm:py-16 relative transition-colors duration-300"
+      style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         
         {/* Story Intro with Scroll Reveal */}

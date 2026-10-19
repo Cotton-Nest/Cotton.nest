@@ -16,7 +16,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
   openCart,
 }) => {
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-t border-[#EAE2D5] px-2 py-2 flex items-center justify-around text-xs shadow-lg">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-header,#FAF7F2)]/95 backdrop-blur-md border-t border-[var(--color-border,#EAE2D5)] px-2 py-2 flex items-center justify-around text-xs shadow-lg">
       
       {/* Catalogue Tab Button */}
       <button
@@ -25,7 +25,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         className={`flex flex-col items-center gap-0.5 cursor-pointer ${
-          activeTab === 'catalogue' ? 'text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
+          activeTab === 'catalogue' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
         }`}
       >
         <Grid className="w-5 h-5" />
@@ -39,7 +39,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         className={`flex flex-col items-center gap-0.5 cursor-pointer relative ${
-          activeTab === 'orders' ? 'text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
+          activeTab === 'orders' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
         }`}
       >
         <div className="relative">
@@ -56,7 +56,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         className={`flex flex-col items-center gap-0.5 cursor-pointer ${
-          activeTab === 'store' ? 'text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
+          activeTab === 'store' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
         }`}
       >
         <MapPin className="w-5 h-5" />
@@ -78,12 +78,12 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
       {/* Shopping Bag Button with Badge */}
       <button
         onClick={openCart}
-        className="flex flex-col items-center gap-0.5 text-[#2C2420] relative cursor-pointer"
+        className="flex flex-col items-center gap-0.5 text-[var(--color-text,#2C2420)] relative cursor-pointer"
       >
         <div className="relative">
           <ShoppingBag className="w-5 h-5" />
           {cartCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#B83F60] text-white text-[9px] font-bold rounded-full flex items-center justify-center tabular-nums">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-[var(--color-primary-contrast,#FFFFFF)] text-[9px] font-bold rounded-full flex items-center justify-center tabular-nums">
               {cartCount}
             </span>
           )}

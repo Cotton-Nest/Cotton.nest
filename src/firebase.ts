@@ -15,6 +15,7 @@ import { BedsheetProduct } from './data/products';
 import { Order } from './data/orders';
 import { SiteContent } from './data/siteContent';
 import { ProductReview } from './data/reviews';
+import { ThemeColors, WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from './data/theme';
 
 // Initialize Firebase App
 export const app = initializeApp(firebaseConfig);
@@ -460,6 +461,73 @@ export async function deleteReviewFromFirestore(reviewId: string): Promise<void>
     await deleteDoc(docRef);
   } catch (err) {
     handleFirestoreError(err, 'deleteReviewFromFirestore');
+  }
+}
+
+// 6. Website Appearance & Festival Theme Store
+export async function getThemeFromFirestore(): Promise<WebsiteThemeConfig | null> {
+  if (isFirestoreQuotaExhausted()) return null;
+  try {
+    const docRef = doc(db, 'theme', 'active');
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as WebsiteThemeConfig;
+    }
+    // Also check fallback in site_content/theme
+    const fallbackRef = doc(db, 'site_content', 'theme');
+    const fallbackSnap = await getDoc(fallbackRef);
+    if (fallbackSnap.exists()) {
+      return fallbackSnap.data() as WebsiteThemeConfig;
+    }
+    return null;
+  } catch (err) {
+    handleFirestoreError(err, 'getThemeFromFirestore');
+    return null;
+  }
+}
+
+export async function saveThemeToFirestore(theme: WebsiteThemeConfig): Promise<void> {
+  if (isFirestoreQuotaExhausted()) throw new Error('Firestore write quota exceeded.');
+  try {
+    const sanitized = sanitizeForFirestore(theme);
+    // Write to /theme/active
+    const docRef = doc(db, 'theme', 'active');
+    await setDoc(docRef, sanitized);
+
+    // Also mirror to /site_content/theme for maximum durability
+    try {
+      const fallbackRef = doc(db, 'site_content', 'theme');
+      await setDoc(fallbackRef, sanitized);
+    } catch {}
+  } catch (err) {
+    handleFirestoreError(err, 'saveThemeToFirestore');
+    throw err;
+  }
+}
+
+export function subscribeToThemeFromFirestore(
+  onUpdate: (theme: WebsiteThemeConfig) => void
+): () => void {
+  try {
+    const docRef = doc(db, 'theme', 'active');
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as WebsiteThemeConfig;
+          if (data && data.colors) {
+            onUpdate(data);
+          }
+        }
+      },
+      (err) => {
+        console.warn('Real-time theme subscription warning:', err);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.warn('Failed to subscribe to theme in Firestore:', err);
+    return () => {};
   }
 }
 

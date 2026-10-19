@@ -63,7 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </aside>
 
       {/* Main Header strictly adhering to the 3-zone Top Bar Contract */}
-      <header className="sticky top-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#EAE2D5] transition-all">
+      <header className="sticky top-0 z-40 bg-[var(--color-header,#FAF7F2)]/95 backdrop-blur-md border-b border-[var(--color-border,#EAE2D5)] transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           
           {/* Zone 1: Single text element wordmark in display face */}
@@ -71,7 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => handleNavClick('home')}
             className="text-left group cursor-pointer focus:outline-hidden"
           >
-            <span className="font-serif-luxury text-2xl sm:text-3xl font-semibold tracking-tight text-[#2C2420] group-hover:text-[#B83F60] transition-colors">
+            <span className="font-serif-luxury text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors">
               {brandName}
             </span>
           </button>
@@ -82,13 +82,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => handleNavClick('home')}
               className={`transition-colors relative py-1 cursor-pointer ${
                 activeTab === 'home'
-                  ? 'text-[#2C2420] font-semibold'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+                  ? 'text-[var(--color-text,#2C2420)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
               }`}
             >
               Home
               {activeTab === 'home' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C29E57] rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
               )}
             </button>
 
@@ -97,16 +97,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => handleNavClick('catalogue')}
               className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 ${
                 activeTab === 'catalogue'
-                  ? 'text-[#B83F60] font-semibold'
-                  : 'text-[#6B5D55] hover:text-[#B83F60]'
+                  ? 'text-[var(--color-primary,#70252D)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
               }`}
             >
               <span>Catalogue</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#FDEAF0] text-[#B83F60] border border-[#F9D3DE]">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--color-background,#FAF7F2)] text-[var(--color-primary,#70252D)] border border-[var(--color-border,#EAE2D5)]">
                 9 Designs
               </span>
               {activeTab === 'catalogue' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#B83F60] rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
               )}
             </button>
 
@@ -115,13 +115,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => handleNavClick('tc')}
               className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 ${
                 activeTab === 'tc'
-                  ? 'text-[#B83F60] font-semibold'
-                  : 'text-[#6B5D55] hover:text-[#B83F60]'
+                  ? 'text-[var(--color-primary,#70252D)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
               }`}
             >
               <span>T&amp;C</span>
               {activeTab === 'tc' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#B83F60] rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
               )}
             </button>
 
@@ -130,8 +130,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => handleNavClick('reviews')}
               className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 ${
                 activeTab === 'reviews'
-                  ? 'text-[#B83F60] font-semibold'
-                  : 'text-[#6B5D55] hover:text-[#B83F60]'
+                  ? 'text-[var(--color-primary,#70252D)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
               }`}
             >
               <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
@@ -140,53 +140,83 @@ export const Navbar: React.FC<NavbarProps> = ({
                 4.9 ★
               </span>
               {activeTab === 'reviews' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#B83F60] rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
               )}
             </button>
 
-            {/* LIVE ORDERS TAB - SYNCED WITH ADMIN */}
+            {/* LIVE ORDERS TAB - SYNCED WITH ADMIN (Uses Secondary Theme Colour) */}
             <button
               onClick={() => handleNavClick('orders')}
-              className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 ${
+              className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 group ${
                 activeTab === 'orders'
-                  ? 'text-[#2C2420] font-semibold'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+                  ? 'text-[var(--color-secondary,#8C3A44)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
               }`}
             >
-              <Package className="w-4 h-4 text-[#C29E57]" />
-              <span>Live Orders</span>
+              <Package
+                className="w-4 h-4 transition-colors"
+                style={{ color: 'var(--color-secondary, #8C3A44)' }}
+              />
+              <span
+                className="transition-colors"
+                style={{
+                  color: activeTab === 'orders' ? 'var(--color-secondary, #8C3A44)' : undefined,
+                }}
+              >
+                Live Orders
+              </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live sync" />
               {activeTab === 'orders' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C29E57] rounded-full" />
+                <span
+                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                  style={{ backgroundColor: 'var(--color-secondary, #8C3A44)' }}
+                />
               )}
             </button>
 
+            {/* Our Story Tab (Uses Secondary Theme Colour) */}
             <button
               onClick={() => handleNavClick('story')}
-              className={`transition-colors relative py-1 cursor-pointer ${
+              className={`transition-colors relative py-1 cursor-pointer group ${
                 activeTab === 'story'
-                  ? 'text-[#2C2420] font-semibold'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+                  ? 'text-[var(--color-secondary,#8C3A44)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
               }`}
+              style={{
+                color: activeTab === 'story' ? 'var(--color-secondary, #8C3A44)' : undefined,
+              }}
             >
-              Our Story
+              <span>Our Story</span>
               {activeTab === 'story' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C29E57] rounded-full" />
+                <span
+                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                  style={{ backgroundColor: 'var(--color-secondary, #8C3A44)' }}
+                />
               )}
             </button>
 
+            {/* Store Location Tab (Uses Secondary Theme Colour) */}
             <button
               onClick={() => handleNavClick('store')}
-              className={`transition-colors relative py-1 cursor-pointer flex items-center gap-1 ${
+              className={`transition-colors relative py-1 cursor-pointer flex items-center gap-1 group ${
                 activeTab === 'store'
-                  ? 'text-[#2C2420] font-semibold'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+                  ? 'text-[var(--color-secondary,#8C3A44)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
               }`}
+              style={{
+                color: activeTab === 'store' ? 'var(--color-secondary, #8C3A44)' : undefined,
+              }}
             >
-              <MapPin className="w-3.5 h-3.5 text-[#C29E57]" />
-              Sector 46 Gurgaon
+              <MapPin
+                className="w-3.5 h-3.5 transition-colors"
+                style={{ color: 'var(--color-secondary, #8C3A44)' }}
+              />
+              <span>Sector 46 Gurgaon</span>
               {activeTab === 'store' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C29E57] rounded-full" />
+                <span
+                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                  style={{ backgroundColor: 'var(--color-secondary, #8C3A44)' }}
+                />
               )}
             </button>
           </nav>
@@ -295,11 +325,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={openCart}
               aria-label="View Shopping Bag"
-              className="relative p-2 text-[#2C2420] hover:text-[#B83F60] transition-colors rounded-lg hover:bg-[#F4EFE6] cursor-pointer"
+              className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-lg hover:bg-black/5 cursor-pointer"
             >
               <ShoppingBag className="w-5 h-5" />
               {cartCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-[#B83F60] text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums">
+                <span className="absolute top-1 right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-[var(--color-primary-contrast,#FFFFFF)] text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums">
                   {cartCount}
                 </span>
               )}
@@ -369,12 +399,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Mobile Live Orders */}
             <button
               onClick={() => handleNavClick('orders')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between ${
-                activeTab === 'orders' ? 'bg-[#F4EFE6] text-[#2C2420] font-semibold' : 'text-[#6B5D55]'
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
+                activeTab === 'orders'
+                  ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
               }`}
             >
               <span className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-[#C29E57]" />
+                <Package
+                  className="w-4 h-4 transition-colors"
+                  style={{ color: 'var(--color-secondary, #8C3A44)' }}
+                />
                 Live Orders
               </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -382,18 +417,26 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => handleNavClick('story')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium ${
-                activeTab === 'story' ? 'bg-[#F4EFE6] text-[#2C2420] font-semibold' : 'text-[#6B5D55]'
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'story'
+                  ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
               }`}
             >
               Our Story &amp; Craft
             </button>
             <button
               onClick={() => handleNavClick('store')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium ${
-                activeTab === 'store' ? 'bg-[#F4EFE6] text-[#2C2420] font-semibold' : 'text-[#6B5D55]'
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                activeTab === 'store'
+                  ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
               }`}
             >
+              <MapPin
+                className="w-3.5 h-3.5 transition-colors"
+                style={{ color: 'var(--color-secondary, #8C3A44)' }}
+              />
               Visit Store (Sector 46, Gurgaon)
             </button>
 

@@ -50,8 +50,18 @@ import {
   subscribeToOrdersFromFirestore,
   getReviewsFromFirestore,
   saveReviewToFirestore,
-  subscribeToReviewsFromFirestore
+  subscribeToReviewsFromFirestore,
+  getThemeFromFirestore,
+  subscribeToThemeFromFirestore,
 } from './firebase';
+import {
+  WebsiteThemeConfig,
+  CLASSIC_COTTON_NEST_COLORS,
+  getStoredPublishedTheme,
+  saveStoredPublishedTheme,
+  applyThemeToDom,
+  isValidHex,
+} from './data/theme';
 import { resolveBedsheetImage } from './utils/imageUrl';
 import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, Cloud, ChevronUp, ChevronDown, Star } from 'lucide-react';
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
@@ -105,6 +115,52 @@ export default function App() {
     window.addEventListener('scroll', handleWindowScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleWindowScroll);
   }, []);
+
+  // Website Appearance & Festival Theme Manager state
+  const [themeConfig, setThemeConfig] = useState<WebsiteThemeConfig>(() => {
+    return getStoredPublishedTheme();
+  });
+
+  // Apply theme to DOM on initial mount
+  useEffect(() => {
+    applyThemeToDom(themeConfig.colors);
+  }, []);
+
+  // Fetch published theme from Firestore on initial load + attach real-time subscription
+  useEffect(() => {
+    let isMounted = true;
+
+    // 1. Fetch from Firestore initially
+    getThemeFromFirestore()
+      .then((remoteTheme) => {
+        if (isMounted && remoteTheme && remoteTheme.colors && isValidHex(remoteTheme.colors.primary)) {
+          setThemeConfig(remoteTheme);
+          saveStoredPublishedTheme(remoteTheme);
+          applyThemeToDom(remoteTheme.colors);
+        }
+      })
+      .catch(() => {});
+
+    // 2. Real-time subscription from Firestore
+    const unsubscribe = subscribeToThemeFromFirestore((liveTheme) => {
+      if (isMounted && liveTheme && liveTheme.colors && isValidHex(liveTheme.colors.primary)) {
+        setThemeConfig(liveTheme);
+        saveStoredPublishedTheme(liveTheme);
+        applyThemeToDom(liveTheme.colors);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const handleThemePublished = (newTheme: WebsiteThemeConfig) => {
+    setThemeConfig(newTheme);
+    saveStoredPublishedTheme(newTheme);
+    applyThemeToDom(newTheme.colors);
+  };
 
   // Dynamic products state with local storage persistence
   const [products, setProducts] = useState<BedsheetProduct[]>(() => {
@@ -689,7 +745,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#2C2420] flex flex-col font-sans selection:bg-[#F3D7DE] selection:text-[#38262B]">
+    <div
+      className="min-h-screen flex flex-col font-sans transition-colors duration-300 selection:bg-[#F3D7DE] selection:text-[#38262B]"
+      style={{
+        backgroundColor: 'var(--color-background, #FAF7F2)',
+        color: 'var(--color-text, #2C2420)',
+      }}
+    >
       
       {/* Store Owner Active Mode Banner - Only visible to authenticated owner */}
       {isOwnerMode && !isAdminOpen && (
@@ -738,6 +800,8 @@ export default function App() {
           onUpdateSiteContent={handleUpdateSiteContent}
           onResetAllImages={handleResetAllPhotos}
           onUpdateSingleProduct={handleUpdateSingleProduct}
+          currentTheme={themeConfig}
+          onThemePublished={handleThemePublished}
         />
       ) : (
         <>
@@ -780,7 +844,11 @@ export default function App() {
                 />
 
                 {/* Featured Showcase: 3 Spotlight bedsheets from the 9 */}
-                <section id="curated-highlights" className="py-12 sm:py-16 bg-[#FAF7F2] relative">
+                <section
+                  id="curated-highlights"
+                  className="py-12 sm:py-16 relative transition-colors duration-300"
+                  style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
+                >
                   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     
                     <motion.div
@@ -791,14 +859,23 @@ export default function App() {
                       className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4"
                     >
                       <div>
-                        <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#A8823B] uppercase tracking-wider mb-1">
-                          <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+                        <div
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider mb-1"
+                          style={{ color: 'var(--color-accent, #A8823B)' }}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
                           Curated Highlights
                         </div>
-                        <h2 className="font-serif-luxury text-3xl sm:text-4xl font-semibold text-[#2C2420]">
+                        <h2
+                          className="font-serif-luxury text-3xl sm:text-4xl font-semibold transition-colors duration-300"
+                          style={{ color: 'var(--color-text, #2C2420)' }}
+                        >
                           Popular Bedsheets This Season
                         </h2>
-                        <p className="text-xs sm:text-sm text-[#6B5D55] mt-1">
+                        <p
+                          className="text-xs sm:text-sm mt-1 transition-colors duration-300"
+                          style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+                        >
                           Handpicked favorites from our pure cotton collection.
                         </p>
                       </div>
@@ -808,7 +885,8 @@ export default function App() {
                           setActiveTab('catalogue');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-[#B83F60] hover:text-[#A33452] transition-colors cursor-pointer group"
+                        style={{ color: 'var(--color-primary, #70252D)' }}
+                        className="inline-flex items-center gap-2 text-xs font-semibold hover:opacity-80 transition-all cursor-pointer group"
                       >
                         <span>Browse All {products.length} Bedsheets in Catalogue</span>
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -816,7 +894,10 @@ export default function App() {
                     </motion.div>
 
                     {/* 3 Featured Cards Grid with Staggered Scroll Animations */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                    <div
+                      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 transition-colors duration-300"
+                      style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
+                    >
                       {products.slice(0, 3).map((product, idx) => (
                         <motion.div
                           key={product.id}
@@ -852,7 +933,12 @@ export default function App() {
                           setActiveTab('catalogue');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="px-8 py-3.5 bg-[#FDEAF0] hover:bg-[#F9D3DE] text-[#8C2E46] border border-[#FAD1DC] rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center gap-2 transition-all hover:shadow-md cursor-pointer shadow-xs active:scale-98"
+                        style={{
+                          backgroundColor: 'var(--color-surface, #FFFFFF)',
+                          color: 'var(--color-primary, #70252D)',
+                          borderColor: 'var(--color-border, #EAE2D5)',
+                        }}
+                        className="px-8 py-3.5 hover:shadow-md border rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-98"
                       >
                         <span>Open Full {products.length}-Sheet Catalogue</span>
                         <ArrowRight className="w-4 h-4" />
@@ -1061,7 +1147,12 @@ export default function App() {
             whileTap={{ scale: 0.92 }}
             transition={{ duration: 0.25 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40 p-3 bg-[#FAF7F2]/95 backdrop-blur-md text-[#2C2420] border border-[#DEC89B] rounded-full shadow-lg hover:shadow-xl hover:border-[#C29E57] hover:bg-white transition-all cursor-pointer group"
+            style={{
+              backgroundColor: 'var(--color-surface, #FFFFFF)',
+              color: 'var(--color-text, #2C2420)',
+              borderColor: 'var(--color-border, #DEC89B)',
+            }}
+            className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40 p-3 backdrop-blur-md border rounded-full shadow-lg hover:shadow-xl transition-all cursor-pointer group"
             title="Scroll back to top"
             aria-label="Scroll back to top"
           >

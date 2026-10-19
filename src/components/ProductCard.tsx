@@ -72,8 +72,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <article
       onClick={() => onQuickView(product)}
-      className={`group bg-[#FAF7F2] rounded-2xl border overflow-hidden hover:border-[#C29E57]/60 hover:shadow-md transition-all duration-300 flex flex-col cursor-pointer ${
-        isOutOfStock ? 'opacity-75 border-amber-200' : 'border-[#EAE2D5]'
+      className={`group bg-[var(--color-surface,#FFFFFF)] rounded-2xl border overflow-hidden hover:border-[var(--color-accent,#C29E57)]/60 hover:shadow-md transition-all duration-300 flex flex-col cursor-pointer ${
+        isOutOfStock ? 'opacity-75 border-amber-200' : 'border-[var(--color-border,#EAE2D5)]'
       }`}
     >
       {/* Product Image Slot */}
@@ -176,12 +176,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div>
           {/* Collection & Fabric specs */}
           <div className="flex items-center justify-between text-xs text-[#7A6458] mb-1 font-medium">
-            <span className="uppercase tracking-wider text-[11px] text-[#A8823B]">{product.collection}</span>
+            <span className="uppercase tracking-wider text-[11px] text-[var(--color-accent,#C29E57)]">{product.collection}</span>
             <span>{product.threadCount}</span>
           </div>
 
           {/* Product Title */}
-          <h3 className="font-serif-luxury text-lg sm:text-xl font-semibold text-[#2C2420] line-clamp-1 group-hover:text-[#B83F60] transition-colors">
+          <h3 className="font-serif-luxury text-lg sm:text-xl font-semibold text-[var(--color-text,#2C2420)] line-clamp-1 group-hover:text-[var(--color-primary,#70252D)] transition-colors">
             {product.name}
           </h3>
 
@@ -305,7 +305,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 isAdded
                   ? 'bg-emerald-700 text-white'
-                  : 'bg-[#B83F60] hover:bg-[#A33452] text-white shadow-xs'
+                  : 'bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] shadow-xs'
               }`}
             >
               {isAdded ? (

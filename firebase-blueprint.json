@@ -64,6 +64,19 @@
         "announcement": { "type": "string", "description": "Top announcement banner text" },
         "showAnnouncement": { "type": "boolean", "description": "Show/hide announcement" }
       }
+    },
+    "ThemeConfig": {
+      "title": "ThemeConfig",
+      "description": "Website active theme and festival color configuration.",
+      "type": "object",
+      "properties": {
+        "activeThemeId": { "type": "string", "description": "Preset or custom theme ID" },
+        "themeName": { "type": "string", "description": "Display name of active theme" },
+        "colors": { "type": "object", "description": "Color hex values for theme elements" },
+        "updatedAt": { "type": "number", "description": "Timestamp of theme publication" },
+        "updatedBy": { "type": "string", "description": "Admin email or identifier" }
+      },
+      "required": ["themeName", "colors"]
     }
   },
   "firestore": {
@@ -82,6 +95,10 @@
     "/site_content/{contentId}": {
       "schema": "SiteContent",
       "description": "Store contact and banner details"
+    },
+    "/theme/{themeId}": {
+      "schema": "ThemeConfig",
+      "description": "Storewide active website theme configuration"
     }
   }
 }

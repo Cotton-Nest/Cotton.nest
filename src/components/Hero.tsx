@@ -18,7 +18,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
   const secondaryText = content?.hero.secondaryButtonText || "Visit Gurgaon Studio";
 
   return (
-    <section className="relative overflow-hidden pt-6 pb-12 sm:pt-10 sm:pb-20 bg-gradient-to-b from-[#FAF7F2] via-[#FAF7F2] to-[#F5EFEB]">
+    <section className="relative overflow-hidden pt-6 pb-12 sm:pt-10 sm:pb-20 bg-[var(--color-background,#FAF7F2)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
@@ -31,9 +31,9 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#A8823B]"
+              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-accent,#C29E57)]"
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+              <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent,#C29E57)]" />
               <span>{kicker}</span>
             </motion.div>
 
@@ -42,7 +42,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
               initial={{ opacity: 0, y: 22 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="font-serif-luxury text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-[#2C2420] leading-[1.15] text-balance"
+              className="font-serif-luxury text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-[var(--color-text,#2C2420)] leading-[1.15] text-balance"
             >
               {headline}
             </motion.h1>
@@ -52,7 +52,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="text-base sm:text-lg text-[#6B5D55] leading-relaxed max-w-xl mx-auto lg:mx-0 font-normal"
+              className="text-base sm:text-lg text-[var(--color-text-secondary,#6B5D55)] leading-relaxed max-w-xl mx-auto lg:mx-0 font-normal"
             >
               {subheadline}
             </motion.p>
@@ -66,7 +66,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
             >
               <button
                 onClick={onExploreCatalogue}
-                className="w-full sm:w-auto px-6 py-3.5 bg-[#B83F60] hover:bg-[#A33452] text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-98"
+                className="w-full sm:w-auto px-6 py-3.5 bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-98"
               >
                 <span>{ctaText}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -74,9 +74,9 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
 
               <button
                 onClick={onVisitStore}
-                className="w-full sm:w-auto px-5 py-3.5 bg-[#FAF7F2] hover:bg-[#F4EFE6] text-[#2C2420] border border-[#EAE2D5] hover:border-[#C29E57] text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                className="w-full sm:w-auto px-5 py-3.5 bg-[var(--color-surface,#FFFFFF)] text-[var(--color-text,#2C2420)] border border-[var(--color-border,#EAE2D5)] hover:border-[var(--color-accent,#C29E57)] text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
-                <MapPin className="w-4 h-4 text-[#C29E57]" />
+                <MapPin className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
               </button>
             </motion.div>

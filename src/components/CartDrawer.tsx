@@ -158,7 +158,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     <div className="fixed inset-0 z-50 flex justify-end bg-[#2C2420]/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-[#FAF7F2] h-full shadow-2xl flex flex-col z-10 border-l border-[#EAE2D5] text-[#2C2420]">
+      <div className="relative w-full max-w-md bg-[var(--color-surface,#FFFFFF)] h-full shadow-2xl flex flex-col z-10 border-l border-[var(--color-border,#EAE2D5)] text-[var(--color-text,#2C2420)]">
         
         {/* Drawer Header */}
         <div className="p-4 sm:p-5 border-b border-[#EAE2D5] flex items-center justify-between bg-white">

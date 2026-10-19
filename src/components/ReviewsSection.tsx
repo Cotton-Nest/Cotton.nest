@@ -36,7 +36,14 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
   };
 
   return (
-    <section id="customer-reviews" className="py-14 sm:py-20 bg-[#FAF7F2] border-t border-[#EAE2D5]">
+    <section
+      id="customer-reviews"
+      className="py-14 sm:py-20 border-t transition-colors duration-300"
+      style={{
+        backgroundColor: 'var(--color-background, #FAF7F2)',
+        borderColor: 'var(--color-border, #EAE2D5)',
+      }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}

@@ -15,6 +15,9 @@ import {
 } from '../services/cloudinary';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { savePersistentImage } from '../utils/persistentStorage';
+import { saveProductToFirestore } from '../firebase';
+import { ThemeCustomizer } from './ThemeCustomizer';
+import { WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from '../data/theme';
 import {
   Package,
   Percent,
@@ -68,6 +71,8 @@ interface AdminPanelProps {
   onUpdateSiteContent: (content: SiteContent) => void;
   onResetAllImages?: () => void;
   onUpdateSingleProduct?: (updatedProduct: BedsheetProduct) => void;
+  currentTheme?: WebsiteThemeConfig;
+  onThemePublished?: (theme: WebsiteThemeConfig) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -83,9 +88,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateSiteContent,
   onResetAllImages,
   onUpdateSingleProduct,
+  currentTheme = {
+    activeThemeId: 'classic',
+    themeName: 'Classic Cotton Nest',
+    colors: CLASSIC_COTTON_NEST_COLORS,
+    updatedAt: Date.now(),
+  },
+  onThemePublished,
 }) => {
-  // Tabs: 'products' | 'orders' | 'content'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'content'>('products');
+  // Tabs: 'products' | 'orders' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'content' | 'appearance'>('products');
 
   // Products local state
   const [editableProducts, setEditableProducts] = useState<BedsheetProduct[]>(products);
@@ -884,7 +896,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               }`}
             >
               <Edit3 className="w-3.5 h-3.5" />
-              <span>Store &amp; Story Content</span>
+              <span>Store &amp; Story</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('appearance')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                activeAdminTab === 'appearance'
+                  ? 'bg-[#2C2420] text-white shadow-xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5 text-[#C29E57]" />
+              <span>Website Appearance</span>
             </button>
           </div>
 
@@ -2481,6 +2505,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
           </form>
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 4: WEBSITE APPEARANCE & FESTIVAL THEME CUSTOMIZER     */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'appearance' && (
+          <ThemeCustomizer
+            currentTheme={currentTheme}
+            onThemePublished={(newTheme) => {
+              if (onThemePublished) onThemePublished(newTheme);
+            }}
+            isOwnerAuthenticated={true}
+          />
         )}
 
       </main>

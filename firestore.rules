@@ -30,8 +30,14 @@ service cloud.firestore {
       allow read: if true;
     }
 
-    // Store branding and announcements
+    // Store branding, theme appearance, and announcements
     match /site_content/{contentId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Website Appearance & Festival Theme configuration
+    match /theme/{themeId} {
       allow read: if true;
       allow write: if true;
     }

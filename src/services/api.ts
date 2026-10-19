@@ -350,3 +350,28 @@ export async function saveSiteContentApi(content: SiteContent): Promise<void> {
     body: JSON.stringify(stampedContent),
   }).catch(() => {});
 }
+
+// ---------------- THEME APPEARANCE API ---------------- //
+export async function getPublishedThemeApi(): Promise<any> {
+  try {
+    const res = await fetch('/api/theme');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.colors) {
+        return data;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+export async function savePublishedThemeApi(config: any): Promise<void> {
+  try {
+    await fetch('/api/theme', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+  } catch {}
+}
+

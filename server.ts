@@ -560,6 +560,42 @@ async function startServer() {
     res.json(db.siteContent);
   });
 
+  // Website Appearance & Festival Theme API
+  app.get('/api/theme', (_req, res) => {
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.theme) {
+          (db as any).theme = parsed.theme;
+        }
+      }
+    } catch {}
+    res.json((db as any).theme || {
+      activeThemeId: 'classic',
+      themeName: 'Classic Cotton Nest',
+      colors: {
+        primary: '#70252D',
+        secondary: '#8C3A44',
+        background: '#FAF7F2',
+        surface: '#FFFFFF',
+        text: '#2C2420',
+        textSecondary: '#6B5D55',
+        accent: '#C29E57',
+        header: '#FAF7F2',
+        footer: '#2C2420',
+        footerText: '#FAF7F2',
+      },
+      updatedAt: Date.now(),
+    });
+  });
+
+  app.post('/api/theme', (req, res) => {
+    (db as any).theme = req.body;
+    saveDatabase();
+    res.json({ success: true, theme: (db as any).theme });
+  });
+
   // Reset database back to default factory settings
   app.post('/api/reset', (_req, res) => {
     db = {
