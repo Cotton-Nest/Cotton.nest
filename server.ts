@@ -1,0 +1,601 @@
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { v2 as cloudinary } from 'cloudinary';
+import { getCloudinaryConfig } from './api/cloudinary-sign.ts';
+import { BEDSHEETS_CATALOG } from './src/data/products.ts';
+import { INITIAL_ORDERS } from './src/data/orders.ts';
+import { INITIAL_SITE_CONTENT } from './src/data/siteContent.ts';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Persistent Database Directory & File
+const DATA_DIR = path.join(__dirname, 'data');
+const DB_FILE = path.join(DATA_DIR, 'store_db.json');
+
+interface StoreDatabase {
+  products: any[];
+  orders: any[];
+  siteContent: any;
+}
+
+function initDatabase(): StoreDatabase {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.products)) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Error reading store_db.json, re-initializing defaults:', err);
+  }
+
+  // Seed default data
+  const initialDb: StoreDatabase = {
+    products: BEDSHEETS_CATALOG,
+    orders: INITIAL_ORDERS,
+    siteContent: INITIAL_SITE_CONTENT,
+  };
+
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf-8');
+  } catch (writeErr) {
+    console.error('Error writing initial store_db.json:', writeErr);
+  }
+
+  return initialDb;
+}
+
+let db = initDatabase();
+
+function saveDatabase(): void {
+  try {
+    const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
+    fs.writeFileSync(tempFile, JSON.stringify(db, null, 2), 'utf-8');
+    fs.renameSync(tempFile, DB_FILE);
+  } catch (err) {
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+    } catch (writeErr) {
+      console.error('Error persisting database:', writeErr);
+    }
+  }
+}
+
+async function startServer() {
+  const app = express();
+
+  // Support large base64 image uploads for custom photos and variants
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+
+  const IMAGES_DIR = path.join(__dirname, 'public', 'images');
+  if (!fs.existsSync(IMAGES_DIR)) {
+    fs.mkdirSync(IMAGES_DIR, { recursive: true });
+  }
+
+  // Serve uploaded and static images with no-cache revalidation so devices never get stuck on stale photos
+  app.use(
+    '/uploads',
+    express.static(UPLOADS_DIR, {
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      },
+    })
+  );
+  app.use(
+    '/images',
+    express.static(IMAGES_DIR, {
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      },
+    })
+  );
+  app.use('/images', express.static(path.join(__dirname, 'dist', 'images')));
+  app.use('/src/assets/images', express.static(IMAGES_DIR));
+  app.use('/src/assets/images', express.static(path.join(__dirname, 'src', 'assets', 'images')));
+
+  // Fast cross-device sync-check endpoint so phone/tablets know within seconds when PC made edits
+  app.get('/api/sync-check', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    const latestTimestamp = Math.max(...db.products.map((p) => p.updatedAt || 0), 0);
+    res.json({
+      timestamp: latestTimestamp,
+      productCount: db.products.length,
+      ordersCount: db.orders.length,
+    });
+  });
+
+  // Dedicated JPG Photo Endpoint: ALWAYS returns fresh JPEG with proper no-cache revalidation
+  app.get(['/photo/:id', '/photo/:id.jpg'], (req, res) => {
+    let id = req.params.id || '';
+    if (id.endsWith('.jpg')) {
+      id = id.slice(0, -4);
+    }
+
+    const filenamesToTry = [
+      id,
+      `${id}.jpg`,
+      `${id}.png`,
+      `${id}.jpeg`,
+    ];
+
+    const dirsToSearch = [
+      path.join(__dirname, 'public', 'images'),
+      path.join(__dirname, 'public', 'uploads'),
+      path.join(__dirname, 'src', 'assets', 'images'),
+    ];
+
+    for (const dir of dirsToSearch) {
+      for (const fn of filenamesToTry) {
+        const fullPath = path.join(dir, fn);
+        if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+          res.setHeader('Content-Type', fn.endsWith('.png') ? 'image/png' : 'image/jpeg');
+          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+          return res.sendFile(fullPath);
+        }
+      }
+    }
+
+    // Match by product ID in database or catalog
+    const product = db.products.find((p) => p.id === id);
+    if (product && product.image) {
+      const imgPath = product.image.replace(/^\/(?:src\/assets\/images|images|uploads)\//, '');
+      for (const dir of dirsToSearch) {
+        const fullPath = path.join(dir, imgPath);
+        if (fs.existsSync(fullPath)) {
+          res.setHeader('Content-Type', 'image/jpeg');
+          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+          return res.sendFile(fullPath);
+        }
+      }
+    }
+
+    // Fallback to first sheet
+    const defaultSheet = path.join(__dirname, 'public', 'images', 'exact_sheet1_pink_rose_1790997736396.jpg');
+    if (fs.existsSync(defaultSheet)) {
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      return res.sendFile(defaultSheet);
+    }
+
+    res.status(404).send('Photo not found');
+  });
+
+  // App configuration endpoint so client knows public URL
+  app.get('/api/config', (_req, res) => {
+    const publicUrl = process.env.APP_URL || '';
+    res.json({ appUrl: publicUrl });
+  });
+
+  function initCloudinary() {
+    return getCloudinaryConfig();
+  }
+
+  // Cloudinary Signature generation for secure signed direct uploads (GET and POST)
+  app.all('/api/cloudinary-sign', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    try {
+      const config = initCloudinary();
+
+      if (!config || !config.cloudName || !config.apiKey || !config.apiSecret) {
+        return res.status(503).json({
+          configured: false,
+          error: 'Cloudinary credentials are not configured on server.',
+          help: 'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET (or CLOUDINARY_URL) environment variables.',
+        });
+      }
+
+      const query = req.query || {};
+      const body = req.body || {};
+      const productId = (query.productId || body.productId || '').trim();
+      const explicitPublicId = (query.public_id || body.public_id || '').trim();
+
+      const timestamp = Math.round(new Date().getTime() / 1000);
+      const folder = 'cotton_nest/bedsheets';
+
+      const paramsToSign: Record<string, any> = {
+        folder,
+        timestamp,
+      };
+
+      let assignedPublicId: string | undefined;
+      if (explicitPublicId) {
+        assignedPublicId = explicitPublicId;
+        paramsToSign.public_id = assignedPublicId;
+      } else if (productId) {
+        const sanitizedId = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
+        assignedPublicId = `sheet_${sanitizedId}_${timestamp}`;
+        paramsToSign.public_id = assignedPublicId;
+      }
+
+      const signature = cloudinary.utils.api_sign_request(paramsToSign, config.apiSecret);
+
+      res.json({
+        configured: true,
+        timestamp,
+        signature,
+        apiKey: config.apiKey,
+        cloudName: config.cloudName,
+        folder,
+        public_id: assignedPublicId,
+      });
+    } catch (err: any) {
+      console.error('Failed to generate Cloudinary signature:', err);
+      res.status(500).json({ error: err.message || 'Failed to generate signature' });
+    }
+  });
+
+  // Dedicated image upload API with primary Cloudinary support
+  app.post('/api/upload', async (req, res) => {
+    try {
+      const { image, productId, public_id } = req.body || {};
+      if (!image || typeof image !== 'string') {
+        return res.status(400).json({ error: 'Image data is required' });
+      }
+
+      // If already a Cloudinary URL or remote HTTPS URL, return directly
+      if (image.startsWith('https://res.cloudinary.com/')) {
+        return res.json({ url: image, provider: 'cloudinary' });
+      }
+
+      // Upload to Cloudinary
+      const config = initCloudinary();
+      if (!config) {
+        return res.status(503).json({
+          configured: false,
+          error: 'Cloudinary credentials are not configured on server.',
+          help: 'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET (or CLOUDINARY_URL) in environment variables.',
+        });
+      }
+
+      const uploadOptions: any = {
+        folder: 'cotton_nest/bedsheets',
+        resource_type: 'image',
+        overwrite: true,
+        tags: ['cotton_nest', productId ? `product_${productId}` : 'general_sheet'],
+        transformation: [
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' }
+        ]
+      };
+
+      if (public_id) {
+        uploadOptions.public_id = public_id;
+      } else if (productId) {
+        const sanitized = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
+        uploadOptions.public_id = `sheet_${sanitized}_${Date.now()}`;
+      }
+
+      const result = await cloudinary.uploader.upload(image, uploadOptions);
+      return res.json({
+        url: result.secure_url,
+        public_id: result.public_id,
+        provider: 'cloudinary',
+        width: result.width,
+        height: result.height,
+        format: result.format,
+      });
+    } catch (err: any) {
+      console.error('Failed to process image upload to Cloudinary:', err);
+      res.status(500).json({ error: err.message || 'Failed to save image to Cloudinary' });
+    }
+  });
+
+  // Secure deletion endpoint for old Cloudinary images (keeps secret on server)
+  app.post('/api/cloudinary-delete', async (req, res) => {
+    try {
+      const { public_id } = req.body || {};
+      if (!public_id || typeof public_id !== 'string') {
+        return res.status(400).json({ error: 'public_id is required' });
+      }
+
+      // Security check: only allow deletion within store folders
+      if (!public_id.includes('cotton_nest') && !public_id.startsWith('sheet_')) {
+        return res.status(403).json({ error: 'Cannot delete assets outside store folder' });
+      }
+
+      const config = initCloudinary();
+      if (!config) {
+        return res.status(503).json({ error: 'Cloudinary not configured' });
+      }
+
+      const result = await cloudinary.uploader.destroy(public_id);
+      res.json({ success: true, result });
+    } catch (err: any) {
+      console.error('Failed to delete Cloudinary asset:', err);
+      res.status(500).json({ error: 'Failed to delete asset' });
+    }
+  });
+
+  /* ------------------- REST API ROUTES ------------------- */
+
+  // Products API
+  app.get('/api/products', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
+          db.products = parsed.products;
+        }
+      }
+    } catch {}
+    res.json(db.products);
+  });
+
+  app.post('/api/products', (req, res) => {
+    const newProduct = req.body;
+    if (!newProduct || !newProduct.name) {
+      return res.status(400).json({ error: 'Product name is required' });
+    }
+    if (!newProduct.id) {
+      newProduct.id = `sheet-${Date.now().toString(36)}`;
+    }
+    db.products.unshift(newProduct);
+    saveDatabase();
+    res.status(201).json(newProduct);
+  });
+
+  app.put('/api/products', (req, res) => {
+    if (Array.isArray(req.body)) {
+      const now = Date.now();
+      db.products = req.body.map((p: any, idx: number) => ({
+        ...p,
+        order: typeof p.order === 'number' ? p.order : idx,
+        updatedAt: p.updatedAt || now,
+      }));
+      saveDatabase();
+      return res.json(db.products);
+    }
+    res.status(400).json({ error: 'Invalid products payload' });
+  });
+
+  app.put('/api/products/:id', (req, res) => {
+    const { id } = req.params;
+    const updated = req.body;
+    const index = db.products.findIndex((p) => p.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    db.products[index] = { ...db.products[index], ...updated, updatedAt: Date.now() };
+    saveDatabase();
+    res.json(db.products[index]);
+  });
+
+  app.delete('/api/products/:id', (req, res) => {
+    const { id } = req.params;
+    const beforeCount = db.products.length;
+    db.products = db.products.filter((p) => p.id !== id);
+    if (db.products.length === beforeCount) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    saveDatabase();
+    res.json({ success: true, id });
+  });
+
+  // Orders API with User-Specific Filtering & Live Admin Sync
+  app.get('/api/orders', (req, res) => {
+    const { email, phone, userId, orderId } = req.query as Record<string, string | undefined>;
+
+    let result = db.orders;
+
+    // If specific order ID requested
+    if (orderId) {
+      result = result.filter(
+        (o) => o.id?.toLowerCase() === orderId.toLowerCase()
+      );
+      return res.json(result);
+    }
+
+    // If user identification filters provided, show ONLY that person's orders
+    if (email || phone || userId) {
+      const cleanEmail = email ? email.trim().toLowerCase() : '';
+      const cleanPhone = phone ? phone.replace(/[^0-9]/g, '') : '';
+      const cleanUserId = userId ? userId.trim() : '';
+
+      result = result.filter((o) => {
+        const oEmail = o.customerEmail ? o.customerEmail.trim().toLowerCase() : '';
+        const oPhone = o.customerPhone ? o.customerPhone.replace(/[^0-9]/g, '') : '';
+        const oUserId = o.userId ? o.userId.trim() : '';
+
+        const matchesEmail = cleanEmail && oEmail && oEmail === cleanEmail;
+        const matchesPhone = cleanPhone && oPhone && (oPhone.endsWith(cleanPhone) || cleanPhone.endsWith(oPhone));
+        const matchesUserId = cleanUserId && oUserId && oUserId === cleanUserId;
+
+        return matchesEmail || matchesPhone || matchesUserId;
+      });
+    }
+
+    res.json(result);
+  });
+
+  app.post('/api/orders', (req, res) => {
+    const newOrder = req.body;
+    if (!newOrder || !newOrder.id) {
+      return res.status(400).json({ error: 'Invalid order data' });
+    }
+
+    if (!newOrder.timeline || !Array.isArray(newOrder.timeline) || newOrder.timeline.length === 0) {
+      newOrder.timeline = [
+        {
+          status: newOrder.status || 'pending',
+          timestamp: new Date().toISOString(),
+          title: 'Order Placed',
+          description: 'Order received at Cotton Nest Atelier, Sector 46 Gurgaon.'
+        }
+      ];
+    }
+
+    if (!newOrder.trackingNumber) {
+      newOrder.trackingNumber = `CN-TRK-${Math.floor(100000 + Math.random() * 900000)}`;
+    }
+
+    db.orders.unshift(newOrder);
+    saveDatabase();
+    res.status(201).json(newOrder);
+  });
+
+  app.put('/api/orders', (req, res) => {
+    if (Array.isArray(req.body)) {
+      db.orders = req.body;
+      saveDatabase();
+      return res.json(db.orders);
+    }
+    res.status(400).json({ error: 'Invalid orders payload' });
+  });
+
+  app.put('/api/orders/:id', (req, res) => {
+    const { id } = req.params;
+    const updated = req.body;
+    const index = db.orders.findIndex((o) => o.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const previousOrder = db.orders[index];
+    const newStatus = updated.status;
+
+    // If status has changed, automatically append to timeline if not already there
+    let updatedTimeline = updated.timeline || previousOrder.timeline || [];
+    if (newStatus && newStatus !== previousOrder.status) {
+      const titles: Record<string, { title: string; description: string }> = {
+        pending: {
+          title: 'Order Received',
+          description: 'Order queued for verification.'
+        },
+        confirmed: {
+          title: 'Verified & Inspected',
+          description: 'Inspected for thread count and quality at Sector 46 Gurgaon Atelier.'
+        },
+        dispatched: {
+          title: 'Dispatched & In Transit',
+          description: 'Handed over to express courier. Out for delivery.'
+        },
+        delivered: {
+          title: 'Delivered Successfully',
+          description: 'Package delivered to the customer.'
+        },
+        cancelled: {
+          title: 'Order Cancelled',
+          description: 'This order was cancelled.'
+        }
+      };
+
+      const stepInfo = titles[newStatus] || {
+        title: `Status: ${newStatus}`,
+        description: 'Order status updated by Cotton Nest Atelier.'
+      };
+
+      // Only append if last step is not already this status
+      const lastStep = updatedTimeline[updatedTimeline.length - 1];
+      if (!lastStep || lastStep.status !== newStatus) {
+        updatedTimeline = [
+          ...updatedTimeline,
+          {
+            status: newStatus,
+            timestamp: new Date().toISOString(),
+            title: stepInfo.title,
+            description: stepInfo.description
+          }
+        ];
+      }
+    }
+
+    db.orders[index] = {
+      ...previousOrder,
+      ...updated,
+      timeline: updatedTimeline
+    };
+
+    saveDatabase();
+    res.json(db.orders[index]);
+  });
+
+  app.delete('/api/orders/:id', (req, res) => {
+    const { id } = req.params;
+    db.orders = db.orders.filter((o) => o.id !== id);
+    saveDatabase();
+    res.json({ success: true, id });
+  });
+
+  // Site Content API
+  app.get('/api/content', (_req, res) => {
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.siteContent) {
+          db.siteContent = parsed.siteContent;
+        }
+      }
+    } catch {}
+    res.json(db.siteContent);
+  });
+
+  app.put('/api/content', (req, res) => {
+    db.siteContent = req.body;
+    saveDatabase();
+    res.json(db.siteContent);
+  });
+
+  // Reset database back to default factory settings
+  app.post('/api/reset', (_req, res) => {
+    db = {
+      products: BEDSHEETS_CATALOG,
+      orders: INITIAL_ORDERS,
+      siteContent: INITIAL_SITE_CONTENT,
+    };
+    saveDatabase();
+    res.json({ success: true, message: 'Factory reset completed' });
+  });
+
+  /* ------------------- FRONTEND / VITE INTEGRATION ------------------- */
+
+  if (!isProduction) {
+    // Development mode: attach Vite middleware
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    // Production mode: serve built assets from dist
+    const distPath = path.join(__dirname, 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Cotton Nest Server listening on port ${PORT}`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});

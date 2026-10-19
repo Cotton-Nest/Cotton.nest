@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Products catalog: readable by all visitors, writable by store management
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Custom permanent photos: readable by all visitors, writable by store management
+    match /custom_images/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Orders: readable by store management, creatable/updatable by checkout
+    match /orders/{orderId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Customer Reviews: readable by all visitors, creatable by customers
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Connection testing
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // Store branding and announcements
+    match /site_content/{contentId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

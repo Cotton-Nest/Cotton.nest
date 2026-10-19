@@ -1,0 +1,8 @@
+{
+  "name": "Remix Cotton Nest — Luxury Bed Linens",
+  "description": "Premium 100% pure cotton bedsheets crafted for everyday comfort and modern luxury in Gurgaon, Haryana.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
