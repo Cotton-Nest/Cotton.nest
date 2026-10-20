@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   BedsheetProduct,
   BedsheetVariant,
-  COMPANY_DETAILS
+  COMPANY_DETAILS,
+  BEDSHEETS_CATALOG
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from '../data/siteContent';
@@ -55,7 +56,10 @@ import {
   Cloud,
   Loader2,
   HelpCircle,
-  ExternalLink
+  ExternalLink,
+  GripVertical,
+  MoveVertical,
+  ArrowUpDown
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -104,6 +108,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'inStock' | 'outOfStock'>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Drag and drop card reordering state
+  const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
+  const [dragOverProductId, setDragOverProductId] = useState<string | null>(null);
+
+  // Sync with upstream products updates
+  useEffect(() => {
+    if (products && products.length > 0) {
+      setEditableProducts(products);
+    }
+  }, [products]);
 
   // Expanded variant managers for specific product IDs
   const [expandedVariants, setExpandedVariants] = useState<Record<string, boolean>>({});
@@ -368,6 +383,106 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     onUpdateProducts(updated);
     removeProduct(productId).catch(() => {});
     showToast('Bedsheet removed from store.');
+  };
+
+  /* ---------------- DRAG & DROP CARD REORDERING ---------------- */
+  const handleDragStart = (e: React.DragEvent, productId: string) => {
+    setDraggedProductId(productId);
+    e.dataTransfer.setData('text/plain', productId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, productId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverProductId !== productId) {
+      setDragOverProductId(productId);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetProductId: string) => {
+    e.preventDefault();
+    const sourceProductId = e.dataTransfer.getData('text/plain') || draggedProductId;
+    setDraggedProductId(null);
+    setDragOverProductId(null);
+
+    if (!sourceProductId || sourceProductId === targetProductId) return;
+
+    const fromIdx = editableProducts.findIndex((p) => p.id === sourceProductId);
+    const toIdx = editableProducts.findIndex((p) => p.id === targetProductId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const reordered = [...editableProducts];
+    const [movedProduct] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, movedProduct);
+
+    // Re-index order property
+    const updatedWithOrder = reordered.map((p, idx) => ({
+      ...p,
+      order: idx,
+      updatedAt: Date.now(),
+    }));
+
+    setEditableProducts(updatedWithOrder);
+    persistProducts(updatedWithOrder, true);
+    onUpdateProducts(updatedWithOrder);
+    showToast(`Moved "${movedProduct.name}" to position #${toIdx + 1}! Card order updated.`);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedProductId(null);
+    setDragOverProductId(null);
+  };
+
+  // 1-Click Move Up / Move Down buttons for accessibility & mobile touch
+  const handleMoveCard = (productId: string, direction: 'up' | 'down') => {
+    const fromIdx = editableProducts.findIndex((p) => p.id === productId);
+    if (fromIdx === -1) return;
+    const toIdx = direction === 'up' ? fromIdx - 1 : fromIdx + 1;
+    if (toIdx < 0 || toIdx >= editableProducts.length) return;
+
+    const reordered = [...editableProducts];
+    const [movedProduct] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, movedProduct);
+
+    const updatedWithOrder = reordered.map((p, idx) => ({
+      ...p,
+      order: idx,
+      updatedAt: Date.now(),
+    }));
+
+    setEditableProducts(updatedWithOrder);
+    persistProducts(updatedWithOrder, true);
+    onUpdateProducts(updatedWithOrder);
+    showToast(`Moved "${movedProduct.name}" to position #${toIdx + 1}!`);
+  };
+
+  // Reset to default catalogue sequence
+  const handleResetCardOrder = () => {
+    if (!window.confirm("Reset all bedsheet cards back to the default catalogue order?")) return;
+    
+    const defaultIds = BEDSHEETS_CATALOG.map((p) => p.id);
+    const sorted = [...editableProducts].sort((a, b) => {
+      const idxA = defaultIds.indexOf(a.id);
+      const idxB = defaultIds.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    }).map((p, idx) => ({
+      ...p,
+      order: idx,
+      updatedAt: Date.now(),
+    }));
+
+    setEditableProducts(sorted);
+    persistProducts(sorted, true);
+    onUpdateProducts(sorted);
+    showToast('Reset cards to default sequence!');
   };
 
   const handleReplaceImage = async (productId: string, file?: File) => {
@@ -1197,6 +1312,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             </section>
 
+            {/* Card Order & Sequence Management Banner */}
+            <section className="bg-[#FAF7EE] border border-[#DEC89B] rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="p-2.5 bg-white rounded-xl border border-[#DEC89B] text-[#8C2E46] shrink-0 shadow-2xs">
+                  <GripVertical className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-bold text-[#2C2420] flex items-center gap-1.5">
+                      <span>Card Ordering &amp; Display Sequence</span>
+                      <ArrowUpDown className="w-3.5 h-3.5 text-[#C29E57]" />
+                    </h3>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                      Drag cards to reorder
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#7A6458] mt-1">
+                    Click &amp; drag any card using its <span className="font-semibold text-[#8C2E46] bg-white px-1 py-0.5 rounded border border-[#DEC89B]">⋮⋮ Drag</span> handle to change its position.
+                    Cards <strong className="text-[#8C2E46]">#1, #2, and #3</strong> automatically appear as the featured spotlight bedsheets on your live homepage!
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-stretch sm:self-auto shrink-0 justify-end">
+                <button
+                  type="button"
+                  onClick={handleResetCardOrder}
+                  className="px-3 py-1.5 bg-white hover:bg-[#F4EFE6] border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Reset card sequence back to default catalogue order"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-[#A8988D]" />
+                  <span>Reset to Default Order</span>
+                </button>
+              </div>
+            </section>
+
             {/* Product Cards List */}
             <section className="space-y-4">
               {filteredProducts.map((product, idx) => {
@@ -1211,13 +1363,92 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 const isSpecsOpen = expandedSpecs[product.id] || false;
                 const draft = variantDrafts[product.id] || { name: '', colorHex: '#C29E57', image: '' };
 
+                const masterIdx = editableProducts.findIndex((p) => p.id === product.id);
+                const currentPosition = (masterIdx !== -1 ? masterIdx : idx) + 1;
+                const isFirst = masterIdx === 0;
+                const isLast = masterIdx === editableProducts.length - 1;
+                const isTopShowcase = masterIdx >= 0 && masterIdx < 3;
+                const isBeingDragged = draggedProductId === product.id;
+                const isDragOver = dragOverProductId === product.id && !isBeingDragged;
+
                 return (
                   <div
                     key={product.id}
-                    className={`bg-[#FAF7F2] rounded-2xl border p-4 sm:p-5 transition-all shadow-xs space-y-4 ${
-                      product.inStock ? 'border-[#EAE2D5]' : 'border-amber-300 bg-amber-50/20'
+                    onDragOver={(e) => handleDragOver(e, product.id)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, product.id)}
+                    className={`bg-[#FAF7F2] rounded-2xl border p-4 sm:p-5 transition-all shadow-xs space-y-4 relative ${
+                      isBeingDragged
+                        ? 'opacity-40 border-dashed border-[#8C2E46] ring-2 ring-[#8C2E46]/30 bg-white scale-[0.99]'
+                        : isDragOver
+                        ? 'border-[#C29E57] ring-2 ring-[#C29E57]/50 bg-[#FAF7EE] shadow-md -translate-y-0.5'
+                        : product.inStock
+                        ? 'border-[#EAE2D5]'
+                        : 'border-amber-300 bg-amber-50/20'
                     }`}
                   >
+                    {/* Visual Drop Target Indicator */}
+                    {isDragOver && (
+                      <div className="absolute -top-3.5 left-4 right-4 sm:left-8 sm:right-8 bg-[#8C2E46] text-white text-[11px] font-bold py-1 px-3 rounded-full shadow-md flex items-center justify-center gap-1.5 z-20 animate-pulse pointer-events-none">
+                        <MoveVertical className="w-3.5 h-3.5" />
+                        <span>Drop here to place bedsheet at position #{currentPosition}</span>
+                      </div>
+                    )}
+
+                    {/* Card Drag & Sequence Header Bar */}
+                    <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D5]/70 gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Draggable Grip Handle */}
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, product.id)}
+                          onDragEnd={handleDragEnd}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] hover:border-[#8C2E46] rounded-xl text-xs font-semibold text-[#2C2420] cursor-grab active:cursor-grabbing transition-all shadow-2xs select-none group"
+                          title="Click and drag to rearrange this bedsheet card order"
+                        >
+                          <GripVertical className="w-4 h-4 text-[#A8988D] group-hover:text-[#8C2E46] transition-colors" />
+                          <span className="font-bold text-[#8C2E46]">#{currentPosition}</span>
+                          <span className="text-[10px] text-[#7A6458] hidden sm:inline">Drag to reorder</span>
+                        </div>
+
+                        {/* Top Spotlight badge */}
+                        {isTopShowcase ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#FAF7EE] text-[#A8823B] border border-[#DEC89B] shadow-2xs">
+                            <Sparkles className="w-3 h-3 text-[#C29E57]" />
+                            <span>⭐ Home Spotlight #{currentPosition}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-[#7A6458] hidden sm:inline font-medium">
+                            Catalogue Position #{currentPosition}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 1-Click Move Up / Move Down buttons for mobile and touch accessibility */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={isFirst}
+                          onClick={() => handleMoveCard(product.id, 'up')}
+                          className="p-1.5 bg-white hover:bg-[#FAF7F2] disabled:opacity-25 disabled:cursor-not-allowed border border-[#EAE2D5] rounded-lg text-[#2C2420] transition-colors cursor-pointer"
+                          title={isFirst ? 'Already first in order' : `Move up to position #${currentPosition - 1}`}
+                          aria-label="Move card up"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isLast}
+                          onClick={() => handleMoveCard(product.id, 'down')}
+                          className="p-1.5 bg-white hover:bg-[#FAF7F2] disabled:opacity-25 disabled:cursor-not-allowed border border-[#EAE2D5] rounded-lg text-[#2C2420] transition-colors cursor-pointer"
+                          title={isLast ? 'Already last in order' : `Move down to position #${currentPosition + 1}`}
+                          aria-label="Move card down"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
                       
                       {/* Photo Column */}
@@ -1230,8 +1461,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             onError={(e) => handleImageFallback(e, product.id)}
                             className="w-full h-full object-cover object-center"
                           />
-                          <span className="absolute top-1 left-1 bg-[#2C2420]/80 text-white text-[9px] px-1 rounded">
-                            #{idx + 1}
+                          <span className="absolute top-1 left-1 bg-[#2C2420]/80 text-white text-[9px] px-1 rounded font-bold">
+                            #{currentPosition}
                           </span>
                         </div>
 
