@@ -25,7 +25,19 @@ import { AuthModal } from './components/AuthModal';
 import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from './data/siteContent';
-import { getProducts, saveAllProducts, getOrders, getSiteContent, saveSiteContentApi, uploadImageApi } from './services/api';
+import {
+  getProducts,
+  saveAllProducts,
+  updateSingleProduct,
+  getOrders,
+  getSiteContent,
+  saveSiteContentApi,
+  uploadImageApi,
+  getPublishedThemeApi,
+  getReviewsApi,
+  saveReviewApi,
+  helpfulReviewApi,
+} from './services/api';
 import {
   savePersistentImage,
   getAllPersistentImages,
@@ -39,21 +51,6 @@ import {
 import { ReviewsSection } from './components/ReviewsSection';
 import { WriteReviewModal } from './components/WriteReviewModal';
 import { ProductReview, INITIAL_REVIEWS } from './data/reviews';
-import {
-  saveImageToFirestore,
-  getAllImagesFromFirestore,
-  getProductsFromFirestore,
-  saveAllProductsToFirestore,
-  subscribeToProductsFromFirestore,
-  subscribeToImagesFromFirestore,
-  subscribeToSiteContentFromFirestore,
-  subscribeToOrdersFromFirestore,
-  getReviewsFromFirestore,
-  saveReviewToFirestore,
-  subscribeToReviewsFromFirestore,
-  getThemeFromFirestore,
-  subscribeToThemeFromFirestore,
-} from './firebase';
 import {
   WebsiteThemeConfig,
   CLASSIC_COTTON_NEST_COLORS,
@@ -126,12 +123,10 @@ export default function App() {
     applyThemeToDom(themeConfig.colors);
   }, []);
 
-  // Fetch published theme from Firestore on initial load + attach real-time subscription
+  // Fetch published theme from server API on initial load
   useEffect(() => {
     let isMounted = true;
-
-    // 1. Fetch from Firestore initially
-    getThemeFromFirestore()
+    getPublishedThemeApi()
       .then((remoteTheme) => {
         if (isMounted && remoteTheme && remoteTheme.colors && isValidHex(remoteTheme.colors.primary)) {
           setThemeConfig(remoteTheme);
@@ -141,18 +136,8 @@ export default function App() {
       })
       .catch(() => {});
 
-    // 2. Real-time subscription from Firestore
-    const unsubscribe = subscribeToThemeFromFirestore((liveTheme) => {
-      if (isMounted && liveTheme && liveTheme.colors && isValidHex(liveTheme.colors.primary)) {
-        setThemeConfig(liveTheme);
-        saveStoredPublishedTheme(liveTheme);
-        applyThemeToDom(liveTheme.colors);
-      }
-    });
-
     return () => {
       isMounted = false;
-      unsubscribe();
     };
   }, []);
 
@@ -263,7 +248,11 @@ export default function App() {
     }
   });
 
-  // Load products, orders, content, and persistent images on mount & sync periodically
+  // Reference for last server sync timestamp
+  const lastServerTimestampRef = useRef<number>(0);
+  const lastThemeTimestampRef = useRef<number>(0);
+
+  // Load products, orders, content, reviews, and theme on mount & sync periodically
   useEffect(() => {
     let isMounted = true;
 
@@ -287,135 +276,98 @@ export default function App() {
       }
     }).catch(() => {});
 
-    // 2. REAL-TIME FIREBASE FIRESTORE LISTENERS
-    // Instantly syncs any Name, Detail, or Photo update made on PC across all devices (mobile and desktop)
-    const unsubProducts = subscribeToProductsFromFirestore((cloudProducts) => {
-      if (!isMounted || isAdminOpenRef.current || !cloudProducts || cloudProducts.length === 0) return;
-      if (Date.now() - lastAdminSaveRef.current < 5000) return;
-
-      const orderMap = new Map(BEDSHEETS_CATALOG.map((p, idx) => [p.id, idx]));
-      const formatted = cloudProducts.map((p) => ({
-        ...p,
-        image: resolveBedsheetImage(p.image, p.id, p.updatedAt),
-      }));
-
-      formatted.sort((a, b) => {
-        const orderA = typeof (a as any).order === 'number' ? (a as any).order : (orderMap.get(a.id) ?? 999);
-        const orderB = typeof (b as any).order === 'number' ? (b as any).order : (orderMap.get(b.id) ?? 999);
-        return orderA - orderB;
-      });
-
-      setProducts(formatted);
-
-      // Keep customImages state in sync with latest photos
-      const newCustomMap: Record<string, string> = {};
-      formatted.forEach((p) => {
-        if (p.image) newCustomMap[p.id] = p.image;
-      });
-      setCustomImages((prev) => ({ ...prev, ...newCustomMap }));
-
-      // Keep local client cache updated
-      const cloudTime = Math.max(...cloudProducts.map((p) => p.updatedAt || 0), Date.now());
-      savePersistentProducts(formatted, cloudTime).catch(() => {});
-      try {
-        localStorage.setItem('cotton_nest_products', JSON.stringify(formatted));
-        localStorage.setItem('cotton_nest_products_updated_at', String(cloudTime));
-      } catch {}
-    });
-
-    const unsubImages = subscribeToImagesFromFirestore((cloudImgs) => {
-      if (!isMounted || !cloudImgs || Object.keys(cloudImgs).length === 0) return;
-      setCustomImages((prev) => ({ ...cloudImgs, ...prev }));
-    });
-
-    const unsubContent = subscribeToSiteContentFromFirestore((cloudContent) => {
-      if (!isMounted || !cloudContent || isAdminOpenRef.current) return;
-      setSiteContent(cloudContent);
-      savePersistentContent(cloudContent).catch(() => {});
-    });
-
-    const unsubOrders = subscribeToOrdersFromFirestore((cloudOrders) => {
-      if (!isMounted || !cloudOrders) return;
-      setOrders(cloudOrders);
-    });
-
-    const unsubReviews = subscribeToReviewsFromFirestore((cloudReviews) => {
-      if (!isMounted || !cloudReviews || cloudReviews.length === 0) return;
-      setReviews(cloudReviews);
-      try {
-        localStorage.setItem('cotton_nest_reviews', JSON.stringify(cloudReviews));
-      } catch {}
-    });
-
-    // 3. Complete authoritative load giving primary preference to Firebase Firestore
+    // 2. Authoritative load from Backend Server File (store_db.json)
     const loadDataFromServer = async () => {
       try {
-        const [cloudProducts, cloudImgs, serverProducts, serverOrders, serverContent, cloudReviews] = await Promise.all([
-          getProductsFromFirestore().catch(() => null),
-          getAllImagesFromFirestore().catch(() => ({} as Record<string, string>)),
+        const [serverProducts, serverOrders, serverContent, serverReviews, serverTheme] = await Promise.all([
           fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' })
             .then((r) => (r.ok ? r.json() : null))
             .catch(() => null),
           getOrders().catch(() => null),
           getSiteContent().catch(() => null),
-          getReviewsFromFirestore().catch(() => null),
+          getReviewsApi().catch(() => null),
+          getPublishedThemeApi().catch(() => null),
         ]);
 
         if (isMounted) {
-          if (cloudReviews && cloudReviews.length > 0) {
-            setReviews(cloudReviews);
+          if (serverReviews && Array.isArray(serverReviews) && serverReviews.length > 0) {
+            setReviews(serverReviews);
           }
 
-          const serverTime = serverProducts && serverProducts.length > 0
-            ? Math.max(...serverProducts.map((p: any) => p.updatedAt || 0), 0)
-            : 0;
-          const cloudTime = cloudProducts && cloudProducts.length > 0
-            ? Math.max(...cloudProducts.map((p: any) => p.updatedAt || 0), 0)
-            : 0;
-
-          // Primary preference strictly to Firebase Firestore Cloud Database!
-          const authoritative = (cloudProducts && cloudProducts.length > 0)
-            ? cloudProducts
-            : (serverProducts && serverProducts.length > 0 ? serverProducts : null);
-
-          if (authoritative && authoritative.length > 0) {
+          if (serverProducts && Array.isArray(serverProducts) && serverProducts.length > 0) {
+            // Sort by order field
             const orderMap = new Map(BEDSHEETS_CATALOG.map((p, idx) => [p.id, idx]));
-            authoritative.sort((a: any, b: any) => {
+            const sorted = [...serverProducts].sort((a: any, b: any) => {
               const orderA = typeof a.order === 'number' ? a.order : (orderMap.get(a.id) ?? 999);
               const orderB = typeof b.order === 'number' ? b.order : (orderMap.get(b.id) ?? 999);
               return orderA - orderB;
             });
 
-            const mergedProducts = authoritative.map((p: any) => {
-              const photo = p.image || cloudImgs[p.id];
-              return { ...p, image: resolveBedsheetImage(photo, p.id, p.updatedAt) };
-            });
+            const mergedProducts = sorted.map((p: any) => ({
+              ...p,
+              image: resolveBedsheetImage(p.image, p.id, p.updatedAt),
+            }));
 
-            if (!isAdminOpenRef.current && Date.now() - lastAdminSaveRef.current > 5000) {
+            const serverTime = Math.max(...mergedProducts.map((p) => p.updatedAt || 0), Date.now());
+            lastServerTimestampRef.current = serverTime;
+
+            if (!isAdminOpenRef.current || Date.now() - lastAdminSaveRef.current > 5000) {
               setProducts(mergedProducts);
-              const newCustomMap: Record<string, string> = {};
-              mergedProducts.forEach((p: any) => {
-                if (p.image) newCustomMap[p.id] = p.image;
-              });
-              setCustomImages(newCustomMap);
+              savePersistentProducts(mergedProducts, serverTime).catch(() => {});
+              try {
+                localStorage.setItem('cotton_nest_products', JSON.stringify(mergedProducts));
+                localStorage.setItem('cotton_nest_products_updated_at', String(serverTime));
+              } catch {}
             }
           }
 
           if (serverOrders) {
             setOrders(serverOrders);
           }
-          if (serverContent && (!isAdminOpenRef.current && Date.now() - lastAdminSaveRef.current > 5000)) {
+
+          if (serverContent && (!isAdminOpenRef.current || Date.now() - lastAdminSaveRef.current > 5000)) {
             setSiteContent(serverContent);
+          }
+
+          if (serverTheme && serverTheme.colors && isValidHex(serverTheme.colors.primary)) {
+            setThemeConfig(serverTheme);
+            saveStoredPublishedTheme(serverTheme);
+            applyThemeToDom(serverTheme.colors);
+            lastThemeTimestampRef.current = serverTheme.updatedAt || 0;
           }
         }
       } catch (err) {
-        console.warn('Initial server sync failed:', err);
+        console.warn('Server sync failed:', err);
       }
     };
 
     loadDataFromServer();
 
-    // When returning to tab or opening on phone, refresh data cleanly
+    // 3. Fast Cross-Device Sync Polling (every 4 seconds)
+    // Lets mobile phones and other browsers instantly reflect any new bedsheet added on PC!
+    const syncInterval = setInterval(async () => {
+      if (!isMounted || isAdminOpenRef.current) return;
+      if (Date.now() - lastAdminSaveRef.current < 4000) return;
+
+      try {
+        const res = await fetch(`/api/sync-check?t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const syncInfo = await res.json();
+          const shouldUpdate =
+            syncInfo.productCount !== productsRef.current.length ||
+            (syncInfo.timestamp && syncInfo.timestamp > lastServerTimestampRef.current) ||
+            (syncInfo.themeUpdatedAt && syncInfo.themeUpdatedAt > lastThemeTimestampRef.current);
+
+          if (shouldUpdate) {
+            loadDataFromServer();
+          }
+        }
+      } catch {
+        // Network hiccups silently ignored
+      }
+    }, 4000);
+
+    // When returning to tab or switching apps on mobile, refresh data
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && isMounted && !isAdminOpenRef.current) {
         loadDataFromServer();
@@ -426,11 +378,7 @@ export default function App() {
 
     return () => {
       isMounted = false;
-      unsubProducts();
-      unsubImages();
-      unsubContent();
-      unsubOrders();
-      unsubReviews();
+      clearInterval(syncInterval);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
@@ -571,9 +519,9 @@ export default function App() {
       localStorage.setItem('cotton_nest_reviews', JSON.stringify([newReview, ...reviews]));
     } catch {}
     try {
-      await saveReviewToFirestore(newReview);
+      await saveReviewApi(newReview);
     } catch (err) {
-      console.warn('Failed to save review to Firestore:', err);
+      console.warn('Failed to save review to server:', err);
     }
   };
 
@@ -582,7 +530,7 @@ export default function App() {
       prev.map((r) => {
         if (r.id === reviewId) {
           const updated = { ...r, helpfulCount: (r.helpfulCount || 0) + 1 };
-          saveReviewToFirestore(updated).catch(() => {});
+          helpfulReviewApi(reviewId).catch(() => {});
           return updated;
         }
         return r;
@@ -628,13 +576,12 @@ export default function App() {
     }
   };
 
-  // Save custom images to Google Cloud Firestore, IndexedDB & local storage so photos NEVER reset!
+  // Save custom images to Cloudinary, server store, IndexedDB & local storage so photos NEVER reset!
   const handleUploadImage = async (productId: string, fileOrDataUrl: string | File) => {
     try {
       const finalUrl = await uploadImageApi(fileOrDataUrl, productId);
 
-      // 1. Permanently persist to Google Cloud Firestore & IndexedDB
-      await saveImageToFirestore(productId, finalUrl);
+      // 1. Permanently persist to IndexedDB
       await savePersistentImage(productId, finalUrl);
 
       // 2. Update state and attempt localStorage cache
@@ -648,7 +595,9 @@ export default function App() {
         return updated;
       });
 
-      // 3. Update products locally without rewriting every other product in the database
+      // 3. Update product on server and locally
+      await updateSingleProduct(productId, { image: finalUrl });
+
       setProducts((prev) => {
         const updated = prev.map((p) => (p.id === productId ? { ...p, image: finalUrl, updatedAt: Date.now() } : p));
         savePersistentProducts(updated, Date.now()).catch(() => {});

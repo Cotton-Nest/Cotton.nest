@@ -7,6 +7,7 @@ import { getCloudinaryConfig } from './api/cloudinary-sign.ts';
 import { BEDSHEETS_CATALOG } from './src/data/products.ts';
 import { INITIAL_ORDERS } from './src/data/orders.ts';
 import { INITIAL_SITE_CONTENT } from './src/data/siteContent.ts';
+import { INITIAL_REVIEWS } from './src/data/reviews.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,8 @@ interface StoreDatabase {
   products: any[];
   orders: any[];
   siteContent: any;
+  theme?: any;
+  reviews?: any[];
 }
 
 function initDatabase(): StoreDatabase {
@@ -34,6 +37,9 @@ function initDatabase(): StoreDatabase {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.products)) {
+        if (!parsed.reviews || !Array.isArray(parsed.reviews)) {
+          parsed.reviews = INITIAL_REVIEWS;
+        }
         return parsed;
       }
     }
@@ -46,6 +52,7 @@ function initDatabase(): StoreDatabase {
     products: BEDSHEETS_CATALOG,
     orders: INITIAL_ORDERS,
     siteContent: INITIAL_SITE_CONTENT,
+    reviews: INITIAL_REVIEWS,
   };
 
   try {
@@ -116,11 +123,16 @@ async function startServer() {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    const latestTimestamp = Math.max(...db.products.map((p) => p.updatedAt || 0), 0);
+    const latestTimestamp = Math.max(
+      ...db.products.map((p) => p.updatedAt || 0),
+      (db as any).theme?.updatedAt || 0,
+      0
+    );
     res.json({
       timestamp: latestTimestamp,
       productCount: db.products.length,
       ordersCount: db.orders.length,
+      themeUpdatedAt: (db as any).theme?.updatedAt || 0,
     });
   });
 
@@ -594,6 +606,54 @@ async function startServer() {
     (db as any).theme = req.body;
     saveDatabase();
     res.json({ success: true, theme: (db as any).theme });
+  });
+
+  // Customer Reviews API
+  app.get('/api/reviews', (_req, res) => {
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.reviews)) {
+          db.reviews = parsed.reviews;
+        }
+      }
+    } catch {}
+    res.json(db.reviews || INITIAL_REVIEWS);
+  });
+
+  app.post('/api/reviews', (req, res) => {
+    const review = req.body;
+    if (!review || !review.customerName) {
+      return res.status(400).json({ error: 'Customer name is required' });
+    }
+    if (!review.id) {
+      review.id = `rev-${Date.now()}`;
+    }
+    if (!db.reviews) db.reviews = [...INITIAL_REVIEWS];
+    db.reviews.unshift(review);
+    saveDatabase();
+    res.status(201).json(review);
+  });
+
+  app.post('/api/reviews/:id/helpful', (req, res) => {
+    const { id } = req.params;
+    if (!db.reviews) db.reviews = [...INITIAL_REVIEWS];
+    const target = db.reviews.find((r) => r.id === id);
+    if (target) {
+      target.helpfulCount = (target.helpfulCount || 0) + 1;
+      saveDatabase();
+      return res.json(target);
+    }
+    res.status(404).json({ error: 'Review not found' });
+  });
+
+  app.delete('/api/reviews/:id', (req, res) => {
+    const { id } = req.params;
+    if (!db.reviews) db.reviews = [...INITIAL_REVIEWS];
+    db.reviews = db.reviews.filter((r) => r.id !== id);
+    saveDatabase();
+    res.json({ success: true, id });
   });
 
   // Reset database back to default factory settings

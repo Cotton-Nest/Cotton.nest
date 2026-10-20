@@ -40,7 +40,6 @@ import {
   saveStoredCustomPreset,
   deleteStoredCustomPreset,
 } from '../data/theme';
-import { saveThemeToFirestore } from '../firebase';
 import { savePublishedThemeApi } from '../services/api';
 
 interface ThemeCustomizerProps {
@@ -301,42 +300,28 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
     };
 
     try {
-      // 1. Save to Firestore
-      await saveThemeToFirestore(newThemeConfig);
-
-      // 2. Also save to server API / local store
+      // 1. Save to server API (persisted to store_db.json file)
       await savePublishedThemeApi(newThemeConfig);
 
-      // 3. Clear draft since it is now published
+      // 2. Clear draft since it is now published
       clearStoredDraftTheme();
 
-      // 4. Apply permanently to DOM
+      // 3. Apply permanently to DOM
       applyThemeToDom(newThemeConfig.colors);
 
-      // 5. Notify parent app
+      // 4. Notify parent app
       onThemePublished(newThemeConfig);
 
       setStatusMessage({
         type: 'success',
-        text: `Theme "${newThemeConfig.themeName}" published successfully to Google Cloud Firestore! All visitors across phones, tablets, and desktops will now see this theme.`,
+        text: `Theme "${newThemeConfig.themeName}" published successfully! All visitors across phones, tablets, and desktops will now see this theme.`,
       });
     } catch (err: any) {
-      console.error('Failed to publish theme to Firestore:', err);
-      // Fallback: still save locally
-      try {
-        await savePublishedThemeApi(newThemeConfig);
-        onThemePublished(newThemeConfig);
-        applyThemeToDom(newThemeConfig.colors);
-        setStatusMessage({
-          type: 'info',
-          text: `Theme saved locally and synchronized with server. Firestore sync notice: ${err?.message || 'Will sync when connection stabilizes'}.`,
-        });
-      } catch {
-        setStatusMessage({
-          type: 'error',
-          text: `Failed to publish theme: ${err?.message || 'Database error'}. Please check your connection and try again.`,
-        });
-      }
+      console.error('Failed to publish theme:', err);
+      setStatusMessage({
+        type: 'error',
+        text: `Failed to publish theme: ${err?.message || 'Server error'}. Please try again.`,
+      });
     } finally {
       setIsPublishing(false);
     }
@@ -378,7 +363,6 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
 
     setIsPublishing(true);
     try {
-      await saveThemeToFirestore(originalConfig);
       await savePublishedThemeApi(originalConfig);
       clearStoredDraftTheme();
 

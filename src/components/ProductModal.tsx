@@ -3,7 +3,7 @@ import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, Ma
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
-import { saveProductDetailsToFirestore } from '../services/firebaseStore';
+import { updateSingleProduct } from '../services/api';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from '../services/cloudinary';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
 
@@ -109,7 +109,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         updatedAt: Date.now(),
       };
 
-      await saveProductDetailsToFirestore(product.id, updatedData);
+      await updateSingleProduct(product.id, updatedData);
 
       const mergedProduct: BedsheetProduct = {
         ...product,
@@ -120,14 +120,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         onUpdateProduct(mergedProduct);
       }
 
-      setSaveSuccessMessage('Saved to Firebase Firestore!');
+      setSaveSuccessMessage('Saved to store!');
       setTimeout(() => {
         setSaveSuccessMessage(null);
         setIsEditing(false);
       }, 1500);
     } catch (err) {
       console.error('Failed to save product details:', err);
-      alert('Failed to save to Firebase. Please try again.');
+      alert('Failed to save product details. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -148,8 +148,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       const newUrl = uploadResult.url;
       const newPublicId = uploadResult.public_id;
 
-      // 2. Save image and public_id to Firestore (preserving name, price, variants, etc.)
-      await saveProductDetailsToFirestore(product.id, {
+      // 2. Save image and public_id to server store (preserving name, price, variants, etc.)
+      await updateSingleProduct(product.id, {
         image: newUrl,
         cloudinaryPublicId: newPublicId,
         updatedAt: Date.now(),

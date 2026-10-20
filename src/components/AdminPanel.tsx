@@ -16,7 +16,6 @@ import {
 } from '../services/cloudinary';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { savePersistentImage } from '../utils/persistentStorage';
-import { saveProductToFirestore } from '../firebase';
 import { ThemeCustomizer } from './ThemeCustomizer';
 import { WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from '../data/theme';
 import {
@@ -704,21 +703,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         'Machine wash tested'
       ],
       updatedAt: Date.now(),
+      order: 0,
     };
 
-    // Save directly to Google Cloud Firestore
-    try {
-      await saveProductToFirestore(fullProduct);
-    } catch (fsErr) {
-      console.warn('Firestore new product save warning:', fsErr);
-    }
-
-    const updated = [fullProduct, ...editableProducts];
+    const updated = [fullProduct, ...editableProducts].map((p, idx) => ({
+      ...p,
+      order: idx,
+    }));
     setEditableProducts(updated);
     onUpdateProducts(updated);
     setIsAddProductModalOpen(false);
     setNewProductFile(null);
-    showToast(`"${fullProduct.name}" created with Cloudinary image & Firestore persistence!`);
+    showToast(`"${fullProduct.name}" created and saved to store!`);
   };
 
   const handleBulkDiscount = (discountPercent: number) => {
@@ -1072,7 +1068,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 }
                 onUpdateProducts(latestProductsRef.current);
                 setSaveStatus('saved');
-                showToast('✅ All changes permanently saved to Firebase Firestore!');
+                showToast('✅ All changes permanently saved to store database!');
               }}
               className="px-3.5 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
               title="Force save all product details permanently"
@@ -1230,8 +1226,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 )}
 
                 <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                  <span>Google Cloud Firestore Connected (Google Console)</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span>Cloudinary & Server Store Connected</span>
                 </div>
 
                 <button

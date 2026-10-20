@@ -14,6 +14,7 @@ import {
 } from '../utils/persistentStorage';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
+import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
 
 // Cloudinary service exports
 export {
@@ -175,14 +176,16 @@ export async function saveAllProducts(products: BedsheetProduct[]): Promise<void
     console.warn('LocalStorage save failed:', err);
   }
 
-  // 2. Save to IndexedDB and backend server API
+  // 2. Save to IndexedDB and backend server API (store_db.json file)
   await Promise.allSettled([
     savePersistentProducts(orderedProducts, saveTimestamp),
     fetch('/api/products', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(orderedProducts),
-    }).catch(() => {}),
+    }).catch((err) => {
+      console.warn('Server PUT /api/products failed:', err);
+    }),
   ]);
 }
 
@@ -374,4 +377,57 @@ export async function savePublishedThemeApi(config: any): Promise<void> {
     });
   } catch {}
 }
+
+// ---------------- CUSTOMER REVIEWS API ---------------- //
+export async function getReviewsApi(): Promise<ProductReview[]> {
+  try {
+    const res = await fetch('/api/reviews');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        try {
+          localStorage.setItem('cotton_nest_reviews', JSON.stringify(data));
+        } catch {}
+        return data;
+      }
+    }
+  } catch {}
+  try {
+    const cached = localStorage.getItem('cotton_nest_reviews');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return INITIAL_REVIEWS;
+}
+
+export async function saveReviewApi(review: ProductReview): Promise<ProductReview> {
+  try {
+    const res = await fetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(review),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Failed to post review to server:', err);
+  }
+  return review;
+}
+
+export async function helpfulReviewApi(reviewId: string): Promise<void> {
+  try {
+    await fetch(`/api/reviews/${reviewId}/helpful`, { method: 'POST' });
+  } catch {}
+}
+
+export async function deleteReviewApi(reviewId: string): Promise<void> {
+  try {
+    await fetch(`/api/reviews/${reviewId}`, { method: 'DELETE' });
+  } catch {}
+}
+
 
