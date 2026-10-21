@@ -29,11 +29,13 @@ import { useAuth } from '../context/AuthContext';
 interface LiveOrdersViewProps {
   onExploreCatalogue: () => void;
   onOpenAuthModal: () => void;
+  onOpenGoogleChooser?: () => void;
 }
 
 export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   onExploreCatalogue,
   onOpenAuthModal,
+  onOpenGoogleChooser,
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -288,7 +290,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
               </div>
             ) : (
               <button
-                onClick={onOpenAuthModal}
+                onClick={onOpenGoogleChooser || onOpenAuthModal}
                 className="px-5 py-3 bg-[#2C2420] hover:bg-[#3D332D] text-white text-xs font-semibold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
               >
                 {/* Google Icon */}
@@ -333,7 +335,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
-                onClick={onOpenAuthModal}
+                onClick={onOpenGoogleChooser || onOpenAuthModal}
                 className="w-full sm:w-auto px-8 py-3.5 bg-[#B83F60] hover:bg-[#A33452] text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 {/* Google Icon */}

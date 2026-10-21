@@ -349,10 +349,6 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
 
   // Action 5: Restore Original Classic Theme
   const handleRestoreOriginal = async () => {
-    if (!window.confirm('Restore Cotton Nest to its original Classic Theme (Cream, Burgundy & Muted Gold)?')) {
-      return;
-    }
-
     const originalConfig: WebsiteThemeConfig = {
       activeThemeId: 'classic',
       themeName: 'Classic Cotton Nest',

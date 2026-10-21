@@ -5,12 +5,14 @@ import { useAuth } from '../context/AuthContext';
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenGoogleChooser?: () => void;
   onTrackOrderDirect?: (orderId: string) => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
+  onOpenGoogleChooser,
   onTrackOrderDirect,
 }) => {
   const { loginWithGoogle, loginWithPhone, loginWithEmail, user } = useAuth();
@@ -32,11 +34,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleGoogleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
-    loginWithGoogle({
-      email: customGoogleEmail.trim().toLowerCase(),
-      name: customGoogleName.trim() || 'Valued Customer',
-    });
     onClose();
+    if (onOpenGoogleChooser) {
+      onOpenGoogleChooser();
+    } else {
+      loginWithGoogle({
+        email: customGoogleEmail.trim().toLowerCase(),
+        name: customGoogleName.trim() || 'Valued Customer',
+      });
+    }
   };
 
   const handlePhoneSignIn = (e: React.FormEvent) => {

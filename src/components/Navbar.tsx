@@ -12,6 +12,7 @@ interface NavbarProps {
   onOpenPhotoManager?: () => void;
   onOpenAdmin?: () => void;
   onOpenAuthModal?: () => void;
+  onOpenGoogleChooser?: () => void;
   isOwnerMode?: boolean;
   content?: SiteContent;
 }
@@ -24,6 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenPhotoManager,
   onOpenAdmin,
   onOpenAuthModal,
+  onOpenGoogleChooser,
   isOwnerMode = false,
   content,
 }) => {
@@ -306,7 +308,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={onOpenAuthModal}
+                onClick={() => {
+                  if (onOpenGoogleChooser) {
+                    onOpenGoogleChooser();
+                  } else {
+                    onOpenAuthModal?.();
+                  }
+                }}
                 className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#2C2420] bg-white border border-[#EAE2D5] rounded-lg hover:border-[#DEC89B] hover:bg-[#FAF7F2] transition-colors cursor-pointer shadow-2xs"
                 title="Sign in with Google"
               >
@@ -446,7 +454,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  onOpenAuthModal?.();
+                  if (onOpenGoogleChooser) {
+                    onOpenGoogleChooser();
+                  } else {
+                    onOpenAuthModal?.();
+                  }
                 }}
                 className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#2C2420] bg-white border border-[#DEC89B] flex items-center gap-2 cursor-pointer"
               >

@@ -203,6 +203,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [editableOrders, setEditableOrders] = useState<Order[]>(orders);
   const [orderFilter, setOrderFilter] = useState<OrderStatus | 'all'>('all');
   const [orderSearch, setOrderSearch] = useState('');
+  const [deleteConfirmationProduct, setDeleteConfirmationProduct] = useState<BedsheetProduct | null>(null);
+  const [isFactoryResetModalOpen, setIsFactoryResetModalOpen] = useState(false);
 
   // Site Content local state
   const [editableContent, setEditableContent] = useState<SiteContent>(siteContent);
@@ -370,18 +372,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleDeleteProduct = (productId: string) => {
     if (editableProducts.length <= 1) {
-      alert('Catalogue must have at least one bedsheet.');
+      showToast('Catalogue must have at least one bedsheet.');
       return;
     }
     const target = editableProducts.find((p) => p.id === productId);
-    if (!window.confirm(`Are you sure you want to remove "${target?.name || 'this bedsheet'}" from your store?`)) {
-      return;
+    if (target) {
+      setDeleteConfirmationProduct(target);
     }
+  };
+
+  const handleConfirmDeleteProduct = async (productId: string) => {
+    const target = editableProducts.find((p) => p.id === productId);
     const updated = editableProducts.filter((p) => p.id !== productId);
     setEditableProducts(updated);
     onUpdateProducts(updated);
-    removeProduct(productId).catch(() => {});
-    showToast('Bedsheet removed from store.');
+    try {
+      await removeProduct(productId);
+    } catch (err) {
+      console.warn('Failed to remove product from server:', err);
+    }
+    setDeleteConfirmationProduct(null);
+    showToast(`"${target?.name || 'Bedsheet'}" removed from store.`);
   };
 
   /* ---------------- DRAG & DROP CARD REORDERING ---------------- */
@@ -462,8 +473,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Reset to default catalogue sequence
   const handleResetCardOrder = () => {
-    if (!window.confirm("Reset all bedsheet cards back to the default catalogue order?")) return;
-    
     const defaultIds = BEDSHEETS_CATALOG.map((p) => p.id);
     const sorted = [...editableProducts].sort((a, b) => {
       const idxA = defaultIds.indexOf(a.id);
@@ -865,7 +874,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleDeleteOrder = (orderId: string) => {
-    if (!window.confirm(`Delete order #${orderId}? This cannot be undone.`)) return;
     const updated = editableOrders.filter((o) => o.id !== orderId);
     setEditableOrders(updated);
     onUpdateOrders(updated);
@@ -930,7 +938,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   ];
 
   return (
-    <div className="min-h-screen bg-[#F4EFE6] text-[#2C2420]">
+    <div
+      className="min-h-screen transition-colors duration-200"
+      style={{
+        backgroundColor: 'var(--color-background, #F4EFE6)',
+        color: 'var(--color-text, #2C2420)',
+      }}
+    >
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 bg-[#2C2420] text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
@@ -940,13 +954,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-[#FAF7F2] border-b border-[#EAE2D5] px-4 sm:px-8 py-3.5 shadow-xs">
+      <header
+        className="sticky top-0 z-40 border-b px-4 sm:px-8 py-3.5 shadow-xs transition-colors"
+        style={{
+          backgroundColor: 'var(--color-header, #FAF7F2)',
+          borderColor: 'var(--color-border, #EAE2D5)',
+        }}
+      >
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           
           <div className="flex items-center gap-3">
             <button
               onClick={handleExit}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#6B5D55] hover:text-[#2C2420] bg-white border border-[#EAE2D5] rounded-xl hover:bg-[#F4EFE6] transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-colors cursor-pointer"
+              style={{
+                backgroundColor: 'var(--color-surface, #FFFFFF)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+                color: 'var(--color-text, #2C2420)',
+              }}
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Storefront</span>
@@ -954,28 +979,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2C2420]">
+                <span className="font-serif-luxury text-lg sm:text-xl font-bold" style={{ color: 'var(--color-text, #2C2420)' }}>
                   {editableContent.company.name}
                 </span>
-                <span className="px-2 py-0.5 bg-[#8C2E46] text-white text-[10px] font-bold tracking-wider uppercase rounded-md">
+                <span
+                  className="px-2 py-0.5 text-white text-[10px] font-bold tracking-wider uppercase rounded-md shadow-2xs"
+                  style={{
+                    backgroundColor: 'var(--color-primary, #8C2E46)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }}
+                >
                   Owner Dashboard
                 </span>
               </div>
-              <p className="text-[11px] text-[#7A6458]">
+              <p className="text-[11px]" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>
                 {editableContent.company.address} · Synced across Phone &amp; Web
               </p>
             </div>
           </div>
 
           {/* Tab Switcher Buttons */}
-          <div className="flex items-center gap-1.5 bg-[#F4EFE6] p-1 rounded-xl border border-[#EAE2D5]">
+          <div
+            className="flex items-center gap-1.5 p-1 rounded-xl border transition-colors"
+            style={{
+              backgroundColor: 'var(--color-background, #F4EFE6)',
+              borderColor: 'var(--color-border, #EAE2D5)',
+            }}
+          >
             <button
               onClick={() => setActiveAdminTab('products')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              style={
                 activeAdminTab === 'products'
-                  ? 'bg-[#2C2420] text-white shadow-xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
-              }`}
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
             >
               <Package className="w-3.5 h-3.5" />
               <span>Bedsheets ({totalProducts})</span>
@@ -983,16 +1027,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               onClick={() => setActiveAdminTab('orders')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative ${
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative"
+              style={
                 activeAdminTab === 'orders'
-                  ? 'bg-[#2C2420] text-white shadow-xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
-              }`}
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
             >
               <ShoppingBag className="w-3.5 h-3.5" />
               <span>Incoming Orders</span>
               {pendingOrdersCount > 0 && (
-                <span className="bg-[#B83F60] text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.2 rounded-full"
+                  style={{
+                    backgroundColor: 'var(--color-secondary, #B83F60)',
+                    color: 'var(--color-secondary-contrast, #FFFFFF)',
+                  }}
+                >
                   {pendingOrdersCount}
                 </span>
               )}
@@ -1000,11 +1057,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               onClick={() => setActiveAdminTab('content')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              style={
                 activeAdminTab === 'content'
-                  ? 'bg-[#2C2420] text-white shadow-xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
-              }`}
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
             >
               <Edit3 className="w-3.5 h-3.5" />
               <span>Store &amp; Story</span>
@@ -1012,13 +1076,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               onClick={() => setActiveAdminTab('appearance')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              style={
                 activeAdminTab === 'appearance'
-                  ? 'bg-[#2C2420] text-white shadow-xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
-              }`}
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
             >
-              <Palette className="w-3.5 h-3.5 text-[#C29E57]" />
+              <Palette className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'appearance' ? undefined : 'var(--color-accent, #C29E57)' }} />
               <span>Website Appearance</span>
             </button>
           </div>
@@ -1232,12 +1303,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm("⚠️ Are you sure you want to perform a factory reset? All your custom bedsheets, prices, inventory, and details will be reset.")) {
-                      onResetDefaults();
-                      showToast('Factory reset completed.');
-                    }
-                  }}
+                  onClick={() => setIsFactoryResetModalOpen(true)}
                   className="px-3 py-1.5 bg-white hover:bg-[#FDEAF0] text-[#8C2E46] text-xs font-medium border border-[#FAD1DC] rounded-lg transition-colors cursor-pointer flex items-center gap-1"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -3253,6 +3319,112 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 className="px-5 py-2 bg-[#2C2420] hover:bg-[#433731] text-white text-xs font-semibold rounded-xl cursor-pointer"
               >
                 Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bedsheet Delete Confirmation Modal (In-App, never blocked by iframes) */}
+      {deleteConfirmationProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setDeleteConfirmationProduct(null)} />
+          <div className="relative bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-5 border border-red-200 shadow-2xl z-10 text-[#2C2420]">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-serif-luxury text-xl font-bold text-[#2C2420]">
+                  Delete Bedsheet?
+                </h3>
+                <p className="text-xs text-[#7A6458]">
+                  This bedsheet will be removed from your catalogue, store, and database.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-[#DEC89B] flex items-center gap-3.5">
+              <img
+                src={deleteConfirmationProduct.image}
+                alt={deleteConfirmationProduct.name}
+                className="w-16 h-16 rounded-xl object-cover border border-[#DEC89B] shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/images/exact_sheet1_pink_rose_1790997736396.jpg';
+                }}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-[#2C2420] truncate">
+                  {deleteConfirmationProduct.name}
+                </p>
+                <p className="text-xs text-[#A8823B] font-semibold">
+                  {deleteConfirmationProduct.collection} · ₹{deleteConfirmationProduct.price}
+                </p>
+                <p className="text-[11px] text-[#8C7A70] font-mono mt-0.5">
+                  ID: {deleteConfirmationProduct.id}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmationProduct(null)}
+                className="px-4 py-2.5 text-xs font-semibold text-[#6B5D55] hover:text-[#2C2420] hover:bg-neutral-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmDeleteProduct(deleteConfirmationProduct.id)}
+                className="px-5 py-2.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-2"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Delete Bedsheet</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Factory Reset Modal (In-App) */}
+      {isFactoryResetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setIsFactoryResetModalOpen(false)} />
+          <div className="relative bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-5 border border-red-200 shadow-2xl z-10 text-[#2C2420]">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 shrink-0">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-serif-luxury text-xl font-bold text-[#2C2420]">
+                  Factory Reset Store?
+                </h3>
+                <p className="text-xs text-[#7A6458]">
+                  Reset all bedsheets, inventory, prices, and settings back to initial factory defaults.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsFactoryResetModalOpen(false)}
+                className="px-4 py-2.5 text-xs font-semibold text-[#6B5D55] hover:text-[#2C2420] hover:bg-neutral-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFactoryResetModalOpen(false);
+                  onResetDefaults();
+                  showToast('Factory reset completed.');
+                }}
+                className="px-5 py-2.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-2"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Yes, Reset to Defaults</span>
               </button>
             </div>
           </div>

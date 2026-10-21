@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BedsheetProduct, BEDSHEETS_CATALOG, COMPANY_DETAILS } from './data/products';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
@@ -22,6 +22,7 @@ import { WhatsAppPhotoHelperModal, WhatsAppHelperData } from './components/Whats
 import { LiveOrdersView } from './components/LiveOrdersView';
 import { TermsAndConditionsView } from './components/TermsAndConditionsView';
 import { AuthModal } from './components/AuthModal';
+import { GoogleAccountChooserModal } from './components/GoogleAccountChooserModal';
 import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from './data/siteContent';
@@ -92,6 +93,7 @@ export default function App() {
 
   const [isOwnerAuthOpen, setIsOwnerAuthOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isGoogleChooserOpen, setIsGoogleChooserOpen] = useState(false);
   const [whatsAppHelperData, setWhatsAppHelperData] = useState<WhatsAppHelperData | null>(null);
 
   // Store Owner Authentication Mode (default false for viewers)
@@ -769,6 +771,7 @@ export default function App() {
             onOpenPhotoManager={handleOpenPhotoManagerSafely}
             onOpenAdmin={handleOpenAdminSafely}
             onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            onOpenGoogleChooser={() => setIsGoogleChooserOpen(true)}
             isOwnerMode={isOwnerMode}
             content={siteContent}
           />
@@ -957,6 +960,7 @@ export default function App() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                onOpenGoogleChooser={() => setIsGoogleChooserOpen(true)}
               />
             )}
 
@@ -1062,10 +1066,24 @@ export default function App() {
         </>
       )}
 
+      {/* Google Account Chooser Modal (Choose an account dialog matching Google OAuth) */}
+      <GoogleAccountChooserModal
+        isOpen={isGoogleChooserOpen}
+        onClose={() => setIsGoogleChooserOpen(false)}
+        onOpenPhoneAuth={() => {
+          setIsGoogleChooserOpen(false);
+          setIsAuthModalOpen(true);
+        }}
+      />
+
       {/* Google Sign In & Client Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+        onOpenGoogleChooser={() => {
+          setIsAuthModalOpen(false);
+          setIsGoogleChooserOpen(true);
+        }}
         onTrackOrderDirect={(_orderId) => {
           setActiveTab('orders');
           window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -14,7 +14,7 @@
       "collection": "108x108 Classic",
       "threadCount": "300 Thread Count",
       "price": 1000,
-      "order": 6,
+      "order": 0,
       "inStock": true,
       "dimensions": "108 x 108 inches (274 x 274 cm)",
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
@@ -106,7 +106,7 @@
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
       "id": "gulabi-bagh-rose",
       "price": 1320,
-      "order": 0,
+      "order": 4,
       "fabric": "100% Pure Glace Percale Cotton",
       "dimensions": "108 x 108 inches (274 x 274 cm)",
       "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_gulabi-bagh-rose_1792387962",
@@ -156,7 +156,7 @@
         "High breathability for Indian summers"
       ],
       "price": 1320,
-      "order": 2,
+      "order": 5,
       "name": "Nandini",
       "id": "ivory-garland-wreath",
       "originalPrice": 1320,
@@ -192,7 +192,7 @@
       "inStock": true,
       "id": "milky-white-poppy",
       "price": 1200,
-      "order": 5,
+      "order": 6,
       "colorTone": "Milky White, Burnt Orange & Sage Green",
       "updatedAt": 1792390239713
     },
@@ -215,7 +215,7 @@
         "Oeko-Tex skin friendly certified"
       ],
       "price": 1360,
-      "order": 1,
+      "order": 7,
       "originalPrice": 1360,
       "variants": [
         {
@@ -257,7 +257,7 @@
       "pattern": "Royal Paisley Jaal",
       "colorTone": "Peacock Blue & Natural Cream",
       "updatedAt": 1792390349079,
-      "order": 7,
+      "order": 8,
       "price": 1050
     },
     {
@@ -283,7 +283,7 @@
       "updatedAt": 1792390193016,
       "colorTone": "Crisp White & Muted Ochre Gold",
       "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "order": 3,
+      "order": 9,
       "price": 1220,
       "stockQuantity": 10
     },
@@ -291,7 +291,7 @@
       "name": "Rosemary Royal Blue Rose",
       "originalPrice": 1100,
       "price": 1100,
-      "order": 8,
+      "order": 10,
       "collection": "Rosemary Collection",
       "updatedAt": 1792390385441,
       "colorTone": "Crisp White & Royal Blue",
@@ -332,7 +332,7 @@
       "description": "Refined geometric chevron trellis drawn in delicate non-shiny golden lines, harmonized with misty slate floral bouquets and Shivaura luxury hallmark.",
       "dimensions": "108 x 108 inches (274 x 274 cm)",
       "price": 1220,
-      "order": 4,
+      "order": 11,
       "updatedAt": 1792390066854,
       "colorTone": "Champagne Gold & Slate Grey",
       "fabric": "100% Premium Egyptian Combed Cotton"
@@ -424,5 +424,178 @@
       "pillar1Desc": "Zero polyester blends. Completely breathable and cool against the skin during Indian summers."
     },
     "updatedAt": 1791723485864
-  }
+  },
+  "reviews": [
+    {
+      "id": "rev-1",
+      "productId": "gulabi-bagh-rose",
+      "productName": "Nandini (Gulabi Bagh English Rose)",
+      "customerName": "Dr. Ananya Mukherjee",
+      "customerCity": "DLF Phase 4, Gurgaon",
+      "rating": 5,
+      "title": "Pure cotton breathability & genuine 108×108 inch King size drop",
+      "comment": "I visited their Sector 46 atelier in Gurgaon before buying. Most brands claim King size but give 90x100 which pulls out of a 10-inch mattress. This bedsheet has a huge, generous tuck-in on all four sides. The rose block prints are subtle and soothing, not garish at all. Machine washed twice, zero shrinkage or color bleeding.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1792315833891,
+      "helpfulCount": 14,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    },
+    {
+      "id": "rev-2",
+      "productId": "mint-meadow-sage",
+      "productName": "Nandini (Pastel Sage Mint Rose)",
+      "customerName": "Radhika Singhania",
+      "customerCity": "Nirvana Country, Sector 50, Gurgaon",
+      "rating": 5,
+      "title": "Subtle vintage elegance, makes bedroom look like a boutique hotel",
+      "comment": "The sage mint color is so calming. What impressed me the most is the zero-polyester natural feel. In Gurgaon summers you can immediately tell pure cotton from poly-cotton blends. This stays cool all night. The matching pillow shams with piped borders look very luxurious.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1792056633891,
+      "helpfulCount": 9,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    },
+    {
+      "id": "rev-3",
+      "productId": "petals-print-marigold",
+      "productName": "The Petals Print Golden Sprig",
+      "customerName": "Vikram Malhotra",
+      "customerCity": "Vasant Kunj, New Delhi",
+      "rating": 5,
+      "title": "Crisp percale weave with cheerful golden marigold accents",
+      "comment": "Ordered via WhatsApp after founder shared unboxing video. Delivery was prompt. The fabric has that crisp, crisp luxury hotel bed feeling and softens up beautifully upon wash. Pillow covers have secure flap tucks so the pillows don't slide out.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1791797433891,
+      "helpfulCount": 11,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    },
+    {
+      "id": "rev-4",
+      "productId": "milky-white-poppy",
+      "productName": "Milky White (Poppy Meadow & Grid)",
+      "customerName": "Meenakshi Sundaram",
+      "customerCity": "Indiranagar, Bengaluru",
+      "rating": 5,
+      "title": "Organic botanical aesthetic with checkered pillow shams",
+      "comment": "The contrast between the warm milky white poppy field and the sage green checkered pillow covers is perfection. It gives a cottagecore, artisanal Indian feel without being overwhelming. Delivered all the way to Bengaluru in pristine box packaging.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1791538233891,
+      "helpfulCount": 8,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    },
+    {
+      "id": "rev-5",
+      "productId": "shivaura-trellis-slate",
+      "productName": "The Petals (Shivaura Chevron Trellis)",
+      "customerName": "Siddharth & Neha Verma",
+      "customerCity": "Golf Course Extension Road, Gurgaon",
+      "rating": 5,
+      "title": "Heavyweight combed cotton that stays wrinkle-free on the bed",
+      "comment": "This bedsheet has great weight to it. The chevron trellis pattern with subtle golden linework looks very modern. Slept on it for a week and it barely creased. Will definitely pick up 2 more sets for our guest rooms.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1791279033891,
+      "helpfulCount": 16,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    },
+    {
+      "id": "rev-6",
+      "productId": "peacock-teal-paisley",
+      "productName": "Batik (Royal Paisley Peacock Teal)",
+      "customerName": "Kavita Rathi",
+      "customerCity": "Bandra West, Mumbai",
+      "rating": 5,
+      "title": "Artisanal Sanganeri block print with deep, fade-resistant teal",
+      "comment": "I was looking for authentic Rajasthani block print style without scratchy starch or color bleed. Hand washed the first time with salt water as suggested - absolutely zero color bleeding! The indigo-teal shade is rich and majestic.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1791019833891,
+      "helpfulCount": 7,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    },
+    {
+      "id": "rev-7",
+      "productId": "amber-orchid-medallion",
+      "productName": "Heritage (Centerpiece Orchid Medallion)",
+      "customerName": "Preeti Agarwal",
+      "customerCity": "Sector 46, Gurgaon",
+      "rating": 5,
+      "title": "Bought locally in Sector 46 - centerpiece looks stunning on king bed",
+      "comment": "Living right in Sector 46, I walked into their house atelier. The owner was extremely courteous and let me unfold the sheets to check the weave. The central floral motif lands right in the middle of our 6.5x6.5 bed. Incredible value at ₹1000.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1790760633891,
+      "helpfulCount": 12,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    },
+    {
+      "id": "rev-8",
+      "productId": "rosemary-blue-rose-100x108",
+      "productName": "Rosemary Royal Blue Rose",
+      "customerName": "Tarun Chawla",
+      "customerCity": "South Extension, New Delhi",
+      "rating": 5,
+      "title": "Vibrant royal cobalt blue, gingham pillow covers are a treat",
+      "comment": "The blue rose print against crisp white gives such a fresh, clean look to the bedroom. The pillow shams with gingham checks are super stylish. 100% natural cotton that feels cool against the skin.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1790415033891,
+      "helpfulCount": 6,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    },
+    {
+      "id": "rev-9",
+      "productId": "ivory-garland-wreath",
+      "productName": "Nandini (Ivory Garland Wreath)",
+      "customerName": "Shalini Bansal",
+      "customerCity": "Civil Lines, Jaipur",
+      "rating": 5,
+      "title": "Authentic garland symmetry, soothing natural cream tone",
+      "comment": "Hailing from Jaipur, I am very picky about bedsheet fabric quality. Cotton Nest has nailed the combed cotton texture. The antique pink and soft apricot blossoms create such a tranquil atmosphere in the room.",
+      "verifiedPurchase": true,
+      "recommended": true,
+      "createdAt": 1790155833891,
+      "helpfulCount": 10,
+      "qualityAspects": {
+        "fabricSoftness": 5,
+        "fitAndDrop": 5,
+        "colorAccuracy": 5
+      }
+    }
+  ]
 }
