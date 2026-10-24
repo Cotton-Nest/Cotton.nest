@@ -254,39 +254,61 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   const parsedQuery = parseSearchQuery(searchQuery);
 
   return (
-    <div className="py-8 sm:py-12 bg-[#FAF7F2]">
+    <div
+      className="py-8 sm:py-12 transition-colors duration-300"
+      style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header Block */}
         <div className="text-center max-w-3xl mx-auto mb-8 space-y-3">
           
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FDEAF0] text-[#B83F60] text-xs font-semibold tracking-wider uppercase border border-[#FAD1DC]">
-            <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase border shadow-2xs"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-primary, #70252D) 10%, transparent)',
+              color: 'var(--color-primary, #70252D)',
+              borderColor: 'color-mix(in srgb, var(--color-primary, #70252D) 25%, transparent)',
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
             Official Product Catalogue
           </div>
 
-          <h1 className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-semibold text-[#2C2420] text-balance">
-            The Signature 9 Collection
+          <h1
+            className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-semibold text-balance"
+            style={{ color: 'var(--color-text, #2C2420)' }}
+          >
+            The Signature {products.length > 0 ? products.length : 10} Collection
           </h1>
 
-          <p className="text-sm sm:text-base text-[#6B5D55] leading-relaxed">
-            Every bedsheet in this catalogue is generously cut in our signature 
-            <strong className="text-[#2C2420] font-semibold"> 108″ × 108″ King size</strong> from 
-            100% pure combed cotton. Each set includes 2 coordinating pillow covers (45×70 cm).
+          <p
+            className="text-sm sm:text-base leading-relaxed"
+            style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+          >
+            Every bedsheet in this catalogue is generously cut in our signature{' '}
+            <strong className="font-semibold" style={{ color: 'var(--color-text, #2C2420)' }}>
+              108″ × 108″ King size
+            </strong>{' '}
+            from 100% pure combed cotton. Each set includes 2 coordinating pillow covers (45×70 cm).
           </p>
 
           {/* Quick Gurgaon Atelier reassurance & Photo Studio Button */}
-          <div className="pt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-[#7A6458]">
+          <div
+            className="pt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs"
+            style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+          >
             <span className="flex items-center gap-1 font-medium">
-              <MapPin className="w-3.5 h-3.5 text-[#C29E57]" />
+              <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
               Sector 46, Gurgaon
             </span>
-            <span className="text-[#DCD0C0]">·</span>
+            <span style={{ color: 'var(--color-border, #EAE2D5)' }}>·</span>
             <a
               href={COMPANY_DETAILS.whatsappUrl("Hello Cotton Nest! I would like assistance choosing a bedsheet from your catalogue.")}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[#B83F60] hover:underline font-semibold"
+              className="flex items-center gap-1 hover:underline font-semibold"
+              style={{ color: 'var(--color-primary, #70252D)' }}
             >
               <MessageCircle className="w-3.5 h-3.5" />
               Order Assistance: +91 7838625915
@@ -295,11 +317,16 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               <>
                 {onOpenPhotoManager && (
                   <>
-                    <span className="text-[#DCD0C0]">·</span>
+                    <span style={{ color: 'var(--color-border, #EAE2D5)' }}>·</span>
                     <button
                       type="button"
                       onClick={onOpenPhotoManager}
-                      className="inline-flex items-center gap-1 font-semibold text-[#8C2E46] bg-[#FDEAF0] hover:bg-[#F9D3DE] border border-[#FAD1DC] px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 font-semibold px-2.5 py-1 rounded-lg transition-colors cursor-pointer border"
+                      style={{
+                        backgroundColor: 'var(--color-surface, #FFFFFF)',
+                        color: 'var(--color-primary, #70252D)',
+                        borderColor: 'var(--color-border, #EAE2D5)',
+                      }}
                     >
                       <span>📷 Upload / Change Photos</span>
                     </button>
@@ -307,11 +334,16 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 )}
                 {onOpenAdmin && (
                   <>
-                    <span className="text-[#DCD0C0]">·</span>
+                    <span style={{ color: 'var(--color-border, #EAE2D5)' }}>·</span>
                     <button
                       type="button"
                       onClick={onOpenAdmin}
-                      className="inline-flex items-center gap-1 font-semibold text-[#2C2420] bg-white hover:bg-[#F4EFE6] border border-[#DEC89B] px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 font-semibold px-2.5 py-1 rounded-lg transition-colors cursor-pointer border"
+                      style={{
+                        backgroundColor: 'var(--color-surface, #FFFFFF)',
+                        color: 'var(--color-text, #2C2420)',
+                        borderColor: 'var(--color-border, #EAE2D5)',
+                      }}
                     >
                       <span>⚙️ Admin Panel</span>
                     </button>
@@ -323,26 +355,40 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         </div>
 
         {/* Real-time Search and Filter Panel */}
-        <div className="bg-[#FAF7F2] border border-[#EAE2D5] rounded-2xl p-4 sm:p-6 mb-8 shadow-xs space-y-4">
-          
+        <div
+          className="border rounded-2xl p-4 sm:p-6 mb-8 shadow-xs space-y-4 transition-colors"
+          style={{
+            backgroundColor: 'var(--color-surface, #FFFFFF)',
+            borderColor: 'var(--color-border, #EAE2D5)',
+          }}
+        >
           {/* Main Search Bar & Sort Row */}
           <div className="flex flex-col md:flex-row gap-3 sm:gap-4 items-stretch md:items-center justify-between">
-            
             {/* Real-Time Search Input with live search icon & clear button */}
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8823B]" />
+              <Search
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4"
+                style={{ color: 'var(--color-accent, #C29E57)' }}
+              />
               <input
                 type="text"
                 placeholder="Search by name (e.g. Rose), material (e.g. Percale), or price (e.g. under 2000)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 bg-[#F4EFE6] border border-[#DEC89B] rounded-xl text-xs sm:text-sm text-[#2C2420] placeholder:text-[#9B8C83] focus:outline-none focus:border-[#B83F60] focus:ring-1 focus:ring-[#B83F60] transition-all shadow-xs"
+                className="w-full pl-10 pr-10 py-3 rounded-xl text-xs sm:text-sm focus:outline-none transition-all shadow-xs"
+                style={{
+                  backgroundColor: 'var(--color-background, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                  borderWidth: '1px',
+                  color: 'var(--color-text, #2C2420)',
+                }}
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#7A6458] hover:text-[#B83F60] hover:bg-black/5 rounded-full transition-colors cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors cursor-pointer opacity-70 hover:opacity-100"
+                  style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
                   title="Clear search"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -352,16 +398,28 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
             {/* Sort & Count */}
             <div className="flex items-center justify-between md:justify-end gap-3 text-xs shrink-0">
-              <span className="text-[#7A6458] tabular-nums font-semibold whitespace-nowrap bg-[#F4EFE6] px-3 py-2 rounded-xl border border-[#EAE2D5]">
+              <span
+                className="tabular-nums font-semibold whitespace-nowrap px-3 py-2 rounded-xl border"
+                style={{
+                  backgroundColor: 'var(--color-background, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                  color: 'var(--color-text-secondary, #6B5D55)',
+                }}
+              >
                 {filteredProducts.length} of {products.length} sheets
               </span>
 
               <div className="flex items-center gap-1.5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-[#C29E57]" />
+                <SlidersHorizontal className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-[#F4EFE6] border border-[#EAE2D5] text-[#2C2420] py-2 px-3 rounded-xl font-medium focus:outline-none focus:border-[#C29E57] cursor-pointer"
+                  className="py-2 px-3 rounded-xl font-medium focus:outline-none cursor-pointer border"
+                  style={{
+                    backgroundColor: 'var(--color-background, #FAF7F2)',
+                    borderColor: 'var(--color-border, #EAE2D5)',
+                    color: 'var(--color-text, #2C2420)',
+                  }}
                 >
                   <option value="featured">Featured Order</option>
                   <option value="price-low">Price: Low to High</option>
@@ -373,23 +431,26 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-                className={`md:hidden px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
-                  isFilterExpanded || hasActiveFilters
-                    ? 'bg-[#8C2E46] text-white border-[#8C2E46]'
-                    : 'bg-[#F4EFE6] text-[#2C2420] border-[#EAE2D5]'
-                }`}
+                className="md:hidden px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                style={{
+                  backgroundColor: isFilterExpanded || hasActiveFilters ? 'var(--color-primary, #70252D)' : 'var(--color-background, #FAF7F2)',
+                  color: isFilterExpanded || hasActiveFilters ? 'var(--color-primary-contrast, #FFFFFF)' : 'var(--color-text, #2C2420)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
               >
                 <Filter className="w-3 h-3" />
                 <span>Filters</span>
               </button>
             </div>
-
           </div>
 
           {/* Quick Search Tag Suggestions */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px] text-[#7A6458]">
-            <span className="font-semibold text-[#8C7A70] shrink-0 flex items-center gap-1">
-              <Tag className="w-3 h-3 text-[#C29E57]" />
+          <div
+            className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]"
+            style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+          >
+            <span className="font-semibold shrink-0 flex items-center gap-1">
+              <Tag className="w-3 h-3" style={{ color: 'var(--color-accent, #C29E57)' }} />
               Quick:
             </span>
             {quickSearchTags.map((tag) => (
@@ -397,7 +458,12 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 key={tag.label}
                 type="button"
                 onClick={() => setSearchQuery(tag.query)}
-                className="px-2.5 py-1 bg-white hover:bg-[#FDEAF0] hover:text-[#8C2E46] border border-[#EAE2D5] rounded-lg whitespace-nowrap transition-colors cursor-pointer shrink-0 font-medium"
+                className="px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors cursor-pointer shrink-0 font-medium border hover:opacity-85"
+                style={{
+                  backgroundColor: 'var(--color-background, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                  color: 'var(--color-text, #2C2420)',
+                }}
               >
                 {tag.label}
               </button>
@@ -406,10 +472,18 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
           {/* Real-time Query Interpretation Badge (Shows parsed criteria if typed in search bar) */}
           {(parsedQuery.queryMinPrice !== null || parsedQuery.queryMaxPrice !== null || parsedQuery.exactOrApproxPrice !== null) && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FDEAF0] border border-[#FAD1DC] rounded-xl text-xs text-[#8C2E46] animate-in fade-in">
-              <IndianRupee className="w-3.5 h-3.5 text-[#B83F60]" />
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 border rounded-xl text-xs animate-in fade-in"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-primary, #70252D) 8%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--color-primary, #70252D) 25%, transparent)',
+                color: 'var(--color-primary, #70252D)',
+              }}
+            >
+              <IndianRupee className="w-3.5 h-3.5" />
               <span>
-                Real-time Price Filter detected: <strong>
+                Real-time Price Filter detected:{' '}
+                <strong>
                   {parsedQuery.queryMinPrice !== null && parsedQuery.queryMaxPrice !== null
                     ? `₹${parsedQuery.queryMinPrice.toLocaleString('en-IN')} – ₹${parsedQuery.queryMaxPrice.toLocaleString('en-IN')}`
                     : parsedQuery.queryMaxPrice !== null
@@ -424,70 +498,102 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           )}
 
           {/* Dedicated Filter Rows (Category, Price Range, Material) */}
-          <div className={`space-y-3 pt-3 border-t border-[#EAE2D5]/70 ${isFilterExpanded ? 'block' : 'hidden md:block'}`}>
-            
+          <div
+            className={`space-y-3 pt-3 border-t ${isFilterExpanded ? 'block' : 'hidden md:block'}`}
+            style={{ borderColor: 'var(--color-border, #EAE2D5)' }}
+          >
             {/* Row 1: Collections */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <span className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider w-24 shrink-0">
+              <span
+                className="text-[11px] font-semibold uppercase tracking-wider w-24 shrink-0"
+                style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+              >
                 Collection:
               </span>
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar flex-1">
-                {filterOptions.map((filter) => (
-                  <button
-                    key={filter.id}
-                    type="button"
-                    onClick={() => setSelectedFilter(filter.id)}
-                    className={`px-3 py-1 text-xs font-medium rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                      selectedFilter === filter.id
-                        ? 'bg-[#B83F60] text-white shadow-xs'
-                        : 'bg-[#F4EFE6] text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#EAE2D5]'
-                    }`}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
+                {filterOptions.map((filter) => {
+                  const isActive = selectedFilter === filter.id;
+                  return (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setSelectedFilter(filter.id)}
+                      className="px-3 py-1 text-xs font-medium rounded-lg whitespace-nowrap transition-all cursor-pointer border"
+                      style={{
+                        backgroundColor: isActive ? 'var(--color-primary, #70252D)' : 'var(--color-background, #FAF7F2)',
+                        color: isActive ? 'var(--color-primary-contrast, #FFFFFF)' : 'var(--color-text-secondary, #6B5D55)',
+                        borderColor: isActive ? 'var(--color-primary, #70252D)' : 'var(--color-border, #EAE2D5)',
+                      }}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Row 2: Price Range Filter */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <span className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider w-24 shrink-0">
+              <span
+                className="text-[11px] font-semibold uppercase tracking-wider w-24 shrink-0"
+                style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+              >
                 Price Range:
               </span>
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar flex-1 flex-wrap">
-                {priceRangeOptions.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setSelectedPriceRange(opt.id as any)}
-                    className={`px-3 py-1 text-xs font-medium rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                      selectedPriceRange === opt.id
-                        ? 'bg-[#2C2420] text-white shadow-xs'
-                        : 'bg-[#F4EFE6] text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#EAE2D5]'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                {priceRangeOptions.map((opt) => {
+                  const isActive = selectedPriceRange === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setSelectedPriceRange(opt.id as any)}
+                      className="px-3 py-1 text-xs font-medium rounded-lg whitespace-nowrap transition-all cursor-pointer border"
+                      style={{
+                        backgroundColor: isActive ? 'var(--color-secondary, #8C3A44)' : 'var(--color-background, #FAF7F2)',
+                        color: isActive ? 'var(--color-secondary-contrast, #FFFFFF)' : 'var(--color-text-secondary, #6B5D55)',
+                        borderColor: isActive ? 'var(--color-secondary, #8C3A44)' : 'var(--color-border, #EAE2D5)',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
 
                 {/* Custom Price Range Inputs */}
                 {selectedPriceRange === 'custom' && (
-                  <div className="flex items-center gap-1.5 ml-1 bg-white px-2 py-0.5 rounded-lg border border-[#DEC89B] text-xs">
-                    <span className="text-[#8C7A70]">₹</span>
+                  <div
+                    className="flex items-center gap-1.5 ml-1 px-2 py-0.5 rounded-lg border text-xs"
+                    style={{
+                      backgroundColor: 'var(--color-surface, #FFFFFF)',
+                      borderColor: 'var(--color-accent, #C29E57)',
+                    }}
+                  >
+                    <span style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>₹</span>
                     <input
                       type="number"
                       placeholder="Min"
                       value={customMinPrice}
                       onChange={(e) => setCustomMinPrice(e.target.value)}
-                      className="w-16 px-1.5 py-0.5 border border-[#EAE2D5] rounded text-xs text-[#2C2420]"
+                      className="w-16 px-1.5 py-0.5 border rounded text-xs"
+                      style={{
+                        borderColor: 'var(--color-border, #EAE2D5)',
+                        color: 'var(--color-text, #2C2420)',
+                        backgroundColor: 'var(--color-background, #FAF7F2)',
+                      }}
                     />
-                    <span className="text-[#8C7A70]">to ₹</span>
+                    <span style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>to ₹</span>
                     <input
                       type="number"
                       placeholder="Max"
                       value={customMaxPrice}
                       onChange={(e) => setCustomMaxPrice(e.target.value)}
-                      className="w-16 px-1.5 py-0.5 border border-[#EAE2D5] rounded text-xs text-[#2C2420]"
+                      className="w-16 px-1.5 py-0.5 border rounded text-xs"
+                      style={{
+                        borderColor: 'var(--color-border, #EAE2D5)',
+                        color: 'var(--color-text, #2C2420)',
+                        backgroundColor: 'var(--color-background, #FAF7F2)',
+                      }}
                     />
                   </div>
                 )}
@@ -496,58 +602,97 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
             {/* Row 3: Material / Fabric Filter */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <span className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider w-24 shrink-0">
-                Material / Weave:
+              <span
+                className="text-[11px] font-semibold uppercase tracking-wider w-24 shrink-0"
+                style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+              >
+                Material:
               </span>
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar flex-1">
-                {materialOptions.map((mat) => (
-                  <button
-                    key={mat.id}
-                    type="button"
-                    onClick={() => setSelectedMaterial(mat.id)}
-                    className={`px-3 py-1 text-xs font-medium rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                      selectedMaterial === mat.id
-                        ? 'bg-[#A8823B] text-white shadow-xs'
-                        : 'bg-[#F4EFE6] text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#EAE2D5]'
-                    }`}
-                  >
-                    {mat.label}
-                  </button>
-                ))}
+                {materialOptions.map((mat) => {
+                  const isActive = selectedMaterial === mat.id;
+                  return (
+                    <button
+                      key={mat.id}
+                      type="button"
+                      onClick={() => setSelectedMaterial(mat.id)}
+                      className="px-3 py-1 text-xs font-medium rounded-lg whitespace-nowrap transition-all cursor-pointer border"
+                      style={{
+                        backgroundColor: isActive ? 'var(--color-accent, #C29E57)' : 'var(--color-background, #FAF7F2)',
+                        color: isActive ? '#FFFFFF' : 'var(--color-text-secondary, #6B5D55)',
+                        borderColor: isActive ? 'var(--color-accent, #C29E57)' : 'var(--color-border, #EAE2D5)',
+                      }}
+                    >
+                      {mat.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-
           </div>
 
           {/* Active Filter Chips & Reset All Button */}
           {hasActiveFilters && (
-            <div className="pt-2 border-t border-[#EAE2D5]/70 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div
+              className="pt-2 border-t flex flex-wrap items-center justify-between gap-2 text-xs"
+              style={{ borderColor: 'var(--color-border, #EAE2D5)' }}
+            >
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[#8C7A70] text-[11px] font-medium">Active Filters:</span>
+                <span style={{ color: 'var(--color-text-secondary, #6B5D55)' }} className="text-[11px] font-medium">
+                  Active Filters:
+                </span>
                 
                 {searchQuery && (
-                  <span className="inline-flex items-center gap-1 bg-white border border-[#EAE2D5] text-[#2C2420] px-2 py-0.5 rounded-md text-[11px]">
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border"
+                    style={{
+                      backgroundColor: 'var(--color-background, #FAF7F2)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                      color: 'var(--color-text, #2C2420)',
+                    }}
+                  >
                     Search: "{searchQuery}"
                     <button type="button" onClick={() => setSearchQuery('')} className="hover:text-red-600">✕</button>
                   </span>
                 )}
 
                 {selectedFilter !== 'all' && (
-                  <span className="inline-flex items-center gap-1 bg-white border border-[#EAE2D5] text-[#2C2420] px-2 py-0.5 rounded-md text-[11px]">
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border"
+                    style={{
+                      backgroundColor: 'var(--color-background, #FAF7F2)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                      color: 'var(--color-text, #2C2420)',
+                    }}
+                  >
                     Collection: {filterOptions.find((f) => f.id === selectedFilter)?.label}
                     <button type="button" onClick={() => setSelectedFilter('all')} className="hover:text-red-600">✕</button>
                   </span>
                 )}
 
                 {selectedPriceRange !== 'all' && (
-                  <span className="inline-flex items-center gap-1 bg-white border border-[#EAE2D5] text-[#2C2420] px-2 py-0.5 rounded-md text-[11px]">
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border"
+                    style={{
+                      backgroundColor: 'var(--color-background, #FAF7F2)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                      color: 'var(--color-text, #2C2420)',
+                    }}
+                  >
                     Price: {priceRangeOptions.find((p) => p.id === selectedPriceRange)?.label}
                     <button type="button" onClick={() => setSelectedPriceRange('all')} className="hover:text-red-600">✕</button>
                   </span>
                 )}
 
                 {selectedMaterial !== 'all' && (
-                  <span className="inline-flex items-center gap-1 bg-white border border-[#EAE2D5] text-[#2C2420] px-2 py-0.5 rounded-md text-[11px]">
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border"
+                    style={{
+                      backgroundColor: 'var(--color-background, #FAF7F2)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                      color: 'var(--color-text, #2C2420)',
+                    }}
+                  >
                     Material: {materialOptions.find((m) => m.id === selectedMaterial)?.label}
                     <button type="button" onClick={() => setSelectedMaterial('all')} className="hover:text-red-600">✕</button>
                   </span>
@@ -557,7 +702,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="inline-flex items-center gap-1 text-[#8C2E46] hover:underline font-semibold text-xs cursor-pointer ml-auto"
+                className="inline-flex items-center gap-1 hover:underline font-semibold text-xs cursor-pointer ml-auto"
+                style={{ color: 'var(--color-primary, #70252D)' }}
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Reset All Filters</span>
@@ -585,15 +731,30 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             ))}
           </div>
         ) : (
-          <div className="text-center py-16 bg-[#F4EFE6] rounded-2xl border border-[#EAE2D5] p-8 max-w-lg mx-auto space-y-4">
-            <div className="w-12 h-12 bg-[#FDEAF0] text-[#B83F60] rounded-2xl flex items-center justify-center mx-auto">
+          <div
+            className="text-center py-16 rounded-2xl border p-8 max-w-lg mx-auto space-y-4"
+            style={{
+              backgroundColor: 'var(--color-surface, #FFFFFF)',
+              borderColor: 'var(--color-border, #EAE2D5)',
+            }}
+          >
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-primary, #70252D) 10%, transparent)',
+                color: 'var(--color-primary, #70252D)',
+              }}
+            >
               <Search className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-[#2C2420]">
+              <h3 className="text-base font-semibold" style={{ color: 'var(--color-text, #2C2420)' }}>
                 No bedsheets match your current search
               </h3>
-              <p className="text-xs text-[#7A6458] mt-1.5 leading-relaxed">
+              <p
+                className="text-xs mt-1.5 leading-relaxed"
+                style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+              >
                 {searchQuery
                   ? `No pure cotton sheets matched "${searchQuery}". Try searching for keywords like "rose", "percale", "350 TC", or "under 2000".`
                   : 'No bedsheets found with the selected material or price filter.'}
@@ -604,7 +765,11 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="px-4 py-2 bg-[#B83F60] hover:bg-[#A33452] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer shadow-xs"
+                className="px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer shadow-xs"
+                style={{
+                  backgroundColor: 'var(--color-primary, #70252D)',
+                  color: 'var(--color-primary-contrast, #FFFFFF)',
+                }}
               >
                 Clear All Filters &amp; View All Bedsheets
               </button>
@@ -613,12 +778,24 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         )}
 
         {/* Catalog Assurance Footer Banner */}
-        <div className="mt-12 bg-gradient-to-r from-[#FAF7F2] via-[#F4EFE6] to-[#FAF7F2] border border-[#DEC89B] rounded-2xl p-6 sm:p-8 text-center space-y-4 shadow-xs">
+        <div
+          className="mt-12 border rounded-2xl p-6 sm:p-8 text-center space-y-4 shadow-xs"
+          style={{
+            backgroundColor: 'var(--color-surface, #FFFFFF)',
+            borderColor: 'var(--color-border, #EAE2D5)',
+          }}
+        >
           <div className="max-w-2xl mx-auto space-y-2">
-            <h3 className="font-serif-luxury text-xl sm:text-2xl font-semibold text-[#2C2420]">
+            <h3
+              className="font-serif-luxury text-xl sm:text-2xl font-semibold"
+              style={{ color: 'var(--color-text, #2C2420)' }}
+            >
               All King Sets Include 2 Pillow Covers (45 × 70 cm)
             </h3>
-            <p className="text-xs sm:text-sm text-[#6B5D55] max-w-xl mx-auto">
+            <p
+              className="text-xs sm:text-sm max-w-xl mx-auto"
+              style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+            >
               Direct from the manufacturer in Gurugram. 100% pure combed long-staple cotton with breathable, color-fast guarantee.
             </p>
           </div>

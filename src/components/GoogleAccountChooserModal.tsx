@@ -93,11 +93,7 @@ export const GoogleAccountChooserModal: React.FC<GoogleAccountChooserModalProps>
   onOpenPhoneAuth,
 }) => {
   const { loginWithGoogle } = useAuth();
-  const [view, setView] = useState<'chooser' | 'another_account'>('chooser');
-  const [customEmail, setCustomEmail] = useState('');
-  const [customName, setCustomName] = useState('');
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  // Read saved Google accounts for THIS specific device/browser only
   const [customAccounts, setCustomAccounts] = useState<GoogleAccountItem[]>(() => {
     try {
       const stored = localStorage.getItem('cotton_nest_google_accounts');
@@ -106,10 +102,38 @@ export const GoogleAccountChooserModal: React.FC<GoogleAccountChooserModalProps>
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-    return INITIAL_GOOGLE_ACCOUNTS;
+    return [];
   });
 
+  const [view, setView] = useState<'chooser' | 'another_account'>(() => {
+    try {
+      const stored = localStorage.getItem('cotton_nest_google_accounts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return 'chooser';
+      }
+    } catch {}
+    return 'another_account';
+  });
+
+  const [customEmail, setCustomEmail] = useState('');
+  const [customName, setCustomName] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
   if (!isOpen) return null;
+
+  const handleRemoveAccount = (e: React.MouseEvent, accountId: string) => {
+    e.stopPropagation();
+    const updated = customAccounts.filter((a) => a.id !== accountId);
+    setCustomAccounts(updated);
+    try {
+      localStorage.setItem('cotton_nest_google_accounts', JSON.stringify(updated));
+    } catch {}
+    if (updated.length === 0) {
+      setView('another_account');
+    }
+  };
 
   const handleSelectAccount = (account: GoogleAccountItem) => {
     setSelectedAccountId(account.id);
@@ -151,7 +175,7 @@ export const GoogleAccountChooserModal: React.FC<GoogleAccountChooserModalProps>
       phone: '7838625915',
     };
 
-    const updated = [...customAccounts, newAccount];
+    const updated = [...customAccounts.filter((a) => a.email !== emailTrimmed), newAccount];
     setCustomAccounts(updated);
     try {
       localStorage.setItem('cotton_nest_google_accounts', JSON.stringify(updated));
@@ -286,11 +310,21 @@ export const GoogleAccountChooserModal: React.FC<GoogleAccountChooserModalProps>
                         </div>
                       </div>
 
-                      {isSelected && (
-                        <div className="w-5 h-5 rounded-full bg-[#0B57D0] text-white flex items-center justify-center shrink-0">
-                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-[#0B57D0] text-white flex items-center justify-center shrink-0">
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => handleRemoveAccount(e, account.id)}
+                          title="Remove account from this device"
+                          className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-neutral-100 rounded-full transition-colors cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </button>
                   );
                 })}
@@ -345,14 +379,16 @@ export const GoogleAccountChooserModal: React.FC<GoogleAccountChooserModalProps>
         ) : (
           /* ================= VIEW 2: USE ANOTHER ACCOUNT ================= */
           <div className="pt-2 sm:pt-4 space-y-6">
-            <button
-              type="button"
-              onClick={() => setView('chooser')}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0B57D0] hover:underline cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Choose an account</span>
-            </button>
+            {customAccounts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setView('chooser')}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0B57D0] hover:underline cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to saved accounts</span>
+              </button>
+            )}
 
             <div className="space-y-1">
               <h2 className="text-2xl sm:text-3xl font-normal text-[#1F1F1F] tracking-tight">

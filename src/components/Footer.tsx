@@ -8,6 +8,7 @@ interface FooterProps {
   isOwnerMode?: boolean;
   onOpenOwnerAuth?: () => void;
   onLockOwnerMode?: () => void;
+  productsCount?: number;
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -16,6 +17,7 @@ export const Footer: React.FC<FooterProps> = ({
   isOwnerMode = false,
   onOpenOwnerAuth,
   onLockOwnerMode,
+  productsCount = 10,
 }) => {
   return (
     <footer
@@ -44,13 +46,13 @@ export const Footer: React.FC<FooterProps> = ({
               and oversized 108″ × 108″ King proportions for Indian homes.
             </p>
 
-            <div className="space-y-1.5 text-xs text-[#4A3E38] pt-1">
+            <div className="space-y-1.5 text-xs opacity-85 pt-1">
               <p className="flex items-start gap-2">
-                <MapPin className="w-3.5 h-3.5 text-[#C29E57] shrink-0 mt-0.5" />
+                <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
                 <span>House Number 2508, Ground Floor, Sector 46, Gurgaon, Haryana</span>
               </p>
               <p className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 text-[#B83F60] shrink-0" />
+                <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-accent, #B83F60)' }} />
                 <a href={COMPANY_DETAILS.callUrl} className="hover:underline font-semibold">
                   +91 7838625915
                 </a>
@@ -60,14 +62,17 @@ export const Footer: React.FC<FooterProps> = ({
 
           {/* Quick Links */}
           <div className="md:col-span-3 space-y-3">
-            <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
+            <h4
+              className="text-xs font-bold uppercase tracking-wider"
+              style={{ color: 'var(--color-footer-text, #FAF7F2)' }}
+            >
               Quick Navigation
             </h4>
-            <ul className="space-y-2 text-xs">
+            <ul className="space-y-2 text-xs opacity-90">
               <li>
                 <button
                   onClick={() => onNavClick('home')}
-                  className="hover:text-[#B83F60] transition-colors cursor-pointer"
+                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
                 >
                   Home Showcase
                 </button>
@@ -75,18 +80,19 @@ export const Footer: React.FC<FooterProps> = ({
               <li>
                 <button
                   onClick={() => onNavClick('catalogue')}
-                  className="hover:text-[#B83F60] font-semibold text-[#B83F60] flex items-center gap-1.5 cursor-pointer"
+                  className="font-semibold flex items-center gap-1.5 cursor-pointer"
+                  style={{ color: 'var(--color-accent, #C29E57)' }}
                 >
                   <span>Product Catalogue</span>
-                  <span className="text-[10px] bg-[#FDEAF0] text-[#B83F60] px-1.5 rounded border border-[#FAD1DC]">
-                    9 Bedsheets
+                  <span className="text-[10px] bg-white/10 px-1.5 rounded border border-white/20">
+                    {productsCount} Bedsheets
                   </span>
                 </button>
               </li>
               <li>
                 <button
                   onClick={() => onNavClick('story')}
-                  className="hover:text-[#B83F60] transition-colors cursor-pointer"
+                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
                 >
                   Why 100% Pure Cotton
                 </button>
@@ -94,7 +100,7 @@ export const Footer: React.FC<FooterProps> = ({
               <li>
                 <button
                   onClick={() => onNavClick('store')}
-                  className="hover:text-[#B83F60] transition-colors cursor-pointer"
+                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
                 >
                   Visit Studio (Sector 46 Gurgaon)
                 </button>
@@ -102,10 +108,10 @@ export const Footer: React.FC<FooterProps> = ({
               <li>
                 <button
                   onClick={() => onNavClick('reviews')}
-                  className="hover:text-[#B83F60] transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer flex items-center gap-1.5"
                 >
                   <span>Customer Reviews &amp; Comments</span>
-                  <span className="text-[10px] bg-amber-50 text-amber-800 px-1.5 py-0.2 rounded border border-amber-200 font-semibold">
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded border border-amber-400/30 font-semibold">
                     4.9 ★
                   </span>
                 </button>
@@ -134,10 +140,13 @@ export const Footer: React.FC<FooterProps> = ({
 
           {/* Contact & Orders */}
           <div className="md:col-span-4 space-y-3">
-            <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
+            <h4
+              className="text-xs font-bold uppercase tracking-wider"
+              style={{ color: 'var(--color-footer-text, #FAF7F2)' }}
+            >
               Instant Ordering &amp; Support
             </h4>
-            <p className="text-xs text-[#7A6458]">
+            <p className="text-xs opacity-85">
               Have a question about fabric thickness or need recommendations? 
               Chat with our founder directly on WhatsApp.
             </p>
@@ -155,14 +164,15 @@ export const Footer: React.FC<FooterProps> = ({
 
               <a
                 href={COMPANY_DETAILS.callUrl}
-                className="py-2.5 px-3.5 bg-[#FAF7F2] hover:bg-[#F4EFE6] border border-[#DEC89B] text-[#2C2420] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                className="py-2.5 px-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                style={{ color: 'var(--color-footer-text, #FAF7F2)' }}
               >
-                <Phone className="w-3.5 h-3.5 text-[#C29E57]" />
+                <Phone className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
                 <span>Call Studio</span>
               </a>
             </div>
 
-            <div className="pt-2 text-[11px] text-[#9B8C83]">
+            <div className="pt-2 text-[11px] opacity-70">
               Operating Hours: Mon - Sun · 10:00 AM - 8:30 PM IST
             </div>
           </div>
@@ -170,21 +180,22 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-[#9B8C83] gap-3">
+        <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs opacity-75 gap-3">
           <div className="flex items-center gap-3">
             <p>© {new Date().getFullYear()} Cotton Nest. All rights reserved.</p>
             
             {/* Owner mode active indicator */}
             {isOwnerMode && (
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded border border-[#FAD1DC] flex items-center gap-1">
-                  <Unlock className="w-3 h-3" />
+                <span className="text-[11px] font-bold text-white bg-white/10 px-2 py-0.5 rounded border border-white/20 flex items-center gap-1">
+                  <Unlock className="w-3 h-3 text-amber-400" />
                   Owner Mode
                 </span>
                 {onOpenAdmin && (
                   <button
                     onClick={onOpenAdmin}
-                    className="text-[#8C2E46] hover:underline font-semibold text-[11px] cursor-pointer"
+                    className="hover:underline font-semibold text-[11px] cursor-pointer"
+                    style={{ color: 'var(--color-accent, #DEC89B)' }}
                   >
                     Open Admin
                   </button>
@@ -192,7 +203,7 @@ export const Footer: React.FC<FooterProps> = ({
                 {onLockOwnerMode && (
                   <button
                     onClick={onLockOwnerMode}
-                    className="text-[#7A6458] hover:text-[#2C2420] text-[11px] hover:underline cursor-pointer"
+                    className="opacity-75 hover:opacity-100 text-[11px] hover:underline cursor-pointer"
                   >
                     Lock
                   </button>
@@ -201,9 +212,9 @@ export const Footer: React.FC<FooterProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-1 text-[#7A6458]">
+          <div className="flex items-center gap-1 opacity-80">
             <span>Crafted with</span>
-            <Heart className="w-3 h-3 text-[#B83F60] fill-current" />
+            <Heart className="w-3 h-3 text-rose-400 fill-current" />
             <span>for restful Indian homes in Gurgaon</span>
           </div>
         </div>

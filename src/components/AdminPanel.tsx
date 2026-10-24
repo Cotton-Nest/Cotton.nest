@@ -176,7 +176,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleAddNewProductVariant = () => {
     if (!newProductVariantDraft.name.trim() || !newProductVariantDraft.image) {
-      alert('Please enter a Color Name and select a Photo for this variant.');
+      showToast('Please enter a Color Name and select a Photo for this variant.');
       return;
     }
     const createdVariant: BedsheetVariant = {
@@ -547,8 +547,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } catch (err: any) {
       console.error('Failed to replace image:', err);
       // Retain previous image and show clear error message
-      alert(`Image Replacement Failed:\n${err.message || err}\n\nYour previous product image has been kept unchanged.`);
-      showToast('Image replacement failed. Previous image retained.');
+      showToast(`Image replacement failed: ${err.message || err}`);
     } finally {
       setReplacingProductId(null);
       if (fileInputRefs.current[productId]) {
@@ -569,7 +568,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleAddVariantToProduct = (productId: string) => {
     const draft = variantDrafts[productId];
     if (!draft || !draft.name.trim() || !draft.image) {
-      alert('Please provide a Color Name and select an image/photo for this variant.');
+      showToast('Please provide a Color Name and select an image/photo for this variant.');
       return;
     }
 
@@ -664,7 +663,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleCreateNewProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProduct.name?.trim()) {
-      alert('Please enter a name for the new bedsheet.');
+      showToast('Please enter a name for the new bedsheet.');
       return;
     }
 
@@ -681,7 +680,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         assignedPublicId = uploadResult.public_id;
       } catch (uploadErr: any) {
         console.error('Failed to upload image for new bedsheet:', uploadErr);
-        alert(`Cloudinary Upload Failed:\n${uploadErr.message || uploadErr}\n\nPlease verify your Cloudinary configuration.`);
+        showToast(`Cloudinary upload failed: ${uploadErr.message || uploadErr}`);
         return;
       }
     }
@@ -1163,18 +1162,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             
             {/* Top KPI Metrics Row */}
             <section className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
+              <div
+                className="p-4 rounded-2xl border shadow-xs"
+                style={{
+                  backgroundColor: 'var(--color-surface, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
                 <div className="flex items-center justify-between text-[#7A6458] mb-1">
                   <span className="text-xs font-medium">Bedsheet Models</span>
-                  <Package className="w-4 h-4 text-[#C29E57]" />
+                  <Package className="w-4 h-4" style={{ color: 'var(--color-accent, #C29E57)' }} />
                 </div>
-                <div className="text-2xl font-bold font-serif-luxury text-[#2C2420]">
+                <div className="text-2xl font-bold font-serif-luxury" style={{ color: 'var(--color-text, #2C2420)' }}>
                   {totalProducts}
                 </div>
                 <p className="text-[10px] text-[#8C7A70] mt-0.5">Active catalogue</p>
               </div>
 
-              <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
+              <div
+                className="p-4 rounded-2xl border shadow-xs"
+                style={{
+                  backgroundColor: 'var(--color-surface, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
                 <div className="flex items-center justify-between text-[#7A6458] mb-1">
                   <span className="text-xs font-medium">In Stock</span>
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -1185,7 +1196,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <p className="text-[10px] text-emerald-600 mt-0.5">Available for buyers</p>
               </div>
 
-              <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
+              <div
+                className="p-4 rounded-2xl border shadow-xs"
+                style={{
+                  backgroundColor: 'var(--color-surface, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
                 <div className="flex items-center justify-between text-[#7A6458] mb-1">
                   <span className="text-xs font-medium">Out of Stock</span>
                   <AlertTriangle className="w-4 h-4 text-amber-600" />
@@ -1196,26 +1213,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <p className="text-[10px] text-[#8C7A70] mt-0.5">Needs stock replenishment</p>
               </div>
 
-              <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
+              <div
+                className="p-4 rounded-2xl border shadow-xs"
+                style={{
+                  backgroundColor: 'var(--color-surface, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
                 <div className="flex items-center justify-between text-[#7A6458] mb-1">
                   <span className="text-xs font-medium">Total Units</span>
-                  <Boxes className="w-4 h-4 text-[#B83F60]" />
+                  <Boxes className="w-4 h-4" style={{ color: 'var(--color-secondary, #B83F60)' }} />
                 </div>
-                <div className="text-2xl font-bold font-serif-luxury text-[#2C2420]">
+                <div className="text-2xl font-bold font-serif-luxury" style={{ color: 'var(--color-text, #2C2420)' }}>
                   {totalInventoryUnits} pcs
                 </div>
                 <p className="text-[10px] text-[#8C7A70] mt-0.5">Ready in warehouse/studio</p>
               </div>
 
-              <div className="col-span-2 lg:col-span-1 bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs flex flex-col justify-between">
+              <div
+                className="col-span-2 lg:col-span-1 p-4 rounded-2xl border shadow-xs flex flex-col justify-between"
+                style={{
+                  backgroundColor: 'var(--color-surface, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
                 <div className="flex items-center justify-between text-[#7A6458] mb-1">
                   <span className="text-xs font-medium">Quick Action</span>
-                  <Sparkles className="w-4 h-4 text-[#C29E57]" />
+                  <Sparkles className="w-4 h-4" style={{ color: 'var(--color-accent, #C29E57)' }} />
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsAddProductModalOpen(true)}
-                  className="w-full py-2 bg-[#8C2E46] hover:bg-[#742438] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                  className="w-full py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                  style={{
+                    backgroundColor: 'var(--color-primary, #70252D)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }}
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add New Bedsheet</span>
@@ -1224,11 +1257,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </section>
 
             {/* Quick Bulk Tools */}
-            <section className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] flex flex-wrap items-center justify-between gap-4">
+            <section
+              className="p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-4"
+              style={{
+                backgroundColor: 'var(--color-surface, #FAF7F2)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
+            >
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setIsAddProductModalOpen(true)}
-                  className="px-3.5 py-1.5 bg-[#8C2E46] text-white text-xs font-semibold rounded-lg hover:bg-[#742438] transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  className="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  style={{
+                    backgroundColor: 'var(--color-primary, #70252D)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }}
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add New Bedsheet</span>
@@ -1439,15 +1482,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     onDragOver={(e) => handleDragOver(e, product.id)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, product.id)}
-                    className={`bg-[#FAF7F2] rounded-2xl border p-4 sm:p-5 transition-all shadow-xs space-y-4 relative ${
+                    className={`rounded-2xl border p-4 sm:p-5 transition-all shadow-xs space-y-4 relative ${
                       isBeingDragged
-                        ? 'opacity-40 border-dashed border-[#8C2E46] ring-2 ring-[#8C2E46]/30 bg-white scale-[0.99]'
+                        ? 'opacity-40 border-dashed scale-[0.99]'
                         : isDragOver
-                        ? 'border-[#C29E57] ring-2 ring-[#C29E57]/50 bg-[#FAF7EE] shadow-md -translate-y-0.5'
+                        ? 'shadow-md -translate-y-0.5'
                         : product.inStock
-                        ? 'border-[#EAE2D5]'
-                        : 'border-amber-300 bg-amber-50/20'
+                        ? ''
+                        : 'border-amber-300'
                     }`}
+                    style={{
+                      backgroundColor: 'var(--color-surface, #FAF7F2)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                    }}
                   >
                     {/* Visual Drop Target Indicator */}
                     {isDragOver && (
@@ -2316,7 +2363,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   return (
                     <div
                       key={order.id}
-                      className="bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5] p-5 shadow-xs space-y-4"
+                      className="rounded-2xl border p-5 shadow-xs space-y-4"
+                      style={{
+                        backgroundColor: 'var(--color-surface, #FAF7F2)',
+                        borderColor: 'var(--color-border, #EAE2D5)',
+                      }}
                     >
                       {/* Order Header Row */}
                       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#EAE2D5]">
@@ -2480,7 +2531,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {/* TAB 3: STORE CONTENT & STORY EDITOR                      */}
         {/* ======================================================== */}
         {activeAdminTab === 'content' && (
-          <form onSubmit={handleSaveContent} className="space-y-8 bg-[#FAF7F2] p-6 sm:p-8 rounded-3xl border border-[#EAE2D5] shadow-xs">
+          <form
+            onSubmit={handleSaveContent}
+            className="space-y-8 p-6 sm:p-8 rounded-3xl border shadow-xs"
+            style={{
+              backgroundColor: 'var(--color-surface, #FAF7F2)',
+              borderColor: 'var(--color-border, #EAE2D5)',
+            }}
+          >
             
             <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#EAE2D5]">
               <div>
@@ -2494,7 +2552,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-[#8C2E46] hover:bg-[#742438] text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                className="px-6 py-2.5 text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                style={{
+                  backgroundColor: 'var(--color-primary, #70252D)',
+                  color: 'var(--color-primary-contrast, #FFFFFF)',
+                }}
               >
                 <Save className="w-4 h-4" />
                 <span>Save All Changes</span>

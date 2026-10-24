@@ -126,6 +126,7 @@ async function startServer() {
     const latestTimestamp = Math.max(
       ...db.products.map((p) => p.updatedAt || 0),
       (db as any).theme?.updatedAt || 0,
+      (db as any).updatedAt || 0,
       0
     );
     res.json({
@@ -365,6 +366,9 @@ async function startServer() {
     if (!newProduct.id) {
       newProduct.id = `sheet-${Date.now().toString(36)}`;
     }
+    const now = Date.now();
+    newProduct.updatedAt = now;
+    (db as any).updatedAt = now;
     db.products.unshift(newProduct);
     saveDatabase();
     res.status(201).json(newProduct);
@@ -378,6 +382,7 @@ async function startServer() {
         order: typeof p.order === 'number' ? p.order : idx,
         updatedAt: p.updatedAt || now,
       }));
+      (db as any).updatedAt = now;
       saveDatabase();
       return res.json(db.products);
     }
@@ -391,7 +396,9 @@ async function startServer() {
     if (index === -1) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    db.products[index] = { ...db.products[index], ...updated, updatedAt: Date.now() };
+    const now = Date.now();
+    (db as any).updatedAt = now;
+    db.products[index] = { ...db.products[index], ...updated, updatedAt: now };
     saveDatabase();
     res.json(db.products[index]);
   });
@@ -403,6 +410,7 @@ async function startServer() {
     if (db.products.length === beforeCount) {
       return res.status(404).json({ error: 'Product not found' });
     }
+    (db as any).updatedAt = Date.now();
     saveDatabase();
     res.json({ success: true, id });
   });

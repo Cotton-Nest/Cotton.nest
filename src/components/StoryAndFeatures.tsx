@@ -29,25 +29,21 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
       title: pillar1Title,
       desc: pillar1Desc,
       icon: Feather,
-      iconBg: 'bg-[#FDEAF0] text-[#B83F60]',
     },
     {
       title: pillar2Title,
       desc: pillar2Desc,
       icon: Shield,
-      iconBg: 'bg-[#FAF7EE] text-[#A8823B] border border-[#DEC89B]/50',
     },
     {
       title: pillar3Title,
       desc: pillar3Desc,
       icon: Droplets,
-      iconBg: 'bg-[#FAF7EE] text-[#A8823B] border border-[#DEC89B]/50',
     },
     {
       title: pillar4Title,
       desc: pillar4Desc,
       icon: Sun,
-      iconBg: 'bg-[#FDEAF0] text-[#B83F60]',
     },
   ];
 
@@ -68,27 +64,43 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             className="lg:col-span-6 space-y-5"
           >
-            <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#A8823B]">
-              <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+            <div
+              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--color-accent, #C29E57)' }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
               {storyTagline}
             </div>
 
-            <h2 className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-semibold text-[#2C2420] text-balance leading-tight">
+            <h2
+              className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-semibold text-balance leading-tight"
+              style={{ color: 'var(--color-text, #2C2420)' }}
+            >
               {storyHeading}
             </h2>
 
-            <p className="text-sm sm:text-base text-[#6B5D55] leading-relaxed">
+            <p
+              className="text-sm sm:text-base leading-relaxed"
+              style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+            >
               {p1}
             </p>
 
-            <p className="text-sm sm:text-base text-[#6B5D55] leading-relaxed">
+            <p
+              className="text-sm sm:text-base leading-relaxed"
+              style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+            >
               {p2}
             </p>
 
             <div className="pt-2">
               <button
                 onClick={onGoToCatalogue}
-                className="px-6 py-3 bg-[#B83F60] hover:bg-[#A33452] text-white text-xs font-semibold rounded-xl shadow-xs transition-all hover:shadow-md cursor-pointer active:scale-98"
+                className="px-6 py-3 text-xs font-semibold rounded-xl shadow-xs transition-all hover:shadow-md cursor-pointer active:scale-98"
+                style={{
+                  backgroundColor: 'var(--color-primary, #70252D)',
+                  color: 'var(--color-primary-contrast, #FFFFFF)',
+                }}
               >
                 Browse Our Signature Bedsheets
               </button>
@@ -101,9 +113,16 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-50px' }}
             transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="lg:col-span-6 bg-[#F4EFE6] rounded-3xl p-6 sm:p-8 border border-[#EAE2D5] space-y-6"
+            className="lg:col-span-6 rounded-3xl p-6 sm:p-8 border space-y-6"
+            style={{
+              backgroundColor: 'var(--color-surface, #FFFFFF)',
+              borderColor: 'var(--color-border, #EAE2D5)',
+            }}
           >
-            <h3 className="font-serif-luxury text-2xl font-semibold text-[#2C2420]">
+            <h3
+              className="font-serif-luxury text-2xl font-semibold"
+              style={{ color: 'var(--color-text, #2C2420)' }}
+            >
               The Four Pillars of Cotton Nest
             </h3>
 
@@ -117,15 +136,32 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: 0.15 + idx * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                    className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5] space-y-2 hover:border-[#C29E57]/50 transition-colors"
+                    className="p-4 rounded-2xl border space-y-2 transition-colors"
+                    style={{
+                      backgroundColor: 'var(--color-background, #FAF7F2)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                    }}
                   >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${pillar.iconBg}`}>
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center border"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--color-primary, #70252D) 10%, transparent)',
+                        color: 'var(--color-primary, #70252D)',
+                        borderColor: 'color-mix(in srgb, var(--color-primary, #70252D) 20%, transparent)',
+                      }}
+                    >
                       <IconComponent className="w-4 h-4" />
                     </div>
-                    <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wide">
+                    <h4
+                      className="text-xs font-bold uppercase tracking-wide"
+                      style={{ color: 'var(--color-text, #2C2420)' }}
+                    >
                       {pillar.title}
                     </h4>
-                    <p className="text-xs text-[#6B5D55] leading-relaxed">
+                    <p
+                      className="text-xs leading-relaxed"
+                      style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+                    >
                       {pillar.desc}
                     </p>
                   </motion.div>
@@ -143,16 +179,26 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-50px' }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EAE2D5] shadow-xs space-y-6"
+          className="rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6"
+          style={{
+            backgroundColor: 'var(--color-surface, #FFFFFF)',
+            borderColor: 'var(--color-border, #EAE2D5)',
+          }}
         >
           <div className="text-center max-w-xl mx-auto space-y-1">
-            <span className="text-[11px] font-semibold text-[#A8823B] uppercase tracking-wider">
+            <span
+              className="text-[11px] font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--color-accent, #C29E57)' }}
+            >
               Material Transparency
             </span>
-            <h3 className="font-serif-luxury text-2xl sm:text-3xl font-semibold text-[#2C2420]">
+            <h3
+              className="font-serif-luxury text-2xl sm:text-3xl font-semibold"
+              style={{ color: 'var(--color-text, #2C2420)' }}
+            >
               The 100% Pure Cotton Difference
             </h3>
-            <p className="text-xs text-[#6B5D55]">
+            <p className="text-xs" style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
               Why we strictly say no to synthetic microfiber and cheap polyester blends.
             </p>
           </div>
@@ -162,31 +208,42 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             <motion.div
               whileHover={{ y: -3 }}
               transition={{ duration: 0.2 }}
-              className="p-5 sm:p-6 bg-[#FAF7F2] rounded-2xl border-2 border-[#DEC89B] space-y-4 relative overflow-hidden"
+              className="p-5 sm:p-6 rounded-2xl border-2 space-y-4 relative overflow-hidden"
+              style={{
+                backgroundColor: 'var(--color-background, #FAF7F2)',
+                borderColor: 'var(--color-accent, #C29E57)',
+              }}
             >
               <div className="flex items-center justify-between">
-                <span className="px-3 py-1 bg-[#FDEAF0] text-[#B83F60] text-xs font-bold rounded-full">
+                <span
+                  className="px-3 py-1 text-xs font-bold rounded-full border"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary, #70252D) 12%, transparent)',
+                    color: 'var(--color-primary, #70252D)',
+                    borderColor: 'color-mix(in srgb, var(--color-primary, #70252D) 25%, transparent)',
+                  }}
+                >
                   Cotton Nest Pure Cotton
                 </span>
-                <span className="text-xs font-semibold text-[#3E7D5A] flex items-center gap-1">
+                <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
                   <CheckCircle className="w-3.5 h-3.5" /> 100% Natural
                 </span>
               </div>
-              <ul className="space-y-2.5 text-xs text-[#2C2420]">
+              <ul className="space-y-2.5 text-xs" style={{ color: 'var(--color-text, #2C2420)' }}>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#3E7D5A] font-bold">✓</span>
+                  <span className="text-emerald-700 font-bold">✓</span>
                   <span><strong>Natural Long-Staple Fibers:</strong> Breathable weave circulates cool air throughout the night.</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#3E7D5A] font-bold">✓</span>
+                  <span className="text-emerald-700 font-bold">✓</span>
                   <span><strong>Deep 108×108 King Cut:</strong> Stays securely tucked under 8-12 inch orthopaedic mattresses.</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#3E7D5A] font-bold">✓</span>
+                  <span className="text-emerald-700 font-bold">✓</span>
                   <span><strong>Softens Over Time:</strong> Pure cotton yarns bloom and soften with every wash cycle.</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#3E7D5A] font-bold">✓</span>
+                  <span className="text-emerald-700 font-bold">✓</span>
                   <span><strong>Zero Microplastics:</strong> Gentle on sensitive skin and allergen-free for peaceful sleep.</span>
                 </li>
               </ul>
@@ -196,17 +253,21 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             <motion.div
               whileHover={{ y: -3 }}
               transition={{ duration: 0.2 }}
-              className="p-5 sm:p-6 bg-[#F8F8F8] rounded-2xl border border-gray-200 space-y-4 opacity-80"
+              className="p-5 sm:p-6 rounded-2xl border space-y-4 opacity-75"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-background, #FAF7F2) 60%, #FFFFFF)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
             >
               <div className="flex items-center justify-between">
-                <span className="px-3 py-1 bg-gray-200 text-gray-700 text-xs font-semibold rounded-full">
+                <span className="px-3 py-1 bg-neutral-200 text-neutral-700 text-xs font-semibold rounded-full">
                   Conventional Microfiber
                 </span>
-                <span className="text-xs font-medium text-gray-500">
+                <span className="text-xs font-medium text-neutral-500">
                   Synthetic Polyester
                 </span>
               </div>
-              <ul className="space-y-2.5 text-xs text-gray-600">
+              <ul className="space-y-2.5 text-xs text-neutral-600">
                 <li className="flex items-start gap-2">
                   <span className="text-red-500 font-bold">✗</span>
                   <span><strong>Traps Body Heat:</strong> Synthetic plastic fibers cause sweaty, uncomfortable wakeups.</span>
@@ -234,13 +295,17 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-40px' }}
           transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-          className="pt-8 border-t border-[#EAE2D5]"
+          className="pt-8 border-t"
+          style={{ borderColor: 'var(--color-border, #EAE2D5)' }}
         >
           <div className="text-center max-w-xl mx-auto mb-8 space-y-1">
-            <h3 className="font-serif-luxury text-2xl font-semibold text-[#2C2420]">
+            <h3
+              className="font-serif-luxury text-2xl font-semibold"
+              style={{ color: 'var(--color-text, #2C2420)' }}
+            >
               Caring for Your Cotton Nest Sheets
             </h3>
-            <p className="text-xs text-[#7A6458]">
+            <p className="text-xs" style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
               Simple instructions to ensure your bedsheets stay soft for years.
             </p>
           </div>
@@ -251,12 +316,16 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="p-4 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] space-y-1.5"
+              className="p-4 rounded-xl border space-y-1.5"
+              style={{
+                backgroundColor: 'var(--color-surface, #FFFFFF)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
             >
-              <p className="font-semibold text-[#2C2420] flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5 text-[#3E7D5A]" /> First Wash Tip
+              <p className="font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-text, #2C2420)' }}>
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> First Wash Tip
               </p>
-              <p className="text-[#6B5D55]">
+              <p style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
                 Wash separately in cold water on gentle cycle before first use to set the cotton fibers and unlock maximum softness.
               </p>
             </motion.div>
@@ -266,12 +335,16 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="p-4 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] space-y-1.5"
+              className="p-4 rounded-xl border space-y-1.5"
+              style={{
+                backgroundColor: 'var(--color-surface, #FFFFFF)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
             >
-              <p className="font-semibold text-[#2C2420] flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5 text-[#3E7D5A]" /> Detergent &amp; Bleach
+              <p className="font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-text, #2C2420)' }}>
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Detergent &amp; Bleach
               </p>
-              <p className="text-[#6B5D55]">
+              <p style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
                 Use mild liquid laundry detergent. Never use harsh chemical chlorine bleach to preserve the soft pink and muted gold tones.
               </p>
             </motion.div>
@@ -281,12 +354,16 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="p-4 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] space-y-1.5"
+              className="p-4 rounded-xl border space-y-1.5"
+              style={{
+                backgroundColor: 'var(--color-surface, #FFFFFF)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
             >
-              <p className="font-semibold text-[#2C2420] flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5 text-[#3E7D5A]" /> Line Dry in Shade
+              <p className="font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-text, #2C2420)' }}>
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Line Dry in Shade
               </p>
-              <p className="text-[#6B5D55]">
+              <p style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
                 Drying in soft breeze or shade protects the cotton natural elasticity. Warm iron for that crisp 5-star hotel look.
               </p>
             </motion.div>

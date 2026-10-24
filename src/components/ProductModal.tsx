@@ -127,7 +127,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       }, 1500);
     } catch (err) {
       console.error('Failed to save product details:', err);
-      alert('Failed to save product details. Please try again.');
+      setSaveSuccessMessage('Failed to save product details. Please try again.');
+      setTimeout(() => setSaveSuccessMessage(null), 3000);
     } finally {
       setIsSaving(false);
     }
@@ -178,7 +179,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       }
     } catch (err: any) {
       console.error('Failed to upload image to Cloudinary:', err);
-      alert(`Image Replacement Failed:\n${err.message || err}\n\nPrevious image has been kept unchanged.`);
+      setSaveSuccessMessage(`Image Replacement Failed: ${err.message || 'Previous image kept unchanged.'}`);
+      setTimeout(() => setSaveSuccessMessage(null), 4000);
     } finally {
       setIsSaving(false);
       if (fileInputRef.current) {

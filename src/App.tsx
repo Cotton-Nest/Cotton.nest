@@ -310,7 +310,7 @@ export default function App() {
               image: resolveBedsheetImage(p.image, p.id, p.updatedAt),
             }));
 
-            const serverTime = Math.max(...mergedProducts.map((p) => p.updatedAt || 0), Date.now());
+            const serverTime = Math.max(...mergedProducts.map((p) => p.updatedAt || 0), 0);
             lastServerTimestampRef.current = serverTime;
 
             if (!isAdminOpenRef.current || Date.now() - lastAdminSaveRef.current > 5000) {
@@ -774,6 +774,7 @@ export default function App() {
             onOpenGoogleChooser={() => setIsGoogleChooserOpen(true)}
             isOwnerMode={isOwnerMode}
             content={siteContent}
+            productsCount={products.length}
           />
 
           {/* Main Content Area */}
@@ -1062,6 +1063,7 @@ export default function App() {
             isOwnerMode={isOwnerMode}
             onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
             onLockOwnerMode={handleLockOwnerMode}
+            productsCount={products.length}
           />
         </>
       )}

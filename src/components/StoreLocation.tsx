@@ -18,7 +18,15 @@ export const StoreLocation: React.FC = () => {
   };
 
   return (
-    <section id="store-location" className="py-12 sm:py-16 bg-[#F4EFE6]/60 border-t border-[#EAE2D5]">
+    <section
+      id="store-location"
+      className="py-12 sm:py-16 border-t transition-colors duration-300"
+      style={{
+        backgroundColor: 'var(--color-background, #FAF7F2)',
+        borderColor: 'var(--color-border, #EAE2D5)',
+        color: 'var(--color-text, #2C2420)',
+      }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header with Scroll Reveal */}
@@ -29,14 +37,23 @@ export const StoreLocation: React.FC = () => {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="text-center max-w-2xl mx-auto mb-10 space-y-2"
         >
-          <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#A8823B] uppercase tracking-wider">
-            <MapPin className="w-3.5 h-3.5 text-[#C29E57]" />
+          <div
+            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
+            style={{ color: 'var(--color-accent, #A8823B)' }}
+          >
+            <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
             Flagship Experience Studio
           </div>
-          <h2 className="font-serif-luxury text-3xl sm:text-4xl font-semibold text-[#2C2420]">
+          <h2
+            className="font-serif-luxury text-3xl sm:text-4xl font-semibold"
+            style={{ color: 'var(--color-text, #2C2420)' }}
+          >
             Visit Cotton Nest in Gurgaon
           </h2>
-          <p className="text-sm text-[#6B5D55]">
+          <p
+            className="text-sm"
+            style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+          >
             Prefer feeling the texture and softness before buying? 
             Visit our studio at Sector 46 or request a video walkthrough.
           </p>
@@ -54,7 +71,13 @@ export const StoreLocation: React.FC = () => {
           >
             
             {/* Main Physical Address Card */}
-            <div className="bg-[#FAF7F2] p-6 sm:p-7 rounded-2xl border border-[#EAE2D5] shadow-xs space-y-5">
+            <div
+              className="p-6 sm:p-7 rounded-2xl border shadow-xs space-y-5"
+              style={{
+                backgroundColor: 'var(--color-surface, #FFFFFF)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
+            >
               
               <div className="flex items-start gap-4">
                 <div className="p-3 bg-[#FDEAF0] text-[#B83F60] rounded-xl border border-[#F9D3DE] shrink-0">
@@ -113,34 +136,46 @@ export const StoreLocation: React.FC = () => {
             {/* Timings and Visiting Guidelines */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
-              <div className="p-5 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#A8823B] uppercase">
-                  <Clock className="w-4 h-4 text-[#C29E57]" />
+              <div
+                className="p-5 rounded-xl border space-y-2"
+                style={{
+                  backgroundColor: 'var(--color-surface, #FFFFFF)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-accent, #A8823B)' }}>
+                  <Clock className="w-4 h-4" style={{ color: 'var(--color-accent, #C29E57)' }} />
                   Visiting Hours
                 </div>
-                <p className="text-sm font-semibold text-[#2C2420]">
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-text, #2C2420)' }}>
                   Monday to Sunday (Open 7 Days)
                 </p>
-                <p className="text-xs text-[#6B5D55]">
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
                   10:00 AM – 8:30 PM (IST)
                 </p>
-                <p className="text-[11px] text-[#7A6458] pt-1 border-t border-[#EAE2D5]/70">
+                <p className="text-[11px] pt-1 border-t" style={{ borderColor: 'var(--color-border, #EAE2D5)', color: 'var(--color-text-secondary, #7A6458)' }}>
                   Walk-ins welcome, or call ahead for dedicated fabric showing.
                 </p>
               </div>
 
-              <div className="p-5 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#B83F60] uppercase">
-                  <CheckCircle2 className="w-4 h-4 text-[#B83F60]" />
+              <div
+                className="p-5 rounded-xl border space-y-2"
+                style={{
+                  backgroundColor: 'var(--color-surface, #FFFFFF)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-primary, #B83F60)' }}>
+                  <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--color-primary, #B83F60)' }} />
                   Gurgaon Local Perks
                 </div>
-                <p className="text-sm font-semibold text-[#2C2420]">
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-text, #2C2420)' }}>
                   Same-Day Gurgaon Delivery
                 </p>
-                <p className="text-xs text-[#6B5D55]">
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
                   Instant express delivery to Sectors 45, 46, 47, 50, Cyber City &amp; Golf Course.
                 </p>
-                <p className="text-[11px] text-[#7A6458] pt-1 border-t border-[#EAE2D5]/70">
+                <p className="text-[11px] pt-1 border-t" style={{ borderColor: 'var(--color-border, #EAE2D5)', color: 'var(--color-text-secondary, #7A6458)' }}>
                   Orders confirmed &amp; dispatched directly over WhatsApp.
                 </p>
               </div>
@@ -157,23 +192,29 @@ export const StoreLocation: React.FC = () => {
             transition={{ duration: 0.65, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
             className="lg:col-span-5"
           >
-            <div className="bg-[#FAF7F2] p-6 sm:p-7 rounded-2xl border border-[#EAE2D5] shadow-xs space-y-4">
+            <div
+              className="p-6 sm:p-7 rounded-2xl border shadow-xs space-y-4"
+              style={{
+                backgroundColor: 'var(--color-surface, #FFFFFF)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
+            >
               
               <div>
-                <span className="text-xs font-semibold uppercase text-[#A8823B] tracking-wider">
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent, #A8823B)' }}>
                   Personal Bedding Consultation
                 </span>
-                <h3 className="font-serif-luxury text-xl font-semibold text-[#2C2420] mt-1">
+                <h3 className="font-serif-luxury text-xl font-semibold mt-1" style={{ color: 'var(--color-text, #2C2420)' }}>
                   Plan a Visit or Request Swatches
                 </h3>
-                <p className="text-xs text-[#6B5D55] mt-1">
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
                   Drop your details and we will immediately connect with you via WhatsApp or phone call.
                 </p>
               </div>
 
               <form onSubmit={handleSubmitVisit} className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-medium text-[#2C2420] mb-1">
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
                     Your Name
                   </label>
                   <input
@@ -182,12 +223,17 @@ export const StoreLocation: React.FC = () => {
                     placeholder="e.g. Ananya Kapoor"
                     value={inquiryName}
                     onChange={(e) => setInquiryName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-[#F4EFE6] border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] placeholder:text-[#9B8C83] focus:outline-none focus:border-[#C29E57]"
+                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none"
+                    style={{
+                      backgroundColor: 'var(--color-background, #F4EFE6)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                      color: 'var(--color-text, #2C2420)',
+                    }}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-[#2C2420] mb-1">
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
                     Phone / WhatsApp Number
                   </label>
                   <input
@@ -196,12 +242,17 @@ export const StoreLocation: React.FC = () => {
                     placeholder="+91 98765 43210"
                     value={inquiryPhone}
                     onChange={(e) => setInquiryPhone(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-[#F4EFE6] border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] placeholder:text-[#9B8C83] focus:outline-none focus:border-[#C29E57]"
+                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none"
+                    style={{
+                      backgroundColor: 'var(--color-background, #F4EFE6)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                      color: 'var(--color-text, #2C2420)',
+                    }}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-[#2C2420] mb-1">
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
                     What would you like to inquire about?
                   </label>
                   <textarea
@@ -209,13 +260,22 @@ export const StoreLocation: React.FC = () => {
                     placeholder="e.g. I want to see the Gulabi Bagh Rose and Shivaura Trellis bedsheets in person this Saturday..."
                     value={inquiryMsg}
                     onChange={(e) => setInquiryMsg(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-[#F4EFE6] border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] placeholder:text-[#9B8C83] focus:outline-none focus:border-[#C29E57]"
+                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none"
+                    style={{
+                      backgroundColor: 'var(--color-background, #F4EFE6)',
+                      borderColor: 'var(--color-border, #EAE2D5)',
+                      color: 'var(--color-text, #2C2420)',
+                    }}
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3 bg-[#B83F60] hover:bg-[#A33452] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                  className="w-full py-3 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--color-primary, #70252D)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }}
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Send Direct WhatsApp Message</span>

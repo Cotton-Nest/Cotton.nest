@@ -43,62 +43,6 @@
       "image": "/images/exact_sheet1_pink_rose_1790997736396.jpg"
     },
     {
-      "id": "bedsheet-mvg9ktgk",
-      "price": 1900,
-      "features": [
-        "Expansive King size drop",
-        "Includes 2 matching pillow shams",
-        "100% pure breathable cotton",
-        "Machine wash tested"
-      ],
-      "inStock": true,
-      "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "variants": [],
-      "name": "Abc",
-      "stockQuantity": 15,
-      "collection": "Signature Collection",
-      "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_bedsheet-mvg9ktgk_1792475410",
-      "fabric": "100% Pure Percale Cotton",
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792475413/cotton_nest/bedsheets/sheet_bedsheet-mvg9ktgk_1792475410.jpg",
-      "threadCount": "350 Thread Count",
-      "badge": "New Arrival",
-      "description": "Pristine 100% combed cotton bedsheet crafted for luxury Indian king beds.",
-      "colorTone": "Ivory & Pastels",
-      "updatedAt": 1792475413486,
-      "pattern": "Artisanal Floral",
-      "originalPrice": 2500,
-      "order": 2
-    },
-    {
-      "threadCount": "350 Thread Count",
-      "description": "Pristine 100% combed cotton bedsheet crafted for luxury Indian king beds.",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792475417/cotton_nest/bedsheets/sheet_bedsheet-mvg9kw5c_1792475413.jpg",
-      "badge": "New Arrival",
-      "inStock": true,
-      "collection": "Signature Collection",
-      "fabric": "100% Pure Percale Cotton",
-      "stockQuantity": 15,
-      "colorTone": "Ivory & Pastels",
-      "updatedAt": 1792475418061,
-      "name": "Abc",
-      "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "variants": [],
-      "price": 1900,
-      "id": "bedsheet-mvg9kw5c",
-      "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_bedsheet-mvg9kw5c_1792475413",
-      "originalPrice": 2500,
-      "pattern": "Artisanal Floral",
-      "features": [
-        "Expansive King size drop",
-        "Includes 2 matching pillow shams",
-        "100% pure breathable cotton",
-        "Machine wash tested"
-      ],
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "order": 3
-    },
-    {
       "pattern": "Vintage Rose Floral",
       "originalPrice": 1320,
       "threadCount": "300 Thread Count",
@@ -106,7 +50,7 @@
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
       "id": "gulabi-bagh-rose",
       "price": 1320,
-      "order": 4,
+      "order": 2,
       "fabric": "100% Pure Glace Percale Cotton",
       "dimensions": "108 x 108 inches (274 x 274 cm)",
       "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_gulabi-bagh-rose_1792387962",
@@ -156,7 +100,7 @@
         "High breathability for Indian summers"
       ],
       "price": 1320,
-      "order": 5,
+      "order": 3,
       "name": "Nandini",
       "id": "ivory-garland-wreath",
       "originalPrice": 1320,
@@ -192,7 +136,7 @@
       "inStock": true,
       "id": "milky-white-poppy",
       "price": 1200,
-      "order": 6,
+      "order": 4,
       "colorTone": "Milky White, Burnt Orange & Sage Green",
       "updatedAt": 1792390239713
     },
@@ -215,7 +159,7 @@
         "Oeko-Tex skin friendly certified"
       ],
       "price": 1360,
-      "order": 7,
+      "order": 5,
       "originalPrice": 1360,
       "variants": [
         {
@@ -257,7 +201,7 @@
       "pattern": "Royal Paisley Jaal",
       "colorTone": "Peacock Blue & Natural Cream",
       "updatedAt": 1792390349079,
-      "order": 8,
+      "order": 6,
       "price": 1050
     },
     {
@@ -283,7 +227,7 @@
       "updatedAt": 1792390193016,
       "colorTone": "Crisp White & Muted Ochre Gold",
       "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "order": 9,
+      "order": 7,
       "price": 1220,
       "stockQuantity": 10
     },
@@ -291,7 +235,7 @@
       "name": "Rosemary Royal Blue Rose",
       "originalPrice": 1100,
       "price": 1100,
-      "order": 10,
+      "order": 8,
       "collection": "Rosemary Collection",
       "updatedAt": 1792390385441,
       "colorTone": "Crisp White & Royal Blue",
@@ -332,7 +276,7 @@
       "description": "Refined geometric chevron trellis drawn in delicate non-shiny golden lines, harmonized with misty slate floral bouquets and Shivaura luxury hallmark.",
       "dimensions": "108 x 108 inches (274 x 274 cm)",
       "price": 1220,
-      "order": 11,
+      "order": 9,
       "updatedAt": 1792390066854,
       "colorTone": "Champagne Gold & Slate Grey",
       "fabric": "100% Premium Egyptian Combed Cotton"

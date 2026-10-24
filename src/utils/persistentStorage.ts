@@ -17,23 +17,42 @@ function openDB(): Promise<IDBDatabase> {
       return;
     }
 
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const timer = setTimeout(() => {
+      reject(new Error('IndexedDB open timed out'));
+    }, 1000);
 
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_CUSTOM_IMAGES)) {
-        db.createObjectStore(STORE_CUSTOM_IMAGES);
-      }
-      if (!db.objectStoreNames.contains(STORE_PRODUCTS)) {
-        db.createObjectStore(STORE_PRODUCTS);
-      }
-      if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
-        db.createObjectStore(STORE_SETTINGS);
-      }
-    };
+    try {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains(STORE_CUSTOM_IMAGES)) {
+          db.createObjectStore(STORE_CUSTOM_IMAGES);
+        }
+        if (!db.objectStoreNames.contains(STORE_PRODUCTS)) {
+          db.createObjectStore(STORE_PRODUCTS);
+        }
+        if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
+          db.createObjectStore(STORE_SETTINGS);
+        }
+      };
+
+      request.onsuccess = () => {
+        clearTimeout(timer);
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        clearTimeout(timer);
+        reject(request.error);
+      };
+      request.onblocked = () => {
+        clearTimeout(timer);
+        reject(new Error('IndexedDB blocked'));
+      };
+    } catch (e) {
+      clearTimeout(timer);
+      reject(e);
+    }
   });
 }
 

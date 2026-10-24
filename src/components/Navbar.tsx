@@ -15,6 +15,7 @@ interface NavbarProps {
   onOpenGoogleChooser?: () => void;
   isOwnerMode?: boolean;
   content?: SiteContent;
+  productsCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -28,6 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenGoogleChooser,
   isOwnerMode = false,
   content,
+  productsCount = 10,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
@@ -47,16 +49,25 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       {/* Subtle announcement bar */}
-      <aside aria-label="Announcement" className="bg-[#F4EFE6] border-b border-[#EAE2D5] text-[#7A6458] text-xs py-1.5 px-4 text-center">
+      <aside
+        aria-label="Announcement"
+        className="border-b text-xs py-1.5 px-4 text-center transition-colors"
+        style={{
+          backgroundColor: 'var(--color-surface, #F4EFE6)',
+          borderColor: 'var(--color-border, #EAE2D5)',
+          color: 'var(--color-text-secondary, #7A6458)',
+        }}
+      >
         <div className="max-w-7xl mx-auto flex items-center justify-center gap-3">
           <span className="flex items-center gap-1.5 font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+            <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
             {announcementText}
           </span>
-          <span className="hidden md:inline text-[#DCD0C0]">|</span>
+          <span className="hidden md:inline opacity-40">|</span>
           <a
             href={`tel:${contactPhone.replace(/\s+/g, '')}`}
-            className="hidden md:inline-flex items-center gap-1 text-[#9E7B3B] hover:underline font-semibold"
+            className="hidden md:inline-flex items-center gap-1 hover:underline font-semibold"
+            style={{ color: 'var(--color-primary, #9E7B3B)' }}
           >
             <Phone className="w-3 h-3" />
             {contactPhone}
@@ -105,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <span>Catalogue</span>
               <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--color-background,#FAF7F2)] text-[var(--color-primary,#70252D)] border border-[var(--color-border,#EAE2D5)]">
-                9 Designs
+                {productsCount} Designs
               </span>
               {activeTab === 'catalogue' && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
@@ -372,8 +383,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <span>Product Catalogue</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#FAF7F2] text-[#B83F60] border border-[#F9D3DE]">
-                9 Bedsheets
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--color-background,#FAF7F2)] text-[var(--color-primary,#B83F60)] border border-[var(--color-border,#F9D3DE)]">
+                {productsCount} Bedsheets
               </span>
             </button>
 

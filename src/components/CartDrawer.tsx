@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
@@ -77,12 +77,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       ? 'Sector 46, Gurgaon (Complimentary)'
       : 'Rest of Gurgaon (Self Pickup / On Actuals)';
 
+  const [formError, setFormError] = useState<string | null>(null);
+
   const handlePlaceWhatsAppOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) {
-      alert('Please enter your Name, WhatsApp Mobile Number, and Delivery Address.');
+      setFormError('Please enter your Name, WhatsApp Mobile Number, and Delivery Address.');
       return;
     }
+    setFormError(null);
 
     const orderId = `CN-${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -280,6 +283,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           {/* STEP 2: CHECKOUT DETAILS & WHATSAPP LINK */}
           {checkoutStep === 'checkout' && (
             <form id="whatsapp-order-form" onSubmit={handlePlaceWhatsAppOrder} className="space-y-4">
+              {formError && (
+                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
+                  {formError}
+                </div>
+              )}
               <div className="p-3 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] text-xs space-y-1">
                 <p className="font-semibold text-[#2C2420]">Order Summary</p>
                 <p className="text-[#6B5D55]">

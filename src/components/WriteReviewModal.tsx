@@ -33,6 +33,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
   const [colorRating, setColorRating] = useState<number>(5);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submittedSuccess, setSubmittedSuccess] = useState<boolean>(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (defaultProductId) {
@@ -47,9 +48,10 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !comment.trim()) {
-      alert('Please provide your name and review feedback.');
+      setFormError('Please provide your name and review feedback.');
       return;
     }
+    setFormError(null);
 
     setIsSubmitting(true);
     const newReview: ProductReview = {
@@ -129,6 +131,13 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
                 Tell fellow cotton lovers about the fabric feel, sizing drop, and wash experience.
               </p>
             </div>
+
+            {formError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{formError}</span>
+              </div>
+            )}
 
             {/* Bedsheet Selection */}
             <div>

@@ -56,46 +56,7 @@ export async function uploadImageApi(imageInput: string | File, productId?: stri
 
 // Products API: Loads products from server JSON database, IndexedDB, or embedded catalog
 export async function getProducts(): Promise<BedsheetProduct[]> {
-  // 1. Gather all persistent custom photos from IndexedDB
-  let persistentImages: Record<string, string> = {};
-  try {
-    persistentImages = await getAllPersistentImages().catch(() => ({}));
-  } catch {}
-
-  // 2. Read local cache from localStorage
-  const localSaved = localStorage.getItem('cotton_nest_products');
-  let localTimestamp = Number(localStorage.getItem('cotton_nest_products_updated_at') || 0);
-  let localProducts: BedsheetProduct[] | null = null;
-  if (localSaved) {
-    try {
-      const parsed = JSON.parse(localSaved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        localProducts = parsed;
-      }
-    } catch {}
-  }
-
-  // Also read from permanent IndexedDB
-  let idbProducts: BedsheetProduct[] | null = null;
-  let idbTimestamp = 0;
-  try {
-    const [idbData, idbTs] = await Promise.all([
-      getPersistentProducts(),
-      getPersistentProductsTimestamp(),
-    ]);
-    if (Array.isArray(idbData) && idbData.length > 0) {
-      idbProducts = idbData;
-      idbTimestamp = idbTs || 0;
-    }
-  } catch {}
-
-  // Select freshest local dataset
-  if (idbProducts && (!localProducts || idbTimestamp >= localTimestamp)) {
-    localProducts = idbProducts;
-    localTimestamp = Math.max(localTimestamp, idbTimestamp);
-  }
-
-  // 3. Fetch from Backend Server API
+  // 1. Fetch from Backend Server API first (authoritative single source of truth)
   let serverProducts: BedsheetProduct[] | null = null;
   try {
     const res = await fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' });
@@ -107,17 +68,30 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
     }
   } catch {}
 
-  const serverTime = serverProducts && serverProducts.length > 0
-    ? Math.max(...serverProducts.map((p) => p.updatedAt || 0), 0)
-    : 0;
+  // 2. Fallback to local storage only if server is unreachable
+  let localProducts: BedsheetProduct[] | null = null;
+  if (!serverProducts) {
+    try {
+      const localSaved = localStorage.getItem('cotton_nest_products');
+      if (localSaved) {
+        const parsed = JSON.parse(localSaved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localProducts = parsed;
+        }
+      }
+    } catch {}
 
-  // 4. Determine authoritative dataset
-  let authoritativeRemote: BedsheetProduct[] | null = null;
-  if (serverProducts && serverProducts.length > 0 && serverTime >= localTimestamp) {
-    authoritativeRemote = serverProducts;
-  } else if (localProducts && localProducts.length > 0) {
-    authoritativeRemote = localProducts;
+    if (!localProducts) {
+      try {
+        const idbData = await getPersistentProducts().catch(() => null);
+        if (Array.isArray(idbData) && idbData.length > 0) {
+          localProducts = idbData;
+        }
+      } catch {}
+    }
   }
+
+  const authoritativeRemote = serverProducts || localProducts;
 
   if (authoritativeRemote && authoritativeRemote.length > 0) {
     const orderMap = new Map(BEDSHEETS_CATALOG.map((p, idx) => [p.id, idx]));
@@ -128,25 +102,19 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
     });
 
     const cleanMerged = authoritativeRemote.map((p) => {
-      const finalPhoto = p.image || persistentImages[p.id];
       return {
         ...p,
-        image: resolveBedsheetImage(finalPhoto, p.id, p.updatedAt),
+        image: resolveBedsheetImage(p.image, p.id, p.updatedAt),
       };
     });
 
     try {
       localStorage.setItem('cotton_nest_products', JSON.stringify(cleanMerged));
-      localStorage.setItem('cotton_nest_products_updated_at', String(Date.now()));
+      const serverTime = Math.max(...cleanMerged.map((p) => p.updatedAt || 0), 0);
+      localStorage.setItem('cotton_nest_products_updated_at', String(serverTime));
     } catch {}
 
     savePersistentProducts(cleanMerged, Date.now()).catch(() => {});
-
-    cleanMerged.forEach((p) => {
-      if (p.image && !p.image.startsWith('/images/exact_sheet')) {
-        savePersistentImage(p.id, p.image).catch(() => {});
-      }
-    });
 
     return cleanMerged;
   }
@@ -155,7 +123,7 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
   return BEDSHEETS_CATALOG.map((p, idx) => ({
     ...p,
     order: idx,
-    image: resolveBedsheetImage(persistentImages[p.id] || p.image, p.id),
+    image: resolveBedsheetImage(p.image, p.id),
     updatedAt: 1,
   }));
 }

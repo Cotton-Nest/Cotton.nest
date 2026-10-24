@@ -63,13 +63,22 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
         </div>
 
         {/* Rating Overview Card */}
-        <div className="bg-white rounded-3xl border border-[#DEC89B] p-6 sm:p-8 mb-10 shadow-xs">
+        <div
+          className="rounded-3xl border p-6 sm:p-8 mb-10 shadow-xs"
+          style={{
+            backgroundColor: 'var(--color-surface, #FFFFFF)',
+            borderColor: 'var(--color-border, #DEC89B)',
+          }}
+        >
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
             
             {/* Left Score */}
-            <div className="md:col-span-4 text-center md:text-left md:border-r border-[#EAE2D5] md:pr-6 space-y-2">
+            <div className="md:col-span-4 text-center md:text-left md:border-r md:pr-6 space-y-2" style={{ borderColor: 'var(--color-border, #EAE2D5)' }}>
               <div className="flex items-center justify-center md:justify-start gap-3">
-                <span className="font-serif-luxury text-5xl font-bold text-[#2C2420] tracking-tight">
+                <span
+                  className="font-serif-luxury text-5xl font-bold tracking-tight"
+                  style={{ color: 'var(--color-text, #2C2420)' }}
+                >
                   {summary.average}
                 </span>
                 <div>
@@ -78,7 +87,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                       <Star key={s} className="w-5 h-5 fill-amber-400" />
                     ))}
                   </div>
-                  <span className="text-xs font-semibold text-[#7A6458]">
+                  <span className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>
                     Based on {reviews.length} verified customer reviews
                   </span>
                 </div>
@@ -91,17 +100,35 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
 
             {/* Center Highlights */}
             <div className="md:col-span-5 grid grid-cols-3 gap-3 text-center md:px-4">
-              <div className="p-3 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]">
-                <span className="text-lg font-bold text-[#2C2420]">100%</span>
-                <p className="text-[10px] text-[#7A6458] mt-0.5">Pure Natural Cotton</p>
+              <div
+                className="p-3 rounded-2xl border"
+                style={{
+                  backgroundColor: 'var(--color-background, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
+                <span className="text-lg font-bold" style={{ color: 'var(--color-text, #2C2420)' }}>100%</span>
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>Pure Natural Cotton</p>
               </div>
-              <div className="p-3 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]">
-                <span className="text-lg font-bold text-[#2C2420]">108″×108″</span>
-                <p className="text-[10px] text-[#7A6458] mt-0.5">True King Proportions</p>
+              <div
+                className="p-3 rounded-2xl border"
+                style={{
+                  backgroundColor: 'var(--color-background, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
+                <span className="text-lg font-bold" style={{ color: 'var(--color-text, #2C2420)' }}>108″×108″</span>
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>True King Proportions</p>
               </div>
-              <div className="p-3 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]">
-                <span className="text-lg font-bold text-[#2C2420]">Sec 46</span>
-                <p className="text-[10px] text-[#7A6458] mt-0.5">Gurgaon Atelier</p>
+              <div
+                className="p-3 rounded-2xl border"
+                style={{
+                  backgroundColor: 'var(--color-background, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
+                <span className="text-lg font-bold" style={{ color: 'var(--color-text, #2C2420)' }}>Sec 46</span>
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>Gurgaon Atelier</p>
               </div>
             </div>
 
@@ -110,12 +137,16 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenWriteReview()}
-                className="w-full sm:w-auto px-6 py-3 bg-[#8C2E46] hover:bg-[#742438] text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-6 py-3 text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: 'var(--color-primary, #70252D)',
+                  color: 'var(--color-primary-contrast, #FFFFFF)',
+                }}
               >
-                <MessageSquare className="w-4 h-4 text-[#DEC89B]" />
+                <MessageSquare className="w-4 h-4" />
                 <span>Write a Review</span>
               </button>
-              <p className="text-[10px] text-[#7A6458] mt-1.5">
+              <p className="text-[10px] mt-1.5" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>
                 Share your experience in 60 seconds
               </p>
             </div>
@@ -125,27 +156,43 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
 
         {/* Filter Chips */}
         <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6 scrollbar-none text-xs">
-          <span className="font-semibold text-[#7A6458] flex items-center gap-1 shrink-0">
-            <Filter className="w-3.5 h-3.5 text-[#C29E57]" />
+          <span className="font-semibold flex items-center gap-1 shrink-0" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>
+            <Filter className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
             Filter Reviews:
           </span>
           <button
             onClick={() => setSelectedFilter('all')}
-            className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition-colors cursor-pointer ${
+            className="px-3 py-1.5 rounded-xl font-medium shrink-0 transition-colors cursor-pointer"
+            style={
               selectedFilter === 'all'
-                ? 'bg-[#2C2420] text-white'
-                : 'bg-white text-[#6B5D55] border border-[#EAE2D5] hover:border-[#DEC89B]'
-            }`}
+                ? {
+                    backgroundColor: 'var(--color-primary, #70252D)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }
+                : {
+                    backgroundColor: 'var(--color-surface, #FFFFFF)',
+                    color: 'var(--color-text-secondary, #6B5D55)',
+                    border: '1px solid var(--color-border, #EAE2D5)',
+                  }
+            }
           >
             All Reviews ({reviews.length})
           </button>
           <button
             onClick={() => setSelectedFilter('5')}
-            className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+            className="px-3 py-1.5 rounded-xl font-medium shrink-0 transition-colors cursor-pointer flex items-center gap-1"
+            style={
               selectedFilter === '5'
-                ? 'bg-[#2C2420] text-white'
-                : 'bg-white text-[#6B5D55] border border-[#EAE2D5] hover:border-[#DEC89B]'
-            }`}
+                ? {
+                    backgroundColor: 'var(--color-primary, #70252D)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }
+                : {
+                    backgroundColor: 'var(--color-surface, #FFFFFF)',
+                    color: 'var(--color-text-secondary, #6B5D55)',
+                    border: '1px solid var(--color-border, #EAE2D5)',
+                  }
+            }
           >
             <span>5 Stars ★</span>
             <span>({reviews.filter((r) => r.rating === 5).length})</span>
@@ -157,11 +204,19 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
               <button
                 key={p.id}
                 onClick={() => setSelectedFilter(p.id)}
-                className={`px-3 py-1.5 rounded-xl font-medium shrink-0 transition-colors cursor-pointer ${
+                className="px-3 py-1.5 rounded-xl font-medium shrink-0 transition-colors cursor-pointer"
+                style={
                   selectedFilter === p.id
-                    ? 'bg-[#8C2E46] text-white'
-                    : 'bg-white text-[#6B5D55] border border-[#EAE2D5] hover:border-[#DEC89B]'
-                }`}
+                    ? {
+                        backgroundColor: 'var(--color-primary, #70252D)',
+                        color: 'var(--color-primary-contrast, #FFFFFF)',
+                      }
+                    : {
+                        backgroundColor: 'var(--color-surface, #FFFFFF)',
+                        color: 'var(--color-text-secondary, #6B5D55)',
+                        border: '1px solid var(--color-border, #EAE2D5)',
+                      }
+                }
               >
                 {p.name.split(' ')[0]} ({count})
               </button>
@@ -186,7 +241,11 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className="bg-white rounded-2xl border border-[#EAE2D5] p-5 flex flex-col justify-between shadow-xs hover:border-[#DEC89B] transition-all space-y-4"
+                className="rounded-2xl border p-5 flex flex-col justify-between shadow-xs transition-all space-y-4"
+                style={{
+                  backgroundColor: 'var(--color-surface, #FFFFFF)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
               >
                 <div className="space-y-3">
                   {/* Top Bar: Stars & Verified Badge */}

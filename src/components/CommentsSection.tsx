@@ -69,12 +69,15 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     onLikeComment?.(id);
   };
 
+  const [formError, setFormError] = useState<string | null>(null);
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !commentText.trim()) {
-      alert('Please enter your name and comment.');
+      setFormError('Please enter your name and comment.');
       return;
     }
+    setFormError(null);
 
     setIsSubmitting(true);
     const prod = products.find((p) => p.id === targetProductId);
@@ -329,6 +332,13 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
                     </button>
                   )}
                 </div>
+
+                {formError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                    <span>⚠️</span>
+                    <span>{formError}</span>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>

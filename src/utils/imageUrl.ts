@@ -10,6 +10,7 @@ export const PRODUCT_DEFAULT_IMAGES: Record<string, string> = {
   'amber-orchid-medallion': '/images/exact_sheet7_amber_orchid_1790997801705.jpg',
   'peacock-teal-paisley': '/images/exact_sheet8_peacock_teal_1790997812944.jpg',
   'rosemary-blue-rose-100x108': '/images/exact_sheet9_rosemary_blue_rose_1791027541188.jpg',
+  'bedsheet-mvg72tgo': '/images/exact_sheet1_pink_rose_1790997736396.jpg',
 };
 
 /**

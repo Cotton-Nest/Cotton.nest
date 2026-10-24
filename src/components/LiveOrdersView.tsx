@@ -239,20 +239,41 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#2C2420] pb-24">
+    <div
+      className="min-h-screen pb-24 transition-colors duration-300"
+      style={{
+        backgroundColor: 'var(--color-background, #FAF7F2)',
+        color: 'var(--color-text, #2C2420)',
+      }}
+    >
       
       {/* Editorial Header Banner */}
-      <section className="border-b border-[#EAE2D5] bg-gradient-to-b from-[#F5EFEB] to-[#FAF7F2] pt-8 pb-10 px-4 sm:px-6 lg:px-8">
+      <section
+        className="border-b pt-8 pb-10 px-4 sm:px-6 lg:px-8"
+        style={{
+          borderColor: 'var(--color-border, #EAE2D5)',
+          backgroundColor: 'var(--color-surface, #FFFFFF)',
+        }}
+      >
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#A8823B]">
-              <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+            <div
+              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--color-accent, #A8823B)' }}
+            >
+              <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
               <span>Live Atelier Orders & Dispatch Tracking</span>
             </div>
-            <h1 className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-medium tracking-tight text-[#2C2420]">
+            <h1
+              className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-medium tracking-tight"
+              style={{ color: 'var(--color-text, #2C2420)' }}
+            >
               My Bedsheet Orders
             </h1>
-            <p className="text-sm sm:text-base text-[#6B5D55] max-w-xl">
+            <p
+              className="text-sm sm:text-base max-w-xl"
+              style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+            >
               Track live quality verification, packaging at our Sector 46 Gurgaon Atelier, and express dispatch right to your doorstep.
             </p>
           </div>

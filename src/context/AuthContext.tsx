@@ -49,10 +49,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = (customData?: Partial<UserProfile>) => {
     setIsLoading(true);
-    // Defaults to the active app user email or custom provided Google profile
-    const defaultGoogleEmail = "adityaa.22082011@gmail.com";
-    const defaultName = customData?.name || "Aditya";
-    const email = customData?.email || defaultGoogleEmail;
+    const email = customData?.email || "customer@gmail.com";
+    const defaultName = customData?.name || email.split('@')[0] || "Valued Customer";
     
     // Generate avatar url based on name
     const avatar = customData?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(defaultName)}&backgroundColor=b83f60,c29e57,2c2420&textColor=ffffff`;

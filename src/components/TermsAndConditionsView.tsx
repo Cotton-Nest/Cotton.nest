@@ -67,25 +67,50 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
     );
   };
   return (
-    <div className="bg-[#FAF7F2] min-h-[75vh] py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
+    <div
+      className="min-h-[75vh] py-12 sm:py-16 px-4 sm:px-6 lg:px-8 transition-colors duration-300"
+      style={{
+        backgroundColor: 'var(--color-background, #FAF7F2)',
+        color: 'var(--color-text, #2C2420)',
+      }}
+    >
       <div className="max-w-3xl mx-auto space-y-8">
         
         {/* Header Title */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FDEAF0] text-[#8C2E46] text-xs font-semibold border border-[#FAD1DC]">
-            <Sparkles className="w-3.5 h-3.5 text-[#B83F60]" />
+          <div
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border"
+            style={{
+              backgroundColor: 'var(--color-background, #FDEAF0)',
+              color: 'var(--color-primary, #8C2E46)',
+              borderColor: 'var(--color-border, #FAD1DC)',
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #B83F60)' }} />
             <span>Cotton Nest Store Policies &amp; Guidelines</span>
           </div>
-          <h1 className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-bold text-[#2C2420] tracking-tight">
+          <h1
+            className="font-serif-luxury text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
+            style={{ color: 'var(--color-text, #2C2420)' }}
+          >
             Terms &amp; Conditions (T&amp;C)
           </h1>
-          <p className="text-sm text-[#7A6458] max-w-xl mx-auto">
+          <p
+            className="text-sm max-w-xl mx-auto"
+            style={{ color: 'var(--color-text-secondary, #7A6458)' }}
+          >
             Please review our store policies, exchange guidelines, and delivery charges.
           </p>
         </div>
 
         {/* Main Content Card with Exact Verbatim Text */}
-        <div className="bg-white rounded-3xl border border-[#DEC89B] shadow-sm p-6 sm:p-10 lg:p-12 relative overflow-hidden">
+        <div
+          className="rounded-3xl border shadow-sm p-6 sm:p-10 lg:p-12 relative overflow-hidden"
+          style={{
+            backgroundColor: 'var(--color-surface, #FFFFFF)',
+            borderColor: 'var(--color-border, #DEC89B)',
+          }}
+        >
           {/* Subtle decorative glow */}
           <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#FDEAF0]/40 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-[#F4EFE6]/60 rounded-full blur-2xl pointer-events-none" />
