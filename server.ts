@@ -8,6 +8,7 @@ import { BEDSHEETS_CATALOG } from './src/data/products.ts';
 import { INITIAL_ORDERS } from './src/data/orders.ts';
 import { INITIAL_SITE_CONTENT } from './src/data/siteContent.ts';
 import { INITIAL_REVIEWS } from './src/data/reviews.ts';
+import { INITIAL_SEASONAL_CONFIG } from './src/data/seasonal.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +26,7 @@ interface StoreDatabase {
   siteContent: any;
   theme?: any;
   reviews?: any[];
+  seasonalConfig?: any;
 }
 
 function initDatabase(): StoreDatabase {
@@ -40,6 +42,9 @@ function initDatabase(): StoreDatabase {
         if (!parsed.reviews || !Array.isArray(parsed.reviews)) {
           parsed.reviews = INITIAL_REVIEWS;
         }
+        if (!parsed.seasonalConfig) {
+          parsed.seasonalConfig = INITIAL_SEASONAL_CONFIG;
+        }
         return parsed;
       }
     }
@@ -53,6 +58,7 @@ function initDatabase(): StoreDatabase {
     orders: INITIAL_ORDERS,
     siteContent: INITIAL_SITE_CONTENT,
     reviews: INITIAL_REVIEWS,
+    seasonalConfig: INITIAL_SEASONAL_CONFIG,
   };
 
   try {
@@ -126,6 +132,7 @@ async function startServer() {
     const latestTimestamp = Math.max(
       ...db.products.map((p) => p.updatedAt || 0),
       (db as any).theme?.updatedAt || 0,
+      (db as any).seasonalConfig?.updatedAt || 0,
       (db as any).updatedAt || 0,
       0
     );
@@ -134,6 +141,7 @@ async function startServer() {
       productCount: db.products.length,
       ordersCount: db.orders.length,
       themeUpdatedAt: (db as any).theme?.updatedAt || 0,
+      seasonalUpdatedAt: (db as any).seasonalConfig?.updatedAt || 0,
     });
   });
 
@@ -614,6 +622,57 @@ async function startServer() {
     (db as any).theme = req.body;
     saveDatabase();
     res.json({ success: true, theme: (db as any).theme });
+  });
+
+  // Seasonal Page & Festive Deals API
+  app.get('/api/seasonal', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.seasonalConfig) {
+          (db as any).seasonalConfig = parsed.seasonalConfig;
+        }
+      }
+    } catch {}
+    res.json((db as any).seasonalConfig || INITIAL_SEASONAL_CONFIG);
+  });
+
+  app.post('/api/seasonal', (req, res) => {
+    const updated = req.body;
+    if (!updated || typeof updated !== 'object') {
+      return res.status(400).json({ error: 'Invalid seasonal configuration' });
+    }
+    const now = Date.now();
+    const finalConfig = {
+      ...INITIAL_SEASONAL_CONFIG,
+      ...updated,
+      updatedAt: now,
+    };
+    (db as any).seasonalConfig = finalConfig;
+    (db as any).updatedAt = now;
+    saveDatabase();
+    res.json(finalConfig);
+  });
+
+  app.put('/api/seasonal', (req, res) => {
+    const updated = req.body;
+    if (!updated || typeof updated !== 'object') {
+      return res.status(400).json({ error: 'Invalid seasonal configuration' });
+    }
+    const now = Date.now();
+    const finalConfig = {
+      ...INITIAL_SEASONAL_CONFIG,
+      ...updated,
+      updatedAt: now,
+    };
+    (db as any).seasonalConfig = finalConfig;
+    (db as any).updatedAt = now;
+    saveDatabase();
+    res.json(finalConfig);
   });
 
   // Customer Reviews API

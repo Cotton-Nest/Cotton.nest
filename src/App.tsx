@@ -21,11 +21,13 @@ import { OwnerAuthModal } from './components/OwnerAuthModal';
 import { WhatsAppPhotoHelperModal, WhatsAppHelperData } from './components/WhatsAppPhotoHelperModal';
 import { LiveOrdersView } from './components/LiveOrdersView';
 import { TermsAndConditionsView } from './components/TermsAndConditionsView';
+import { SeasonalView } from './components/SeasonalView';
 import { AuthModal } from './components/AuthModal';
 import { GoogleAccountChooserModal } from './components/GoogleAccountChooserModal';
 import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from './data/siteContent';
+import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from './data/seasonal';
 import {
   getProducts,
   saveAllProducts,
@@ -38,6 +40,8 @@ import {
   getReviewsApi,
   saveReviewApi,
   helpfulReviewApi,
+  getSeasonalConfigApi,
+  saveSeasonalConfigApi,
 } from './services/api';
 import {
   savePersistentImage,
@@ -65,7 +69,7 @@ import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone,
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'catalogue' | 'story' | 'store' | 'orders' | 'tc' | 'reviews'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews'>('home');
   const [selectedProduct, setSelectedProduct] = useState<BedsheetProduct | null>(null);
   const [isProductModalEditMode, setIsProductModalEditMode] = useState<boolean>(false);
 
@@ -253,8 +257,33 @@ export default function App() {
   // Reference for last server sync timestamp
   const lastServerTimestampRef = useRef<number>(0);
   const lastThemeTimestampRef = useRef<number>(0);
+  const lastSeasonalTimestampRef = useRef<number>(0);
 
-  // Load products, orders, content, reviews, and theme on mount & sync periodically
+  // Seasonal Page State
+  const [seasonalConfig, setSeasonalConfig] = useState<SeasonalConfig>(() => {
+    try {
+      const cached = localStorage.getItem('cotton_nest_seasonal');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.name === 'string') return parsed;
+      }
+    } catch {}
+    return INITIAL_SEASONAL_CONFIG;
+  });
+
+  const handleUpdateSeasonalConfig = async (updated: SeasonalConfig) => {
+    setSeasonalConfig(updated);
+    try {
+      localStorage.setItem('cotton_nest_seasonal', JSON.stringify(updated));
+    } catch {}
+    try {
+      await saveSeasonalConfigApi(updated);
+    } catch (err) {
+      console.warn('Failed to save seasonal config to server:', err);
+    }
+  };
+
+  // Load products, orders, content, reviews, theme and seasonal on mount & sync periodically
   useEffect(() => {
     let isMounted = true;
 
@@ -281,7 +310,7 @@ export default function App() {
     // 2. Authoritative load from Backend Server File (store_db.json)
     const loadDataFromServer = async () => {
       try {
-        const [serverProducts, serverOrders, serverContent, serverReviews, serverTheme] = await Promise.all([
+        const [serverProducts, serverOrders, serverContent, serverReviews, serverTheme, serverSeasonal] = await Promise.all([
           fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' })
             .then((r) => (r.ok ? r.json() : null))
             .catch(() => null),
@@ -289,6 +318,7 @@ export default function App() {
           getSiteContent().catch(() => null),
           getReviewsApi().catch(() => null),
           getPublishedThemeApi().catch(() => null),
+          getSeasonalConfigApi().catch(() => null),
         ]);
 
         if (isMounted) {
@@ -337,6 +367,14 @@ export default function App() {
             applyThemeToDom(serverTheme.colors);
             lastThemeTimestampRef.current = serverTheme.updatedAt || 0;
           }
+
+          if (serverSeasonal && typeof serverSeasonal.name === 'string') {
+            setSeasonalConfig(serverSeasonal);
+            lastSeasonalTimestampRef.current = serverSeasonal.updatedAt || 0;
+            try {
+              localStorage.setItem('cotton_nest_seasonal', JSON.stringify(serverSeasonal));
+            } catch {}
+          }
         }
       } catch (err) {
         console.warn('Server sync failed:', err);
@@ -358,7 +396,8 @@ export default function App() {
           const shouldUpdate =
             syncInfo.productCount !== productsRef.current.length ||
             (syncInfo.timestamp && syncInfo.timestamp > lastServerTimestampRef.current) ||
-            (syncInfo.themeUpdatedAt && syncInfo.themeUpdatedAt > lastThemeTimestampRef.current);
+            (syncInfo.themeUpdatedAt && syncInfo.themeUpdatedAt > lastThemeTimestampRef.current) ||
+            (syncInfo.seasonalUpdatedAt && syncInfo.seasonalUpdatedAt > lastSeasonalTimestampRef.current);
 
           if (shouldUpdate) {
             loadDataFromServer();
@@ -656,17 +695,24 @@ export default function App() {
 
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
-  const handleAddToCart = (product: BedsheetProduct, quantity: number = 1) => {
+  const handleAddToCart = (
+    product: BedsheetProduct,
+    quantity: number = 1,
+    variantOrCustomPrice?: any,
+    optionalCustomPrice?: number
+  ) => {
+    const customPrice = typeof variantOrCustomPrice === 'number' ? variantOrCustomPrice : optionalCustomPrice;
+    const finalProduct = customPrice ? { ...product, price: customPrice } : product;
     setCartItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
         return prev.map((item) =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: item.quantity + quantity, product: finalProduct }
             : item
         );
       }
-      return [...prev, { product, quantity }];
+      return [...prev, { product: finalProduct, quantity }];
     });
 
     setAddedProductIds((prev) => new Set(prev).add(product.id));
@@ -753,6 +799,8 @@ export default function App() {
           onUpdateSingleProduct={handleUpdateSingleProduct}
           currentTheme={themeConfig}
           onThemePublished={handleThemePublished}
+          seasonalConfig={seasonalConfig}
+          onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
         />
       ) : (
         <>
@@ -775,6 +823,7 @@ export default function App() {
             isOwnerMode={isOwnerMode}
             content={siteContent}
             productsCount={products.length}
+            seasonalConfig={seasonalConfig}
           />
 
           {/* Main Content Area */}
@@ -939,6 +988,23 @@ export default function App() {
               />
             )}
 
+            {/* TAB: SEASONAL FESTIVE SHOPPING PAGE */}
+            {activeTab === 'seasonal' && (
+              <SeasonalView
+                products={products}
+                seasonalConfig={seasonalConfig}
+                onAddToCart={(p, customPrice) => handleAddToCart(p, 1, customPrice)}
+                onQuickView={(p) => handleOpenProductModal(p, false)}
+                addedProductIds={Array.from(addedProductIds)}
+                isOwnerMode={isOwnerMode}
+                onOpenAdmin={handleOpenAdminSafely}
+                onExploreFullCatalogue={() => {
+                  setActiveTab('catalogue');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            )}
+
             {/* TAB 3: OUR STORY & CRAFTSMANSHIP */}
             {activeTab === 'story' && (
               <StoryAndFeatures
@@ -1054,6 +1120,7 @@ export default function App() {
             setActiveTab={setActiveTab as any}
             cartCount={totalCartCount}
             openCart={() => setIsCartOpen(true)}
+            seasonalConfig={seasonalConfig}
           />
 
           {/* Global Footer with discrete owner access */}

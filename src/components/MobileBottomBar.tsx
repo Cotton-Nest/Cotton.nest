@@ -1,12 +1,14 @@
 import React from 'react';
-import { ShoppingBag, Grid, MessageCircle, MapPin, Package } from 'lucide-react';
+import { ShoppingBag, Grid, MessageCircle, Package, Sparkles } from 'lucide-react';
 import { COMPANY_DETAILS } from '../data/products';
+import { SeasonalConfig } from '../data/seasonal';
 
 interface MobileBottomBarProps {
-  activeTab: 'home' | 'catalogue' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
-  setActiveTab: (tab: 'home' | 'catalogue' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => void;
+  activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
+  setActiveTab: (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => void;
   cartCount: number;
   openCart: () => void;
+  seasonalConfig?: SeasonalConfig;
 }
 
 export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
@@ -14,6 +16,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
   setActiveTab,
   cartCount,
   openCart,
+  seasonalConfig,
 }) => {
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-header,#FAF7F2)]/95 backdrop-blur-md border-t border-[var(--color-border,#EAE2D5)] px-2 py-2 flex items-center justify-around text-xs shadow-lg">
@@ -32,6 +35,39 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
         <span className="text-[10px]">Catalogue</span>
       </button>
 
+      {/* Seasonal Festive Page (Replaces Studio button) */}
+      {seasonalConfig?.enabled ? (
+        <button
+          onClick={() => {
+            setActiveTab('seasonal');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center gap-0.5 cursor-pointer ${
+            activeTab === 'seasonal' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
+          }`}
+        >
+          <div className="relative">
+            <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />
+          </div>
+          <span className="text-[10px] font-semibold max-w-[65px] truncate">
+            {seasonalConfig.name || 'Offers'}
+          </span>
+        </button>
+      ) : (
+        <button
+          onClick={() => {
+            setActiveTab('reviews');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center gap-0.5 cursor-pointer ${
+            activeTab === 'reviews' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
+          }`}
+        >
+          <span className="text-amber-500 text-sm leading-5">★</span>
+          <span className="text-[10px]">Reviews</span>
+        </button>
+      )}
+
       {/* Live Orders Tracking Tab */}
       <button
         onClick={() => {
@@ -47,20 +83,6 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           <span className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
         </div>
         <span className="text-[10px]">My Orders</span>
-      </button>
-
-      {/* Store Location */}
-      <button
-        onClick={() => {
-          setActiveTab('store');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        className={`flex flex-col items-center gap-0.5 cursor-pointer ${
-          activeTab === 'store' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
-        }`}
-      >
-        <MapPin className="w-5 h-5" />
-        <span className="text-[10px]">Studio</span>
       </button>
 
       {/* WhatsApp Quick Message */}

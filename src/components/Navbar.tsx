@@ -1,12 +1,13 @@
 import React from 'react';
-import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star } from 'lucide-react';
+import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift } from 'lucide-react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
 import { useAuth } from '../context/AuthContext';
+import { SeasonalConfig } from '../data/seasonal';
 
 interface NavbarProps {
-  activeTab: 'home' | 'catalogue' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
-  setActiveTab: (tab: 'home' | 'catalogue' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => void;
+  activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
+  setActiveTab: (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => void;
   cartCount: number;
   openCart: () => void;
   onOpenPhotoManager?: () => void;
@@ -16,6 +17,7 @@ interface NavbarProps {
   isOwnerMode?: boolean;
   content?: SiteContent;
   productsCount?: number;
+  seasonalConfig?: SeasonalConfig;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -30,6 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isOwnerMode = false,
   content,
   productsCount = 10,
+  seasonalConfig,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
@@ -39,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const brandName = content?.company.name || "Cotton Nest";
   const contactPhone = content?.company.phone || COMPANY_DETAILS.phone;
 
-  const handleNavClick = (tab: 'home' | 'catalogue' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => {
+  const handleNavClick = (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
     setUserDropdownOpen(false);
@@ -122,6 +125,33 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
               )}
             </button>
+
+            {/* Seasonal Festive Page Tab (Dynamic Name & Visibility from Admin) */}
+            {seasonalConfig?.enabled && (
+              <button
+                onClick={() => handleNavClick('seasonal')}
+                className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 group ${
+                  activeTab === 'seasonal'
+                    ? 'text-[var(--color-primary,#70252D)] font-semibold'
+                    : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                <span>{seasonalConfig.name || 'Festive Sale'}</span>
+                <span
+                  className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded shadow-2xs"
+                  style={{
+                    backgroundColor: 'var(--color-primary, #70252D)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }}
+                >
+                  {seasonalConfig.badge || 'Sale'}
+                </span>
+                {activeTab === 'seasonal' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
+                )}
+              </button>
+            )}
 
             {/* T&C Tab */}
             <button
@@ -207,31 +237,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               )}
             </button>
-
-            {/* Store Location Tab (Uses Secondary Theme Colour) */}
-            <button
-              onClick={() => handleNavClick('store')}
-              className={`transition-colors relative py-1 cursor-pointer flex items-center gap-1 group ${
-                activeTab === 'store'
-                  ? 'text-[var(--color-secondary,#8C3A44)] font-semibold'
-                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
-              }`}
-              style={{
-                color: activeTab === 'store' ? 'var(--color-secondary, #8C3A44)' : undefined,
-              }}
-            >
-              <MapPin
-                className="w-3.5 h-3.5 transition-colors"
-                style={{ color: 'var(--color-secondary, #8C3A44)' }}
-              />
-              <span>Sector 46 Gurgaon</span>
-              {activeTab === 'store' && (
-                <span
-                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-                  style={{ backgroundColor: 'var(--color-secondary, #8C3A44)' }}
-                />
-              )}
-            </button>
           </nav>
 
           {/* Zone 3: Primary functional actions & User Profile */}
@@ -249,17 +254,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5 text-[#8C2E46]" />
                     <span>Admin Panel</span>
-                  </button>
-                )}
-
-                {onOpenPhotoManager && (
-                  <button
-                    type="button"
-                    onClick={onOpenPhotoManager}
-                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#2C2420] bg-white border border-[#EAE2D5] rounded-lg hover:bg-[#F4EFE6] transition-colors cursor-pointer"
-                    title="Upload or change photos (Owner Mode)"
-                  >
-                    <span>📷 Upload Photos</span>
                   </button>
                 )}
               </>
@@ -388,6 +382,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </button>
 
+            {/* Mobile Seasonal Page Tab */}
+            {seasonalConfig?.enabled && (
+              <button
+                onClick={() => handleNavClick('seasonal')}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-between transition-colors ${
+                  activeTab === 'seasonal'
+                    ? 'bg-[var(--color-surface,#FFFFFF)] text-[var(--color-primary,#70252D)] border border-[var(--color-accent,#C29E57)]'
+                    : 'text-[var(--color-primary,#70252D)] bg-amber-50/60 border border-amber-200/60 hover:bg-amber-100/60'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                  <span>{seasonalConfig.name || 'Festive Offers'}</span>
+                </span>
+                <span
+                  className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded shadow-2xs"
+                  style={{
+                    backgroundColor: 'var(--color-primary, #70252D)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }}
+                >
+                  {seasonalConfig.badge || 'Sale'}
+                </span>
+              </button>
+            )}
+
             {/* Mobile T&C Tab */}
             <button
               onClick={() => handleNavClick('tc')}
@@ -444,20 +464,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               Our Story &amp; Craft
             </button>
-            <button
-              onClick={() => handleNavClick('store')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                activeTab === 'store'
-                  ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
-                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
-              }`}
-            >
-              <MapPin
-                className="w-3.5 h-3.5 transition-colors"
-                style={{ color: 'var(--color-secondary, #8C3A44)' }}
-              />
-              Visit Store (Sector 46, Gurgaon)
-            </button>
 
             {/* Mobile Auth Button */}
             {!isAuthenticated ? (
@@ -501,20 +507,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {isOwnerMode && (
               <>
-                {onOpenPhotoManager && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenPhotoManager();
-                    }}
-                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#8C2E46] bg-[#FDEAF0] border border-[#FAD1DC] flex items-center justify-between"
-                  >
-                    <span>📷 Upload / Change Photos</span>
-                    <span className="text-[10px] bg-[#FAF7F2] px-2 py-0.5 rounded border border-[#F9D3DE]">Photo Studio</span>
-                  </button>
-                )}
-
                 {onOpenAdmin && (
                   <button
                     type="button"

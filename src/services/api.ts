@@ -15,6 +15,7 @@ import {
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
 import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
+import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 
 // Cloudinary service exports
 export {
@@ -396,6 +397,59 @@ export async function deleteReviewApi(reviewId: string): Promise<void> {
   try {
     await fetch(`/api/reviews/${reviewId}`, { method: 'DELETE' });
   } catch {}
+}
+
+// ---------------- SEASONAL PAGE & FESTIVE OFFERS API ---------------- //
+export async function getSeasonalConfigApi(): Promise<SeasonalConfig> {
+  try {
+    const res = await fetch(`/api/seasonal?t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object' && typeof data.name === 'string') {
+        try {
+          localStorage.setItem('cotton_nest_seasonal', JSON.stringify(data));
+        } catch {}
+        return data;
+      }
+    }
+  } catch {}
+
+  try {
+    const cached = localStorage.getItem('cotton_nest_seasonal');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && typeof parsed.name === 'string') return parsed;
+    }
+  } catch {}
+
+  return INITIAL_SEASONAL_CONFIG;
+}
+
+export async function saveSeasonalConfigApi(config: SeasonalConfig): Promise<SeasonalConfig> {
+  const stampedConfig: SeasonalConfig = {
+    ...config,
+    updatedAt: Date.now(),
+  };
+
+  try {
+    localStorage.setItem('cotton_nest_seasonal', JSON.stringify(stampedConfig));
+  } catch {}
+
+  try {
+    const res = await fetch('/api/seasonal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stampedConfig),
+    });
+    if (res.ok) {
+      const saved = await res.json();
+      return saved;
+    }
+  } catch (err) {
+    console.warn('Failed to save seasonal config to server:', err);
+  }
+
+  return stampedConfig;
 }
 
 

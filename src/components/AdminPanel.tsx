@@ -7,7 +7,7 @@ import {
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from '../data/siteContent';
-import { uploadImageApi, removeProduct } from '../services/api';
+import { uploadImageApi, removeProduct, saveSeasonalConfigApi } from '../services/api';
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -18,6 +18,7 @@ import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { savePersistentImage } from '../utils/persistentStorage';
 import { ThemeCustomizer } from './ThemeCustomizer';
 import { WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from '../data/theme';
+import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 import {
   Package,
   Percent,
@@ -58,7 +59,8 @@ import {
   ExternalLink,
   GripVertical,
   MoveVertical,
-  ArrowUpDown
+  ArrowUpDown,
+  Gift
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -76,6 +78,8 @@ interface AdminPanelProps {
   onUpdateSingleProduct?: (updatedProduct: BedsheetProduct) => void;
   currentTheme?: WebsiteThemeConfig;
   onThemePublished?: (theme: WebsiteThemeConfig) => void;
+  seasonalConfig?: SeasonalConfig;
+  onUpdateSeasonalConfig?: (config: SeasonalConfig) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -98,9 +102,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     updatedAt: Date.now(),
   },
   onThemePublished,
+  seasonalConfig,
+  onUpdateSeasonalConfig,
 }) => {
-  // Tabs: 'products' | 'orders' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'content' | 'appearance'>('products');
+  // Tabs: 'products' | 'orders' | 'seasonal' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'content' | 'appearance'>('products');
+
+  // Seasonal Page state
+  const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
+    return seasonalConfig || INITIAL_SEASONAL_CONFIG;
+  });
+
+  useEffect(() => {
+    if (seasonalConfig) {
+      setEditableSeasonal(seasonalConfig);
+    }
+  }, [seasonalConfig]);
+
+  const [seasonalSearchQuery, setSeasonalSearchQuery] = useState('');
 
   // Products local state
   const [editableProducts, setEditableProducts] = useState<BedsheetProduct[]>(products);
@@ -879,6 +898,166 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     showToast(`Order #${orderId} deleted.`);
   };
 
+  /* ---------------- SEASONAL PAGE & FESTIVE DEALS HANDLERS ---------------- */
+  const handleSaveSeasonal = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const finalName = editableSeasonal.name?.trim() || 'Festive Offers';
+    const stamped: SeasonalConfig = {
+      ...editableSeasonal,
+      name: finalName,
+      badge: editableSeasonal.badge?.trim() || 'Festive Special',
+      tagline: editableSeasonal.tagline?.trim() || 'Exclusive Festive Savings on Combed Cotton Bedsheets',
+      updatedAt: Date.now(),
+    };
+    setEditableSeasonal(stamped);
+    if (onUpdateSeasonalConfig) {
+      onUpdateSeasonalConfig(stamped);
+    }
+    try {
+      await saveSeasonalConfigApi(stamped);
+    } catch (err) {
+      console.warn('Failed to save seasonal config to server:', err);
+    }
+    showToast(`Seasonal page "${finalName}" saved and published!`);
+  };
+
+  const handleToggleSeasonalActive = () => {
+    setEditableSeasonal((prev) => {
+      const nextEnabled = !prev.enabled;
+      const updated: SeasonalConfig = {
+        ...prev,
+        enabled: nextEnabled,
+        updatedAt: Date.now(),
+      };
+      onUpdateSeasonalConfig?.(updated);
+      saveSeasonalConfigApi(updated).catch(() => {});
+      showToast(nextEnabled ? `"${prev.name}" is now LIVE in the Navbar!` : `"${prev.name}" hidden from Navbar.`);
+      return updated;
+    });
+  };
+
+  const handleToggleSeasonalProduct = (productId: string) => {
+    setEditableSeasonal((prev) => {
+      const exists = (prev.items || []).some((item) => item.productId === productId);
+      let nextItems: SeasonalItemDiscount[];
+      const prod = editableProducts.find((p) => p.id === productId);
+
+      if (exists) {
+        nextItems = prev.items.filter((item) => item.productId !== productId);
+        showToast(`Removed "${prod?.name || 'Bedsheet'}" from ${prev.name}`);
+      } else {
+        const regularPrice = prod?.price || 1200;
+        const discountPrice = Math.round(regularPrice * 0.8); // 20% discount default
+        nextItems = [
+          ...prev.items,
+          {
+            productId,
+            discountPrice,
+            discountPercentage: 20,
+            customBadge: 'Festive Deal',
+          },
+        ];
+        showToast(`Added "${prod?.name || 'Bedsheet'}" to ${prev.name}!`);
+      }
+      const updated: SeasonalConfig = { ...prev, items: nextItems, updatedAt: Date.now() };
+      onUpdateSeasonalConfig?.(updated);
+      saveSeasonalConfigApi(updated).catch(() => {});
+      return updated;
+    });
+  };
+
+  const handleUpdateSeasonalItemPrice = (productId: string, newOfferPrice: number) => {
+    setEditableSeasonal((prev) => {
+      const prod = editableProducts.find((p) => p.id === productId);
+      const originalPrice = prod?.originalPrice || (prod?.price ? Math.round(prod.price * 1.35) : 2000);
+      const validPrice = Math.max(0, newOfferPrice);
+      const computedPct = Math.max(0, Math.min(95, Math.round(((originalPrice - validPrice) / originalPrice) * 100)));
+
+      const nextItems = prev.items.map((item) => {
+        if (item.productId === productId) {
+          return {
+            ...item,
+            discountPrice: validPrice,
+            discountPercentage: computedPct,
+          };
+        }
+        return item;
+      });
+
+      const updated = { ...prev, items: nextItems, updatedAt: Date.now() };
+      onUpdateSeasonalConfig?.(updated);
+      return updated;
+    });
+  };
+
+  const handleUpdateSeasonalItemPct = (productId: string, newPct: number) => {
+    setEditableSeasonal((prev) => {
+      const prod = editableProducts.find((p) => p.id === productId);
+      const originalPrice = prod?.originalPrice || (prod?.price ? Math.round(prod.price * 1.35) : 2000);
+      const validPct = Math.max(0, Math.min(95, newPct));
+      const computedPrice = Math.round(originalPrice * (1 - validPct / 100));
+
+      const nextItems = prev.items.map((item) => {
+        if (item.productId === productId) {
+          return {
+            ...item,
+            discountPercentage: validPct,
+            discountPrice: computedPrice,
+          };
+        }
+        return item;
+      });
+
+      const updated = { ...prev, items: nextItems, updatedAt: Date.now() };
+      onUpdateSeasonalConfig?.(updated);
+      return updated;
+    });
+  };
+
+  const handleUpdateSeasonalItemBadge = (productId: string, badge: string) => {
+    setEditableSeasonal((prev) => {
+      const nextItems = prev.items.map((item) => {
+        if (item.productId === productId) {
+          return { ...item, customBadge: badge };
+        }
+        return item;
+      });
+      const updated = { ...prev, items: nextItems, updatedAt: Date.now() };
+      onUpdateSeasonalConfig?.(updated);
+      return updated;
+    });
+  };
+
+  const handleBulkSeasonalDiscount = (discountPercent: number) => {
+    setEditableSeasonal((prev) => {
+      const nextItems = editableProducts.map((p) => {
+        const originalPrice = p.originalPrice || Math.round(p.price * 1.35);
+        const offerPrice = Math.round(originalPrice * (1 - discountPercent / 100));
+        return {
+          productId: p.id,
+          discountPercentage: discountPercent,
+          discountPrice: offerPrice,
+          customBadge: `${discountPercent}% Festive Deal`,
+        };
+      });
+      const updated = { ...prev, items: nextItems, updatedAt: Date.now() };
+      onUpdateSeasonalConfig?.(updated);
+      saveSeasonalConfigApi(updated).catch(() => {});
+      showToast(`Applied ${discountPercent}% discount to all ${nextItems.length} bedsheets on ${prev.name}!`);
+      return updated;
+    });
+  };
+
+  const handleClearSeasonalItems = () => {
+    setEditableSeasonal((prev) => {
+      const updated = { ...prev, items: [], updatedAt: Date.now() };
+      onUpdateSeasonalConfig?.(updated);
+      saveSeasonalConfigApi(updated).catch(() => {});
+      showToast(`Cleared all bedsheets from ${prev.name}`);
+      return updated;
+    });
+  };
+
   /* ---------------- SITE CONTENT HANDLERS ---------------- */
 
   const handleSaveContent = (e: React.FormEvent) => {
@@ -1051,6 +1230,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 >
                   {pendingOrdersCount}
                 </span>
+              )}
+            </button>
+
+            {/* Seasonal Page & Festive Deals Tab */}
+            <button
+              onClick={() => setActiveAdminTab('seasonal')}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative"
+              style={
+                activeAdminTab === 'seasonal'
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
+            >
+              <Sparkles className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'seasonal' ? undefined : '#C29E57' }} />
+              <span>Seasonal Page ({editableSeasonal.name || 'Offers'})</span>
+              {editableSeasonal.enabled ? (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live in Navbar" />
+              ) : (
+                <span className="text-[9px] px-1 py-0.2 rounded bg-stone-200 text-stone-600 font-bold">OFF</span>
               )}
             </button>
 
@@ -2523,6 +2727,448 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
             </section>
+
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB: SEASONAL PAGE & FESTIVE DEALS MANAGER               */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'seasonal' && (
+          <div className="space-y-8">
+            
+            {/* Header & Master Toggle Card */}
+            <div
+              className="p-6 sm:p-8 rounded-3xl border shadow-xs transition-colors"
+              style={{
+                backgroundColor: 'var(--color-surface, #FAF7F2)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-[var(--color-border,#EAE2D5)]">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-2xs"
+                      style={{
+                        backgroundColor: 'var(--color-primary, #70252D)',
+                        color: 'var(--color-primary-contrast, #FFFFFF)',
+                      }}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      Festive Campaign
+                    </span>
+                    <span className="text-xs text-[var(--color-text-secondary,#6B5D55)]">
+                      {(editableSeasonal.items || []).length} Bedsheets on Sale
+                    </span>
+                  </div>
+                  <h3
+                    className="font-serif-luxury text-2xl sm:text-3xl font-bold tracking-tight"
+                    style={{ color: 'var(--color-text, #2C2420)' }}
+                  >
+                    Seasonal Page &amp; Festive Deals
+                  </h3>
+                  <p
+                    className="text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed"
+                    style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+                  >
+                    Create a dedicated festive event page (e.g. Diwali Fest, Summer Sale) with custom discounted bedsheet pricing.
+                    When enabled, it automatically appears as a prominent tab in the storefront Navbar with your custom title.
+                  </p>
+                </div>
+
+                {/* Master Switch & Save Action */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleToggleSeasonalActive}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs ${
+                      editableSeasonal.enabled
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                        : 'bg-stone-100 text-stone-600 border-stone-300 hover:bg-stone-200'
+                    }`}
+                  >
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${
+                        editableSeasonal.enabled ? 'bg-emerald-500 animate-pulse' : 'bg-stone-400'
+                      }`}
+                    />
+                    <span>{editableSeasonal.enabled ? 'Active on Navbar (Visible)' : 'Hidden from Navbar (Disabled)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSeasonal()}
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs hover:opacity-90 active:scale-98"
+                    style={{
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                    }}
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save &amp; Publish</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Live Navbar Preview Strip */}
+              <div
+                className="mt-6 p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                style={{
+                  backgroundColor: 'var(--color-background, #FAF7F2)',
+                  borderColor: 'var(--color-border, #EAE2D5)',
+                }}
+              >
+                <div className="flex items-center gap-2 font-medium">
+                  <span className="text-stone-500">Navbar Preview:</span>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-[#EAE2D5] shadow-2xs font-semibold text-[#2C2420]">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                    <span>{editableSeasonal.name || 'Festive Sale'}</span>
+                    <span
+                      className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded"
+                      style={{
+                        backgroundColor: 'var(--color-primary, #70252D)',
+                        color: 'var(--color-primary-contrast, #FFFFFF)',
+                      }}
+                    >
+                      {editableSeasonal.badge || 'Sale'}
+                    </span>
+                  </div>
+                  {editableSeasonal.enabled ? (
+                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Live for all store visitors
+                    </span>
+                  ) : (
+                    <span className="text-stone-500 italic">(Currently hidden from navbar)</span>
+                  )}
+                </div>
+
+                <span className="text-[11px] text-[var(--color-text-secondary,#6B5D55)]">
+                  ✓ Studio button removed from Navbar as requested
+                </span>
+              </div>
+            </div>
+
+            {/* Customization Settings Form */}
+            <div
+              className="p-6 sm:p-8 rounded-3xl border shadow-xs space-y-6 transition-colors"
+              style={{
+                backgroundColor: 'var(--color-surface, #FAF7F2)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
+            >
+              <h4
+                className="font-serif-luxury text-lg font-bold border-b border-[var(--color-border,#EAE2D5)] pb-3"
+                style={{ color: 'var(--color-text, #2C2420)' }}
+              >
+                1. Page Details &amp; Branding
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {/* Seasonal Page Name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--color-text,#2C2420)] flex items-center gap-1">
+                    <span>Page Name (Navbar &amp; Heading)</span>
+                    <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editableSeasonal.name}
+                    onChange={(e) => setEditableSeasonal((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g. Diwali Fest, Summer Sale, Monsoon Offers"
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] font-semibold focus:outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#70252D)]"
+                  />
+                  <p className="text-[10px] text-[var(--color-text-secondary,#6B5D55)]">
+                    Appears directly on the desktop navbar and mobile menu.
+                  </p>
+                </div>
+
+                {/* Festive Tag / Badge */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--color-text,#2C2420)]">
+                    Festive Badge
+                  </label>
+                  <input
+                    type="text"
+                    value={editableSeasonal.badge}
+                    onChange={(e) => setEditableSeasonal((prev) => ({ ...prev, badge: e.target.value }))}
+                    placeholder="e.g. Festive Special, Limited Edition"
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] font-medium focus:outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#70252D)]"
+                  />
+                  <p className="text-[10px] text-[var(--color-text-secondary,#6B5D55)]">
+                    Pill tag shown next to page name in navbar and hero.
+                  </p>
+                </div>
+
+                {/* Discount Highlight Label */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--color-text,#2C2420)]">
+                    Discount Highlight
+                  </label>
+                  <input
+                    type="text"
+                    value={editableSeasonal.discountLabel || ''}
+                    onChange={(e) => setEditableSeasonal((prev) => ({ ...prev, discountLabel: e.target.value }))}
+                    placeholder="e.g. Up to 40% OFF, Flat ₹300 OFF"
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] font-medium focus:outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#70252D)]"
+                  />
+                  <p className="text-[10px] text-[var(--color-text-secondary,#6B5D55)]">
+                    Highlight shown in page hero badge.
+                  </p>
+                </div>
+
+                {/* Main Tagline */}
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--color-text,#2C2420)]">
+                    Main Headline / Tagline
+                  </label>
+                  <input
+                    type="text"
+                    value={editableSeasonal.tagline}
+                    onChange={(e) => setEditableSeasonal((prev) => ({ ...prev, tagline: e.target.value }))}
+                    placeholder="e.g. Exclusive Festive Savings - 100% Pure Combed Cotton Bedsheets"
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] font-medium focus:outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#70252D)]"
+                  />
+                </div>
+
+                {/* Announcement Notice */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--color-text,#2C2420)]">
+                    Top Announcement Banner
+                  </label>
+                  <input
+                    type="text"
+                    value={editableSeasonal.bannerNotice || ''}
+                    onChange={(e) => setEditableSeasonal((prev) => ({ ...prev, bannerNotice: e.target.value }))}
+                    placeholder="e.g. ✨ Special Festive Pricing Active · Free Delivery in Gurgaon"
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] font-medium focus:outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#70252D)]"
+                  />
+                </div>
+
+                {/* Promotional Description */}
+                <div className="sm:col-span-3 space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--color-text,#2C2420)]">
+                    Promotional Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editableSeasonal.description}
+                    onChange={(e) => setEditableSeasonal((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder="Describe the festive occasion, fabrics, delivery perks..."
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#70252D)]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bedsheets Discount & Assignment Manager */}
+            <div
+              className="p-6 sm:p-8 rounded-3xl border shadow-xs space-y-6 transition-colors"
+              style={{
+                backgroundColor: 'var(--color-surface, #FAF7F2)',
+                borderColor: 'var(--color-border, #EAE2D5)',
+              }}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-border,#EAE2D5)] pb-4">
+                <div>
+                  <h4
+                    className="font-serif-luxury text-lg font-bold"
+                    style={{ color: 'var(--color-text, #2C2420)' }}
+                  >
+                    2. Bedsheets Under Discount ({editableSeasonal.items.length} of {editableProducts.length} Selected)
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-secondary,#6B5D55)] mt-0.5">
+                    Select which bedsheets should appear under discount on your {editableSeasonal.name} page. Set custom offer prices or discount percentages.
+                  </p>
+                </div>
+
+                {/* Bulk Actions */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleBulkSeasonalDiscount(20)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-[var(--color-border,#EAE2D5)] text-[var(--color-text,#2C2420)] hover:bg-[var(--color-background,#FAF7F2)] cursor-pointer shadow-2xs"
+                  >
+                    ⚡ Add All with 20% OFF
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleBulkSeasonalDiscount(30)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-[var(--color-border,#EAE2D5)] text-[var(--color-text,#2C2420)] hover:bg-[var(--color-background,#FAF7F2)] cursor-pointer shadow-2xs"
+                  >
+                    🔥 Add All with 30% OFF
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleClearSeasonalItems}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+              {/* Search within bedsheets */}
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-50" />
+                <input
+                  type="text"
+                  value={seasonalSearchQuery}
+                  onChange={(e) => setSeasonalSearchQuery(e.target.value)}
+                  placeholder="Filter bedsheets by name..."
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] focus:outline-hidden"
+                />
+              </div>
+
+              {/* Bedsheets List */}
+              <div className="space-y-3">
+                {editableProducts
+                  .filter((p) => {
+                    if (!seasonalSearchQuery.trim()) return true;
+                    return p.name.toLowerCase().includes(seasonalSearchQuery.toLowerCase());
+                  })
+                  .map((product) => {
+                    const seasonalItem = (editableSeasonal.items || []).find((i) => i.productId === product.id);
+                    const isIncluded = !!seasonalItem;
+                    const resolvedImg = resolveBedsheetImage(product.image, product.id, product.updatedAt);
+                    const originalPrice = product.originalPrice || Math.round(product.price * 1.35);
+
+                    return (
+                      <div
+                        key={product.id}
+                        className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                          isIncluded
+                            ? 'bg-white border-[var(--color-primary,#70252D)]/40 shadow-xs'
+                            : 'bg-white/60 border-[var(--color-border,#EAE2D5)] opacity-85'
+                        }`}
+                      >
+                        {/* Left: Checkbox + Thumbnail + Product Title & Regular Price */}
+                        <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isIncluded}
+                            onChange={() => handleToggleSeasonalProduct(product.id)}
+                            id={`seasonal-toggle-${product.id}`}
+                            className="w-4 h-4 rounded text-[var(--color-primary,#70252D)] border-[var(--color-border,#EAE2D5)] focus:ring-[var(--color-primary,#70252D)] cursor-pointer"
+                          />
+
+                          <img
+                            src={resolvedImg}
+                            alt={product.name}
+                            className="w-14 h-14 rounded-xl object-cover border border-[var(--color-border,#EAE2D5)] shrink-0 bg-stone-100"
+                          />
+
+                          <div className="min-w-0 flex-1">
+                            <label
+                              htmlFor={`seasonal-toggle-${product.id}`}
+                              className="font-serif-luxury text-sm font-bold text-[var(--color-text,#2C2420)] truncate block cursor-pointer hover:underline"
+                            >
+                              {product.name}
+                            </label>
+                            <p className="text-[11px] text-[var(--color-text-secondary,#6B5D55)]">
+                              Regular: ₹{product.price} · MRP: ₹{originalPrice} · {product.fabric || '100% Pure Cotton'}
+                            </p>
+                            {isIncluded && (
+                              <span className="inline-block mt-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded border border-emerald-200">
+                                On {editableSeasonal.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right: Discount Controls (Enabled only if included) */}
+                        {isIncluded ? (
+                          <div className="flex flex-wrap items-center gap-3 shrink-0">
+                            {/* Offer Price Input */}
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary,#6B5D55)] block">
+                                Seasonal Price (₹)
+                              </span>
+                              <input
+                                type="number"
+                                min={100}
+                                max={originalPrice}
+                                value={seasonalItem?.discountPrice ?? Math.round(product.price * 0.8)}
+                                onChange={(e) => handleUpdateSeasonalItemPrice(product.id, Number(e.target.value))}
+                                className="w-24 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-primary,#70252D)] focus:outline-hidden"
+                              />
+                            </div>
+
+                            {/* Discount % Input */}
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary,#6B5D55)] block">
+                                Discount %
+                              </span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={90}
+                                value={seasonalItem?.discountPercentage ?? 20}
+                                onChange={(e) => handleUpdateSeasonalItemPct(product.id, Number(e.target.value))}
+                                className="w-16 px-2 py-1.5 text-xs font-bold rounded-lg border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] text-center focus:outline-hidden"
+                              />
+                            </div>
+
+                            {/* Custom Item Badge */}
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary,#6B5D55)] block">
+                                Item Badge
+                              </span>
+                              <input
+                                type="text"
+                                value={seasonalItem?.customBadge || ''}
+                                onChange={(e) => handleUpdateSeasonalItemBadge(product.id, e.target.value)}
+                                placeholder="e.g. Festive Pick"
+                                className="w-28 px-2.5 py-1.5 text-xs rounded-lg border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-text,#2C2420)] focus:outline-hidden"
+                              />
+                            </div>
+
+                            {/* Remove button */}
+                            <div className="pt-4">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSeasonalProduct(product.id)}
+                                className="p-2 text-stone-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Remove from seasonal page"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSeasonalProduct(product.id)}
+                            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-[var(--color-border,#EAE2D5)] text-[var(--color-primary,#70252D)] hover:bg-[var(--color-surface,#FAF7F2)] cursor-pointer shadow-2xs flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add to {editableSeasonal.name}</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Bottom Save Bar */}
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-[var(--color-border,#EAE2D5)]">
+                <button
+                  type="button"
+                  onClick={() => handleSaveSeasonal()}
+                  className="px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs hover:opacity-90 active:scale-98"
+                  style={{
+                    backgroundColor: 'var(--color-primary, #70252D)',
+                    color: 'var(--color-primary-contrast, #FFFFFF)',
+                  }}
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save All Seasonal Changes</span>
+                </button>
+              </div>
+            </div>
 
           </div>
         )}
