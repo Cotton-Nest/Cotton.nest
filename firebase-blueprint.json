@@ -2,7 +2,7 @@
   "entities": {
     "BedsheetProduct": {
       "title": "BedsheetProduct",
-      "description": "Luxury bedsheet product with specifications, pricing, stock, and photography.",
+      "description": "Luxury bedsheet product with specifications, pricing, stock, order sequence, and photography.",
       "type": "object",
       "properties": {
         "id": { "type": "string", "description": "Unique identifier for product" },
@@ -22,7 +22,9 @@
         "pattern": { "type": "string", "description": "Pattern style" },
         "colorTone": { "type": "string", "description": "Color tone description" },
         "features": { "type": "array", "description": "Key feature highlights" },
-        "variants": { "type": "array", "description": "Color and design variants" }
+        "variants": { "type": "array", "description": "Color and design variants" },
+        "order": { "type": "number", "description": "Display sort order sequence" },
+        "updatedAt": { "type": "number", "description": "Timestamp of last modification" }
       },
       "required": ["id", "name", "price", "originalPrice", "image"]
     },
@@ -62,7 +64,8 @@
       "properties": {
         "phoneNumber": { "type": "string", "description": "WhatsApp contact number" },
         "announcement": { "type": "string", "description": "Top announcement banner text" },
-        "showAnnouncement": { "type": "boolean", "description": "Show/hide announcement" }
+        "showAnnouncement": { "type": "boolean", "description": "Show/hide announcement" },
+        "updatedAt": { "type": "number", "description": "Timestamp of update" }
       }
     },
     "ThemeConfig": {
@@ -77,6 +80,22 @@
         "updatedBy": { "type": "string", "description": "Admin email or identifier" }
       },
       "required": ["themeName", "colors"]
+    },
+    "SeasonalConfig": {
+      "title": "SeasonalConfig",
+      "description": "Seasonal discount page title, banner, active toggle, and discounted bedsheets.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Display name of seasonal festival" },
+        "badge": { "type": "string", "description": "Badge label" },
+        "bannerTitle": { "type": "string", "description": "Banner headline" },
+        "bannerSubtitle": { "type": "string", "description": "Banner subtitle description" },
+        "enabled": { "type": "boolean", "description": "Active state determining navbar visibility" },
+        "accentColor": { "type": "string", "description": "Highlight color for festival" },
+        "discounts": { "type": "array", "description": "List of discounted bedsheets" },
+        "updatedAt": { "type": "number", "description": "Timestamp of update" }
+      },
+      "required": ["name", "enabled"]
     }
   },
   "firestore": {
@@ -99,6 +118,10 @@
     "/theme/{themeId}": {
       "schema": "ThemeConfig",
       "description": "Storewide active website theme configuration"
+    },
+    "/seasonal/{seasonalId}": {
+      "schema": "SeasonalConfig",
+      "description": "Seasonal discount page and festive offers configuration"
     }
   }
 }

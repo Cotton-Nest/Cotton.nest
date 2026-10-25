@@ -7,7 +7,14 @@ import {
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from '../data/siteContent';
-import { uploadImageApi, removeProduct, saveSeasonalConfigApi } from '../services/api';
+import {
+  uploadImageApi,
+  removeProduct,
+  saveSeasonalConfigApi,
+  reorderProductsApi,
+  addProduct,
+  updateSingleProduct,
+} from '../services/api';
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -15,7 +22,7 @@ import {
   checkCloudinaryConfig
 } from '../services/cloudinary';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
-import { savePersistentImage } from '../utils/persistentStorage';
+import { useAuth } from '../context/AuthContext';
 import { ThemeCustomizer } from './ThemeCustomizer';
 import { WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from '../data/theme';
 import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
@@ -263,7 +270,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const updated = prev.map((p) => {
         if (p.id === id) {
           const mod = updater(p);
-          return { ...mod, updatedAt: Date.now() };
+          const stamped = { ...mod, updatedAt: Date.now() };
+          updateSingleProduct(id, stamped).catch((err) => {
+            console.warn('Failed to update single product in Firestore:', err);
+          });
+          return stamped;
         }
         return p;
       });
@@ -457,8 +468,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }));
 
     setEditableProducts(updatedWithOrder);
-    persistProducts(updatedWithOrder, true);
     onUpdateProducts(updatedWithOrder);
+    reorderProductsApi(updatedWithOrder.map((p) => p.id)).catch((err) => {
+      console.warn('Firestore reorder error:', err);
+    });
     showToast(`Moved "${movedProduct.name}" to position #${toIdx + 1}! Card order updated.`);
   };
 
@@ -485,8 +498,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }));
 
     setEditableProducts(updatedWithOrder);
-    persistProducts(updatedWithOrder, true);
     onUpdateProducts(updatedWithOrder);
+    reorderProductsApi(updatedWithOrder.map((p) => p.id)).catch((err) => {
+      console.warn('Firestore reorder error:', err);
+    });
     showToast(`Moved "${movedProduct.name}" to position #${toIdx + 1}!`);
   };
 
@@ -739,6 +754,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }));
     setEditableProducts(updated);
     onUpdateProducts(updated);
+    addProduct(fullProduct).catch((err) => {
+      console.warn('Failed to add product to Firestore:', err);
+    });
+    reorderProductsApi(updated.map((p) => p.id)).catch(() => {});
     setIsAddProductModalOpen(false);
     setNewProductFile(null);
     showToast(`"${fullProduct.name}" created and saved to store!`);
@@ -848,7 +867,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             } catch {}
             for (const [k, v] of Object.entries(imagesToRestore)) {
               if (v && typeof v === 'string') {
-                savePersistentImage(k, resolveBedsheetImage(v, k)).catch(() => {});
+                // Resolved custom image in Firestore
               }
             }
           }

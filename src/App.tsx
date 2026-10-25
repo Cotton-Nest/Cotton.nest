@@ -23,7 +23,7 @@ import { LiveOrdersView } from './components/LiveOrdersView';
 import { TermsAndConditionsView } from './components/TermsAndConditionsView';
 import { SeasonalView } from './components/SeasonalView';
 import { AuthModal } from './components/AuthModal';
-import { GoogleAccountChooserModal } from './components/GoogleAccountChooserModal';
+import { useAuth } from './context/AuthContext';
 import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from './data/siteContent';
@@ -33,26 +33,22 @@ import {
   saveAllProducts,
   updateSingleProduct,
   getOrders,
+  saveOrder,
+  updateOrderStatus,
+  deleteOrder,
   getSiteContent,
   saveSiteContentApi,
   uploadImageApi,
   getPublishedThemeApi,
+  savePublishedThemeApi,
   getReviewsApi,
   saveReviewApi,
   helpfulReviewApi,
   getSeasonalConfigApi,
   saveSeasonalConfigApi,
 } from './services/api';
-import {
-  savePersistentImage,
-  getAllPersistentImages,
-  removePersistentImage,
-  clearAllPersistentImages,
-  getPersistentProducts,
-  savePersistentProducts,
-  getPersistentContent,
-  savePersistentContent
-} from './utils/persistentStorage';
+import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, testConnection } from './firebase';
 import { ReviewsSection } from './components/ReviewsSection';
 import { WriteReviewModal } from './components/WriteReviewModal';
 import { ProductReview, INITIAL_REVIEWS } from './data/reviews';
@@ -95,19 +91,21 @@ export default function App() {
     restDelta: 0.001
   });
 
+  const { user, isOwner } = useAuth();
   const [isOwnerAuthOpen, setIsOwnerAuthOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isGoogleChooserOpen, setIsGoogleChooserOpen] = useState(false);
   const [whatsAppHelperData, setWhatsAppHelperData] = useState<WhatsAppHelperData | null>(null);
 
-  // Store Owner Authentication Mode (default false for viewers)
-  const [isOwnerMode, setIsOwnerMode] = useState<boolean>(() => {
+  // Store Owner Authentication Mode (unlocked by Google login adityaa.22082011@gmail.com or PIN)
+  const [isOwnerPinUnlocked, setIsOwnerPinUnlocked] = useState<boolean>(() => {
     try {
       return localStorage.getItem('cotton_nest_owner_mode') === 'true';
     } catch {
       return false;
     }
   });
+
+  const isOwnerMode = isOwnerPinUnlocked || isOwner;
 
   // State to track scroll position for Home scroll-to-top button
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -147,10 +145,14 @@ export default function App() {
     };
   }, []);
 
-  const handleThemePublished = (newTheme: WebsiteThemeConfig) => {
+  const handleThemePublished = async (newTheme: WebsiteThemeConfig) => {
     setThemeConfig(newTheme);
-    saveStoredPublishedTheme(newTheme);
     applyThemeToDom(newTheme.colors);
+    try {
+      await savePublishedThemeApi(newTheme);
+    } catch (err) {
+      console.warn('Failed to publish theme to Firestore:', err);
+    }
   };
 
   // Dynamic products state with local storage persistence
@@ -283,144 +285,125 @@ export default function App() {
     }
   };
 
-  // Load products, orders, content, reviews, theme and seasonal on mount & sync periodically
+  // Real-time authoritative subscriptions to Cloud Firestore
   useEffect(() => {
-    let isMounted = true;
+    testConnection();
 
-    // 1. Initial fast local cache load from IndexedDB
-    getPersistentProducts().then((idb) => {
-      if (isMounted && idb && Array.isArray(idb) && idb.length > 0) {
-        setProducts((curr) => {
-          const currTime = Math.max(...curr.map((p) => p.updatedAt || 0), 0);
-          const idbTime = Math.max(...idb.map((p) => p.updatedAt || 0), 0);
-          if (idbTime >= currTime || curr === BEDSHEETS_CATALOG) {
-            return idb;
-          }
-          return curr;
-        });
-      }
-    }).catch(() => {});
-
-    getPersistentContent().then((idbContent) => {
-      if (isMounted && idbContent && idbContent.company) {
-        setSiteContent((curr) => (curr === INITIAL_SITE_CONTENT ? idbContent : curr));
-      }
-    }).catch(() => {});
-
-    // 2. Authoritative load from Backend Server File (store_db.json)
-    const loadDataFromServer = async () => {
-      try {
-        const [serverProducts, serverOrders, serverContent, serverReviews, serverTheme, serverSeasonal] = await Promise.all([
-          fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' })
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null),
-          getOrders().catch(() => null),
-          getSiteContent().catch(() => null),
-          getReviewsApi().catch(() => null),
-          getPublishedThemeApi().catch(() => null),
-          getSeasonalConfigApi().catch(() => null),
-        ]);
-
-        if (isMounted) {
-          if (serverReviews && Array.isArray(serverReviews) && serverReviews.length > 0) {
-            setReviews(serverReviews);
-          }
-
-          if (serverProducts && Array.isArray(serverProducts) && serverProducts.length > 0) {
-            // Sort by order field
-            const orderMap = new Map(BEDSHEETS_CATALOG.map((p, idx) => [p.id, idx]));
-            const sorted = [...serverProducts].sort((a: any, b: any) => {
-              const orderA = typeof a.order === 'number' ? a.order : (orderMap.get(a.id) ?? 999);
-              const orderB = typeof b.order === 'number' ? b.order : (orderMap.get(b.id) ?? 999);
-              return orderA - orderB;
+    // 1. Authoritative Products listener from Firestore
+    const unsubProducts = onSnapshot(
+      collection(db, 'products'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loadedProducts: BedsheetProduct[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as BedsheetProduct;
+            loadedProducts.push({
+              ...data,
+              id: docSnap.id,
+              image: resolveBedsheetImage(data.image, docSnap.id, data.updatedAt),
             });
+          });
+          loadedProducts.sort((a, b) => {
+            const orderA = typeof a.order === 'number' ? a.order : 9999;
+            const orderB = typeof b.order === 'number' ? b.order : 9999;
+            return orderA - orderB;
+          });
+          setProducts(loadedProducts);
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'products');
+      }
+    );
 
-            const mergedProducts = sorted.map((p: any) => ({
-              ...p,
-              image: resolveBedsheetImage(p.image, p.id, p.updatedAt),
-            }));
-
-            const serverTime = Math.max(...mergedProducts.map((p) => p.updatedAt || 0), 0);
-            lastServerTimestampRef.current = serverTime;
-
-            if (!isAdminOpenRef.current || Date.now() - lastAdminSaveRef.current > 5000) {
-              setProducts(mergedProducts);
-              savePersistentProducts(mergedProducts, serverTime).catch(() => {});
-              try {
-                localStorage.setItem('cotton_nest_products', JSON.stringify(mergedProducts));
-                localStorage.setItem('cotton_nest_products_updated_at', String(serverTime));
-              } catch {}
-            }
-          }
-
-          if (serverOrders) {
-            setOrders(serverOrders);
-          }
-
-          if (serverContent && (!isAdminOpenRef.current || Date.now() - lastAdminSaveRef.current > 5000)) {
-            setSiteContent(serverContent);
-          }
-
-          if (serverTheme && serverTheme.colors && isValidHex(serverTheme.colors.primary)) {
-            setThemeConfig(serverTheme);
-            saveStoredPublishedTheme(serverTheme);
-            applyThemeToDom(serverTheme.colors);
-            lastThemeTimestampRef.current = serverTheme.updatedAt || 0;
-          }
-
-          if (serverSeasonal && typeof serverSeasonal.name === 'string') {
-            setSeasonalConfig(serverSeasonal);
-            lastSeasonalTimestampRef.current = serverSeasonal.updatedAt || 0;
-            try {
-              localStorage.setItem('cotton_nest_seasonal', JSON.stringify(serverSeasonal));
-            } catch {}
+    // 2. Authoritative Theme listener from Firestore
+    const unsubTheme = onSnapshot(
+      doc(db, 'theme', 'active'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const remoteTheme = docSnap.data() as WebsiteThemeConfig;
+          if (remoteTheme && remoteTheme.colors && isValidHex(remoteTheme.colors.primary)) {
+            setThemeConfig(remoteTheme);
+            applyThemeToDom(remoteTheme.colors);
           }
         }
-      } catch (err) {
-        console.warn('Server sync failed:', err);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'theme/active');
       }
-    };
+    );
 
-    loadDataFromServer();
-
-    // 3. Fast Cross-Device Sync Polling (every 4 seconds)
-    // Lets mobile phones and other browsers instantly reflect any new bedsheet added on PC!
-    const syncInterval = setInterval(async () => {
-      if (!isMounted || isAdminOpenRef.current) return;
-      if (Date.now() - lastAdminSaveRef.current < 4000) return;
-
-      try {
-        const res = await fetch(`/api/sync-check?t=${Date.now()}`, { cache: 'no-store' });
-        if (res.ok) {
-          const syncInfo = await res.json();
-          const shouldUpdate =
-            syncInfo.productCount !== productsRef.current.length ||
-            (syncInfo.timestamp && syncInfo.timestamp > lastServerTimestampRef.current) ||
-            (syncInfo.themeUpdatedAt && syncInfo.themeUpdatedAt > lastThemeTimestampRef.current) ||
-            (syncInfo.seasonalUpdatedAt && syncInfo.seasonalUpdatedAt > lastSeasonalTimestampRef.current);
-
-          if (shouldUpdate) {
-            loadDataFromServer();
+    // 3. Authoritative Seasonal Config listener from Firestore
+    const unsubSeasonal = onSnapshot(
+      doc(db, 'seasonal', 'active'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as SeasonalConfig;
+          if (data && typeof data === 'object' && typeof data.name === 'string') {
+            setSeasonalConfig(data);
           }
         }
-      } catch {
-        // Network hiccups silently ignored
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'seasonal/active');
       }
-    }, 4000);
+    );
 
-    // When returning to tab or switching apps on mobile, refresh data
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isMounted && !isAdminOpenRef.current) {
-        loadDataFromServer();
+    // 4. Authoritative Orders listener from Firestore
+    const unsubOrders = onSnapshot(
+      collection(db, 'orders'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loadedOrders: Order[] = [];
+          snapshot.forEach((d) => loadedOrders.push({ ...(d.data() as Order), id: d.id }));
+          loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setOrders(loadedOrders);
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'orders');
       }
-    };
+    );
 
-    window.addEventListener('visibilitychange', handleVisibilityChange);
+    // 5. Authoritative Reviews listener from Firestore
+    const unsubReviews = onSnapshot(
+      collection(db, 'reviews'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loadedReviews: ProductReview[] = [];
+          snapshot.forEach((d) => loadedReviews.push({ ...(d.data() as ProductReview), id: d.id }));
+          loadedReviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setReviews(loadedReviews);
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'reviews');
+      }
+    );
+
+    // 6. Authoritative Site Content listener from Firestore
+    const unsubContent = onSnapshot(
+      doc(db, 'site_content', 'main'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const content = docSnap.data() as SiteContent;
+          if (content && content.company) {
+            setSiteContent(content);
+          }
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'site_content/main');
+      }
+    );
 
     return () => {
-      isMounted = false;
-      clearInterval(syncInterval);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubProducts();
+      unsubTheme();
+      unsubSeasonal();
+      unsubOrders();
+      unsubReviews();
+      unsubContent();
     };
   }, []);
 
@@ -445,7 +428,7 @@ export default function App() {
         } catch {
           // ignore
         }
-        setIsOwnerMode(true);
+        setIsOwnerPinUnlocked(true);
         setIsAdminOpen(true);
         try {
           localStorage.setItem('cotton_nest_owner_mode', 'true');
@@ -460,7 +443,7 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
         e.preventDefault();
-        setIsOwnerMode(true);
+        setIsOwnerPinUnlocked(true);
         setIsAdminOpen((prev) => !prev);
         try {
           localStorage.setItem('cotton_nest_owner_mode', 'true');
@@ -481,15 +464,10 @@ export default function App() {
     }
   }, [cartItems]);
 
-  // Admin: Update all products & persist to backend server
+  // Admin: Update all products & persist to Firestore
   const handleUpdateProducts = async (updatedProducts: BedsheetProduct[]) => {
     lastAdminSaveRef.current = Date.now();
     setProducts(updatedProducts);
-    try {
-      localStorage.setItem('cotton_nest_products', JSON.stringify(updatedProducts));
-    } catch (err) {
-      console.warn('Storage quota exceeded:', err);
-    }
     await saveAllProducts(updatedProducts);
   };
 
@@ -500,34 +478,15 @@ export default function App() {
     setSelectedProduct(updatedProduct);
   };
 
-  // Admin: Update Orders & persist to backend server
+  // Admin: Update Orders & persist to Firestore
   const handleUpdateOrders = async (updatedOrders: Order[]) => {
     setOrders(updatedOrders);
-    try {
-      localStorage.setItem('cotton_nest_orders', JSON.stringify(updatedOrders));
-    } catch (err) {
-      console.warn('Storage quota exceeded:', err);
-    }
-    try {
-      await fetch('/api/orders', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedOrders),
-      });
-    } catch (err) {
-      console.error('Failed to sync orders to server:', err);
-    }
   };
 
-  // Admin: Update Site Content & persist to backend server
+  // Admin: Update Site Content & persist to Firestore
   const handleUpdateSiteContent = async (updatedContent: SiteContent) => {
     lastAdminSaveRef.current = Date.now();
     setSiteContent(updatedContent);
-    try {
-      localStorage.setItem('cotton_nest_site_content', JSON.stringify(updatedContent));
-    } catch (err) {
-      console.warn('Storage quota exceeded:', err);
-    }
     await saveSiteContentApi(updatedContent);
   };
 
@@ -581,7 +540,7 @@ export default function App() {
 
   // Owner Authentication Handlers
   const handleOwnerAuthenticate = () => {
-    setIsOwnerMode(true);
+    setIsOwnerPinUnlocked(true);
     setIsAdminOpen(true);
     try {
       localStorage.setItem('cotton_nest_owner_mode', 'true');
@@ -591,7 +550,7 @@ export default function App() {
   };
 
   const handleLockOwnerMode = () => {
-    setIsOwnerMode(false);
+    setIsOwnerPinUnlocked(false);
     setIsAdminOpen(false);
     setIsPhotoManagerOpen(false);
     try {
@@ -617,80 +576,49 @@ export default function App() {
     }
   };
 
-  // Save custom images to Cloudinary, server store, IndexedDB & local storage so photos NEVER reset!
+  // Save custom images to Cloudinary & Firestore so photos persist across all devices
   const handleUploadImage = async (productId: string, fileOrDataUrl: string | File) => {
     try {
       const finalUrl = await uploadImageApi(fileOrDataUrl, productId);
 
-      // 1. Permanently persist to IndexedDB
-      await savePersistentImage(productId, finalUrl);
+      // Update state
+      setCustomImages((prev) => ({ ...prev, [productId]: finalUrl }));
 
-      // 2. Update state and attempt localStorage cache
-      setCustomImages((prev) => {
-        const updated = { ...prev, [productId]: finalUrl };
-        try {
-          localStorage.setItem('cotton_nest_custom_images', JSON.stringify(updated));
-        } catch (err) {
-          console.warn('Storage quota exceeded, safely stored in IndexedDB:', err);
-        }
-        return updated;
-      });
-
-      // 3. Update product on server and locally
+      // Update product directly in Firestore
       await updateSingleProduct(productId, { image: finalUrl });
 
-      setProducts((prev) => {
-        const updated = prev.map((p) => (p.id === productId ? { ...p, image: finalUrl, updatedAt: Date.now() } : p));
-        savePersistentProducts(updated, Date.now()).catch(() => {});
-        try {
-          localStorage.setItem('cotton_nest_products', JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, image: finalUrl, updatedAt: Date.now() } : p))
+      );
     } catch (err) {
       console.error('Failed to upload image:', err);
     }
   };
 
   const handleResetImage = async (productId: string) => {
-    await removePersistentImage(productId);
-
     setCustomImages((prev) => {
       const updated = { ...prev };
       delete updated[productId];
-      try {
-        localStorage.setItem('cotton_nest_custom_images', JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
       return updated;
     });
 
     const defaultP = BEDSHEETS_CATALOG.find((p) => p.id === productId);
     if (defaultP) {
-      const updated = products.map((p) => (p.id === productId ? { ...p, image: defaultP.image } : p));
-      setProducts(updated);
-      await saveAllProducts(updated);
+      await updateSingleProduct(productId, { image: defaultP.image });
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, image: defaultP.image } : p))
+      );
     }
   };
 
   const handleResetAllPhotos = async () => {
-    await clearAllPersistentImages();
     setCustomImages({});
-    try {
-      localStorage.removeItem('cotton_nest_custom_images');
-    } catch {
-      // ignore
-    }
-    // Revert custom photos back to default catalog photos without touching prices, names, or inventory!
-    setProducts((prev) => {
-      const updated = prev.map((p) => {
-        const cat = BEDSHEETS_CATALOG.find((c) => c.id === p.id);
-        return cat ? { ...p, image: cat.image } : p;
-      });
-      saveAllProducts(updated);
-      return updated;
+    const updated = products.map((p) => {
+      const cat = BEDSHEETS_CATALOG.find((c) => c.id === p.id);
+      return cat ? { ...p, image: cat.image } : p;
     });
+    setProducts(updated);
+    await saveAllProducts(updated);
   };
 
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -819,7 +747,6 @@ export default function App() {
             onOpenPhotoManager={handleOpenPhotoManagerSafely}
             onOpenAdmin={handleOpenAdminSafely}
             onOpenAuthModal={() => setIsAuthModalOpen(true)}
-            onOpenGoogleChooser={() => setIsGoogleChooserOpen(true)}
             isOwnerMode={isOwnerMode}
             content={siteContent}
             productsCount={products.length}
@@ -1027,7 +954,6 @@ export default function App() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 onOpenAuthModal={() => setIsAuthModalOpen(true)}
-                onOpenGoogleChooser={() => setIsGoogleChooserOpen(true)}
               />
             )}
 
@@ -1135,24 +1061,10 @@ export default function App() {
         </>
       )}
 
-      {/* Google Account Chooser Modal (Choose an account dialog matching Google OAuth) */}
-      <GoogleAccountChooserModal
-        isOpen={isGoogleChooserOpen}
-        onClose={() => setIsGoogleChooserOpen(false)}
-        onOpenPhoneAuth={() => {
-          setIsGoogleChooserOpen(false);
-          setIsAuthModalOpen(true);
-        }}
-      />
-
       {/* Google Sign In & Client Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onOpenGoogleChooser={() => {
-          setIsAuthModalOpen(false);
-          setIsGoogleChooserOpen(true);
-        }}
         onTrackOrderDirect={(_orderId) => {
           setActiveTab('orders');
           window.scrollTo({ top: 0, behavior: 'smooth' });

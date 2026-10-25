@@ -1,455 +1,386 @@
+import {
+  collection,
+  doc,
+  getDocs,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
+  increment,
+  query,
+  orderBy,
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { BedsheetProduct, BEDSHEETS_CATALOG } from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from '../data/siteContent';
-import {
-  savePersistentProducts,
-  getPersistentProducts,
-  getPersistentProductsTimestamp,
-  savePersistentContent,
-  getPersistentContent,
-  savePersistentOrders,
-  getPersistentOrders,
-  getAllPersistentImages,
-  savePersistentImage
-} from '../utils/persistentStorage';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
 import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 
-// Cloudinary service exports
+// Re-export Cloudinary service helpers
 export {
   uploadToCloudinary,
   deleteFromCloudinary,
   isCloudinaryUrl,
-  checkCloudinaryConfig
+  checkCloudinaryConfig,
 } from './cloudinary';
 
-// Upload Image API: Uploads image to Cloudinary (or local server) and saves to persistent storage
+// ---------------- IMAGE UPLOAD & HOSTING ---------------- //
 export async function uploadImageApi(imageInput: string | File, productId?: string): Promise<string> {
-  // 1. If already hosted on Cloudinary or absolute URL, save to persistent storage and return
+  // If already hosted on Cloudinary or external HTTPS URL, save reference and return
   if (typeof imageInput === 'string' && (isCloudinaryUrl(imageInput) || imageInput.startsWith('http'))) {
     if (productId) {
-      savePersistentImage(productId, imageInput).catch(() => {});
+      try {
+        await setDoc(doc(db, 'custom_images', productId), {
+          productId,
+          imageUrl: imageInput,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Could not record custom_images reference:', err);
+      }
     }
     return imageInput;
   }
 
-  // 2. Upload to Cloudinary hosting via signed direct upload (or server fallback)
-  try {
-    const uploadResult = await uploadToCloudinary(imageInput, productId);
-    const cloudUrl = uploadResult.url;
+  // Upload to Cloudinary hosting via signed direct upload
+  const uploadResult = await uploadToCloudinary(imageInput, productId);
+  const cloudUrl = uploadResult.url;
 
-    if (productId && cloudUrl) {
-      savePersistentImage(productId, cloudUrl).catch(() => {});
+  if (productId && cloudUrl) {
+    try {
+      await setDoc(doc(db, 'custom_images', productId), {
+        productId,
+        imageUrl: cloudUrl,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('Could not record custom_images in Firestore:', err);
     }
-    return cloudUrl;
-  } catch (err) {
-    console.warn('Cloudinary upload error, checking fallback:', err);
-    // If string data URL, persist locally
-    if (typeof imageInput === 'string' && productId) {
-      savePersistentImage(productId, imageInput).catch(() => {});
-      return imageInput;
-    }
-    throw err;
   }
+
+  return cloudUrl;
 }
 
-// Products API: Loads products from server JSON database, IndexedDB, or embedded catalog
+// ---------------- PRODUCTS CATALOG API (FIRESTORE AUTHORITATIVE) ---------------- //
 export async function getProducts(): Promise<BedsheetProduct[]> {
-  // 1. Fetch from Backend Server API first (authoritative single source of truth)
-  let serverProducts: BedsheetProduct[] | null = null;
+  const path = 'products';
   try {
-    const res = await fetch(`/api/products?t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        serverProducts = data;
-      }
+    const snap = await getDocs(collection(db, path));
+    if (snap.empty) {
+      // If Firestore is completely fresh and unseeded, return catalog
+      return BEDSHEETS_CATALOG.map((p, idx) => ({
+        ...p,
+        order: idx,
+        image: resolveBedsheetImage(p.image, p.id),
+      }));
     }
-  } catch {}
 
-  // 2. Fallback to local storage only if server is unreachable
-  let localProducts: BedsheetProduct[] | null = null;
-  if (!serverProducts) {
-    try {
-      const localSaved = localStorage.getItem('cotton_nest_products');
-      if (localSaved) {
-        const parsed = JSON.parse(localSaved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          localProducts = parsed;
-        }
-      }
-    } catch {}
+    const products: BedsheetProduct[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as BedsheetProduct;
+      products.push({
+        ...data,
+        id: docSnap.id,
+        image: resolveBedsheetImage(data.image, docSnap.id, data.updatedAt),
+      });
+    });
 
-    if (!localProducts) {
-      try {
-        const idbData = await getPersistentProducts().catch(() => null);
-        if (Array.isArray(idbData) && idbData.length > 0) {
-          localProducts = idbData;
-        }
-      } catch {}
-    }
-  }
-
-  const authoritativeRemote = serverProducts || localProducts;
-
-  if (authoritativeRemote && authoritativeRemote.length > 0) {
-    const orderMap = new Map(BEDSHEETS_CATALOG.map((p, idx) => [p.id, idx]));
-    authoritativeRemote.sort((a, b) => {
-      const orderA = typeof (a as any).order === 'number' ? (a as any).order : (orderMap.get(a.id) ?? 999);
-      const orderB = typeof (b as any).order === 'number' ? (b as any).order : (orderMap.get(b.id) ?? 999);
+    // Stable sort by order property
+    products.sort((a, b) => {
+      const orderA = typeof a.order === 'number' ? a.order : 9999;
+      const orderB = typeof b.order === 'number' ? b.order : 9999;
       return orderA - orderB;
     });
 
-    const cleanMerged = authoritativeRemote.map((p) => {
-      return {
-        ...p,
-        image: resolveBedsheetImage(p.image, p.id, p.updatedAt),
-      };
-    });
-
-    try {
-      localStorage.setItem('cotton_nest_products', JSON.stringify(cleanMerged));
-      const serverTime = Math.max(...cleanMerged.map((p) => p.updatedAt || 0), 0);
-      localStorage.setItem('cotton_nest_products_updated_at', String(serverTime));
-    } catch {}
-
-    savePersistentProducts(cleanMerged, Date.now()).catch(() => {});
-
-    return cleanMerged;
+    return products;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return [];
   }
-
-  // 5. Fallback: embedded catalog with any locally stored images
-  return BEDSHEETS_CATALOG.map((p, idx) => ({
-    ...p,
-    order: idx,
-    image: resolveBedsheetImage(p.image, p.id),
-    updatedAt: 1,
-  }));
-}
-
-export async function saveAllProducts(products: BedsheetProduct[]): Promise<void> {
-  const saveTimestamp = Date.now();
-  const orderedProducts = products.map((p, idx) => ({
-    ...p,
-    order: typeof p.order === 'number' ? p.order : idx,
-    updatedAt: saveTimestamp,
-  }));
-
-  // 1. Synchronous localStorage save
-  try {
-    localStorage.setItem('cotton_nest_products', JSON.stringify(orderedProducts));
-    localStorage.setItem('cotton_nest_products_updated_at', String(saveTimestamp));
-  } catch (err) {
-    console.warn('LocalStorage save failed:', err);
-  }
-
-  // 2. Save to IndexedDB and backend server API (store_db.json file)
-  await Promise.allSettled([
-    savePersistentProducts(orderedProducts, saveTimestamp),
-    fetch('/api/products', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderedProducts),
-    }).catch((err) => {
-      console.warn('Server PUT /api/products failed:', err);
-    }),
-  ]);
 }
 
 export async function addProduct(product: BedsheetProduct): Promise<BedsheetProduct> {
+  const path = `products/${product.id}`;
   try {
-    const res = await fetch('/api/products', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(product),
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn('Failed to post product to server, saving locally:', err);
+    const cleanProduct: BedsheetProduct = {
+      ...product,
+      updatedAt: Date.now(),
+      image: resolveBedsheetImage(product.image, product.id),
+    };
+    await setDoc(doc(db, 'products', product.id), cleanProduct);
+    return cleanProduct;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+    throw error;
   }
-  return product;
 }
 
-export async function updateSingleProduct(id: string, product: Partial<BedsheetProduct>): Promise<void> {
+export async function updateSingleProduct(id: string, updates: Partial<BedsheetProduct>): Promise<void> {
+  const path = `products/${id}`;
   try {
-    await fetch(`/api/products/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(product),
-    });
-  } catch (err) {
-    console.warn('Failed to update product on server:', err);
+    const cleanUpdates = {
+      ...updates,
+      updatedAt: Date.now(),
+    };
+    await updateDoc(doc(db, 'products', id), cleanUpdates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+    throw error;
   }
 }
 
 export async function removeProduct(id: string): Promise<void> {
+  const path = `products/${id}`;
   try {
-    await fetch(`/api/products/${id}`, { method: 'DELETE' });
-  } catch (err) {
-    console.warn('Failed to delete product on server:', err);
+    await deleteDoc(doc(db, 'products', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    throw error;
   }
 }
 
-// Orders API
-export async function getOrders(): Promise<Order[]> {
+/**
+ * Atomic batch order update for bedsheets.
+ * Updates ONLY the `order` field on each product without overwriting product details,
+ * fixing the reorder bug where rearranged cards overwrote newer records.
+ */
+export async function reorderProductsApi(orderedIds: string[]): Promise<void> {
+  const path = 'products';
   try {
-    const res = await fetch('/api/orders');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        localStorage.setItem('cotton_nest_orders', JSON.stringify(data));
-        return data;
-      }
-    }
-  } catch (err) {
-    console.warn('Backend orders fetch failed, falling back to local storage:', err);
+    const batch = writeBatch(db);
+    orderedIds.forEach((id, index) => {
+      const productRef = doc(db, 'products', id);
+      batch.update(productRef, {
+        order: index,
+        updatedAt: Date.now(),
+      });
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+    throw error;
   }
+}
 
+export async function saveAllProducts(products: BedsheetProduct[]): Promise<void> {
+  const path = 'products';
   try {
-    const cached = localStorage.getItem('cotton_nest_orders');
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch {}
+    const batch = writeBatch(db);
+    products.forEach((p, idx) => {
+      const productRef = doc(db, 'products', p.id);
+      batch.set(
+        productRef,
+        {
+          ...p,
+          order: typeof p.order === 'number' ? p.order : idx,
+          updatedAt: Date.now(),
+          image: resolveBedsheetImage(p.image, p.id),
+        },
+        { merge: true }
+      );
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
+  }
+}
 
-  return INITIAL_ORDERS;
+// ---------------- ORDERS API (FIRESTORE) ---------------- //
+export async function getOrders(): Promise<Order[]> {
+  const path = 'orders';
+  try {
+    const snap = await getDocs(collection(db, path));
+    if (snap.empty) {
+      return INITIAL_ORDERS;
+    }
+    const orders: Order[] = [];
+    snap.forEach((docSnap) => {
+      orders.push({ ...(docSnap.data() as Order), id: docSnap.id });
+    });
+    orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return orders;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return INITIAL_ORDERS;
+  }
 }
 
 export async function saveOrder(order: Order): Promise<void> {
+  const path = `orders/${order.id}`;
   try {
-    const cached = JSON.parse(localStorage.getItem('cotton_nest_orders') || '[]');
-    localStorage.setItem('cotton_nest_orders', JSON.stringify([order, ...cached]));
-  } catch {}
-
-  try {
-    await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(order),
-    });
-  } catch (err) {
-    console.warn('Failed to post order to server:', err);
+    await setDoc(doc(db, 'orders', order.id), order);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+    throw error;
   }
 }
 
 export async function updateOrderStatus(orderId: string, status: string): Promise<void> {
+  const path = `orders/${orderId}`;
   try {
-    await fetch(`/api/orders/${orderId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-  } catch (err) {
-    console.warn('Failed to update order status on server:', err);
+    await updateDoc(doc(db, 'orders', orderId), { status });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+    throw error;
   }
 }
 
 export async function deleteOrder(orderId: string): Promise<void> {
+  const path = `orders/${orderId}`;
   try {
-    await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
-  } catch (err) {
-    console.warn('Failed to delete order on server:', err);
+    await deleteDoc(doc(db, 'orders', orderId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    throw error;
   }
 }
 
-// Site Content API
+// ---------------- SITE CONTENT & BRANDING API ---------------- //
 export async function getSiteContent(): Promise<SiteContent> {
-  const localSaved = localStorage.getItem('cotton_nest_site_content');
-  let localTimestamp = Number(localStorage.getItem('cotton_nest_site_content_updated_at') || 0);
-  let localContent: SiteContent | null = null;
-  if (localSaved) {
-    try {
-      const parsed = JSON.parse(localSaved);
-      if (parsed && parsed.company) {
-        localContent = parsed;
-      }
-    } catch {}
-  }
-
+  const path = 'site_content/main';
   try {
-    const idbContent = await getPersistentContent();
-    if (idbContent && idbContent.company) {
-      if (!localContent || (idbContent.updatedAt && idbContent.updatedAt >= localTimestamp)) {
-        localContent = idbContent;
-      }
+    const docSnap = await getDoc(doc(db, 'site_content', 'main'));
+    if (docSnap.exists()) {
+      return docSnap.data() as SiteContent;
     }
-  } catch {}
-
-  if (localContent) {
-    return localContent;
+    return INITIAL_SITE_CONTENT;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return INITIAL_SITE_CONTENT;
   }
-
-  try {
-    const res = await fetch('/api/content');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.company) {
-        try {
-          localStorage.setItem('cotton_nest_site_content', JSON.stringify(data));
-          localStorage.setItem('cotton_nest_site_content_updated_at', String(Date.now()));
-        } catch {}
-        savePersistentContent(data).catch(() => {});
-        return data;
-      }
-    }
-  } catch {}
-
-  return INITIAL_SITE_CONTENT;
 }
 
 export async function saveSiteContentApi(content: SiteContent): Promise<void> {
-  const saveTimestamp = Date.now();
-  const stampedContent = {
-    ...content,
-    updatedAt: saveTimestamp,
-  };
-
+  const path = 'site_content/main';
   try {
-    localStorage.setItem('cotton_nest_site_content', JSON.stringify(stampedContent));
-    localStorage.setItem('cotton_nest_site_content_updated_at', String(saveTimestamp));
-  } catch {}
-
-  savePersistentContent(stampedContent).catch(() => {});
-
-  await fetch('/api/content', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(stampedContent),
-  }).catch(() => {});
+    await setDoc(doc(db, 'site_content', 'main'), {
+      ...content,
+      updatedAt: Date.now(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
+  }
 }
 
-// ---------------- THEME APPEARANCE API ---------------- //
+// ---------------- THEME APPEARANCE API (FIRESTORE) ---------------- //
 export async function getPublishedThemeApi(): Promise<any> {
+  const path = 'theme/active';
   try {
-    const res = await fetch('/api/theme');
-    if (res.ok) {
-      const data = await res.json();
+    const docSnap = await getDoc(doc(db, 'theme', 'active'));
+    if (docSnap.exists()) {
+      const data = docSnap.data();
       if (data && data.colors) {
         return data;
       }
     }
-  } catch {}
-  return null;
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return null;
+  }
 }
 
 export async function savePublishedThemeApi(config: any): Promise<void> {
+  const path = 'theme/active';
   try {
-    await fetch('/api/theme', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
+    await setDoc(doc(db, 'theme', 'active'), {
+      ...config,
+      updatedAt: Date.now(),
     });
-  } catch {}
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
+  }
 }
 
-// ---------------- CUSTOMER REVIEWS API ---------------- //
+// ---------------- CUSTOMER REVIEWS API (FIRESTORE) ---------------- //
 export async function getReviewsApi(): Promise<ProductReview[]> {
+  const path = 'reviews';
   try {
-    const res = await fetch('/api/reviews');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        try {
-          localStorage.setItem('cotton_nest_reviews', JSON.stringify(data));
-        } catch {}
-        return data;
-      }
+    const snap = await getDocs(collection(db, path));
+    if (snap.empty) {
+      return INITIAL_REVIEWS;
     }
-  } catch {}
-  try {
-    const cached = localStorage.getItem('cotton_nest_reviews');
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {}
-  return INITIAL_REVIEWS;
+    const reviews: ProductReview[] = [];
+    snap.forEach((docSnap) => {
+      reviews.push({ ...(docSnap.data() as ProductReview), id: docSnap.id });
+    });
+    reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return reviews;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return INITIAL_REVIEWS;
+  }
 }
 
 export async function saveReviewApi(review: ProductReview): Promise<ProductReview> {
+  const path = `reviews/${review.id}`;
   try {
-    const res = await fetch('/api/reviews', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(review),
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn('Failed to post review to server:', err);
+    await setDoc(doc(db, 'reviews', review.id), review);
+    return review;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+    throw error;
   }
-  return review;
 }
 
 export async function helpfulReviewApi(reviewId: string): Promise<void> {
+  const path = `reviews/${reviewId}`;
   try {
-    await fetch(`/api/reviews/${reviewId}/helpful`, { method: 'POST' });
-  } catch {}
+    await updateDoc(doc(db, 'reviews', reviewId), {
+      helpfulCount: increment(1),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
 }
 
 export async function deleteReviewApi(reviewId: string): Promise<void> {
+  const path = `reviews/${reviewId}`;
   try {
-    await fetch(`/api/reviews/${reviewId}`, { method: 'DELETE' });
-  } catch {}
+    await deleteDoc(doc(db, 'reviews', reviewId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    throw error;
+  }
 }
 
-// ---------------- SEASONAL PAGE & FESTIVE OFFERS API ---------------- //
+// ---------------- SEASONAL PAGE & FESTIVE OFFERS API (FIRESTORE) ---------------- //
 export async function getSeasonalConfigApi(): Promise<SeasonalConfig> {
+  const path = 'seasonal/active';
   try {
-    const res = await fetch(`/api/seasonal?t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
+    const docSnap = await getDoc(doc(db, 'seasonal', 'active'));
+    if (docSnap.exists()) {
+      const data = docSnap.data();
       if (data && typeof data === 'object' && typeof data.name === 'string') {
-        try {
-          localStorage.setItem('cotton_nest_seasonal', JSON.stringify(data));
-        } catch {}
-        return data;
+        return data as SeasonalConfig;
       }
     }
-  } catch {}
-
-  try {
-    const cached = localStorage.getItem('cotton_nest_seasonal');
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && typeof parsed.name === 'string') return parsed;
-    }
-  } catch {}
-
-  return INITIAL_SEASONAL_CONFIG;
+    return INITIAL_SEASONAL_CONFIG;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return INITIAL_SEASONAL_CONFIG;
+  }
 }
 
 export async function saveSeasonalConfigApi(config: SeasonalConfig): Promise<SeasonalConfig> {
+  const path = 'seasonal/active';
   const stampedConfig: SeasonalConfig = {
     ...config,
     updatedAt: Date.now(),
   };
 
   try {
-    localStorage.setItem('cotton_nest_seasonal', JSON.stringify(stampedConfig));
-  } catch {}
-
-  try {
-    const res = await fetch('/api/seasonal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(stampedConfig),
-    });
-    if (res.ok) {
-      const saved = await res.json();
-      return saved;
-    }
-  } catch (err) {
-    console.warn('Failed to save seasonal config to server:', err);
+    await setDoc(doc(db, 'seasonal', 'active'), stampedConfig);
+    return stampedConfig;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
-
-  return stampedConfig;
 }
-
-
