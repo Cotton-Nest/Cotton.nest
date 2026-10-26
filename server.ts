@@ -274,50 +274,63 @@ async function startServer() {
       }
 
       // If already a Cloudinary URL or remote HTTPS URL, return directly
-      if (image.startsWith('https://res.cloudinary.com/')) {
+      if (image.startsWith('https://res.cloudinary.com/') || image.startsWith('http://') || image.startsWith('https://')) {
         return res.json({ url: image, provider: 'cloudinary' });
       }
 
-      // Upload to Cloudinary
+      // Try uploading to Cloudinary first
       const config = initCloudinary();
-      if (!config) {
-        return res.status(503).json({
-          configured: false,
-          error: 'Cloudinary credentials are not configured on server.',
-          help: 'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET (or CLOUDINARY_URL) in environment variables.',
+      if (config) {
+        try {
+          const uploadOptions: any = {
+            folder: 'cotton_nest/bedsheets',
+            resource_type: 'image',
+            overwrite: true,
+            tags: ['cotton_nest', productId ? `product_${productId}` : 'general_sheet'],
+            transformation: [
+              { quality: 'auto:good' },
+              { fetch_format: 'auto' }
+            ]
+          };
+
+          if (public_id) {
+            uploadOptions.public_id = public_id;
+          } else if (productId) {
+            const sanitized = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
+            uploadOptions.public_id = `sheet_${sanitized}_${Date.now()}`;
+          }
+
+          const result = await cloudinary.uploader.upload(image, uploadOptions);
+          return res.json({
+            url: result.secure_url,
+            public_id: result.public_id,
+            provider: 'cloudinary',
+            width: result.width,
+            height: result.height,
+            format: result.format,
+          });
+        } catch (cloudErr: any) {
+          console.warn('Cloudinary upload had an issue, falling back to permanent server storage:', cloudErr.message);
+        }
+      }
+
+      // Guaranteed local fallback if Cloudinary encounters network or quota limits
+      const matches = image.match(/^data:image\/([a-zA-Z0-9-+.]+);base64,(.+)$/);
+      if (matches) {
+        const ext = matches[1] === 'jpeg' ? 'jpg' : (matches[1] || 'jpg');
+        const filename = `sheet_${(productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.${ext}`;
+        const filepath = path.join(UPLOADS_DIR, filename);
+        fs.writeFileSync(filepath, Buffer.from(matches[2], 'base64'));
+        return res.json({
+          url: `/uploads/${filename}`,
+          provider: 'server',
         });
       }
 
-      const uploadOptions: any = {
-        folder: 'cotton_nest/bedsheets',
-        resource_type: 'image',
-        overwrite: true,
-        tags: ['cotton_nest', productId ? `product_${productId}` : 'general_sheet'],
-        transformation: [
-          { quality: 'auto:good' },
-          { fetch_format: 'auto' }
-        ]
-      };
-
-      if (public_id) {
-        uploadOptions.public_id = public_id;
-      } else if (productId) {
-        const sanitized = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
-        uploadOptions.public_id = `sheet_${sanitized}_${Date.now()}`;
-      }
-
-      const result = await cloudinary.uploader.upload(image, uploadOptions);
-      return res.json({
-        url: result.secure_url,
-        public_id: result.public_id,
-        provider: 'cloudinary',
-        width: result.width,
-        height: result.height,
-        format: result.format,
-      });
+      res.status(400).json({ error: 'Invalid image format provided' });
     } catch (err: any) {
-      console.error('Failed to process image upload to Cloudinary:', err);
-      res.status(500).json({ error: err.message || 'Failed to save image to Cloudinary' });
+      console.error('Failed to process image upload:', err);
+      res.status(500).json({ error: err.message || 'Failed to save image' });
     }
   });
 

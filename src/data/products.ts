@@ -19,6 +19,7 @@ export interface BedsheetProduct {
   colorTone: string;
   description: string;
   image: string;
+  additionalImages?: string[]; // Extra gallery/detail photos of this bedsheet
   variants?: BedsheetVariant[]; // Multiple color variants or extra photos of this bedsheet
   badge?: string;
   inStock: boolean;

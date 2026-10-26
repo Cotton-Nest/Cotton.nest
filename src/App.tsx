@@ -389,11 +389,34 @@ export default function App() {
           const content = docSnap.data() as SiteContent;
           if (content && content.company) {
             setSiteContent(content);
+            try {
+              localStorage.setItem('cotton_nest_site_content', JSON.stringify(content));
+            } catch {}
           }
         }
       },
       (error) => {
         handleFirestoreError(error, OperationType.GET, 'site_content/main');
+      }
+    );
+
+    // 7. Authoritative Custom Image Links listener from Firestore
+    const unsubCustomImages = onSnapshot(
+      collection(db, 'custom_images'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const imageMap: Record<string, string> = {};
+          snapshot.forEach((d) => {
+            const data = d.data();
+            if (data && data.imageUrl && typeof data.imageUrl === 'string') {
+              imageMap[d.id] = data.imageUrl;
+            }
+          });
+          setCustomImages((prev) => ({ ...prev, ...imageMap }));
+        }
+      },
+      (error) => {
+        console.warn('Could not subscribe to custom_images:', error);
       }
     );
 
@@ -404,6 +427,7 @@ export default function App() {
       unsubOrders();
       unsubReviews();
       unsubContent();
+      unsubCustomImages();
     };
   }, []);
 
@@ -471,11 +495,16 @@ export default function App() {
     await saveAllProducts(updatedProducts);
   };
 
-  const handleUpdateSingleProduct = (updatedProduct: BedsheetProduct) => {
+  const handleUpdateSingleProduct = async (updatedProduct: BedsheetProduct) => {
     setProducts((prev) =>
       prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
     );
     setSelectedProduct(updatedProduct);
+    try {
+      await updateSingleProduct(updatedProduct.id, updatedProduct);
+    } catch (err) {
+      console.warn('Failed to persist single product edit to Firestore:', err);
+    }
   };
 
   // Admin: Update Orders & persist to Firestore
@@ -487,6 +516,9 @@ export default function App() {
   const handleUpdateSiteContent = async (updatedContent: SiteContent) => {
     lastAdminSaveRef.current = Date.now();
     setSiteContent(updatedContent);
+    try {
+      localStorage.setItem('cotton_nest_site_content', JSON.stringify(updatedContent));
+    } catch {}
     await saveSiteContentApi(updatedContent);
   };
 

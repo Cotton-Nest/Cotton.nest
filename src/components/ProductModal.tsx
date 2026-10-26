@@ -1,9 +1,9 @@
 import React from 'react';
-import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload } from 'lucide-react';
+import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2 } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
-import { updateSingleProduct } from '../services/api';
+import { updateSingleProduct, addProductGalleryImageApi, removeProductGalleryImageApi } from '../services/api';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from '../services/cloudinary';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
 
@@ -39,7 +39,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [quantity, setQuantity] = React.useState(1);
   const [added, setAdded] = React.useState(false);
   const [selectedVariantId, setSelectedVariantId] = React.useState<string | null>(null);
+  const [selectedPreviewUrl, setSelectedPreviewUrl] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const galleryFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Owner Edit Mode State
   const [isEditing, setIsEditing] = React.useState(initialEditMode);
@@ -59,6 +61,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   React.useEffect(() => {
     setSelectedVariantId(null);
+    setSelectedPreviewUrl(null);
     setQuantity(1);
     setAdded(false);
     setIsEditing(initialEditMode);
@@ -85,7 +88,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     ? product.variants?.find((v) => v.id === selectedVariantId)
     : undefined;
 
-  const rawImage = activeVariant?.image || product.image || customImage;
+  const rawImage = selectedPreviewUrl || activeVariant?.image || product.image || customImage;
   const displayImage = resolveBedsheetImage(rawImage, product.id, product.updatedAt);
   const productRating = product ? getProductRatingSummary(product.id, reviews) : { average: 4.9, count: 0, reviews: [] };
 
@@ -103,7 +106,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         fabric: editFabric.trim() || product.fabric,
         pillowCovers: editPillowCovers.trim() || product.pillowCovers,
         description: editDescription.trim() || product.description,
-        badge: editBadge.trim() || undefined,
+        badge: editBadge.trim() ? editBadge.trim() : '',
         inStock: editInStock,
         stockQuantity: Number(editStockQuantity),
         updatedAt: Date.now(),
@@ -186,6 +189,62 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleAddAdditionalPhotoDirect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !product) return;
+
+    setIsSaving(true);
+    setSaveSuccessMessage('Uploading extra angle photo to Cloudinary & Firebase...');
+    try {
+      const currentAdditional = product.additionalImages || [];
+      const newUrl = await addProductGalleryImageApi(product.id, file, currentAdditional);
+      const updatedList = [...currentAdditional, newUrl];
+      const updatedProduct: BedsheetProduct = {
+        ...product,
+        additionalImages: updatedList,
+        updatedAt: Date.now(),
+      };
+      if (onUpdateProduct) {
+        onUpdateProduct(updatedProduct);
+      }
+      setSelectedPreviewUrl(newUrl);
+      setSaveSuccessMessage('✓ Extra angle photo added & saved in Firebase!');
+      setTimeout(() => setSaveSuccessMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Failed to add angle photo:', err);
+      setSaveSuccessMessage(`Upload failed: ${err.message || 'Please try again.'}`);
+      setTimeout(() => setSaveSuccessMessage(null), 4000);
+    } finally {
+      setIsSaving(false);
+      if (galleryFileInputRef.current) {
+        galleryFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveAdditionalPhotoDirect = async (urlToRemove: string) => {
+    if (!product) return;
+    try {
+      const currentAdditional = product.additionalImages || [];
+      const updatedList = await removeProductGalleryImageApi(product.id, urlToRemove, currentAdditional);
+      const updatedProduct: BedsheetProduct = {
+        ...product,
+        additionalImages: updatedList,
+        updatedAt: Date.now(),
+      };
+      if (onUpdateProduct) {
+        onUpdateProduct(updatedProduct);
+      }
+      if (selectedPreviewUrl === urlToRemove) {
+        setSelectedPreviewUrl(null);
+      }
+      setSaveSuccessMessage('Photo angle removed.');
+      setTimeout(() => setSaveSuccessMessage(null), 2000);
+    } catch (err: any) {
+      console.error('Failed to remove angle photo:', err);
     }
   };
 

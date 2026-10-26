@@ -60,11 +60,11 @@ export async function uploadToCloudinary(
   imageInput: File | string,
   productId?: string
 ): Promise<CloudinaryUploadResponse> {
-  // If already a Cloudinary URL, return directly
-  if (typeof imageInput === 'string' && isCloudinaryUrl(imageInput)) {
+  // If already an HTTP/HTTPS URL, return immediately
+  if (typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'))) {
     return {
       url: imageInput,
-      provider: 'cloudinary'
+      provider: 'cloudinary',
     };
   }
 
@@ -74,6 +74,20 @@ export async function uploadToCloudinary(
     dataUrl = imageInput;
   } else {
     dataUrl = await compressImage(imageInput, 1600, 1600, 0.85);
+  }
+
+  // Convert to Blob for proper binary multipart upload so Cloudinary does not treat it as a URL string
+  let uploadBlob: Blob;
+  const fileName = productId ? `sheet_${productId.replace(/[^a-zA-Z0-9-_]/g, '_')}.jpg` : 'sheet.jpg';
+  try {
+    const fetchBlobRes = await fetch(dataUrl);
+    uploadBlob = await fetchBlobRes.blob();
+  } catch {
+    if (imageInput instanceof File) {
+      uploadBlob = imageInput;
+    } else {
+      uploadBlob = new Blob([dataUrl], { type: 'image/jpeg' });
+    }
   }
 
   let signErrorMsg = '';
@@ -89,7 +103,7 @@ export async function uploadToCloudinary(
 
     if (signRes.ok && signData?.configured && signData?.signature && signData?.apiKey && signData?.cloudName) {
       const formData = new FormData();
-      formData.append('file', dataUrl);
+      formData.append('file', uploadBlob, fileName);
       formData.append('api_key', signData.apiKey);
       formData.append('timestamp', String(signData.timestamp));
       formData.append('signature', signData.signature);

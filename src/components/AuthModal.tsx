@@ -6,12 +6,14 @@ import { GoogleSignInButton } from './GoogleSignInButton';
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenOwnerAuth?: () => void;
   onTrackOrderDirect?: (orderId: string) => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
+  onOpenOwnerAuth,
   onTrackOrderDirect,
 }) => {
   const { loginWithPhone, user, isAuthenticated } = useAuth();
@@ -168,6 +170,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <span>Orders placed via WhatsApp or checkout are linked automatically to your account.</span>
             </div>
 
+            {onOpenOwnerAuth && (
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={onOpenOwnerAuth}
+                  className="text-xs text-[#8C2E46] hover:text-[#742438] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Store Owner? Enter PIN (2508) or Google Admin Access</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           /* Track Order Direct Tab */

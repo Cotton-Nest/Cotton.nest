@@ -14,6 +14,7 @@ import {
   reorderProductsApi,
   addProduct,
   updateSingleProduct,
+  saveSiteContentApi,
 } from '../services/api';
 import {
   uploadToCloudinary,
@@ -318,11 +319,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   }, [products]);
 
-  const contentInitializedRef = useRef(false);
   React.useEffect(() => {
-    if (!contentInitializedRef.current && siteContent && siteContent.company) {
+    if (siteContent && siteContent.company) {
       setEditableContent(siteContent);
-      contentInitializedRef.current = true;
     }
   }, [siteContent]);
 
@@ -382,7 +381,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleBadgeChange = (id: string, badge: string) => {
-    updateProductItem(id, (p) => ({ ...p, badge: badge.trim() || undefined }), false);
+    updateProductItem(id, (p) => ({ ...p, badge: badge.trim() ? badge.trim() : '' }), false);
   };
 
   const handleNameChange = (id: string, name: string) => {
@@ -555,11 +554,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         updatedAt: Date.now(),
       };
 
-      // 3. Atomically update local editable state and parent state
+      // 3. Atomically update local editable state, Firestore, and parent state
       const updatedProduct: BedsheetProduct = {
         ...targetProduct,
         ...updatedFields,
       };
+
+      await updateSingleProduct(productId, updatedFields);
 
       const updatedList = editableProducts.map((p) => (p.id === productId ? updatedProduct : p));
       setEditableProducts(updatedList);
@@ -1079,10 +1080,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   /* ---------------- SITE CONTENT HANDLERS ---------------- */
 
-  const handleSaveContent = (e: React.FormEvent) => {
+  const handleSaveContent = async (e: React.FormEvent) => {
     e.preventDefault();
     onUpdateSiteContent(editableContent);
-    showToast('Store content, header & story updated successfully!');
+    try {
+      await saveSiteContentApi(editableContent);
+      showToast('Store content, header & story saved to Firestore!');
+    } catch (err: any) {
+      showToast('Saved locally. Firestore sync notice: ' + (err.message || 'Updated'));
+    }
   };
 
   // Metrics
