@@ -14,6 +14,7 @@ import { CartDrawer, CartItem } from './components/CartDrawer';
 import { StoreLocation } from './components/StoreLocation';
 import { StoryAndFeatures } from './components/StoryAndFeatures';
 import { Footer } from './components/Footer';
+import { OfferBanner } from './components/OfferBanner';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
@@ -46,6 +47,8 @@ import {
   helpfulReviewApi,
   getSeasonalConfigApi,
   saveSeasonalConfigApi,
+  computeUpdatedImagesCount,
+  saveUpdatedImagesStatsApi,
 } from './services/api';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, testConnection } from './firebase';
@@ -260,6 +263,14 @@ export default function App() {
   const lastServerTimestampRef = useRef<number>(0);
   const lastThemeTimestampRef = useRef<number>(0);
   const lastSeasonalTimestampRef = useRef<number>(0);
+
+  // Authoritative count of updated/custom images remembered across sessions
+  const updatedImagesCount = computeUpdatedImagesCount(products, customImages);
+
+  // Persist updated images count to Firestore metadata
+  useEffect(() => {
+    saveUpdatedImagesStatsApi(updatedImagesCount).catch(() => {});
+  }, [updatedImagesCount]);
 
   // Seasonal Page State
   const [seasonalConfig, setSeasonalConfig] = useState<SeasonalConfig>(() => {
@@ -783,6 +794,7 @@ export default function App() {
             content={siteContent}
             productsCount={products.length}
             seasonalConfig={seasonalConfig}
+            updatedImagesCount={updatedImagesCount}
           />
 
           {/* Main Content Area */}
@@ -803,6 +815,11 @@ export default function App() {
                   }}
                   content={siteContent}
                 />
+
+                {/* Promotional Offers & Coupons Banner */}
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-2 sm:-mt-6 mb-6 relative z-10">
+                  <OfferBanner onOpenCart={() => setIsCartOpen(true)} />
+                </div>
 
                 {/* Featured Showcase: 3 Spotlight bedsheets from the 9 */}
                 <section

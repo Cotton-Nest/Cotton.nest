@@ -253,6 +253,8 @@ export interface CartOrderPayload {
   customerNotes?: string;
   subtotal: number;
   totalSavings?: number;
+  couponCode?: string;
+  couponDiscount?: number;
   shippingMethod?: string;
   shippingCost?: number;
   items: Array<{
@@ -283,7 +285,8 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
     ? payload.orderId
     : `CN-${payload.orderId}`;
 
-  const finalTotal = payload.subtotal + (payload.shippingCost || 0);
+  const couponDiscount = payload.couponDiscount || 0;
+  const finalTotal = Math.max(0, payload.subtotal - couponDiscount) + (payload.shippingCost || 0);
 
   const customerLines = [
     `* Name: ${payload.customerName}`,
@@ -301,16 +304,30 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
     ...customerLines,
     `Bedsheets Ordered:`,
     itemsText,
-    `Order Total: ₹${finalTotal.toLocaleString('en-IN')}`,
+    `--------------------------`,
+    `Bag Subtotal: ₹${payload.subtotal.toLocaleString('en-IN')}`,
   ];
 
+  if (payload.couponCode && couponDiscount > 0) {
+    messageLines.push(`🎟️ Coupon Applied: ${payload.couponCode} (-₹${couponDiscount.toLocaleString('en-IN')})`);
+  }
+
+  if (payload.shippingCost && payload.shippingCost > 0) {
+    messageLines.push(`🚚 Shipping: +₹${payload.shippingCost.toLocaleString('en-IN')}`);
+  } else if (payload.shippingMethod) {
+    messageLines.push(`🚚 Shipping: Free (${payload.shippingMethod})`);
+  }
+
+  messageLines.push(`💰 Final Total: ₹${finalTotal.toLocaleString('en-IN')}`);
+
   if (payload.totalSavings && payload.totalSavings > 0) {
-    messageLines.push(`(Savings Applied: ₹${payload.totalSavings.toLocaleString('en-IN')})`);
+    const totalAllSavings = payload.totalSavings + couponDiscount;
+    messageLines.push(`(Total Savings: ₹${totalAllSavings.toLocaleString('en-IN')})`);
   }
 
   messageLines.push(``);
   messageLines.push(
-    `Hello Cotton Nest! I have placed this order on your website, please share the QR code on this number to complete the payment`
+    `Hello Cotton Nest! I have placed this order on your website with offer code ${payload.couponCode || 'direct'}, please share the QR code on this number to complete the payment`
   );
 
   const fullMessage = messageLines.join('\n');

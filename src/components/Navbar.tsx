@@ -19,6 +19,7 @@ interface NavbarProps {
   content?: SiteContent;
   productsCount?: number;
   seasonalConfig?: SeasonalConfig;
+  updatedImagesCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   content,
   productsCount = 10,
   seasonalConfig,
+  updatedImagesCount = 0,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
@@ -246,6 +248,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Owner Exclusive Controls - Only visible when owner mode is activated via Ctrl+Shift+A or URL */}
             {isOwnerMode && (
               <>
+                {onOpenPhotoManager && (
+                  <button
+                    type="button"
+                    onClick={onOpenPhotoManager}
+                    className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-[#1E3A8A] bg-[#EFF6FF] hover:bg-[#DBEAFE] border border-[#BFDBFE] rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    title="Open Bedsheet Photo Studio (Owner Mode)"
+                  >
+                    <span className="text-sm">📸</span>
+                    <span className="hidden md:inline">Photo Studio</span>
+                    {updatedImagesCount > 0 && (
+                      <span className="bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        {updatedImagesCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
                 {onOpenAdmin && (
                   <button
                     type="button"
@@ -510,7 +529,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {isOwnerMode && (
-              <>
+              <div className="space-y-2">
+                {onOpenPhotoManager && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenPhotoManager();
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#1E3A8A] bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-base">📸</span>
+                      Photo Studio
+                    </span>
+                    <span className="text-[10px] bg-[#2563EB] text-white px-2 py-0.5 rounded-full font-bold">
+                      {updatedImagesCount} updated
+                    </span>
+                  </button>
+                )}
+
                 {onOpenAdmin && (
                   <button
                     type="button"
@@ -527,7 +565,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="text-[10px] bg-[#F4EFE6] px-2 py-0.5 rounded font-bold text-[#A8823B]">Store Admin</span>
                   </button>
                 )}
-              </>
+              </div>
             )}
 
             <div className="pt-3 border-t border-[#EAE2D5] flex items-center gap-3">

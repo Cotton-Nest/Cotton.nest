@@ -31,9 +31,9 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-accent,#C29E57)]"
+              className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent,#C29E57)]"
             >
-              <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent,#C29E57)]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent,#C29E57)]" />
               <span>{kicker}</span>
             </motion.div>
 
@@ -42,7 +42,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
               initial={{ opacity: 0, y: 22 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="font-serif-luxury text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-[var(--color-text,#2C2420)] leading-[1.15] text-balance"
+              className="font-serif-luxury text-4xl sm:text-5xl lg:text-6xl font-normal tracking-tight text-[var(--color-text,#2C2420)] leading-[1.15] text-balance"
             >
               {headline}
             </motion.h1>
@@ -66,7 +66,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
             >
               <button
                 onClick={onExploreCatalogue}
-                className="w-full sm:w-auto px-6 py-3.5 bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-98"
+                className="w-full sm:w-auto px-7 py-3.5 bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] text-sm font-semibold rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-98"
               >
                 <span>{ctaText}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -74,7 +74,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
 
               <button
                 onClick={onVisitStore}
-                className="w-full sm:w-auto px-5 py-3.5 bg-[var(--color-surface,#FFFFFF)] text-[var(--color-text,#2C2420)] border border-[var(--color-border,#EAE2D5)] hover:border-[var(--color-accent,#C29E57)] text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                className="w-full sm:w-auto px-6 py-3.5 bg-[var(--color-surface,#FFFFFF)] text-[var(--color-text,#2C2420)] border border-[var(--color-border,#EAE2D5)] hover:border-[var(--color-accent,#C29E57)] text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
                 <MapPin className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
@@ -86,19 +86,20 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.7, delay: 0.55 }}
-              className="pt-4 border-t border-[#EAE2D5] flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-6 text-xs text-[#7A6458]"
+              className="pt-4 border-t border-[#EAE2D5] flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-5 text-xs text-[#7A6458]"
             >
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-[#C29E57]" />
-                100% Pure Cotton
+              <span className="flex items-center gap-1.5 font-medium">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#C29E57]" />
+                100% Pure Combed Cotton
               </span>
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-[#B83F60]" />
+              <span aria-hidden="true" className="text-[#C29E57]">·</span>
+              <span className="flex items-center gap-1.5 font-medium">
                 108×108 King Tuck-In Drop
               </span>
-              <span className="flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4 text-emerald-600" />
-                Direct WhatsApp Ordering
+              <span aria-hidden="true" className="text-[#C29E57]">·</span>
+              <span className="flex items-center gap-1.5 font-medium">
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                WhatsApp Direct Atelier Orders
               </span>
             </motion.div>
 

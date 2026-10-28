@@ -9,6 +9,7 @@ import { INITIAL_ORDERS } from './src/data/orders.ts';
 import { INITIAL_SITE_CONTENT } from './src/data/siteContent.ts';
 import { INITIAL_REVIEWS } from './src/data/reviews.ts';
 import { INITIAL_SEASONAL_CONFIG } from './src/data/seasonal.ts';
+import { INITIAL_COUPONS, CouponOffer } from './src/data/coupons.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +28,7 @@ interface StoreDatabase {
   theme?: any;
   reviews?: any[];
   seasonalConfig?: any;
+  coupons?: CouponOffer[];
 }
 
 function initDatabase(): StoreDatabase {
@@ -45,6 +47,9 @@ function initDatabase(): StoreDatabase {
         if (!parsed.seasonalConfig) {
           parsed.seasonalConfig = INITIAL_SEASONAL_CONFIG;
         }
+        if (!parsed.coupons || !Array.isArray(parsed.coupons)) {
+          parsed.coupons = INITIAL_COUPONS;
+        }
         return parsed;
       }
     }
@@ -59,6 +64,7 @@ function initDatabase(): StoreDatabase {
     siteContent: INITIAL_SITE_CONTENT,
     reviews: INITIAL_REVIEWS,
     seasonalConfig: INITIAL_SEASONAL_CONFIG,
+    coupons: INITIAL_COUPONS,
   };
 
   try {
@@ -734,6 +740,172 @@ async function startServer() {
     db.reviews = db.reviews.filter((r) => r.id !== id);
     saveDatabase();
     res.json({ success: true, id });
+  });
+
+  /* ------------------- COUPONS & OFFERS API ------------------- */
+
+  // 1. Get all coupons
+  app.get('/api/coupons', (_req, res) => {
+    if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
+    res.json(db.coupons);
+  });
+
+  // 2. Create or Update coupon
+  app.post('/api/coupons', (req, res) => {
+    const coupon: CouponOffer = req.body;
+    if (!coupon || !coupon.code || !coupon.discountValue) {
+      return res.status(400).json({ error: 'Coupon code and discount value are required.' });
+    }
+
+    if (!coupon.id) {
+      coupon.id = `coupon-${Date.now()}`;
+    }
+    coupon.code = coupon.code.trim().toUpperCase();
+    coupon.updatedAt = Date.now();
+    if (!coupon.createdAt) coupon.createdAt = Date.now();
+
+    if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
+    const existingIdx = db.coupons.findIndex((c) => c.id === coupon.id || c.code.toUpperCase() === coupon.code.toUpperCase());
+    if (existingIdx >= 0) {
+      db.coupons[existingIdx] = { ...db.coupons[existingIdx], ...coupon };
+    } else {
+      db.coupons.unshift(coupon);
+    }
+
+    saveDatabase();
+    res.status(200).json(coupon);
+  });
+
+  // 3. Delete coupon
+  app.delete('/api/coupons/:id', (req, res) => {
+    const { id } = req.params;
+    if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
+    db.coupons = db.coupons.filter((c) => c.id !== id && c.code.toUpperCase() !== id.toUpperCase());
+    saveDatabase();
+    res.json({ success: true, id });
+  });
+
+  // 4. Secure Server-side Coupon Validation
+  app.post('/api/coupons/validate', (req, res) => {
+    const { code, items, subtotal, customerIdentifier } = req.body;
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ valid: false, error: 'Coupon code is required.' });
+    }
+
+    if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
+    const cleanCode = code.trim().toUpperCase();
+    const coupon = db.coupons.find((c) => c.code.toUpperCase() === cleanCode);
+
+    if (!coupon) {
+      return res.json({ valid: false, error: 'Invalid coupon code. Please verify spelling.' });
+    }
+
+    if (!coupon.isActive) {
+      return res.json({ valid: false, error: 'This coupon is currently inactive.' });
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (coupon.startDate && todayStr < coupon.startDate) {
+      return res.json({ valid: false, error: `This coupon starts on ${coupon.startDate}.` });
+    }
+    if (coupon.expiryDate && todayStr > coupon.expiryDate) {
+      return res.json({ valid: false, error: `This coupon expired on ${coupon.expiryDate}.` });
+    }
+
+    if (typeof coupon.maxUses === 'number' && coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses) {
+      return res.json({ valid: false, error: 'Coupon usage limit has been reached.' });
+    }
+
+    if (coupon.oneUsePerCustomer && customerIdentifier && Array.isArray(coupon.usedByCustomers)) {
+      const cleanCustomer = String(customerIdentifier).trim().toLowerCase();
+      if (coupon.usedByCustomers.some((c) => c.toLowerCase() === cleanCustomer)) {
+        return res.json({ valid: false, error: 'You have already redeemed this coupon once.' });
+      }
+    }
+
+    const orderSubtotal = Number(subtotal) || 0;
+    let eligibleSubtotal = orderSubtotal;
+    const cartItems = Array.isArray(items) ? items : [];
+
+    if (coupon.scope === 'products' && Array.isArray(coupon.applicableProductIds)) {
+      eligibleSubtotal = cartItems.reduce((acc, it) => {
+        const pId = it.product?.id || it.productId;
+        const pPrice = Number(it.product?.price || it.price) || 0;
+        const pQty = Number(it.quantity) || 1;
+        if (coupon.applicableProductIds!.includes(pId)) {
+          return acc + pPrice * pQty;
+        }
+        return acc;
+      }, 0);
+      if (eligibleSubtotal <= 0) {
+        return res.json({ valid: false, error: 'This coupon is only valid for selected bedsheets.' });
+      }
+    } else if (coupon.scope === 'collections' && Array.isArray(coupon.applicableCollections)) {
+      const collSet = new Set(coupon.applicableCollections.map((c) => c.toLowerCase()));
+      eligibleSubtotal = cartItems.reduce((acc, it) => {
+        const coll = (it.product?.collection || '').toLowerCase();
+        const pPrice = Number(it.product?.price || it.price) || 0;
+        const pQty = Number(it.quantity) || 1;
+        if (collSet.has(coll)) {
+          return acc + pPrice * pQty;
+        }
+        return acc;
+      }, 0);
+      if (eligibleSubtotal <= 0) {
+        return res.json({ valid: false, error: 'This coupon is only valid for specific bedding collections.' });
+      }
+    }
+
+    if (coupon.minOrderValue && eligibleSubtotal < coupon.minOrderValue) {
+      const diff = coupon.minOrderValue - eligibleSubtotal;
+      return res.json({
+        valid: false,
+        error: `Minimum bag value of ₹${coupon.minOrderValue.toLocaleString('en-IN')} required. Add ₹${diff.toLocaleString('en-IN')} more to apply.`,
+      });
+    }
+
+    let discountAmount = 0;
+    if (coupon.discountType === 'percentage') {
+      discountAmount = Math.round((eligibleSubtotal * coupon.discountValue) / 100);
+      if (coupon.maxDiscountAmount && coupon.maxDiscountAmount > 0) {
+        discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
+      }
+    } else {
+      discountAmount = Math.min(eligibleSubtotal, Math.round(coupon.discountValue));
+    }
+
+    discountAmount = Math.min(discountAmount, orderSubtotal);
+
+    res.json({
+      valid: true,
+      coupon,
+      discountAmount,
+      message: `Coupon ${coupon.code} applied! ₹${discountAmount.toLocaleString('en-IN')} saved.`,
+    });
+  });
+
+  // 5. Record coupon redemption
+  app.post('/api/coupons/record-use', (req, res) => {
+    const { couponId, customerIdentifier } = req.body;
+    if (!couponId) {
+      return res.status(400).json({ error: 'couponId is required.' });
+    }
+
+    if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
+    const target = db.coupons.find((c) => c.id === couponId || c.code.toUpperCase() === String(couponId).toUpperCase());
+    if (target) {
+      target.usedCount = (target.usedCount || 0) + 1;
+      if (!Array.isArray(target.usedByCustomers)) {
+        target.usedByCustomers = [];
+      }
+      if (customerIdentifier && !target.usedByCustomers.includes(String(customerIdentifier).trim())) {
+        target.usedByCustomers.push(String(customerIdentifier).trim());
+      }
+      target.updatedAt = Date.now();
+      saveDatabase();
+      return res.json({ success: true, coupon: target });
+    }
+    res.status(404).json({ error: 'Coupon not found.' });
   });
 
   // Reset database back to default factory settings

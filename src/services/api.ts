@@ -19,6 +19,7 @@ import { resolveBedsheetImage } from '../utils/imageUrl';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
 import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
+import { CouponOffer, INITIAL_COUPONS, evaluateCouponEligibility, CartItemLike, CouponEvaluationResult } from '../data/coupons';
 
 // Re-export Cloudinary service helpers
 export {
@@ -631,3 +632,185 @@ export async function saveSeasonalConfigApi(config: SeasonalConfig): Promise<Sea
     throw error;
   }
 }
+
+// ---------------- COUPONS & PROMOTIONS API (FIRESTORE & BACKEND) ---------------- //
+
+export async function getCouponsApi(): Promise<CouponOffer[]> {
+  const path = 'coupons';
+  try {
+    // 1. Try Firestore first
+    const snapshot = await getDocs(collection(db, 'coupons'));
+    if (!snapshot.empty) {
+      const list: CouponOffer[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        if (data && data.code) {
+          list.push({ id: d.id, ...data } as CouponOffer);
+        }
+      });
+      if (list.length > 0) {
+        try {
+          localStorage.setItem('cotton_nest_coupons', JSON.stringify(list));
+        } catch {}
+        return list;
+      }
+    }
+
+    // 2. Fallback to server backend API
+    const res = await fetch('/api/coupons');
+    if (res.ok) {
+      const serverCoupons = await res.json();
+      if (Array.isArray(serverCoupons) && serverCoupons.length > 0) {
+        // Seed into Firestore in background
+        serverCoupons.forEach((c) => {
+          setDoc(doc(db, 'coupons', c.id), c).catch(() => {});
+        });
+        try {
+          localStorage.setItem('cotton_nest_coupons', JSON.stringify(serverCoupons));
+        } catch {}
+        return serverCoupons;
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+
+  // 3. Fallback to localStorage
+  try {
+    const cached = localStorage.getItem('cotton_nest_coupons');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+
+  // 4. Default seed coupons
+  return INITIAL_COUPONS;
+}
+
+export async function saveCouponApi(coupon: CouponOffer): Promise<CouponOffer> {
+  const path = `coupons/${coupon.id}`;
+  const cleanCoupon: CouponOffer = {
+    ...coupon,
+    code: coupon.code.trim().toUpperCase(),
+    updatedAt: Date.now(),
+  };
+
+  try {
+    await setDoc(doc(db, 'coupons', cleanCoupon.id), cleanCoupon);
+    // Sync to backend
+    fetch('/api/coupons', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cleanCoupon),
+    }).catch(() => {});
+    return cleanCoupon;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
+  }
+}
+
+export async function deleteCouponApi(couponId: string): Promise<void> {
+  const path = `coupons/${couponId}`;
+  try {
+    await deleteDoc(doc(db, 'coupons', couponId));
+    fetch(`/api/coupons/${couponId}`, { method: 'DELETE' }).catch(() => {});
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    throw error;
+  }
+}
+
+/**
+ * Validates a coupon using the secure server backend route /api/coupons/validate.
+ * Does not trust the client browser calculation alone.
+ */
+export async function validateCouponApi(
+  code: string,
+  items: CartItemLike[],
+  subtotal: number,
+  customerIdentifier?: string
+): Promise<{ valid: boolean; coupon?: CouponOffer; discountAmount: number; error?: string }> {
+  try {
+    const res = await fetch('/api/coupons/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.trim().toUpperCase(), items, subtotal, customerIdentifier }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.valid) {
+        return {
+          valid: true,
+          coupon: data.coupon,
+          discountAmount: Number(data.discountAmount) || 0,
+        };
+      } else {
+        return {
+          valid: false,
+          discountAmount: 0,
+          error: data.error || 'Coupon is not eligible for this order.',
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Backend coupon validation fallback:', err);
+  }
+
+  // Fallback: Validate directly against Firestore coupon docs if backend is unreachable
+  try {
+    const coupons = await getCouponsApi();
+    const cleanCode = code.trim().toUpperCase();
+    const matched = coupons.find((c) => c.code.toUpperCase() === cleanCode);
+    if (!matched) {
+      return { valid: false, discountAmount: 0, error: 'Invalid coupon code. Please verify the spelling.' };
+    }
+    const evalResult = evaluateCouponEligibility(matched, items, subtotal, customerIdentifier);
+    if (!evalResult.isEligible) {
+      return { valid: false, discountAmount: 0, error: evalResult.reason || 'Coupon is not eligible.' };
+    }
+    return {
+      valid: true,
+      coupon: matched,
+      discountAmount: evalResult.discountAmount,
+    };
+  } catch (fallbackErr) {
+    return { valid: false, discountAmount: 0, error: 'Could not validate coupon at this time.' };
+  }
+}
+
+/**
+ * Records coupon usage securely in Firestore and backend
+ */
+export async function recordCouponUseApi(couponId: string, customerIdentifier?: string): Promise<void> {
+  const path = `coupons/${couponId}`;
+  try {
+    const couponRef = doc(db, 'coupons', couponId);
+    const snap = await getDoc(couponRef);
+    if (snap.exists()) {
+      const data = snap.data() as CouponOffer;
+      const currentUsed = (data.usedCount || 0) + 1;
+      const currentCustomers = Array.isArray(data.usedByCustomers) ? [...data.usedByCustomers] : [];
+      if (customerIdentifier && !currentCustomers.includes(customerIdentifier.trim())) {
+        currentCustomers.push(customerIdentifier.trim());
+      }
+      await updateDoc(couponRef, {
+        usedCount: currentUsed,
+        usedByCustomers: currentCustomers,
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Also notify backend
+    fetch('/api/coupons/record-use', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ couponId, customerIdentifier }),
+    }).catch(() => {});
+  } catch (error) {
+    console.warn('Failed to record coupon use in Firestore:', error);
+  }
+}
+

@@ -28,6 +28,8 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   totalSavings: number;
+  couponCode?: string;
+  couponDiscount?: number;
   status: OrderStatus;
   notes?: string;
   trackingNumber?: string;

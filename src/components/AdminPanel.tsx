@@ -15,6 +15,10 @@ import {
   addProduct,
   updateSingleProduct,
   saveSiteContentApi,
+  computeUpdatedImagesCount,
+  addProductGalleryImageApi,
+  removeProductGalleryImageApi,
+  saveUpdatedImagesStatsApi,
 } from '../services/api';
 import {
   uploadToCloudinary,
@@ -27,6 +31,7 @@ import { useAuth } from '../context/AuthContext';
 import { ThemeCustomizer } from './ThemeCustomizer';
 import { WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from '../data/theme';
 import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
+import { AdminCouponsSection } from './AdminCouponsSection';
 import {
   Package,
   Percent,
@@ -68,7 +73,8 @@ import {
   GripVertical,
   MoveVertical,
   ArrowUpDown,
-  Gift
+  Gift,
+  Ticket
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -113,8 +119,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   seasonalConfig,
   onUpdateSeasonalConfig,
 }) => {
-  // Tabs: 'products' | 'orders' | 'seasonal' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'content' | 'appearance'>('products');
+  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'content' | 'appearance'>('products');
 
   // Seasonal Page state
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
@@ -134,6 +140,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'inStock' | 'outOfStock'>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Authoritative count of updated/custom photos remembered across sessions
+  const totalUpdatedImagesCount = computeUpdatedImagesCount(
+    editableProducts && editableProducts.length > 0 ? editableProducts : products,
+    customImages
+  );
+
+  useEffect(() => {
+    saveUpdatedImagesStatsApi(totalUpdatedImagesCount).catch(() => {});
+  }, [totalUpdatedImagesCount]);
 
   // Drag and drop card reordering state
   const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
@@ -1181,7 +1197,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </button>
 
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="font-serif-luxury text-lg sm:text-xl font-bold" style={{ color: 'var(--color-text, #2C2420)' }}>
                   {editableContent.company.name}
                 </span>
@@ -1193,6 +1209,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   }}
                 >
                   Owner Dashboard
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold tracking-wide rounded-md bg-blue-50 text-blue-800 border border-blue-200 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                  📸 {totalUpdatedImagesCount} Images Updated
                 </span>
               </div>
               <p className="text-[11px]" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>
@@ -1319,6 +1339,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Palette className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'appearance' ? undefined : 'var(--color-accent, #C29E57)' }} />
               <span>Website Appearance</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('coupons')}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              style={
+                activeAdminTab === 'coupons'
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
+            >
+              <Ticket className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'coupons' ? undefined : 'var(--color-accent, #C29E57)' }} />
+              <span>Coupons &amp; Offers</span>
             </button>
           </div>
 
@@ -3543,6 +3582,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               if (onThemePublished) onThemePublished(newTheme);
             }}
             isOwnerAuthenticated={true}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 5: COUPONS & OFFERS PROMOTIONAL MANAGEMENT          */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'coupons' && (
+          <AdminCouponsSection
+            products={editableProducts}
+            onToast={showToast}
           />
         )}
 
