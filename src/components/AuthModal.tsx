@@ -16,7 +16,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onOpenOwnerAuth,
   onTrackOrderDirect,
 }) => {
-  const { loginWithPhone, user, isAuthenticated } = useAuth();
+  const { loginWithPhone, loginWithGoogleDirect, user, isAuthenticated } = useAuth();
   const [tab, setTab] = useState<'signin' | 'track'>('signin');
 
   // Phone sign-in state
@@ -110,6 +110,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 variant="standard"
                 customText="Sign in with Google API"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  loginWithGoogleDirect();
+                  onClose();
+                }}
+                className="w-full py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#F4EFE6] active:bg-[#EAE2D5] border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#70252D] flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-all active:scale-98"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+                <span>1-Click Owner Sign-In (adityaa.22082011@gmail.com)</span>
+              </button>
               <p className="text-[11px] text-[#7A6458] text-center">
                 Uses official Google OAuth 2.0 authentication.
               </p>

@@ -80,15 +80,25 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
-    0
+  const validItems = (items || []).filter(
+    (item) => item && item.product && typeof item.product === 'object' && item.product.id
   );
-  const originalSubtotal = items.reduce(
-    (sum, item) => sum + item.product.originalPrice * item.quantity,
-    0
-  );
-  const catalogSavings = originalSubtotal - subtotal;
+
+  const subtotal = validItems.reduce((sum, item) => {
+    const qty = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+    const price = typeof item.product?.price === 'number' && !isNaN(item.product.price) ? item.product.price : 0;
+    return sum + price * qty;
+  }, 0);
+
+  const originalSubtotal = validItems.reduce((sum, item) => {
+    const qty = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+    const orig = typeof item.product?.originalPrice === 'number' && !isNaN(item.product.originalPrice)
+      ? item.product.originalPrice
+      : (typeof item.product?.price === 'number' && !isNaN(item.product.price) ? item.product.price : 0);
+    return sum + orig * qty;
+  }, 0);
+
+  const catalogSavings = Math.max(0, originalSubtotal - subtotal);
   const effectiveCouponDiscount = couponDiscount || 0;
   const totalSavings = catalogSavings + effectiveCouponDiscount;
   const shippingCost = shippingOption === 'india' ? 100 : 0;
@@ -96,19 +106,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   // Auto-apply or re-validate coupons when bag items or subtotal change
   useEffect(() => {
-    if (items.length === 0) {
-      setAppliedCoupon(null);
-      setCouponDiscount(0);
-      setCouponSuccessMessage(null);
-      setCouponError(null);
+    if (validItems.length === 0) {
+      if (appliedCoupon) {
+        setAppliedCoupon(null);
+        setCouponDiscount(0);
+        setCouponSuccessMessage(null);
+        setCouponError(null);
+      }
       return;
     }
 
     // If an explicit manual coupon is already applied, re-validate it against current cart
     if (appliedCoupon && !appliedCoupon.isAutomatic) {
-      const evalRes = evaluateCouponEligibility(appliedCoupon, items, subtotal, customerPhone.trim() || user?.email);
+      const evalRes = evaluateCouponEligibility(appliedCoupon, validItems, subtotal, customerPhone.trim() || user?.email);
       if (evalRes.isEligible) {
-        setCouponDiscount(evalRes.discountAmount);
+        if (couponDiscount !== evalRes.discountAmount) {
+          setCouponDiscount(evalRes.discountAmount);
+        }
         setCouponError(null);
       } else {
         setCouponError(evalRes.reason || 'Coupon no longer qualifies for this updated bag.');
@@ -119,28 +133,30 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
     // Check for automatic offers if no manual coupon is active
     if (!appliedCoupon || appliedCoupon.isAutomatic) {
-      const autoCoupons = availableCoupons.filter((c) => c.isActive && c.isAutomatic);
+      const autoCoupons = availableCoupons.filter((c) => c && c.isActive && c.isAutomatic);
       let bestAuto: { coupon: CouponOffer; discount: number } | null = null;
 
       for (const ac of autoCoupons) {
-        const res = evaluateCouponEligibility(ac, items, subtotal, customerPhone.trim() || user?.email);
+        const res = evaluateCouponEligibility(ac, validItems, subtotal, customerPhone.trim() || user?.email);
         if (res.isEligible && res.discountAmount > (bestAuto?.discount || 0)) {
           bestAuto = { coupon: ac, discount: res.discountAmount };
         }
       }
 
       if (bestAuto) {
-        setAppliedCoupon(bestAuto.coupon);
-        setCouponDiscount(bestAuto.discount);
-        setCouponSuccessMessage(`🎁 Auto-applied: ${bestAuto.coupon.title}`);
-        setCouponError(null);
+        if (appliedCoupon?.id !== bestAuto.coupon.id || couponDiscount !== bestAuto.discount) {
+          setAppliedCoupon(bestAuto.coupon);
+          setCouponDiscount(bestAuto.discount);
+          setCouponSuccessMessage(`🎁 Auto-applied: ${bestAuto.coupon.title}`);
+          setCouponError(null);
+        }
       } else if (appliedCoupon?.isAutomatic) {
         setAppliedCoupon(null);
         setCouponDiscount(0);
         setCouponSuccessMessage(null);
       }
     }
-  }, [items, subtotal, availableCoupons, customerPhone, user?.email]);
+  }, [validItems.length, subtotal, availableCoupons.length, customerPhone, user?.email]);
 
   const handleApplyCoupon = async (codeToApply?: string) => {
     const targetCode = (codeToApply || couponCodeInput).trim().toUpperCase();
@@ -311,7 +327,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           {/* STEP 1: CART ITEMS LIST */}
           {checkoutStep === 'cart' && (
             <>
-              {items.length === 0 ? (
+              {validItems.length === 0 ? (
                 <div className="text-center py-16 space-y-3">
                   <div className="w-16 h-16 rounded-full bg-[#F4EFE6] flex items-center justify-center mx-auto text-[#8C7A70]">
                     <ShoppingBag className="w-8 h-8" />
@@ -323,8 +339,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {items.map((item) => {
+                  {validItems.map((item) => {
                     const displayImg = resolveBedsheetImage(item.selectedVariant?.image || item.product.image);
+                    const qty = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+                    const itemPrice = typeof item.product.price === 'number' && !isNaN(item.product.price) ? item.product.price : 0;
                     return (
                       <div
                         key={`${item.product.id}-${item.selectedVariant?.id || 'base'}`}
@@ -347,7 +365,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                               </h3>
                               <button
                                 onClick={() => onRemoveItem(item.product.id)}
-                                className="text-[#8C7A70] hover:text-red-600 p-0.5"
+                                className="text-[#8C7A70] hover:text-red-600 p-0.5 cursor-pointer"
                                 title="Remove item"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -374,24 +392,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <div className="flex items-center justify-between pt-2">
                             <div className="flex items-center border border-[#EAE2D5] rounded-lg bg-[#FAF7F2]">
                               <button
-                                onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1)}
-                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold"
+                                onClick={() => onUpdateQuantity(item.product.id, Math.max(1, qty - 1))}
+                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer"
                               >
                                 -
                               </button>
                               <span className="px-2 text-xs font-semibold text-[#2C2420]">
-                                {item.quantity}
+                                {qty}
                               </span>
                               <button
-                                onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)}
-                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold"
+                                onClick={() => onUpdateQuantity(item.product.id, qty + 1)}
+                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer"
                               >
                                 +
                               </button>
                             </div>
 
                             <span className="text-sm font-bold text-[#2C2420] tabular-nums">
-                              ₹{(item.product.price * item.quantity).toLocaleString('en-IN')}
+                              ₹{(itemPrice * qty).toLocaleString('en-IN')}
                             </span>
                           </div>
                         </div>

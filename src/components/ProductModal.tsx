@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy } from 'lucide-react';
+import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
@@ -7,6 +7,7 @@ import { updateSingleProduct, addProductGalleryImageApi, removeProductGalleryIma
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from '../services/cloudinary';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
 import { CouponOffer } from '../data/coupons';
+import { ProductRecommendations } from './ProductRecommendations';
 
 interface ProductModalProps {
   product: BedsheetProduct | null;
@@ -21,6 +22,11 @@ interface ProductModalProps {
   onOpenOwnerAuth?: () => void;
   reviews?: ProductReview[];
   onOpenWriteReview?: (productId: string) => void;
+  allProducts?: BedsheetProduct[];
+  onSelectProduct?: (product: BedsheetProduct) => void;
+  onToggleCompare?: (product: BedsheetProduct) => void;
+  isCompared?: boolean;
+  onNotifyStock?: (product: BedsheetProduct) => void;
 }
 
 export const ProductModal: React.FC<ProductModalProps> = ({
@@ -36,6 +42,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   onOpenOwnerAuth,
   reviews = [],
   onOpenWriteReview,
+  allProducts = [],
+  onSelectProduct,
+  onToggleCompare,
+  isCompared = false,
+  onNotifyStock,
 }) => {
   const [quantity, setQuantity] = React.useState(1);
   const [added, setAdded] = React.useState(false);
@@ -941,10 +952,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   {isOutOfStock ? (
                     <button
                       type="button"
-                      disabled
-                      className="w-full py-3.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 bg-[#EAE2D5] text-[#8C7A70] cursor-not-allowed"
+                      onClick={() => onNotifyStock?.(product)}
+                      className="w-full py-3.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer shadow-xs"
+                      title="Subscribe to restock alerts"
                     >
-                      Sold Out
+                      <Bell className="w-4 h-4 text-amber-600" />
+                      <span>Notify Me When In Stock</span>
                     </button>
                   ) : (
                     <button
@@ -979,6 +992,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     <span>{isOutOfStock ? 'Waitlist on WhatsApp' : 'Order on WhatsApp'}</span>
                   </button>
                 </div>
+
+                {/* Compare Option */}
+                {onToggleCompare && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleCompare(product)}
+                    className={`w-full py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                      isCompared
+                        ? 'bg-amber-50 border-amber-400 text-amber-900 shadow-2xs'
+                        : 'bg-white border-[#EAE2D5] text-[#6B5D55] hover:text-[#2C2420] hover:border-[#DEC89B]'
+                    }`}
+                  >
+                    <ArrowLeftRight className="w-4 h-4 text-amber-600" />
+                    <span>{isCompared ? '✓ Added to Comparison (View Compare)' : 'Compare with other bedsheets'}</span>
+                  </button>
+                )}
 
                 {/* Quiet Guarantees Bar */}
                 <div className="flex items-center justify-between text-[11px] text-[#7A6458] pt-1 px-1 border-b border-[#EAE2D5] pb-3">
@@ -1127,6 +1156,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Smart Product Recommendations: "You May Also Like" */}
+              {allProducts && allProducts.length > 0 && (
+                <div className="pt-3 border-t border-[#EAE2D5]">
+                  <ProductRecommendations
+                    currentProduct={product}
+                    allProducts={allProducts}
+                    onSelectProduct={(p) => {
+                      if (onSelectProduct) {
+                        onSelectProduct(p);
+                      }
+                    }}
+                    onAddToCart={(p) => {
+                      onAddToCart(p, 1);
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </>
         )}

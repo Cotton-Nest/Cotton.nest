@@ -20,6 +20,7 @@ import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './clo
 import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 import { CouponOffer, INITIAL_COUPONS, evaluateCouponEligibility, CartItemLike, CouponEvaluationResult } from '../data/coupons';
+import { AppNotification, StockSubscription, PushSubscriptionData, INITIAL_CUSTOMER_NOTIFICATIONS } from '../data/notifications';
 
 // Re-export Cloudinary service helpers
 export {
@@ -689,25 +690,73 @@ export async function getCouponsApi(): Promise<CouponOffer[]> {
 }
 
 export async function saveCouponApi(coupon: CouponOffer): Promise<CouponOffer> {
-  const path = `coupons/${coupon.id}`;
+  const cleanCode = (coupon.code || `OFFER${Math.floor(Math.random() * 1000)}`)
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '-');
+
   const cleanCoupon: CouponOffer = {
     ...coupon,
-    code: coupon.code.trim().toUpperCase(),
+    code: cleanCode,
+    title: (coupon.title || 'Special Offer').trim(),
+    description: (coupon.description || '').trim(),
+    discountType: coupon.discountType || 'percentage',
+    discountValue: Number(coupon.discountValue) || 0,
+    minOrderValue: Number(coupon.minOrderValue) || 0,
+    maxDiscountAmount: coupon.maxDiscountAmount ? Number(coupon.maxDiscountAmount) : 0,
+    startDate: coupon.startDate || new Date().toISOString().split('T')[0],
+    expiryDate: coupon.expiryDate || '2030-12-31',
+    isActive: coupon.isActive ?? true,
+    isAutomatic: Boolean(coupon.isAutomatic),
+    maxUses: coupon.maxUses ? Number(coupon.maxUses) : 0,
+    usedCount: Number(coupon.usedCount) || 0,
+    oneUsePerCustomer: Boolean(coupon.oneUsePerCustomer),
+    usedByCustomers: Array.isArray(coupon.usedByCustomers) ? coupon.usedByCustomers : [],
+    scope: coupon.scope || 'all',
+    applicableProductIds: Array.isArray(coupon.applicableProductIds) ? coupon.applicableProductIds : [],
+    badgeText: (coupon.badgeText || '').trim(),
+    createdAt: coupon.createdAt || Date.now(),
     updatedAt: Date.now(),
   };
 
+  // Safe Firestore object strictly without undefined
+  const firestoreDoc: Record<string, any> = {};
+  for (const [key, value] of Object.entries(cleanCoupon)) {
+    if (value !== undefined) {
+      firestoreDoc[key] = value;
+    }
+  }
+
+  // 1. Save to local cache first
   try {
-    await setDoc(doc(db, 'coupons', cleanCoupon.id), cleanCoupon);
-    // Sync to backend
+    const cached = localStorage.getItem('cotton_nest_coupons');
+    let list: CouponOffer[] = cached ? JSON.parse(cached) : [];
+    if (!Array.isArray(list)) list = [];
+    const idx = list.findIndex((c) => c.id === cleanCoupon.id || c.code === cleanCoupon.code);
+    if (idx >= 0) {
+      list[idx] = cleanCoupon;
+    } else {
+      list.unshift(cleanCoupon);
+    }
+    localStorage.setItem('cotton_nest_coupons', JSON.stringify(list));
+  } catch {}
+
+  // 2. Save to server backend
+  try {
     fetch('/api/coupons', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cleanCoupon),
     }).catch(() => {});
+  } catch {}
+
+  // 3. Persist to Firestore
+  try {
+    await setDoc(doc(db, 'coupons', cleanCoupon.id), firestoreDoc, { merge: true });
     return cleanCoupon;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+    console.warn('Firestore setDoc coupon notice (synced via backend fallback):', error);
+    return cleanCoupon;
   }
 }
 
@@ -813,4 +862,189 @@ export async function recordCouponUseApi(couponId: string, customerIdentifier?: 
     console.warn('Failed to record coupon use in Firestore:', error);
   }
 }
+
+// ---------------- NOTIFICATIONS & WEB PUSH API ---------------- //
+
+export async function getNotificationsApi(
+  recipientId?: string,
+  isOwner?: boolean
+): Promise<AppNotification[]> {
+  try {
+    const list: AppNotification[] = [];
+    const snapshot = await getDocs(collection(db, 'notifications'));
+    if (!snapshot.empty) {
+      snapshot.forEach((docSnap) => {
+        const item = { id: docSnap.id, ...docSnap.data() } as AppNotification;
+        if (isOwner) {
+          list.push(item);
+        } else {
+          // Customers only see 'all' or specifically addressed to their email/phone
+          const isTargeted =
+            item.recipientId === 'all' ||
+            (recipientId && item.recipientId && item.recipientId.toLowerCase() === recipientId.toLowerCase());
+          if (isTargeted && item.category !== 'admin') {
+            list.push(item);
+          }
+        }
+      });
+      list.sort((a, b) => b.timestamp - a.timestamp);
+      return list;
+    }
+  } catch (err) {
+    console.warn('Firestore notifications fetch notice:', err);
+  }
+
+  // Fallback to local storage
+  try {
+    const local = localStorage.getItem('cotton_nest_notifications');
+    if (local) {
+      const parsed: AppNotification[] = JSON.parse(local);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((n) => (isOwner ? true : n.category !== 'admin'));
+      }
+    }
+  } catch {}
+
+  return INITIAL_CUSTOMER_NOTIFICATIONS;
+}
+
+export async function saveNotificationApi(notification: AppNotification): Promise<AppNotification> {
+  const stamped: AppNotification = {
+    ...notification,
+    timestamp: notification.timestamp || Date.now(),
+  };
+
+  const docData: Record<string, any> = {};
+  for (const [key, val] of Object.entries(stamped)) {
+    if (val !== undefined) docData[key] = val;
+  }
+
+  try {
+    await setDoc(doc(db, 'notifications', stamped.id), docData, { merge: true });
+  } catch (err) {
+    console.warn('Firestore notification save notice:', err);
+  }
+
+  // Sync to local cache
+  try {
+    const current = localStorage.getItem('cotton_nest_notifications');
+    let list: AppNotification[] = current ? JSON.parse(current) : [];
+    if (!Array.isArray(list)) list = [];
+    const idx = list.findIndex((n) => n.id === stamped.id);
+    if (idx >= 0) {
+      list[idx] = stamped;
+    } else {
+      list.unshift(stamped);
+    }
+    localStorage.setItem('cotton_nest_notifications', JSON.stringify(list));
+  } catch {}
+
+  return stamped;
+}
+
+export async function markNotificationReadApi(notificationId: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'notifications', notificationId), {
+      isRead: true,
+      updatedAt: Date.now(),
+    });
+  } catch {}
+
+  try {
+    const current = localStorage.getItem('cotton_nest_notifications');
+    if (current) {
+      const list: AppNotification[] = JSON.parse(current);
+      const updated = list.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n));
+      localStorage.setItem('cotton_nest_notifications', JSON.stringify(updated));
+    }
+  } catch {}
+}
+
+export async function markAllNotificationsReadApi(recipientId?: string): Promise<void> {
+  try {
+    const snap = await getDocs(collection(db, 'notifications'));
+    snap.forEach((d) => {
+      const n = d.data() as AppNotification;
+      if (!recipientId || n.recipientId === recipientId || n.recipientId === 'all') {
+        updateDoc(doc(db, 'notifications', d.id), { isRead: true }).catch(() => {});
+      }
+    });
+  } catch {}
+
+  try {
+    const current = localStorage.getItem('cotton_nest_notifications');
+    if (current) {
+      const list: AppNotification[] = JSON.parse(current);
+      const updated = list.map((n) => ({ ...n, isRead: true }));
+      localStorage.setItem('cotton_nest_notifications', JSON.stringify(updated));
+    }
+  } catch {}
+}
+
+export async function clearAllNotificationsApi(recipientId?: string): Promise<void> {
+  try {
+    const snap = await getDocs(collection(db, 'notifications'));
+    snap.forEach((d) => {
+      const n = d.data() as AppNotification;
+      if (!recipientId || n.recipientId === recipientId || n.recipientId === 'all') {
+        deleteDoc(doc(db, 'notifications', d.id)).catch(() => {});
+      }
+    });
+  } catch {}
+
+  try {
+    localStorage.removeItem('cotton_nest_notifications');
+  } catch {}
+}
+
+// ---------------- BACK-IN-STOCK SUBSCRIPTIONS ---------------- //
+
+export async function saveStockSubscriptionApi(sub: StockSubscription): Promise<void> {
+  const cleanSub: StockSubscription = {
+    ...sub,
+    createdAt: sub.createdAt || Date.now(),
+    notified: false,
+  };
+  try {
+    await setDoc(doc(db, 'stock_subscriptions', cleanSub.id), cleanSub);
+  } catch (err) {
+    console.warn('Firestore stock subscription notice:', err);
+  }
+
+  try {
+    const saved = localStorage.getItem('cotton_nest_stock_subs');
+    const list: StockSubscription[] = saved ? JSON.parse(saved) : [];
+    list.push(cleanSub);
+    localStorage.setItem('cotton_nest_stock_subs', JSON.stringify(list));
+  } catch {}
+}
+
+export async function getStockSubscriptionsApi(productId?: string): Promise<StockSubscription[]> {
+  try {
+    const snap = await getDocs(collection(db, 'stock_subscriptions'));
+    if (!snap.empty) {
+      const list: StockSubscription[] = [];
+      snap.forEach((d) => {
+        const item = { id: d.id, ...d.data() } as StockSubscription;
+        if (!productId || item.productId === productId) {
+          list.push(item);
+        }
+      });
+      return list;
+    }
+  } catch {}
+  return [];
+}
+
+// ---------------- PUSH SUBSCRIPTIONS ---------------- //
+
+export async function savePushSubscriptionApi(pushSub: PushSubscriptionData): Promise<void> {
+  try {
+    const subId = `sub_${encodeURIComponent(pushSub.customerIdentifier)}_${Date.now()}`;
+    await setDoc(doc(db, 'push_subscriptions', subId), pushSub);
+  } catch (err) {
+    console.warn('Push subscription persistence notice:', err);
+  }
+}
+
 

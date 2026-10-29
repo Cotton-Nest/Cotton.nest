@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift } from 'lucide-react';
+import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, ArrowLeftRight } from 'lucide-react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,10 @@ interface NavbarProps {
   productsCount?: number;
   seasonalConfig?: SeasonalConfig;
   updatedImagesCount?: number;
+  onOpenNotifications?: () => void;
+  unreadNotificationsCount?: number;
+  onOpenCompare?: () => void;
+  comparedCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,6 +40,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   productsCount = 10,
   seasonalConfig,
   updatedImagesCount = 0,
+  onOpenNotifications,
+  unreadNotificationsCount = 0,
+  onOpenCompare,
+  comparedCount = 0,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
@@ -359,6 +367,44 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             ) : (
               <GoogleSignInButton variant="navbar" customText="Sign In" />
+            )}
+
+            {/* Compare Bedsheets CTA */}
+            {onOpenCompare && (
+              <button
+                type="button"
+                onClick={onOpenCompare}
+                aria-label="Compare Bedsheets"
+                title={comparedCount > 0 ? `Compare ${comparedCount} selected bedsheets` : "Compare Bedsheets"}
+                className={`relative p-2 transition-colors rounded-lg hover:bg-black/5 cursor-pointer ${
+                  comparedCount > 0 ? 'text-[var(--color-primary,#70252D)]' : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-text,#2C2420)]'
+                }`}
+              >
+                <ArrowLeftRight className="w-5 h-5" />
+                {comparedCount > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-amber-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums">
+                    {comparedCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Notification Bell CTA */}
+            {onOpenNotifications && (
+              <button
+                type="button"
+                onClick={onOpenNotifications}
+                aria-label="Customer Notification Center"
+                title="Notifications & Updates"
+                className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-lg hover:bg-black/5 cursor-pointer"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-4 h-4 px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums animate-pulse">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
             )}
 
             {/* Shopping Bag CTA */}

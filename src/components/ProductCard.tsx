@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star } from 'lucide-react';
+import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
@@ -16,6 +16,9 @@ interface ProductCardProps {
   isOwnerMode?: boolean;
   onOpenOwnerAuth?: () => void;
   reviews?: ProductReview[];
+  onToggleCompare?: (product: BedsheetProduct) => void;
+  isCompared?: boolean;
+  onNotifyStock?: (product: BedsheetProduct) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -28,6 +31,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   isOwnerMode = false,
   onOpenOwnerAuth,
   reviews = [],
+  onToggleCompare,
+  isCompared = false,
+  onNotifyStock,
 }) => {
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -141,8 +147,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </button>
           </div>
         )}
-
-        {/* Hover Quick Inspect Cue */}
+        {/* Compare Toggle Pill (Top Right, or below owner controls) */}
+        {onToggleCompare && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCompare(product);
+            }}
+            title={isCompared ? "Remove from comparison" : "Compare this bedsheet"}
+            className={`absolute z-10 p-1.5 rounded-lg border text-[11px] font-semibold transition-all backdrop-blur-md flex items-center gap-1 cursor-pointer ${
+              isOwnerMode ? 'top-12 right-3' : 'top-3 right-3'
+            } ${
+              isCompared
+                ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
+                : 'bg-[#FAF7F2]/90 hover:bg-white text-[#6B5D55] hover:text-[#2C2420] border-[#EAE2D5] shadow-xs'
+            }`}
+          >
+            <ArrowLeftRight className="w-3 h-3" />
+            <span className="hidden sm:inline">{isCompared ? 'Comparing' : 'Compare'}</span>
+          </button>
+        )}
         <div className="absolute inset-0 bg-[#2C2420]/15 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
           <button
             type="button"
@@ -251,14 +276,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* Action Controls */}
         <div className="pt-1 grid grid-cols-2 gap-2">
-          {/* Add to Bag or Out of Stock */}
+          {/* Add to Bag or Out of Stock Notify */}
           {isOutOfStock ? (
             <button
               type="button"
-              disabled
-              className="py-2.5 px-3 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 bg-[#EAE2D5] text-[#8C7A70] cursor-not-allowed"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onNotifyStock) {
+                  onNotifyStock(product);
+                }
+              }}
+              className="py-2.5 px-3 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer shadow-2xs"
+              title="Get notified when this bedsheet is back in stock"
             >
-              Sold Out
+              <Bell className="w-3.5 h-3.5 text-amber-600" />
+              <span>Notify Me</span>
             </button>
           ) : (
             <button

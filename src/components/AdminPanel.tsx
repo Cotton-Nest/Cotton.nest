@@ -32,7 +32,10 @@ import { ThemeCustomizer } from './ThemeCustomizer';
 import { WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from '../data/theme';
 import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 import { AdminCouponsSection } from './AdminCouponsSection';
+import { AdminNotificationsSection } from './AdminNotificationsSection';
+import { ProductReview } from '../data/reviews';
 import {
+  Bell,
   Package,
   Percent,
   Image as ImageIcon,
@@ -94,6 +97,7 @@ interface AdminPanelProps {
   onThemePublished?: (theme: WebsiteThemeConfig) => void;
   seasonalConfig?: SeasonalConfig;
   onUpdateSeasonalConfig?: (config: SeasonalConfig) => void;
+  reviews?: ProductReview[];
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -118,9 +122,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onThemePublished,
   seasonalConfig,
   onUpdateSeasonalConfig,
+  reviews = [],
 }) => {
-  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'content' | 'appearance'>('products');
+  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'content' | 'appearance'>('products');
 
   // Seasonal Page state
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
@@ -1117,6 +1122,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   );
   const totalRevenue = editableOrders.reduce((sum, o) => sum + (o.status !== 'cancelled' ? o.totalAmount : 0), 0);
   const pendingOrdersCount = editableOrders.filter((o) => o.status === 'pending').length;
+  const lowStockCount = editableProducts.filter((p) => p.inStock && p.stockQuantity !== undefined && p.stockQuantity <= 3).length;
+  const adminAlertsCount = outOfStockCount + lowStockCount + pendingOrdersCount;
+
+  const handleUpdateStockDirect = (productId: string, inStock: boolean, quantity: number) => {
+    updateProductItem(productId, (p) => ({
+      ...p,
+      inStock,
+      stockQuantity: quantity,
+      updatedAt: Date.now(),
+    }), true);
+  };
 
   // Filtered Products
   const filteredProducts = editableProducts.filter((p) => {
@@ -1158,7 +1174,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   return (
     <div
-      className="min-h-screen transition-colors duration-200"
+      className="min-h-screen w-full max-w-full overflow-x-hidden transition-colors duration-200"
       style={{
         backgroundColor: 'var(--color-background, #F4EFE6)',
         color: 'var(--color-text, #2C2420)',
@@ -1172,16 +1188,171 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* Top Header */}
+      {/* Top Header: Fully responsive on mobile with zero horizontal scroll */}
       <header
-        className="sticky top-0 z-40 border-b px-4 sm:px-8 py-3.5 shadow-xs transition-colors"
+        className="sticky top-0 z-40 border-b shadow-xs transition-colors"
         style={{
           backgroundColor: 'var(--color-header, #FAF7F2)',
           borderColor: 'var(--color-border, #EAE2D5)',
         }}
       >
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          
+        {/* MOBILE VIEW (< 640px): 100% fits mobile screen, NO horizontal scroll */}
+        <div className="block sm:hidden px-3 py-2.5 space-y-2 max-w-full overflow-hidden">
+          {/* Row 1: Back, Title, Save */}
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={handleExit}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-xl border bg-white text-[#2C2420] border-[#EAE2D5] shadow-2xs active:scale-95 transition-all cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Store</span>
+            </button>
+
+            <div className="text-center min-w-0 flex-1 px-1">
+              <span className="font-serif-luxury text-sm font-bold text-[#2C2420] block truncate">
+                {editableContent.company.name} Admin
+              </span>
+              <span className="text-[10px] text-[#8C2E46] font-semibold tracking-wide uppercase">
+                Owner Dashboard
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (saveTimeoutRef.current) {
+                  clearTimeout(saveTimeoutRef.current);
+                  saveTimeoutRef.current = null;
+                }
+                onUpdateProducts(latestProductsRef.current);
+                setSaveStatus('saved');
+                showToast('✅ All changes permanently saved to store database!');
+              }}
+              className="px-3 py-1.5 bg-[#8C2E46] active:bg-[#732438] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 active:scale-95 shrink-0 cursor-pointer"
+              title="Force save all product details permanently"
+            >
+              <Save className="w-3.5 h-3.5 text-white" />
+              <span>Save</span>
+            </button>
+          </div>
+
+          {/* Row 2: Status Strip on Mobile */}
+          <div className="flex items-center justify-between text-[11px] px-1 text-[#7A6458]">
+            <span className="inline-flex items-center gap-1 font-medium truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+              📸 {totalUpdatedImagesCount} Images Customized
+            </span>
+
+            {saveStatus === 'saving' ? (
+              <span className="flex items-center gap-1 text-amber-700 font-medium shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                <span>Saving...</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-emerald-700 font-medium shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Synced</span>
+              </span>
+            )}
+          </div>
+
+          {/* Row 3: Swipeable Mobile Tab Navigation with smooth horizontal swipe and zero body overflow */}
+          <div className="w-full overflow-x-auto scrollbar-none flex items-center gap-1 p-1 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] touch-pan-x whitespace-nowrap">
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('products')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'products'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" />
+              <span>Bedsheets ({totalProducts})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('orders')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'orders'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>Orders {pendingOrdersCount > 0 ? `(${pendingOrdersCount})` : ''}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('notifications')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'notifications'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Bell className="w-3.5 h-3.5 text-amber-500" />
+              <span>Alerts {adminAlertsCount > 0 ? `(${adminAlertsCount})` : ''}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('coupons')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'coupons'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Ticket className="w-3.5 h-3.5" />
+              <span>Coupons</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('seasonal')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'seasonal'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Seasonal</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('appearance')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'appearance'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span>Appearance</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('content')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'content'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Story & Store</span>
+            </button>
+          </div>
+        </div>
+
+        {/* DESKTOP VIEW (>= 640px) */}
+        <div className="hidden sm:flex max-w-7xl mx-auto px-4 sm:px-8 py-3.5 flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               onClick={handleExit}
@@ -1223,7 +1394,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           {/* Tab Switcher Buttons */}
           <div
-            className="flex items-center gap-1.5 p-1 rounded-xl border transition-colors"
+            className="flex items-center gap-1.5 p-1 rounded-xl border transition-colors overflow-x-auto max-w-full"
             style={{
               backgroundColor: 'var(--color-background, #F4EFE6)',
               borderColor: 'var(--color-border, #EAE2D5)',
@@ -1231,7 +1402,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           >
             <button
               onClick={() => setActiveAdminTab('products')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
               style={
                 activeAdminTab === 'products'
                   ? {
@@ -1250,7 +1421,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               onClick={() => setActiveAdminTab('orders')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative shrink-0"
               style={
                 activeAdminTab === 'orders'
                   ? {
@@ -1278,10 +1449,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               )}
             </button>
 
-            {/* Seasonal Page & Festive Deals Tab */}
             <button
               onClick={() => setActiveAdminTab('seasonal')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative shrink-0"
               style={
                 activeAdminTab === 'seasonal'
                   ? {
@@ -1305,7 +1475,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               onClick={() => setActiveAdminTab('content')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
               style={
                 activeAdminTab === 'content'
                   ? {
@@ -1324,7 +1494,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               onClick={() => setActiveAdminTab('appearance')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
               style={
                 activeAdminTab === 'appearance'
                   ? {
@@ -1343,7 +1513,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               onClick={() => setActiveAdminTab('coupons')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
               style={
                 activeAdminTab === 'coupons'
                   ? {
@@ -1358,6 +1528,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Ticket className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'coupons' ? undefined : 'var(--color-accent, #C29E57)' }} />
               <span>Coupons &amp; Offers</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('notifications')}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative shrink-0"
+              style={
+                activeAdminTab === 'notifications'
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
+            >
+              <Bell className="w-3.5 h-3.5 text-amber-500" />
+              <span>Atelier Alerts</span>
+              {adminAlertsCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-600 text-white animate-pulse">
+                  {adminAlertsCount}
+                </span>
+              )}
             </button>
           </div>
 
@@ -1419,8 +1613,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {/* Main Container: Zero horizontal scrolling on mobile */}
+      <main className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8 overflow-x-hidden">
         
         {/* ======================================================== */}
         {/* TAB 1: BEDSHEET INVENTORY, VARIANTS & PHOTOS             */}
@@ -1750,7 +1944,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     onDragOver={(e) => handleDragOver(e, product.id)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, product.id)}
-                    className={`rounded-2xl border p-4 sm:p-5 transition-all shadow-xs space-y-4 relative ${
+                    className={`rounded-2xl border p-3.5 sm:p-5 transition-all shadow-xs space-y-4 relative w-full max-w-full overflow-hidden ${
                       isBeingDragged
                         ? 'opacity-40 border-dashed scale-[0.99]'
                         : isDragOver
@@ -2631,7 +2825,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   return (
                     <div
                       key={order.id}
-                      className="rounded-2xl border p-5 shadow-xs space-y-4"
+                      className="rounded-2xl border p-4 sm:p-5 shadow-xs space-y-4 w-full max-w-full overflow-hidden"
                       style={{
                         backgroundColor: 'var(--color-surface, #FAF7F2)',
                         borderColor: 'var(--color-border, #EAE2D5)',
@@ -3591,6 +3785,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {activeAdminTab === 'coupons' && (
           <AdminCouponsSection
             products={editableProducts}
+            onToast={showToast}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 6: NOTIFICATIONS & OPERATIONAL ATELIER ALERTS        */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'notifications' && (
+          <AdminNotificationsSection
+            products={editableProducts}
+            orders={editableOrders}
+            reviews={reviews}
+            onNavigateToTab={(tab) => setActiveAdminTab(tab)}
+            onUpdateProductStock={handleUpdateStockDirect}
             onToast={showToast}
           />
         )}

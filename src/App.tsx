@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BedsheetProduct, BEDSHEETS_CATALOG, COMPANY_DETAILS } from './data/products';
+import { BedsheetProduct, BedsheetVariant, BEDSHEETS_CATALOG, COMPANY_DETAILS } from './data/products';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { ProductCard } from './components/ProductCard';
@@ -24,6 +24,18 @@ import { LiveOrdersView } from './components/LiveOrdersView';
 import { TermsAndConditionsView } from './components/TermsAndConditionsView';
 import { SeasonalView } from './components/SeasonalView';
 import { AuthModal } from './components/AuthModal';
+import { NotificationCenterModal } from './components/NotificationCenterModal';
+import { ProductCompareModal } from './components/ProductCompareModal';
+import { ProductCompareBar } from './components/ProductCompareBar';
+import { StockAlertModal } from './components/StockAlertModal';
+import {
+  AppNotification,
+  DEFAULT_NOTIFICATIONS,
+  NotificationPreferences,
+  getStoredNotificationPreferences,
+  saveStoredNotificationPreferences,
+} from './data/notifications';
+import { initPushNotifications, triggerLocalPushNotification } from './utils/pushNotifications';
 import { useAuth } from './context/AuthContext';
 import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
@@ -49,6 +61,11 @@ import {
   saveSeasonalConfigApi,
   computeUpdatedImagesCount,
   saveUpdatedImagesStatsApi,
+  getNotificationsApi,
+  saveNotificationApi,
+  markNotificationReadApi,
+  markAllNotificationsReadApi,
+  clearAllNotificationsApi,
 } from './services/api';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, testConnection } from './firebase';
@@ -211,7 +228,30 @@ export default function App() {
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem('cotton_nest_cart');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      // Clean up and heal any corrupt cart item structure
+      return parsed
+        .filter((item: any) => item && item.product && typeof item.product === 'object' && item.product.id)
+        .map((item: any) => {
+          let qty = 1;
+          let variant = item.selectedVariant;
+          if (typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0) {
+            qty = Math.round(item.quantity);
+          } else if (typeof item.quantity === 'object' && item.quantity !== null) {
+            // Heals previous bug where variant object was stored in place of quantity
+            if (!variant && item.quantity.name) {
+              variant = item.quantity;
+            }
+            qty = 1;
+          }
+          return {
+            product: item.product,
+            quantity: qty,
+            selectedVariant: variant,
+          };
+        });
     } catch {
       return [];
     }
@@ -295,6 +335,128 @@ export default function App() {
       console.warn('Failed to save seasonal config to server:', err);
     }
   };
+
+  // Customer & Atelier Notifications State
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    try {
+      const saved = localStorage.getItem('cotton_nest_notifications');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_NOTIFICATIONS;
+  });
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(() => {
+    return getStoredNotificationPreferences();
+  });
+
+  const handleUpdateNotificationPreferences = (newPrefs: NotificationPreferences) => {
+    setNotificationPreferences(newPrefs);
+    try {
+      saveStoredNotificationPreferences(newPrefs);
+    } catch {}
+  };
+
+  // Bedsheet Comparison State (up to 3 bedsheets)
+  const [comparedProductIds, setComparedProductIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('cotton_nest_compared');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.slice(0, 3);
+      }
+    } catch {}
+    return [];
+  });
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+
+  // Stock Alert Target Product Modal
+  const [stockAlertProduct, setStockAlertProduct] = useState<BedsheetProduct | null>(null);
+
+  const handleToggleCompare = (product: BedsheetProduct) => {
+    setComparedProductIds((prev) => {
+      let next: string[];
+      if (prev.includes(product.id)) {
+        next = prev.filter((id) => id !== product.id);
+      } else {
+        if (prev.length >= 3) {
+          next = [...prev.slice(1), product.id];
+        } else {
+          next = [...prev, product.id];
+        }
+      }
+      try {
+        localStorage.setItem('cotton_nest_compared', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleRemoveFromCompare = (productId: string) => {
+    setComparedProductIds((prev) => {
+      const next = prev.filter((id) => id !== productId);
+      try {
+        localStorage.setItem('cotton_nest_compared', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleClearCompare = () => {
+    setComparedProductIds([]);
+    try {
+      localStorage.removeItem('cotton_nest_compared');
+    } catch {}
+  };
+
+  const handleNotifyStock = (product: BedsheetProduct) => {
+    setStockAlertProduct(product);
+  };
+
+  const handleMarkNotificationAsRead = async (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    );
+    try {
+      await markNotificationReadApi(id);
+    } catch {}
+  };
+
+  const handleMarkAllNotificationsAsRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    try {
+      await markAllNotificationsReadApi();
+    } catch {}
+  };
+
+  const handleClearAllNotifications = async () => {
+    setNotifications([]);
+    try {
+      await clearAllNotificationsApi();
+    } catch {}
+  };
+
+  const handleNotificationNavigate = (view: 'orders' | 'catalogue' | 'seasonal' | 'product', targetId?: string) => {
+    setIsNotificationCenterOpen(false);
+    if (view === 'product' && targetId) {
+      const found = products.find((p) => p.id === targetId);
+      if (found) {
+        handleOpenProductModal(found);
+        return;
+      }
+    }
+    setActiveTab(view as any);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
+
+  // Initialize service worker once on mount
+  useEffect(() => {
+    initPushNotifications().catch(() => {});
+  }, []);
 
   // Real-time authoritative subscriptions to Cloud Firestore
   useEffect(() => {
@@ -431,6 +593,27 @@ export default function App() {
       }
     );
 
+    // 8. Authoritative Notifications listener from Firestore
+    const unsubNotifications = onSnapshot(
+      collection(db, 'notifications'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loaded: AppNotification[] = [];
+          snapshot.forEach((d) => {
+            loaded.push({ ...(d.data() as AppNotification), id: d.id });
+          });
+          loaded.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+          setNotifications(loaded);
+          try {
+            localStorage.setItem('cotton_nest_notifications', JSON.stringify(loaded));
+          } catch {}
+        }
+      },
+      (error) => {
+        console.warn('Could not subscribe to notifications:', error);
+      }
+    );
+
     return () => {
       unsubProducts();
       unsubTheme();
@@ -439,6 +622,7 @@ export default function App() {
       unsubReviews();
       unsubContent();
       unsubCustomImages();
+      unsubNotifications();
     };
   }, []);
 
@@ -664,26 +848,62 @@ export default function App() {
     await saveAllProducts(updated);
   };
 
-  const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const totalCartCount = cartItems.reduce(
+    (acc, item) => acc + (typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 1),
+    0
+  );
 
   const handleAddToCart = (
     product: BedsheetProduct,
-    quantity: number = 1,
+    quantityOrVariant?: number | BedsheetVariant,
     variantOrCustomPrice?: any,
     optionalCustomPrice?: number
   ) => {
-    const customPrice = typeof variantOrCustomPrice === 'number' ? variantOrCustomPrice : optionalCustomPrice;
-    const finalProduct = customPrice ? { ...product, price: customPrice } : product;
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity, product: finalProduct }
-            : item
-        );
+    let quantity = 1;
+    let selectedVariant: BedsheetVariant | undefined;
+    let customPrice: number | undefined;
+
+    if (typeof quantityOrVariant === 'number') {
+      quantity = Math.max(1, Math.round(quantityOrVariant));
+      if (variantOrCustomPrice && typeof variantOrCustomPrice === 'object') {
+        selectedVariant = variantOrCustomPrice;
+      } else if (typeof variantOrCustomPrice === 'number') {
+        customPrice = variantOrCustomPrice;
       }
-      return [...prev, { product: finalProduct, quantity }];
+      if (typeof optionalCustomPrice === 'number') {
+        customPrice = optionalCustomPrice;
+      }
+    } else if (quantityOrVariant && typeof quantityOrVariant === 'object') {
+      // Called as handleAddToCart(product, variant) from ProductCard
+      selectedVariant = quantityOrVariant;
+      quantity = 1;
+      if (typeof variantOrCustomPrice === 'number') {
+        customPrice = variantOrCustomPrice;
+      }
+    }
+
+    const finalProduct = customPrice ? { ...product, price: customPrice } : product;
+    const variantId = selectedVariant?.id;
+
+    setCartItems((prev) => {
+      const existingIdx = prev.findIndex(
+        (item) => item.product?.id === product.id && item.selectedVariant?.id === variantId
+      );
+      if (existingIdx >= 0) {
+        return prev.map((item, idx) => {
+          if (idx === existingIdx) {
+            const currentQty = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 1;
+            return {
+              ...item,
+              quantity: currentQty + quantity,
+              product: finalProduct,
+              selectedVariant: selectedVariant || item.selectedVariant,
+            };
+          }
+          return item;
+        });
+      }
+      return [...prev, { product: finalProduct, quantity, selectedVariant }];
     });
 
     setAddedProductIds((prev) => new Set(prev).add(product.id));
@@ -772,6 +992,7 @@ export default function App() {
           onThemePublished={handleThemePublished}
           seasonalConfig={seasonalConfig}
           onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
+          reviews={reviews}
         />
       ) : (
         <>
@@ -795,6 +1016,10 @@ export default function App() {
             productsCount={products.length}
             seasonalConfig={seasonalConfig}
             updatedImagesCount={updatedImagesCount}
+            onOpenNotifications={() => setIsNotificationCenterOpen(true)}
+            unreadNotificationsCount={unreadNotificationsCount}
+            onOpenCompare={() => setIsCompareModalOpen(true)}
+            comparedCount={comparedProductIds.length}
           />
 
           {/* Main Content Area */}
@@ -893,6 +1118,10 @@ export default function App() {
                             onUploadImage={handleUploadImage}
                             isOwnerMode={isOwnerMode}
                             onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
+                            reviews={reviews}
+                            onToggleCompare={handleToggleCompare}
+                            isCompared={comparedProductIds.includes(product.id)}
+                            onNotifyStock={handleNotifyStock}
                           />
                         </motion.div>
                       ))}
@@ -961,6 +1190,9 @@ export default function App() {
                 onOpenAdmin={handleOpenAdminSafely}
                 isOwnerMode={isOwnerMode}
                 onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
+                onToggleCompare={handleToggleCompare}
+                comparedProductIds={comparedProductIds}
+                onNotifyStock={handleNotifyStock}
               />
             )}
 
@@ -1047,6 +1279,11 @@ export default function App() {
             onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
             reviews={reviews}
             onOpenWriteReview={handleOpenWriteReview}
+            allProducts={products}
+            onSelectProduct={(p) => handleOpenProductModal(p, false)}
+            onToggleCompare={handleToggleCompare}
+            isCompared={selectedProduct ? comparedProductIds.includes(selectedProduct.id) : false}
+            onNotifyStock={handleNotifyStock}
             onViewTermsAndConditions={() => {
               setActiveTab('tc');
               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1131,6 +1368,50 @@ export default function App() {
       <WhatsAppPhotoHelperModal
         data={whatsAppHelperData}
         onClose={() => setWhatsAppHelperData(null)}
+      />
+
+      {/* Customer Notification Center Drawer Modal */}
+      <NotificationCenterModal
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        notifications={notifications}
+        onMarkAsRead={handleMarkNotificationAsRead}
+        onMarkAllAsRead={handleMarkAllNotificationsAsRead}
+        onClearAll={handleClearAllNotifications}
+        preferences={notificationPreferences}
+        onUpdatePreferences={handleUpdateNotificationPreferences}
+        onNavigate={handleNotificationNavigate}
+        customerIdentifier={user?.email || user?.phone || 'guest'}
+      />
+
+      {/* Floating Bottom Comparison Bar (when 1-3 items selected) */}
+      <ProductCompareBar
+        products={products.filter((p) => comparedProductIds.includes(p.id))}
+        onOpenCompare={() => setIsCompareModalOpen(true)}
+        onRemove={handleRemoveFromCompare}
+        onClear={handleClearCompare}
+      />
+
+      {/* Full Bedsheet Comparison Matrix Modal */}
+      <ProductCompareModal
+        isOpen={isCompareModalOpen}
+        onClose={() => setIsCompareModalOpen(false)}
+        products={products.filter((p) => comparedProductIds.includes(p.id))}
+        onRemoveFromCompare={handleRemoveFromCompare}
+        onClearCompare={handleClearCompare}
+        onAddToCart={(p) => handleAddToCart(p, 1)}
+        onViewProduct={(p) => {
+          setIsCompareModalOpen(false);
+          handleOpenProductModal(p, false);
+        }}
+      />
+
+      {/* Back In Stock Email/WhatsApp Alert Modal */}
+      <StockAlertModal
+        isOpen={!!stockAlertProduct}
+        onClose={() => setStockAlertProduct(null)}
+        product={stockAlertProduct}
+        defaultContact={user?.phone || user?.email || ''}
       />
 
       {/* Floating Smooth Scroll-to-Top Button */}

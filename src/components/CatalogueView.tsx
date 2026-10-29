@@ -26,6 +26,9 @@ interface CatalogueViewProps {
   onOpenAdmin?: () => void;
   isOwnerMode?: boolean;
   onOpenOwnerAuth?: () => void;
+  onToggleCompare?: (product: BedsheetProduct) => void;
+  comparedProductIds?: string[];
+  onNotifyStock?: (product: BedsheetProduct) => void;
 }
 
 // Parses search text in real-time to detect price expressions, material keywords, and names
@@ -80,6 +83,9 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   onOpenAdmin,
   isOwnerMode = false,
   onOpenOwnerAuth,
+  onToggleCompare,
+  comparedProductIds = [],
+  onNotifyStock,
 }) => {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedFilter, setSelectedFilter] = React.useState<string>('all');
@@ -727,6 +733,9 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 onUploadImage={onUploadImage}
                 isOwnerMode={isOwnerMode}
                 onOpenOwnerAuth={onOpenOwnerAuth}
+                onToggleCompare={onToggleCompare}
+                isCompared={comparedProductIds.includes(product.id)}
+                onNotifyStock={onNotifyStock}
               />
             ))}
           </div>
