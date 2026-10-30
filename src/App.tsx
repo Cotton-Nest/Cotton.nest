@@ -233,19 +233,36 @@ export default function App() {
       if (!Array.isArray(parsed)) return [];
       // Clean up and heal any corrupt cart item structure
       return parsed
-        .filter((item: any) => item && item.product && typeof item.product === 'object' && item.product.id)
+        .filter((item: any) => Boolean(item && item.product && typeof item.product === 'object' && item.product.id))
         .map((item: any) => {
           let qty = 1;
-          let variant = item.selectedVariant;
+          let variant: BedsheetVariant | undefined = undefined;
+
+          // Safe variant extraction
+          if (item.selectedVariant && typeof item.selectedVariant === 'object' && item.selectedVariant.name) {
+            variant = {
+              id: String(item.selectedVariant.id || 'variant-default'),
+              name: String(item.selectedVariant.name),
+              image: item.selectedVariant.image ? String(item.selectedVariant.image) : String(item.product?.image || ''),
+              colorHex: item.selectedVariant.colorHex ? String(item.selectedVariant.colorHex) : undefined,
+            };
+          }
+
           if (typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0) {
             qty = Math.round(item.quantity);
           } else if (typeof item.quantity === 'object' && item.quantity !== null) {
-            // Heals previous bug where variant object was stored in place of quantity
+            // Heals legacy format where variant object was stored in place of quantity
             if (!variant && item.quantity.name) {
-              variant = item.quantity;
+              variant = {
+                id: String(item.quantity.id || 'variant-default'),
+                name: String(item.quantity.name),
+                image: item.quantity.image ? String(item.quantity.image) : String(item.product?.image || ''),
+                colorHex: item.quantity.colorHex ? String(item.quantity.colorHex) : undefined,
+              };
             }
             qty = 1;
           }
+
           return {
             product: item.product,
             quantity: qty,
@@ -848,10 +865,11 @@ export default function App() {
     await saveAllProducts(updated);
   };
 
-  const totalCartCount = cartItems.reduce(
-    (acc, item) => acc + (typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 1),
-    0
-  );
+  const totalCartCount = (cartItems || []).reduce((acc, item) => {
+    if (!item || !item.product) return acc;
+    const q = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+    return acc + q;
+  }, 0);
 
   const handleAddToCart = (
     product: BedsheetProduct,
@@ -859,6 +877,11 @@ export default function App() {
     variantOrCustomPrice?: any,
     optionalCustomPrice?: number
   ) => {
+    if (!product || typeof product !== 'object' || !product.id) {
+      console.warn('handleAddToCart aborted: invalid product object', product);
+      return;
+    }
+
     let quantity = 1;
     let selectedVariant: BedsheetVariant | undefined;
     let customPrice: number | undefined;
@@ -882,28 +905,44 @@ export default function App() {
       }
     }
 
+    // Sanitize variant if invalid
+    let safeVariant: BedsheetVariant | undefined = undefined;
+    if (selectedVariant && typeof selectedVariant === 'object' && selectedVariant.name) {
+      safeVariant = {
+        id: String(selectedVariant.id || 'variant-default'),
+        name: String(selectedVariant.name),
+        image: selectedVariant.image ? String(selectedVariant.image) : String(product.image || ''),
+        colorHex: selectedVariant.colorHex ? String(selectedVariant.colorHex) : undefined,
+      };
+    }
+
     const finalProduct = customPrice ? { ...product, price: customPrice } : product;
-    const variantId = selectedVariant?.id;
+    const variantId = safeVariant?.id;
 
     setCartItems((prev) => {
-      const existingIdx = prev.findIndex(
+      const safePrev = (prev || []).filter(
+        (item): item is CartItem => Boolean(item && item.product && typeof item.product === 'object' && item.product.id)
+      );
+
+      const existingIdx = safePrev.findIndex(
         (item) => item.product?.id === product.id && item.selectedVariant?.id === variantId
       );
+
       if (existingIdx >= 0) {
-        return prev.map((item, idx) => {
+        return safePrev.map((item, idx) => {
           if (idx === existingIdx) {
             const currentQty = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 1;
             return {
               ...item,
               quantity: currentQty + quantity,
               product: finalProduct,
-              selectedVariant: selectedVariant || item.selectedVariant,
+              selectedVariant: safeVariant || item.selectedVariant,
             };
           }
           return item;
         });
       }
-      return [...prev, { product: finalProduct, quantity, selectedVariant }];
+      return [...safePrev, { product: finalProduct, quantity, selectedVariant: safeVariant }];
     });
 
     setAddedProductIds((prev) => new Set(prev).add(product.id));
@@ -917,15 +956,26 @@ export default function App() {
   };
 
   const handleUpdateQuantity = (productId: string, quantity: number) => {
+    if (!productId) return;
     setCartItems((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
-      )
+      (prev || [])
+        .filter((item): item is CartItem => Boolean(item && item.product && item.product.id))
+        .map((item) =>
+          item.product.id === productId ? { ...item, quantity: Math.max(1, Math.round(quantity)) } : item
+        )
     );
   };
 
   const handleRemoveFromCart = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
+    if (!productId) {
+      setCartItems((prev) =>
+        (prev || []).filter((item): item is CartItem => Boolean(item && item?.product && item?.product?.id))
+      );
+      return;
+    }
+    setCartItems((prev) =>
+      (prev || []).filter((item): item is CartItem => Boolean(item && item?.product && item?.product?.id && item?.product?.id !== productId))
+    );
   };
 
   const handleClearCart = () => {

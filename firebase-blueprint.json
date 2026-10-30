@@ -96,6 +96,35 @@
         "updatedAt": { "type": "number", "description": "Timestamp of update" }
       },
       "required": ["name", "enabled"]
+    },
+    "CouponOffer": {
+      "title": "CouponOffer",
+      "description": "Storewide and product-specific discount coupon or automated promotional offer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique coupon ID" },
+        "code": { "type": "string", "description": "Uppercase promo code entered by customer" },
+        "title": { "type": "string", "description": "Display title of the discount offer" },
+        "description": { "type": "string", "description": "Terms or details of the coupon" },
+        "discountType": { "type": "string", "enum": ["percentage", "fixed"], "description": "Type of discount" },
+        "discountValue": { "type": "number", "description": "Discount percentage or flat rupees amount" },
+        "minOrderValue": { "type": "number", "description": "Minimum subtotal required to qualify" },
+        "maxDiscountAmount": { "type": "number", "description": "Maximum rupee cap for percentage discounts" },
+        "startDate": { "type": "string", "description": "ISO start date string" },
+        "expiryDate": { "type": "string", "description": "ISO expiry date string" },
+        "isActive": { "type": "boolean", "description": "Whether coupon is active" },
+        "isAutomatic": { "type": "boolean", "description": "Whether coupon auto-applies without entering code" },
+        "maxUses": { "type": "number", "description": "Maximum redemptions allowed across all users" },
+        "usedCount": { "type": "number", "description": "Number of times this coupon has been used" },
+        "oneUsePerCustomer": { "type": "boolean", "description": "Restrict to 1 redemption per customer" },
+        "usedByCustomers": { "type": "array", "description": "List of customer phones/emails that used coupon" },
+        "scope": { "type": "string", "enum": ["all", "products", "collections"], "description": "Target scope" },
+        "applicableProductIds": { "type": "array", "description": "Specific product IDs coupon applies to" },
+        "badgeText": { "type": "string", "description": "Pill tag text shown next to code" },
+        "createdAt": { "type": "number", "description": "Timestamp of creation" },
+        "updatedAt": { "type": "number", "description": "Timestamp of last edit" }
+      },
+      "required": ["id", "code", "title", "discountType", "discountValue", "expiryDate", "isActive"]
     }
   },
   "firestore": {
@@ -122,6 +151,10 @@
     "/seasonal/{seasonalId}": {
       "schema": "SeasonalConfig",
       "description": "Seasonal discount page and festive offers configuration"
+    },
+    "/coupons/{couponId}": {
+      "schema": "CouponOffer",
+      "description": "Store promotional coupons and automatic discount offers"
     }
   }
 }

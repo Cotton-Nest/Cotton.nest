@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
 import { saveOrder, getCouponsApi, validateCouponApi, recordCouponUseApi } from '../services/api';
@@ -58,6 +58,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [couponSuccessMessage, setCouponSuccessMessage] = useState<string | null>(null);
   const [availableCoupons, setAvailableCoupons] = useState<CouponOffer[]>([]);
   const [showOffersList, setShowOffersList] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Auto-fill from authenticated Google or Phone session
   useEffect(() => {
@@ -69,6 +70,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   // Load available coupons on drawer open
   useEffect(() => {
+    if (!isOpen) return;
     let isMounted = true;
     getCouponsApi().then((data) => {
       if (isMounted && Array.isArray(data)) {
@@ -78,23 +80,53 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     return () => { isMounted = false; };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
-  const validItems = (items || []).filter(
-    (item) => item && item.product && typeof item.product === 'object' && item.product.id
-  );
+  const validItems = React.useMemo(() => {
+    return (items || [])
+      .filter((item): item is CartItem =>
+        Boolean(
+          item &&
+          typeof item === 'object' &&
+          item?.product &&
+          typeof item?.product === 'object' &&
+          item?.product?.id &&
+          typeof item?.product?.id === 'string' &&
+          item?.product?.name &&
+          typeof item?.product?.name === 'string'
+        )
+      )
+      .map((item) => {
+        let cleanVariant: BedsheetVariant | undefined = undefined;
+        if (item?.selectedVariant && typeof item?.selectedVariant === 'object' && item?.selectedVariant?.name) {
+          cleanVariant = {
+            id: String(item?.selectedVariant?.id || 'variant-default'),
+            name: String(item?.selectedVariant?.name),
+            image: item?.selectedVariant?.image ? String(item?.selectedVariant?.image) : String(item?.product?.image || ''),
+            colorHex: item?.selectedVariant?.colorHex ? String(item?.selectedVariant?.colorHex) : undefined,
+          };
+        }
+        const qty =
+          typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0
+            ? Math.round(item?.quantity)
+            : 1;
+        return {
+          ...item,
+          quantity: qty,
+          selectedVariant: cleanVariant,
+        };
+      });
+  }, [items]);
 
   const subtotal = validItems.reduce((sum, item) => {
-    const qty = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
-    const price = typeof item.product?.price === 'number' && !isNaN(item.product.price) ? item.product.price : 0;
+    const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0 ? item.quantity : 1;
+    const price = typeof item?.product?.price === 'number' && !isNaN(item?.product?.price) ? item.product.price : 0;
     return sum + price * qty;
   }, 0);
 
   const originalSubtotal = validItems.reduce((sum, item) => {
-    const qty = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
-    const orig = typeof item.product?.originalPrice === 'number' && !isNaN(item.product.originalPrice)
+    const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0 ? item.quantity : 1;
+    const orig = typeof item?.product?.originalPrice === 'number' && !isNaN(item?.product?.originalPrice)
       ? item.product.originalPrice
-      : (typeof item.product?.price === 'number' && !isNaN(item.product.price) ? item.product.price : 0);
+      : (typeof item?.product?.price === 'number' && !isNaN(item?.product?.price) ? item.product.price : 0);
     return sum + orig * qty;
   }, 0);
 
@@ -106,6 +138,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   // Auto-apply or re-validate coupons when bag items or subtotal change
   useEffect(() => {
+    if (!isOpen) return;
     if (validItems.length === 0) {
       if (appliedCoupon) {
         setAppliedCoupon(null);
@@ -171,7 +204,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     try {
       const result = await validateCouponApi(
         targetCode,
-        items,
+        validItems,
         subtotal,
         customerPhone.trim() || user?.email
       );
@@ -207,8 +240,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       ? 'Sector 46, Gurgaon (Complimentary)'
       : 'Rest of Gurgaon (Self Pickup / On Actuals)';
 
-  const [formError, setFormError] = useState<string | null>(null);
-
   const handlePlaceWhatsAppOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) {
@@ -231,13 +262,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       couponDiscount: effectiveCouponDiscount,
       shippingMethod: shippingLabel,
       shippingCost,
-      items: items.map((i) => ({
-        name: i.product.name,
-        variantName: i.selectedVariant?.name,
-        dimensions: i.product.dimensions,
-        quantity: i.quantity,
-        price: i.product.price,
-        imageUrl: i.selectedVariant?.image || i.product.image,
+      items: validItems.map((i) => ({
+        name: i?.product?.name || 'Handcrafted Bedsheet',
+        variantName: i?.selectedVariant?.name,
+        dimensions: i?.product?.dimensions || '108 x 108 inches',
+        quantity: typeof i?.quantity === 'number' && !isNaN(i?.quantity) && i?.quantity > 0 ? i.quantity : 1,
+        price: typeof i?.product?.price === 'number' && !isNaN(i?.product?.price) ? i.product.price : 0,
+        imageUrl: i?.selectedVariant?.image || i?.product?.image || '',
       })),
     });
 
@@ -258,14 +289,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       couponCode: appliedCoupon?.code,
       couponDiscount: effectiveCouponDiscount,
       notes: customerNotes.trim() || undefined,
-      items: items.map((i) => ({
-        productId: i.product.id,
-        productName: i.selectedVariant ? `${i.product.name} - ${i.selectedVariant.name}` : i.product.name,
-        productImage: i.selectedVariant?.image || i.product.image,
-        dimensions: i.product.dimensions,
-        price: i.product.price,
-        quantity: i.quantity,
-      })),
+      items: validItems.map((i) => {
+        const pName = i?.product?.name || 'Handcrafted Bedsheet';
+        const vName = i?.selectedVariant?.name;
+        return {
+          productId: i?.product?.id || `item-${Date.now()}`,
+          productName: vName ? `${pName} - ${vName}` : pName,
+          productImage: i?.selectedVariant?.image || i?.product?.image || '',
+          dimensions: i?.product?.dimensions || '108 x 108 inches',
+          price: typeof i?.product?.price === 'number' && !isNaN(i?.product?.price) ? i.product.price : 0,
+          quantity: typeof i?.quantity === 'number' && !isNaN(i?.quantity) && i?.quantity > 0 ? i.quantity : 1,
+        };
+      }),
     };
 
     // Save to server backend & local storage / Firestore
@@ -296,6 +331,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     onClose();
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-[#2C2420]/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="fixed inset-0" onClick={onClose} />
@@ -307,7 +344,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           <div className="flex items-center gap-2">
             <ShoppingBag className="w-5 h-5 text-[#8C2E46]" />
             <h2 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
-              {checkoutStep === 'cart' && `Shopping Bag (${items.length})`}
+              {checkoutStep === 'cart' && `Shopping Bag (${(items || []).length})`}
               {checkoutStep === 'checkout' && 'Complete Order on WhatsApp'}
               {checkoutStep === 'success' && 'Order Placed via WhatsApp'}
             </h2>
@@ -327,7 +364,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           {/* STEP 1: CART ITEMS LIST */}
           {checkoutStep === 'cart' && (
             <>
-              {validItems.length === 0 ? (
+              {(items || []).length === 0 ? (
                 <div className="text-center py-16 space-y-3">
                   <div className="w-16 h-16 rounded-full bg-[#F4EFE6] flex items-center justify-center mx-auto text-[#8C7A70]">
                     <ShoppingBag className="w-8 h-8" />
@@ -339,19 +376,74 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {validItems.map((item) => {
-                    const displayImg = resolveBedsheetImage(item.selectedVariant?.image || item.product.image);
-                    const qty = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
-                    const itemPrice = typeof item.product.price === 'number' && !isNaN(item.product.price) ? item.product.price : 0;
+                  {(items || []).map((item, idx) => {
+                    const isMetadataValid = Boolean(
+                      item &&
+                      typeof item === 'object' &&
+                      item?.product &&
+                      typeof item?.product === 'object' &&
+                      item?.product?.id &&
+                      typeof item?.product?.id === 'string' &&
+                      item?.product?.name &&
+                      typeof item?.product?.name === 'string'
+                    );
+
+                    if (!isMetadataValid) {
+                      const fallbackId = item?.product?.id || '';
+                      return (
+                        <div
+                          key={`fallback-item-${fallbackId || idx}`}
+                          className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 text-amber-900 shadow-xs flex items-center justify-between gap-3 animate-in fade-in"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                              <AlertCircle className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="font-semibold text-xs text-amber-950 truncate">
+                                {item?.product?.name || 'Item details unavailable'}
+                              </h3>
+                              <p className="text-[11px] text-amber-800 leading-tight">
+                                Product metadata is missing or incomplete. You can remove this item.
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => onRemoveItem(fallbackId)}
+                            className="px-2.5 py-1 text-xs font-semibold text-amber-900 hover:text-red-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Remove item"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    const prod = item?.product;
+                    const prodId = prod?.id || '';
+                    const prodName = prod?.name || 'Handcrafted Bedsheet';
+                    const prodDimensions = prod?.dimensions || '108 x 108 inches (274 x 274 cm)';
+                    const itemPrice = typeof prod?.price === 'number' && !isNaN(prod?.price) ? prod.price : 0;
+                    const variant = item?.selectedVariant && typeof item?.selectedVariant === 'object' && item?.selectedVariant?.name
+                      ? item.selectedVariant
+                      : undefined;
+                    const displayImg = resolveBedsheetImage(variant?.image || prod?.image || '');
+                    const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0
+                      ? Math.round(item.quantity)
+                      : 1;
+                    const itemKey = `${prodId || 'item'}-${variant?.id || 'base'}-${idx}`;
+
                     return (
                       <div
-                        key={`${item.product.id}-${item.selectedVariant?.id || 'base'}`}
+                        key={itemKey}
                         className="flex gap-3 p-3 bg-white rounded-2xl border border-[#EAE2D5] shadow-xs"
                       >
                         <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5]">
                           <img
                             src={displayImg}
-                            alt={item.product.name}
+                            alt={prodName}
                             onError={handleImageFallback}
                             className="w-full h-full object-cover object-center"
                           />
@@ -361,10 +453,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <div>
                             <div className="flex items-start justify-between gap-1">
                               <h3 className="font-serif-luxury text-sm font-bold text-[#2C2420] leading-snug">
-                                {item.product.name}
+                                {prodName}
                               </h3>
                               <button
-                                onClick={() => onRemoveItem(item.product.id)}
+                                onClick={() => prodId && onRemoveItem(prodId)}
                                 className="text-[#8C7A70] hover:text-red-600 p-0.5 cursor-pointer"
                                 title="Remove item"
                               >
@@ -372,27 +464,27 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                               </button>
                             </div>
 
-                            {item.selectedVariant && (
+                            {variant?.name && (
                               <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-[#8C2E46]">
-                                {item.selectedVariant.colorHex && (
+                                {variant?.colorHex && (
                                   <span
                                     className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block"
-                                    style={{ backgroundColor: item.selectedVariant.colorHex }}
+                                    style={{ backgroundColor: variant.colorHex }}
                                   />
                                 )}
-                                <span>Color: {item.selectedVariant.name}</span>
+                                <span>Color: {variant.name}</span>
                               </div>
                             )}
 
                             <p className="text-[11px] text-[#7A6458] mt-0.5">
-                              {item.product.dimensions}
+                              {prodDimensions}
                             </p>
                           </div>
 
                           <div className="flex items-center justify-between pt-2">
                             <div className="flex items-center border border-[#EAE2D5] rounded-lg bg-[#FAF7F2]">
                               <button
-                                onClick={() => onUpdateQuantity(item.product.id, Math.max(1, qty - 1))}
+                                onClick={() => prodId && onUpdateQuantity(prodId, Math.max(1, qty - 1))}
                                 className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer"
                               >
                                 -
@@ -401,7 +493,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                 {qty}
                               </span>
                               <button
-                                onClick={() => onUpdateQuantity(item.product.id, qty + 1)}
+                                onClick={() => prodId && onUpdateQuantity(prodId, qty + 1)}
                                 className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer"
                               >
                                 +
@@ -432,7 +524,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <div className="p-3 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] text-xs space-y-1">
                 <p className="font-semibold text-[#2C2420]">Order Summary</p>
                 <p className="text-[#6B5D55]">
-                  {items.length} bedsheet{items.length > 1 ? 's' : ''} (Total: ₹{subtotal.toLocaleString('en-IN')})
+                  {validItems.length} bedsheet{validItems.length > 1 ? 's' : ''} (Total: ₹{subtotal.toLocaleString('en-IN')})
                 </p>
               </div>
 
@@ -652,7 +744,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         </div>
 
         {/* Drawer Footer Actions */}
-        {checkoutStep === 'cart' && items.length > 0 && (
+        {checkoutStep === 'cart' && validItems.length > 0 && (
           <div className="p-4 sm:p-5 border-t border-[#EAE2D5] bg-white space-y-3.5">
             {/* Promo Code & Offers Module */}
             <div className="p-3 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5] space-y-2">

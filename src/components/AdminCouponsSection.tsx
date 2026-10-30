@@ -182,33 +182,40 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
   // Form Validation
   const validateForm = () => {
     const errors: Record<string, string> = {};
-    let cleanCode = formData.code.trim().toUpperCase().replace(/\s+/g, '-');
+    let cleanCode = formData.code.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '-').replace(/-+/g, '-');
 
-    // Auto-generate code if user left it blank for an automatic offer
-    if (!cleanCode && formData.isAutomatic) {
-      cleanCode = `AUTO-${Math.floor(100 + Math.random() * 900)}`;
+    // Auto-generate code if user left it blank
+    if (!cleanCode) {
+      if (formData.isAutomatic) {
+        cleanCode = `AUTO-${Math.floor(100 + Math.random() * 900)}`;
+      } else {
+        cleanCode = `OFFER${formData.discountValue || 10}-${Math.floor(100 + Math.random() * 900)}`;
+      }
       setFormData((prev) => ({ ...prev, code: cleanCode }));
     }
 
-    if (!cleanCode && !formData.isAutomatic) {
-      errors.code = 'Please enter a coupon code (or check Automatic Offer below)';
-    } else if (cleanCode) {
+    if (cleanCode) {
       // Check for duplicate code
       const duplicate = coupons.find(
         (c) => c.code.toUpperCase() === cleanCode && c.id !== editingCouponId
       );
       if (duplicate) {
-        errors.code = `Code "${cleanCode}" already exists. Please choose a unique code.`;
+        errors.code = `Code "${cleanCode}" already exists. Please choose a different code.`;
       }
     }
 
+    // Auto-fill title if left blank
     if (!formData.title.trim()) {
-      errors.title = 'Offer title is required';
+      const autoTitle =
+        formData.discountType === 'percentage'
+          ? `${formData.discountValue || 10}% Off Bedsheets`
+          : `Flat ₹${formData.discountValue || 200} Off Bedsheets`;
+      setFormData((prev) => ({ ...prev, title: autoTitle }));
     }
 
     const val = Number(formData.discountValue);
     if (isNaN(val) || val <= 0) {
-      errors.discountValue = 'Discount value must be greater than 0';
+      errors.discountValue = 'Please enter a discount value greater than 0';
     } else if (formData.discountType === 'percentage' && val > 95) {
       errors.discountValue = 'Percentage discount cannot exceed 95%';
     }
@@ -217,12 +224,19 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
       errors.minOrderValue = 'Minimum order value cannot be negative';
     }
 
-    if (formData.startDate && formData.expiryDate && formData.startDate > formData.expiryDate) {
+    if (!formData.expiryDate) {
+      errors.expiryDate = 'Please select an expiry date';
+    } else if (formData.startDate && formData.expiryDate && formData.startDate > formData.expiryDate) {
       errors.expiryDate = 'Expiry date must be on or after start date';
     }
 
     setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    const isValid = Object.keys(errors).length === 0;
+    if (!isValid) {
+      const firstError = Object.values(errors)[0];
+      onToast(`⚠️ ${firstError}`);
+    }
+    return isValid;
   };
 
   // Save Coupon
@@ -232,26 +246,35 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
 
     setSaving(true);
     try {
-      let cleanCode = formData.code.trim().toUpperCase().replace(/\s+/g, '-');
+      let cleanCode = formData.code.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '-').replace(/-+/g, '-');
       if (!cleanCode) {
-        cleanCode = `OFFER-${Math.floor(1000 + Math.random() * 9000)}`;
+        cleanCode = formData.isAutomatic
+          ? `AUTO-${Math.floor(100 + Math.random() * 900)}`
+          : `OFFER${formData.discountValue || 10}-${Math.floor(100 + Math.random() * 900)}`;
       }
       const existing = editingCouponId ? coupons.find((c) => c.id === editingCouponId) : null;
+      const safeId =
+        editingCouponId ||
+        `coupon-${cleanCode.toLowerCase().replace(/[^a-z0-9_-]/g, '')}-${Date.now().toString(36)}`;
 
       const couponToSave: CouponOffer = {
-        id: editingCouponId || `coupon-${cleanCode.toLowerCase()}-${Date.now().toString(36)}`,
+        id: safeId,
         code: cleanCode,
-        title: formData.title.trim() || 'Promotional Offer',
+        title:
+          formData.title.trim() ||
+          (formData.discountType === 'percentage'
+            ? `${formData.discountValue || 10}% Off Bedsheets`
+            : `Flat ₹${formData.discountValue || 200} Off Bedsheets`),
         description: (formData.description || '').trim(),
         discountType: formData.discountType || 'percentage',
         discountValue: Number(formData.discountValue) || 10,
-        minOrderValue: Number(formData.minOrderValue) || 0,
-        maxDiscountAmount: formData.maxDiscountAmount ? Number(formData.maxDiscountAmount) : 0,
+        minOrderValue: Math.max(0, Number(formData.minOrderValue) || 0),
+        maxDiscountAmount: formData.maxDiscountAmount ? Math.max(0, Number(formData.maxDiscountAmount)) : 0,
         startDate: formData.startDate || new Date().toISOString().split('T')[0],
         expiryDate: formData.expiryDate || '2030-12-31',
         isActive: formData.isActive ?? true,
         isAutomatic: Boolean(formData.isAutomatic),
-        maxUses: formData.maxUses ? Number(formData.maxUses) : 0,
+        maxUses: formData.maxUses ? Math.max(0, Number(formData.maxUses)) : 0,
         usedCount: existing ? existing.usedCount || 0 : 0,
         oneUsePerCustomer: Boolean(formData.oneUsePerCustomer),
         usedByCustomers: existing?.usedByCustomers || [],
@@ -262,25 +285,24 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
         updatedAt: Date.now(),
       };
 
-      await saveCouponApi(couponToSave);
+      const savedResult = await saveCouponApi(couponToSave);
 
       // Local optimistic update
       setCoupons((prev) => {
-        const idx = prev.findIndex((c) => c.id === couponToSave.id);
+        const idx = prev.findIndex((c) => c.id === savedResult.id || c.code === savedResult.code);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = couponToSave;
+          next[idx] = savedResult;
           return next;
         }
-        return [couponToSave, ...prev];
+        return [savedResult, ...prev];
       });
 
       onToast(`Discount offer "${cleanCode}" saved successfully!`);
       setIsModalOpen(false);
     } catch (err: any) {
-      console.warn('Coupon save notification:', err);
-      onToast(`Coupon saved successfully!`);
-      setIsModalOpen(false);
+      console.error('Coupon save error:', err);
+      onToast(`Failed to save coupon: ${err.message || 'Please check your inputs and try again'}`);
     } finally {
       setSaving(false);
     }
@@ -737,23 +759,46 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
             </div>
 
             {/* Modal Form Body */}
-            <form onSubmit={handleSaveCoupon} className="flex-1 overflow-y-auto p-6 space-y-5">
+            <form onSubmit={handleSaveCoupon} noValidate className="flex-1 overflow-y-auto p-6 space-y-5">
               {/* Row 1: Code and Title */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#2C2420] mb-1">
-                    Coupon Code <span className="text-rose-600">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-[#2C2420]">
+                      Coupon Code <span className="text-rose-600">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const randomSuffix = Math.floor(100 + Math.random() * 900);
+                        const code = formData.discountType === 'percentage'
+                          ? `COTTON${formData.discountValue || 15}-${randomSuffix}`
+                          : `SAVE${formData.discountValue || 200}-${randomSuffix}`;
+                        setFormData((prev) => ({ ...prev, code }));
+                        if (formErrors.code) {
+                          setFormErrors((prev) => ({ ...prev, code: '' }));
+                        }
+                      }}
+                      className="text-[11px] font-semibold text-[#70252D] hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Sparkles className="w-3 h-3 text-[#A8823B]" />
+                      <span>Auto-Generate Code</span>
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
                       value={formData.code}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const codeVal = e.target.value.toUpperCase().replace(/\s+/g, '-');
                         setFormData({
                           ...formData,
-                          code: e.target.value.toUpperCase().replace(/\s+/g, ''),
-                        })
-                      }
+                          code: codeVal,
+                        });
+                        if (formErrors.code) {
+                          setFormErrors((prev) => ({ ...prev, code: '' }));
+                        }
+                      }}
                       placeholder="e.g. FESTIVE20"
                       className={`w-full px-3.5 py-2.5 bg-white rounded-xl border text-xs font-mono font-bold tracking-wider text-[#2C2420] focus:outline-none focus:ring-1 ${
                         formErrors.code
@@ -769,7 +814,7 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                     </p>
                   )}
                   <p className="text-[10px] text-[#A8988D] mt-0.5">
-                    Customers will enter this code at checkout (letters &amp; numbers only).
+                    Customers enter this code at checkout (letters, numbers, hyphens).
                   </p>
                 </div>
 
@@ -780,7 +825,12 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, title: e.target.value });
+                      if (formErrors.title) {
+                        setFormErrors((prev) => ({ ...prev, title: '' }));
+                      }
+                    }}
                     placeholder="e.g. 20% Festive Savings"
                     className={`w-full px-3.5 py-2.5 bg-white rounded-xl border text-xs font-medium text-[#2C2420] focus:outline-none focus:ring-1 ${
                       formErrors.title
@@ -791,6 +841,9 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                   {formErrors.title && (
                     <p className="text-[11px] text-rose-600 mt-1">{formErrors.title}</p>
                   )}
+                  <p className="text-[10px] text-[#A8988D] mt-0.5">
+                    Display name shown to customers in bag &amp; offer banners.
+                  </p>
                 </div>
               </div>
 
@@ -803,7 +856,7 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                   type="text"
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="e.g. Valid on all pure cotton sheets on orders above ₹2,000"
+                  placeholder="e.g. Valid on all pure cotton sheets on orders above ₹1,500"
                   className="w-full px-3.5 py-2 bg-white rounded-xl border border-[#DEC89B] text-xs font-medium text-[#2C2420] focus:outline-none focus:border-[#70252D]"
                 />
               </div>
@@ -848,11 +901,17 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                   <input
                     type="number"
                     min="1"
-                    max={formData.discountType === 'percentage' ? 90 : 50000}
-                    value={formData.discountValue}
-                    onChange={(e) =>
-                      setFormData({ ...formData, discountValue: Number(e.target.value) })
-                    }
+                    max={formData.discountType === 'percentage' ? 95 : 100000}
+                    step="any"
+                    value={formData.discountValue || ''}
+                    onChange={(e) => {
+                      const v = e.target.value === '' ? 0 : Number(e.target.value);
+                      setFormData({ ...formData, discountValue: v });
+                      if (formErrors.discountValue) {
+                        setFormErrors((prev) => ({ ...prev, discountValue: '' }));
+                      }
+                    }}
+                    placeholder={formData.discountType === 'percentage' ? '10' : '250'}
                     className="w-full px-3.5 py-2 bg-[#FAF7F2] rounded-xl border border-[#DEC89B] text-xs font-bold text-[#70252D] focus:outline-none focus:border-[#70252D]"
                   />
                   {formErrors.discountValue && (
@@ -867,42 +926,44 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                   <input
                     type="number"
                     min="0"
-                    step="50"
-                    value={formData.minOrderValue}
-                    onChange={(e) =>
-                      setFormData({ ...formData, minOrderValue: Number(e.target.value) })
-                    }
+                    step="any"
+                    value={formData.minOrderValue || ''}
+                    onChange={(e) => {
+                      const v = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value));
+                      setFormData({ ...formData, minOrderValue: v });
+                    }}
                     placeholder="0 = No minimum"
                     className="w-full px-3.5 py-2 bg-[#FAF7F2] rounded-xl border border-[#DEC89B] text-xs font-medium text-[#2C2420] focus:outline-none focus:border-[#70252D]"
                   />
-                  <p className="text-[10px] text-[#A8988D] mt-0.5">0 for no minimum</p>
+                  <p className="text-[10px] text-[#A8988D] mt-0.5">e.g. 999, 1500, or 0 for any amount</p>
                 </div>
               </div>
 
               {/* Optional Max Cap for Percentage */}
               {formData.discountType === 'percentage' && (
                 <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
                       <span className="text-xs font-semibold text-amber-900">
                         Maximum Discount Cap (₹) (Optional)
                       </span>
                       <p className="text-[11px] text-amber-700">
-                        Cap the maximum savings a customer can get (e.g. ₹500 maximum on 20% off).
+                        Cap the maximum savings a customer can get (e.g. max ₹500 discount on 20% off).
                       </p>
                     </div>
-                    <div className="w-32">
+                    <div className="w-32 shrink-0">
                       <input
                         type="number"
                         min="0"
-                        step="50"
+                        step="any"
                         value={formData.maxDiscountAmount || ''}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const v = e.target.value === '' ? undefined : Math.max(0, Number(e.target.value));
                           setFormData({
                             ...formData,
-                            maxDiscountAmount: e.target.value ? Number(e.target.value) : undefined,
-                          })
-                        }
+                            maxDiscountAmount: v,
+                          });
+                        }}
                         placeholder="e.g. 500"
                         className="w-full px-3 py-1.5 bg-white rounded-lg border border-amber-300 text-xs font-semibold text-amber-900 focus:outline-none"
                       />
@@ -932,7 +993,12 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                   <input
                     type="date"
                     value={formData.expiryDate}
-                    onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, expiryDate: e.target.value });
+                      if (formErrors.expiryDate) {
+                        setFormErrors((prev) => ({ ...prev, expiryDate: '' }));
+                      }
+                    }}
                     className="w-full px-3.5 py-2 bg-white rounded-xl border border-[#DEC89B] text-xs font-medium text-[#2C2420] focus:outline-none focus:border-[#70252D]"
                   />
                   {formErrors.expiryDate && (
@@ -950,13 +1016,15 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                   <input
                     type="number"
                     min="1"
+                    step="1"
                     value={formData.maxUses || ''}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const v = e.target.value === '' ? undefined : Math.max(1, parseInt(e.target.value, 10));
                       setFormData({
                         ...formData,
-                        maxUses: e.target.value ? Number(e.target.value) : undefined,
-                      })
-                    }
+                        maxUses: v,
+                      });
+                    }}
                     placeholder="Unlimited if empty"
                     className="w-full px-3.5 py-2 bg-[#FAF7F2] rounded-xl border border-[#DEC89B] text-xs font-medium text-[#2C2420] focus:outline-none focus:border-[#70252D]"
                   />

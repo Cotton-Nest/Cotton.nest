@@ -690,26 +690,32 @@ export async function getCouponsApi(): Promise<CouponOffer[]> {
 }
 
 export async function saveCouponApi(coupon: CouponOffer): Promise<CouponOffer> {
-  const cleanCode = (coupon.code || `OFFER${Math.floor(Math.random() * 1000)}`)
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, '-');
+  const rawCode = (coupon.code || `OFFER${Math.floor(100 + Math.random() * 900)}`).trim().toUpperCase();
+  const cleanCode = rawCode.replace(/[^A-Z0-9_-]/g, '-') || `OFFER-${Math.floor(100 + Math.random() * 900)}`;
+
+  // Safe document ID for Firestore without slashes, spaces, or URI characters
+  const safeId = (
+    coupon.id && typeof coupon.id === 'string' && !coupon.id.includes('/')
+      ? coupon.id
+      : `coupon-${cleanCode.toLowerCase().replace(/[^a-z0-9_-]/g, '')}-${Date.now().toString(36)}`
+  ).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
 
   const cleanCoupon: CouponOffer = {
     ...coupon,
+    id: safeId,
     code: cleanCode,
-    title: (coupon.title || 'Special Offer').trim(),
+    title: (coupon.title || `${cleanCode} Offer`).trim(),
     description: (coupon.description || '').trim(),
     discountType: coupon.discountType || 'percentage',
-    discountValue: Number(coupon.discountValue) || 0,
-    minOrderValue: Number(coupon.minOrderValue) || 0,
-    maxDiscountAmount: coupon.maxDiscountAmount ? Number(coupon.maxDiscountAmount) : 0,
-    startDate: coupon.startDate || new Date().toISOString().split('T')[0],
-    expiryDate: coupon.expiryDate || '2030-12-31',
+    discountValue: Number(coupon.discountValue) || 10,
+    minOrderValue: Math.max(0, Number(coupon.minOrderValue) || 0),
+    maxDiscountAmount: coupon.maxDiscountAmount ? Math.max(0, Number(coupon.maxDiscountAmount)) : 0,
+    startDate: (coupon.startDate || new Date().toISOString().split('T')[0]).trim(),
+    expiryDate: (coupon.expiryDate || '2030-12-31').trim(),
     isActive: coupon.isActive ?? true,
     isAutomatic: Boolean(coupon.isAutomatic),
-    maxUses: coupon.maxUses ? Number(coupon.maxUses) : 0,
-    usedCount: Number(coupon.usedCount) || 0,
+    maxUses: coupon.maxUses ? Math.max(0, Number(coupon.maxUses)) : 0,
+    usedCount: Math.max(0, Number(coupon.usedCount) || 0),
     oneUsePerCustomer: Boolean(coupon.oneUsePerCustomer),
     usedByCustomers: Array.isArray(coupon.usedByCustomers) ? coupon.usedByCustomers : [],
     scope: coupon.scope || 'all',
@@ -741,23 +747,29 @@ export async function saveCouponApi(coupon: CouponOffer): Promise<CouponOffer> {
     localStorage.setItem('cotton_nest_coupons', JSON.stringify(list));
   } catch {}
 
-  // 2. Save to server backend
+  // 2. Persist to server backend synchronously
   try {
-    fetch('/api/coupons', {
+    const serverRes = await fetch('/api/coupons', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cleanCoupon),
-    }).catch(() => {});
-  } catch {}
+    });
+    if (!serverRes.ok) {
+      const errData = await serverRes.json().catch(() => ({}));
+      console.warn('Backend coupon save notice:', errData);
+    }
+  } catch (err) {
+    console.warn('Backend coupon save fetch offline:', err);
+  }
 
   // 3. Persist to Firestore
   try {
     await setDoc(doc(db, 'coupons', cleanCoupon.id), firestoreDoc, { merge: true });
-    return cleanCoupon;
   } catch (error) {
-    console.warn('Firestore setDoc coupon notice (synced via backend fallback):', error);
-    return cleanCoupon;
+    console.warn('Firestore setDoc coupon notice (persisted to backend):', error);
   }
+
+  return cleanCoupon;
 }
 
 export async function deleteCouponApi(couponId: string): Promise<void> {

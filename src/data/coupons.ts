@@ -175,9 +175,11 @@ export function evaluateCouponEligibility(
   if (!coupon.scope || coupon.scope === 'all') {
     eligibleSubtotal = subtotal;
   } else if (coupon.scope === 'products' && Array.isArray(coupon.applicableProductIds)) {
-    eligibleSubtotal = items.reduce((sum, item) => {
-      if (coupon.applicableProductIds!.includes(item.product.id)) {
-        return sum + item.product.price * item.quantity;
+    eligibleSubtotal = (items || []).reduce((sum, item) => {
+      if (item && item.product && item.product.id && coupon.applicableProductIds!.includes(item.product.id)) {
+        const pPrice = typeof item.product.price === 'number' && !isNaN(item.product.price) ? item.product.price : 0;
+        const qty = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+        return sum + pPrice * qty;
       }
       return sum;
     }, 0);
@@ -185,11 +187,15 @@ export function evaluateCouponEligibility(
       return { isEligible: false, reason: 'This coupon is only valid for selected bedsheets not in your bag.', discountAmount: 0, eligibleSubtotal: 0 };
     }
   } else if (coupon.scope === 'collections' && Array.isArray(coupon.applicableCollections)) {
-    const collSet = new Set(coupon.applicableCollections.map((c) => c.toLowerCase()));
-    eligibleSubtotal = items.reduce((sum, item) => {
-      const coll = (item.product.collection || '').toLowerCase();
-      if (collSet.has(coll)) {
-        return sum + item.product.price * item.quantity;
+    const collSet = new Set(coupon.applicableCollections.map((c) => (c || '').toLowerCase()));
+    eligibleSubtotal = (items || []).reduce((sum, item) => {
+      if (item && item.product) {
+        const coll = (item.product.collection || '').toLowerCase();
+        if (collSet.has(coll)) {
+          const pPrice = typeof item.product.price === 'number' && !isNaN(item.product.price) ? item.product.price : 0;
+          const qty = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+          return sum + pPrice * qty;
+        }
       }
       return sum;
     }, 0);

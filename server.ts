@@ -41,14 +41,25 @@ function initDatabase(): StoreDatabase {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.products)) {
+        let needsSave = false;
         if (!parsed.reviews || !Array.isArray(parsed.reviews)) {
           parsed.reviews = INITIAL_REVIEWS;
+          needsSave = true;
         }
         if (!parsed.seasonalConfig) {
           parsed.seasonalConfig = INITIAL_SEASONAL_CONFIG;
+          needsSave = true;
         }
         if (!parsed.coupons || !Array.isArray(parsed.coupons)) {
           parsed.coupons = INITIAL_COUPONS;
+          needsSave = true;
+        }
+        if (needsSave) {
+          try {
+            fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
+          } catch (writeErr) {
+            console.error('Error saving updated initial store_db.json:', writeErr);
+          }
         }
         return parsed;
       }
@@ -752,20 +763,54 @@ async function startServer() {
 
   // 2. Create or Update coupon
   app.post('/api/coupons', (req, res) => {
-    const coupon: CouponOffer = req.body;
-    if (!coupon || !coupon.code || !coupon.discountValue) {
-      return res.status(400).json({ error: 'Coupon code and discount value are required.' });
+    const rawCoupon = req.body;
+    if (!rawCoupon || typeof rawCoupon !== 'object') {
+      return res.status(400).json({ error: 'Invalid coupon payload.' });
     }
 
-    if (!coupon.id) {
-      coupon.id = `coupon-${Date.now()}`;
+    const rawCode = String(rawCoupon.code || '').trim().toUpperCase();
+    const cleanCode = rawCode.replace(/[^A-Z0-9_-]/g, '-') || `OFFER-${Math.floor(100 + Math.random() * 900)}`;
+    const discountVal = Number(rawCoupon.discountValue);
+
+    if (isNaN(discountVal) || discountVal <= 0) {
+      return res.status(400).json({ error: 'Discount value must be greater than 0.' });
     }
-    coupon.code = coupon.code.trim().toUpperCase();
-    coupon.updatedAt = Date.now();
-    if (!coupon.createdAt) coupon.createdAt = Date.now();
+
+    const safeId = (
+      rawCoupon.id && typeof rawCoupon.id === 'string' && !rawCoupon.id.includes('/')
+        ? rawCoupon.id
+        : `coupon-${cleanCode.toLowerCase().replace(/[^a-z0-9_-]/g, '')}-${Date.now().toString(36)}`
+    ).slice(0, 100);
+
+    const coupon: CouponOffer = {
+      id: safeId,
+      code: cleanCode,
+      title: String(rawCoupon.title || '').trim() || `${cleanCode} Offer`,
+      description: String(rawCoupon.description || '').trim(),
+      discountType: rawCoupon.discountType === 'fixed' ? 'fixed' : 'percentage',
+      discountValue: discountVal,
+      minOrderValue: Math.max(0, Number(rawCoupon.minOrderValue) || 0),
+      maxDiscountAmount: rawCoupon.maxDiscountAmount ? Math.max(0, Number(rawCoupon.maxDiscountAmount)) : 0,
+      startDate: String(rawCoupon.startDate || '').trim() || new Date().toISOString().split('T')[0],
+      expiryDate: String(rawCoupon.expiryDate || '').trim() || '2030-12-31',
+      isActive: rawCoupon.isActive !== false,
+      isAutomatic: Boolean(rawCoupon.isAutomatic),
+      maxUses: rawCoupon.maxUses ? Math.max(0, Number(rawCoupon.maxUses)) : 0,
+      usedCount: Math.max(0, Number(rawCoupon.usedCount) || 0),
+      oneUsePerCustomer: Boolean(rawCoupon.oneUsePerCustomer),
+      usedByCustomers: Array.isArray(rawCoupon.usedByCustomers) ? rawCoupon.usedByCustomers : [],
+      scope: rawCoupon.scope === 'products' ? 'products' : rawCoupon.scope === 'collections' ? 'collections' : 'all',
+      applicableProductIds: Array.isArray(rawCoupon.applicableProductIds) ? rawCoupon.applicableProductIds : [],
+      applicableCollections: Array.isArray(rawCoupon.applicableCollections) ? rawCoupon.applicableCollections : [],
+      badgeText: String(rawCoupon.badgeText || '').trim(),
+      createdAt: Number(rawCoupon.createdAt) || Date.now(),
+      updatedAt: Date.now(),
+    };
 
     if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
-    const existingIdx = db.coupons.findIndex((c) => c.id === coupon.id || c.code.toUpperCase() === coupon.code.toUpperCase());
+    const existingIdx = db.coupons.findIndex(
+      (c) => c.id === coupon.id || c.code.toUpperCase() === coupon.code.toUpperCase()
+    );
     if (existingIdx >= 0) {
       db.coupons[existingIdx] = { ...db.coupons[existingIdx], ...coupon };
     } else {
