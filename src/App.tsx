@@ -66,7 +66,20 @@ import {
   markNotificationReadApi,
   markAllNotificationsReadApi,
   clearAllNotificationsApi,
+  getWishlistsApi,
+  saveWishlistItemApi,
+  removeWishlistItemApi,
 } from './services/api';
+import { WishlistDrawer } from './components/WishlistDrawer';
+import { CustomerWishlistModal } from './components/CustomerWishlistModal';
+import {
+  WishlistItem,
+  CustomerProfile,
+  getCurrentCustomerProfile,
+  saveCurrentCustomerProfile,
+  getLocalWishlist,
+  saveLocalWishlist,
+} from './data/wishlist';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, testConnection } from './firebase';
 import { ReviewsSection } from './components/ReviewsSection';
@@ -115,6 +128,160 @@ export default function App() {
   const [isOwnerAuthOpen, setIsOwnerAuthOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [whatsAppHelperData, setWhatsAppHelperData] = useState<WhatsAppHelperData | null>(null);
+
+  // Customer Wishlist State with local caching and backend sync
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile>(() => {
+    return getCurrentCustomerProfile();
+  });
+
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(() => {
+    return getLocalWishlist();
+  });
+
+  const [isWishlistOpen, setIsWishlistOpen] = useState(false);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [pendingWishlistProduct, setPendingWishlistProduct] = useState<{
+    product: BedsheetProduct;
+    variant?: BedsheetVariant;
+  } | null>(null);
+
+  // Sync profile when authenticated user logs in
+  useEffect(() => {
+    if (user && user.name) {
+      setCustomerProfile((prev) => {
+        const updated = saveCurrentCustomerProfile({
+          ...prev,
+          name: user.name,
+          email: user.email || prev.email,
+          phone: user.phone || prev.phone,
+          isGuest: false,
+        });
+        return updated;
+      });
+    }
+  }, [user]);
+
+  // Initial fetch of wishlist items for this customer from Firestore/server
+  useEffect(() => {
+    let isMounted = true;
+    getWishlistsApi(customerProfile.id)
+      .then((items) => {
+        if (isMounted && Array.isArray(items) && items.length > 0) {
+          setWishlistItems(items);
+          saveLocalWishlist(items);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [customerProfile.id]);
+
+  const isProductWishlisted = (productId: string, variantId?: string) => {
+    return wishlistItems.some(
+      (item) => item.productId === productId && (!variantId || item.selectedVariantId === variantId)
+    );
+  };
+
+  const handleToggleWishlist = (product: BedsheetProduct, variant?: BedsheetVariant) => {
+    const existing = wishlistItems.find(
+      (item) => item.productId === product.id && (!variant || item.selectedVariantId === variant.id)
+    );
+
+    if (existing) {
+      // Remove from wishlist
+      const updated = wishlistItems.filter((item) => item.id !== existing.id);
+      setWishlistItems(updated);
+      saveLocalWishlist(updated);
+      removeWishlistItemApi(existing.id).catch(() => {});
+      return;
+    }
+
+    // If customer profile is completely empty/anonymous, open CustomerWishlistModal to prompt
+    if (customerProfile.isGuest && !customerProfile.phone && !customerProfile.email && customerProfile.name === 'Atelier Guest') {
+      setPendingWishlistProduct({ product, variant });
+      setIsCustomerModalOpen(true);
+      return;
+    }
+
+    // Add directly to wishlist
+    const newItem: WishlistItem = {
+      id: `${customerProfile.id}_${product.id}${variant ? `_${variant.id}` : ''}`,
+      customerId: customerProfile.id,
+      customerName: customerProfile.name || 'Atelier Guest',
+      customerPhone: customerProfile.phone,
+      customerEmail: customerProfile.email,
+      productId: product.id,
+      productName: product.name,
+      productPrice: product.price,
+      productOriginalPrice: product.originalPrice,
+      productImage: resolveBedsheetImage(variant?.image || product.image, product.id),
+      productDimensions: product.dimensions,
+      collection: product.collection,
+      threadCount: product.threadCount,
+      fabric: product.fabric,
+      selectedVariantId: variant?.id,
+      selectedVariantName: variant?.name,
+      createdAt: Date.now(),
+    };
+
+    const updated = [newItem, ...wishlistItems.filter((it) => it.id !== newItem.id)];
+    setWishlistItems(updated);
+    saveLocalWishlist(updated);
+    saveWishlistItemApi(newItem).catch(() => {});
+  };
+
+  const handleCustomerProfileConfirmed = (profile: CustomerProfile) => {
+    setCustomerProfile(profile);
+    if (pendingWishlistProduct) {
+      const { product, variant } = pendingWishlistProduct;
+      const newItem: WishlistItem = {
+        id: `${profile.id}_${product.id}${variant ? `_${variant.id}` : ''}`,
+        customerId: profile.id,
+        customerName: profile.name || 'Atelier Guest',
+        customerPhone: profile.phone,
+        customerEmail: profile.email,
+        productId: product.id,
+        productName: product.name,
+        productPrice: product.price,
+        productOriginalPrice: product.originalPrice,
+        productImage: resolveBedsheetImage(variant?.image || product.image, product.id),
+        productDimensions: product.dimensions,
+        collection: product.collection,
+        threadCount: product.threadCount,
+        fabric: product.fabric,
+        selectedVariantId: variant?.id,
+        selectedVariantName: variant?.name,
+        createdAt: Date.now(),
+      };
+
+      const updated = [newItem, ...wishlistItems.filter((it) => it.id !== newItem.id)];
+      setWishlistItems(updated);
+      saveLocalWishlist(updated);
+      saveWishlistItemApi(newItem).catch(() => {});
+      setPendingWishlistProduct(null);
+    }
+  };
+
+  const handleRemoveWishlistItem = (id: string) => {
+    const updated = wishlistItems.filter((item) => item.id !== id);
+    setWishlistItems(updated);
+    saveLocalWishlist(updated);
+    removeWishlistItemApi(id).catch(() => {});
+  };
+
+  const handleMoveToCartFromWishlist = (item: WishlistItem) => {
+    const prod = products.find((p) => p.id === item.productId);
+    if (prod) {
+      const variant = item.selectedVariantId
+        ? prod.variants?.find((v) => v.id === item.selectedVariantId)
+        : undefined;
+      handleAddToCart(prod, 1, variant);
+      handleRemoveWishlistItem(item.id);
+      setIsWishlistOpen(false);
+      setIsCartOpen(true);
+    }
+  };
 
   // Store Owner Authentication Mode (unlocked by Google login adityaa.22082011@gmail.com or PIN)
   const [isOwnerPinUnlocked, setIsOwnerPinUnlocked] = useState<boolean>(() => {
@@ -1070,6 +1237,8 @@ export default function App() {
             unreadNotificationsCount={unreadNotificationsCount}
             onOpenCompare={() => setIsCompareModalOpen(true)}
             comparedCount={comparedProductIds.length}
+            wishlistCount={wishlistItems.length}
+            onOpenWishlist={() => setIsWishlistOpen(true)}
           />
 
           {/* Main Content Area */}
@@ -1172,6 +1341,8 @@ export default function App() {
                             onToggleCompare={handleToggleCompare}
                             isCompared={comparedProductIds.includes(product.id)}
                             onNotifyStock={handleNotifyStock}
+                            isWishlisted={isProductWishlisted(product.id)}
+                            onToggleWishlist={handleToggleWishlist}
                           />
                         </motion.div>
                       ))}
@@ -1243,6 +1414,8 @@ export default function App() {
                 onToggleCompare={handleToggleCompare}
                 comparedProductIds={comparedProductIds}
                 onNotifyStock={handleNotifyStock}
+                isWishlisted={isProductWishlisted}
+                onToggleWishlist={handleToggleWishlist}
               />
             )}
 
@@ -1383,6 +1556,8 @@ export default function App() {
             cartCount={totalCartCount}
             openCart={() => setIsCartOpen(true)}
             seasonalConfig={seasonalConfig}
+            wishlistCount={wishlistItems.length}
+            openWishlist={() => setIsWishlistOpen(true)}
           />
 
           {/* Global Footer with discrete owner access */}
@@ -1462,6 +1637,28 @@ export default function App() {
         onClose={() => setStockAlertProduct(null)}
         product={stockAlertProduct}
         defaultContact={user?.phone || user?.email || ''}
+      />
+
+      {/* Customer Wishlist Drawer Modal */}
+      <WishlistDrawer
+        isOpen={isWishlistOpen}
+        onClose={() => setIsWishlistOpen(false)}
+        items={wishlistItems}
+        customerProfile={customerProfile}
+        onRemoveItem={handleRemoveWishlistItem}
+        onMoveToCart={handleMoveToCartFromWishlist}
+        onEditProfile={() => setIsCustomerModalOpen(true)}
+      />
+
+      {/* Customer Contact Details Capture Modal for Wishlist */}
+      <CustomerWishlistModal
+        isOpen={isCustomerModalOpen}
+        onClose={() => {
+          setIsCustomerModalOpen(false);
+          setPendingWishlistProduct(null);
+        }}
+        onConfirmed={handleCustomerProfileConfirmed}
+        pendingProductName={pendingWishlistProduct?.product.name}
       />
 
       {/* Floating Smooth Scroll-to-Top Button */}

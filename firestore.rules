@@ -93,5 +93,10 @@ service cloud.firestore {
     match /push_subscriptions/{subId} {
       allow read, write: if true;
     }
+
+    // Customer Wishlists: curated bedsheets saved by individual visitors
+    match /wishlists/{wishlistId} {
+      allow read, write: if true;
+    }
   }
 }

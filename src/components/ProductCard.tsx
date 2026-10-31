@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell } from 'lucide-react';
+import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell, Heart, ZoomIn, Sparkles } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
 import { isCloudinaryUrl } from '../services/cloudinary';
+import { FabricInspectorModal } from './FabricInspectorModal';
 
 interface ProductCardProps {
   product: BedsheetProduct;
@@ -19,6 +20,8 @@ interface ProductCardProps {
   onToggleCompare?: (product: BedsheetProduct) => void;
   isCompared?: boolean;
   onNotifyStock?: (product: BedsheetProduct) => void;
+  isWishlisted?: boolean;
+  onToggleWishlist?: (product: BedsheetProduct, variant?: BedsheetVariant) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -34,9 +37,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onToggleCompare,
   isCompared = false,
   onNotifyStock,
+  isWishlisted = false,
+  onToggleWishlist,
 }) => {
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [isHoverZooming, setIsHoverZooming] = useState<boolean>(false);
+  const [hoverZoomPos, setHoverZoomPos] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
+  const [isFabricModalOpen, setIsFabricModalOpen] = useState<boolean>(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const ratingSummary = getProductRatingSummary(product.id, reviews);
 
@@ -77,14 +85,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const isLowStock = !isOutOfStock && product.stockQuantity !== undefined && product.stockQuantity > 0 && product.stockQuantity <= 3;
 
   return (
+    <>
     <article
       onClick={() => onQuickView(product)}
       className={`group bg-[var(--color-surface,#FFFFFF)] rounded-2xl border overflow-hidden hover:border-[var(--color-accent,#C29E57)]/60 hover:shadow-md transition-all duration-300 flex flex-col cursor-pointer ${
         isOutOfStock ? 'opacity-75 border-amber-200' : 'border-[var(--color-border,#EAE2D5)]'
       }`}
     >
-      {/* Product Image Slot */}
-      <div className="relative aspect-[4/3] bg-[#F4EFE6] overflow-hidden">
+      {/* Product Image Slot with Fabric Weave Hover Zoom */}
+      <div
+        className="relative aspect-[4/3] bg-[#F4EFE6] overflow-hidden"
+        onMouseEnter={() => setIsHoverZooming(true)}
+        onMouseLeave={() => setIsHoverZooming(false)}
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+          const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+          setHoverZoomPos({ x, y });
+        }}
+      >
         <img
           src={displayImage}
           alt={product.name}
@@ -94,24 +113,76 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           onError={(e) => {
             handleImageFallback(e, product.id);
           }}
-          className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
+          className="w-full h-full object-cover object-center will-change-transform"
+          style={{
+            transformOrigin: isHoverZooming ? `${hoverZoomPos.x}% ${hoverZoomPos.y}%` : 'center center',
+            transform: isHoverZooming ? 'scale(2.25)' : 'scale(1)',
+            transition: isHoverZooming ? 'transform 0.12s ease-out' : 'transform 0.4s ease-out',
+          }}
         />
 
-        {/* Quiet Single Status Badge */}
+        {/* Micro reticle when hovering to inspect fabric weave */}
+        {isHoverZooming && (
+          <div
+            className="absolute pointer-events-none w-14 h-14 rounded-full border border-white/60 shadow-[0_0_10px_rgba(255,255,255,0.4)] backdrop-brightness-110"
+            style={{
+              left: `${hoverZoomPos.x}%`,
+              top: `${hoverZoomPos.y}%`,
+              transform: 'translate(-50%, -50%)',
+            }}
+          />
+        )}
+
+        {/* Wishlist Heart Button (Top Left) */}
+        {onToggleWishlist && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleWishlist(product, activeVariant);
+            }}
+            title={isWishlisted ? "Remove from wishlist" : "Save to wishlist"}
+            className={`absolute top-3 left-3 z-10 p-2 rounded-xl border backdrop-blur-md transition-all shadow-xs cursor-pointer ${
+              isWishlisted
+                ? 'bg-rose-50 text-rose-600 border-rose-200 shadow-sm scale-105'
+                : 'bg-[#FAF7F2]/90 hover:bg-white text-[#7A6458] hover:text-rose-600 border-[#EAE2D5]'
+            }`}
+          >
+            <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-rose-500 text-rose-500' : ''}`} />
+          </button>
+        )}
+
+        {/* Quiet Single Status Badge (Moved slightly to right of wishlist button) */}
         {isOutOfStock ? (
-          <div className="absolute top-3 left-3 bg-[#2C2420]/90 backdrop-blur-sm px-2.5 py-1 rounded-md text-[11px] font-medium text-amber-300 border border-amber-400/30 shadow-xs">
+          <div className="absolute top-3 left-12 bg-[#2C2420]/90 backdrop-blur-sm px-2.5 py-1 rounded-md text-[11px] font-medium text-amber-300 border border-amber-400/30 shadow-xs">
             Sold Out
           </div>
         ) : product.badge ? (
-          <div className="absolute top-3 left-3 bg-[#FAF7F2]/95 backdrop-blur-sm px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#8C2E46] border border-[#FAD1DC] shadow-xs">
+          <div className="absolute top-3 left-12 bg-[#FAF7F2]/95 backdrop-blur-sm px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#8C2E46] border border-[#FAD1DC] shadow-xs">
             {product.badge}
           </div>
         ) : (!!customImage || (typeof product.image === 'string' && (isCloudinaryUrl(product.image) || (!product.image.includes('exact_sheet') && !product.image.startsWith('/images/exact_'))))) ? (
-          <div className="absolute top-3 left-3 bg-[#FAF7F2]/95 backdrop-blur-xs text-[#2E6B4A] px-2 py-0.5 rounded text-[10px] font-semibold border border-[#BDE0CE] shadow-2xs flex items-center gap-1">
+          <div className="absolute top-3 left-12 bg-[#FAF7F2]/95 backdrop-blur-xs text-[#2E6B4A] px-2 py-0.5 rounded text-[10px] font-semibold border border-[#BDE0CE] shadow-2xs flex items-center gap-1">
             <Check className="w-2.5 h-2.5 text-[#2E6B4A]" />
             <span>Updated Photo</span>
           </div>
         ) : null}
+
+        {/* Click-to-Zoom Fabric Weave Pill (Top Right, accessible anytime) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsFabricModalOpen(true);
+          }}
+          title="Inspect fabric weave & thread texture in detail"
+          className={`absolute z-10 p-1.5 rounded-lg border text-[11px] font-semibold transition-all backdrop-blur-md flex items-center gap-1 cursor-pointer ${
+            isOwnerMode ? 'top-12 right-3' : 'top-3 right-3'
+          } bg-[#FAF7F2]/90 hover:bg-white text-[#2C2420] hover:text-[var(--color-primary,#70252D)] border-[#EAE2D5] shadow-xs`}
+        >
+          <ZoomIn className="w-3.5 h-3.5 text-[#C29E57]" />
+          <span className="hidden sm:inline">Zoom Fabric</span>
+        </button>
 
         {/* Owner Quick Controls: Discreet Frosted Top-Right Controls */}
         {isOwnerMode && (
@@ -147,38 +218,31 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </button>
           </div>
         )}
-        {/* Compare Toggle Pill (Top Right, or below owner controls) */}
-        {onToggleCompare && (
+
+        {/* Quick Action Overlay on Hover */}
+        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onToggleCompare(product);
+              setIsFabricModalOpen(true);
             }}
-            title={isCompared ? "Remove from comparison" : "Compare this bedsheet"}
-            className={`absolute z-10 p-1.5 rounded-lg border text-[11px] font-semibold transition-all backdrop-blur-md flex items-center gap-1 cursor-pointer ${
-              isOwnerMode ? 'top-12 right-3' : 'top-3 right-3'
-            } ${
-              isCompared
-                ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
-                : 'bg-[#FAF7F2]/90 hover:bg-white text-[#6B5D55] hover:text-[#2C2420] border-[#EAE2D5] shadow-xs'
-            }`}
+            className="px-3 py-1.5 bg-[#FAF7F2]/95 hover:bg-white text-[#2C2420] text-xs font-semibold rounded-lg shadow-sm backdrop-blur-sm flex items-center gap-1.5 transition-transform"
           >
-            <ArrowLeftRight className="w-3 h-3" />
-            <span className="hidden sm:inline">{isCompared ? 'Comparing' : 'Compare'}</span>
+            <ZoomIn className="w-3.5 h-3.5 text-[#C29E57]" />
+            <span>Inspect Fabric</span>
           </button>
-        )}
-        <div className="absolute inset-0 bg-[#2C2420]/15 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
+
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onQuickView(product);
             }}
-            className="px-4 py-2 bg-[#FAF7F2]/95 hover:bg-white text-[#2C2420] text-xs font-semibold rounded-lg shadow-sm backdrop-blur-sm flex items-center gap-1.5 transition-transform transform translate-y-2 group-hover:translate-y-0"
+            className="px-3 py-1.5 bg-[#FAF7F2]/95 hover:bg-white text-[#2C2420] text-xs font-semibold rounded-lg shadow-sm backdrop-blur-sm flex items-center gap-1.5 transition-transform"
           >
             <Eye className="w-3.5 h-3.5 text-[#C29E57]" />
-            <span>Inspect Details</span>
+            <span>Details</span>
           </button>
         </div>
       </div>
@@ -333,5 +397,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       </div>
     </article>
+
+    {/* Fabric Weave Detail Modal */}
+    <FabricInspectorModal
+      isOpen={isFabricModalOpen}
+      onClose={() => setIsFabricModalOpen(false)}
+      product={product}
+      activeVariant={activeVariant}
+      customImage={customImage}
+      isWishlisted={isWishlisted}
+      onToggleWishlist={onToggleWishlist ? () => onToggleWishlist(product, activeVariant) : undefined}
+      onAddToCart={onAddToCart}
+    />
+    </>
   );
 };

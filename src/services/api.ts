@@ -21,6 +21,7 @@ import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 import { CouponOffer, INITIAL_COUPONS, evaluateCouponEligibility, CartItemLike, CouponEvaluationResult } from '../data/coupons';
 import { AppNotification, StockSubscription, PushSubscriptionData, INITIAL_CUSTOMER_NOTIFICATIONS } from '../data/notifications';
+import { WishlistItem } from '../data/wishlist';
 
 // Re-export Cloudinary service helpers
 export {
@@ -1058,5 +1059,93 @@ export async function savePushSubscriptionApi(pushSub: PushSubscriptionData): Pr
     console.warn('Push subscription persistence notice:', err);
   }
 }
+
+// ---------------- CUSTOMER WISHLISTS API ---------------- //
+
+/**
+ * Fetch all wishlisted items (for Admin Panel), or filtered by customerId.
+ * Resiliently queries Firestore first, then falls back to /api/wishlists Express endpoint.
+ */
+export async function getWishlistsApi(customerId?: string): Promise<WishlistItem[]> {
+  try {
+    const snap = await getDocs(collection(db, 'wishlists'));
+    if (!snap.empty) {
+      const items: WishlistItem[] = [];
+      snap.forEach((d) => {
+        const item = { id: d.id, ...d.data() } as WishlistItem;
+        if (!customerId || item.customerId === customerId) {
+          items.push(item);
+        }
+      });
+      return items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }
+  } catch (err) {
+    console.warn('Firestore wishlists fetch notice, trying local API:', err);
+  }
+
+  try {
+    const url = customerId ? `/api/wishlists?customerId=${encodeURIComponent(customerId)}` : '/api/wishlists';
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Server wishlists fetch notice:', err);
+  }
+
+  return [];
+}
+
+/**
+ * Saves a wishlisted item to both Firestore and local server database.
+ */
+export async function saveWishlistItemApi(item: WishlistItem): Promise<WishlistItem> {
+  const safeItem = stripUndefined(item);
+
+  // 1. Save to Firestore
+  try {
+    await setDoc(doc(db, 'wishlists', item.id), safeItem);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `wishlists/${item.id}`);
+  }
+
+  // 2. Save to Express server store_db.json
+  try {
+    await fetch('/api/wishlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(safeItem),
+    });
+  } catch (err) {
+    console.warn('Server wishlist POST notice:', err);
+  }
+
+  return item;
+}
+
+/**
+ * Removes a wishlisted item from both Firestore and local server database.
+ */
+export async function removeWishlistItemApi(id: string): Promise<void> {
+  // 1. Delete from Firestore
+  try {
+    await deleteDoc(doc(db, 'wishlists', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `wishlists/${id}`);
+  }
+
+  // 2. Delete from Express server
+  try {
+    await fetch(`/api/wishlists/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    console.warn('Server wishlist DELETE notice:', err);
+  }
+}
+
 
 

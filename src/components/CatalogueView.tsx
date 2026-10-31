@@ -12,7 +12,7 @@ import {
   RotateCcw,
   IndianRupee
 } from 'lucide-react';
-import { BedsheetProduct, BEDSHEETS_CATALOG, COMPANY_DETAILS } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, BEDSHEETS_CATALOG, COMPANY_DETAILS } from '../data/products';
 import { ProductCard } from './ProductCard';
 
 interface CatalogueViewProps {
@@ -29,6 +29,8 @@ interface CatalogueViewProps {
   onToggleCompare?: (product: BedsheetProduct) => void;
   comparedProductIds?: string[];
   onNotifyStock?: (product: BedsheetProduct) => void;
+  isWishlisted?: (productId: string) => boolean;
+  onToggleWishlist?: (product: BedsheetProduct, variant?: BedsheetVariant) => void;
 }
 
 // Parses search text in real-time to detect price expressions, material keywords, and names
@@ -86,6 +88,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   onToggleCompare,
   comparedProductIds = [],
   onNotifyStock,
+  isWishlisted,
+  onToggleWishlist,
 }) => {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedFilter, setSelectedFilter] = React.useState<string>('all');
@@ -736,6 +740,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 onToggleCompare={onToggleCompare}
                 isCompared={comparedProductIds.includes(product.id)}
                 onNotifyStock={onNotifyStock}
+                isWishlisted={isWishlisted ? isWishlisted(product.id) : false}
+                onToggleWishlist={onToggleWishlist}
               />
             ))}
           </div>

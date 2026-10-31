@@ -10,6 +10,7 @@ import { INITIAL_SITE_CONTENT } from './src/data/siteContent.ts';
 import { INITIAL_REVIEWS } from './src/data/reviews.ts';
 import { INITIAL_SEASONAL_CONFIG } from './src/data/seasonal.ts';
 import { INITIAL_COUPONS, CouponOffer } from './src/data/coupons.ts';
+import { WishlistItem } from './src/data/wishlist.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,7 @@ interface StoreDatabase {
   reviews?: any[];
   seasonalConfig?: any;
   coupons?: CouponOffer[];
+  wishlists?: WishlistItem[];
 }
 
 function initDatabase(): StoreDatabase {
@@ -54,6 +56,10 @@ function initDatabase(): StoreDatabase {
           parsed.coupons = INITIAL_COUPONS;
           needsSave = true;
         }
+        if (!parsed.wishlists || !Array.isArray(parsed.wishlists)) {
+          parsed.wishlists = [];
+          needsSave = true;
+        }
         if (needsSave) {
           try {
             fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
@@ -76,6 +82,7 @@ function initDatabase(): StoreDatabase {
     reviews: INITIAL_REVIEWS,
     seasonalConfig: INITIAL_SEASONAL_CONFIG,
     coupons: INITIAL_COUPONS,
+    wishlists: [],
   };
 
   try {
@@ -951,6 +958,84 @@ async function startServer() {
       return res.json({ success: true, coupon: target });
     }
     res.status(404).json({ error: 'Coupon not found.' });
+  });
+
+  /* ------------------- CUSTOMER WISHLISTS API ------------------- */
+
+  // 1. Get wishlists (all for admin, or filtered by customerId)
+  app.get('/api/wishlists', (req, res) => {
+    if (!db.wishlists) db.wishlists = [];
+    const customerId = req.query.customerId ? String(req.query.customerId).trim() : null;
+    if (customerId) {
+      const filtered = db.wishlists.filter((w) => w.customerId === customerId);
+      return res.json(filtered);
+    }
+    res.json(db.wishlists);
+  });
+
+  // 2. Add or update wishlist item
+  app.post('/api/wishlists', (req, res) => {
+    const raw = req.body;
+    if (!raw || !raw.productId || !raw.customerId) {
+      return res.status(400).json({ error: 'productId and customerId are required.' });
+    }
+
+    if (!db.wishlists) db.wishlists = [];
+
+    const itemId = String(raw.id || `${raw.customerId}_${raw.productId}`);
+    const item: WishlistItem = {
+      id: itemId,
+      customerId: String(raw.customerId).trim(),
+      customerName: String(raw.customerName || 'Atelier Guest').trim(),
+      customerEmail: raw.customerEmail ? String(raw.customerEmail).trim() : undefined,
+      customerPhone: raw.customerPhone ? String(raw.customerPhone).trim() : undefined,
+      productId: String(raw.productId).trim(),
+      productName: String(raw.productName || 'Pure Cotton Bedsheet').trim(),
+      productPrice: Number(raw.productPrice) || 0,
+      productOriginalPrice: Number(raw.productOriginalPrice) || 0,
+      productImage: String(raw.productImage || '').trim(),
+      productDimensions: raw.productDimensions ? String(raw.productDimensions).trim() : undefined,
+      collection: raw.collection ? String(raw.collection).trim() : undefined,
+      threadCount: raw.threadCount ? String(raw.threadCount).trim() : undefined,
+      fabric: raw.fabric ? String(raw.fabric).trim() : undefined,
+      selectedVariantId: raw.selectedVariantId ? String(raw.selectedVariantId).trim() : undefined,
+      selectedVariantName: raw.selectedVariantName ? String(raw.selectedVariantName).trim() : undefined,
+      note: raw.note ? String(raw.note).trim() : undefined,
+      createdAt: Number(raw.createdAt) || Date.now(),
+    };
+
+    const existingIdx = db.wishlists.findIndex((w) => w.id === item.id);
+    if (existingIdx >= 0) {
+      db.wishlists[existingIdx] = { ...db.wishlists[existingIdx], ...item };
+    } else {
+      db.wishlists.unshift(item);
+    }
+
+    saveDatabase();
+    res.status(200).json(item);
+  });
+
+  // 3. Delete wishlist item by ID
+  app.delete('/api/wishlists/:id', (req, res) => {
+    const { id } = req.params;
+    if (!db.wishlists) db.wishlists = [];
+    db.wishlists = db.wishlists.filter((w) => w.id !== id);
+    saveDatabase();
+    res.json({ success: true, id });
+  });
+
+  // 4. Delete wishlist item by customerId and productId query
+  app.delete('/api/wishlists', (req, res) => {
+    const { customerId, productId } = req.query;
+    if (!customerId || !productId) {
+      return res.status(400).json({ error: 'customerId and productId are required query parameters.' });
+    }
+    if (!db.wishlists) db.wishlists = [];
+    db.wishlists = db.wishlists.filter(
+      (w) => !(w.customerId === String(customerId) && w.productId === String(productId))
+    );
+    saveDatabase();
+    res.json({ success: true });
   });
 
   // Reset database back to default factory settings

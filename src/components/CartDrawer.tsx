@@ -80,34 +80,51 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     return () => { isMounted = false; };
   }, [isOpen]);
 
+  // Strict guard clause for complete product metadata
+  const isCompleteProduct = (product: any): boolean => {
+    return Boolean(
+      product &&
+      typeof product === 'object' &&
+      typeof product.id === 'string' &&
+      product.id.trim() !== '' &&
+      typeof product.name === 'string' &&
+      product.name.trim() !== '' &&
+      typeof product.price === 'number' &&
+      !isNaN(product.price) &&
+      product.price >= 0
+    );
+  };
+
   const validItems = React.useMemo(() => {
     return (items || [])
       .filter((item): item is CartItem =>
-        Boolean(
-          item &&
-          typeof item === 'object' &&
-          item?.product &&
-          typeof item?.product === 'object' &&
-          item?.product?.id &&
-          typeof item?.product?.id === 'string' &&
-          item?.product?.name &&
-          typeof item?.product?.name === 'string'
-        )
+        Boolean(item && typeof item === 'object' && isCompleteProduct(item?.product))
       )
       .map((item) => {
         let cleanVariant: BedsheetVariant | undefined = undefined;
-        if (item?.selectedVariant && typeof item?.selectedVariant === 'object' && item?.selectedVariant?.name) {
+        if (
+          item?.selectedVariant &&
+          typeof item.selectedVariant === 'object' &&
+          typeof item.selectedVariant.name === 'string' &&
+          item.selectedVariant.name.trim() !== ''
+        ) {
           cleanVariant = {
-            id: String(item?.selectedVariant?.id || 'variant-default'),
-            name: String(item?.selectedVariant?.name),
-            image: item?.selectedVariant?.image ? String(item?.selectedVariant?.image) : String(item?.product?.image || ''),
-            colorHex: item?.selectedVariant?.colorHex ? String(item?.selectedVariant?.colorHex) : undefined,
+            id: String(item.selectedVariant.id || 'variant-default'),
+            name: item.selectedVariant.name.trim(),
+            image:
+              typeof item.selectedVariant.image === 'string' && item.selectedVariant.image.trim() !== ''
+                ? item.selectedVariant.image.trim()
+                : typeof item.product?.image === 'string'
+                ? item.product.image
+                : '',
+            colorHex:
+              typeof item.selectedVariant.colorHex === 'string' && item.selectedVariant.colorHex.trim() !== ''
+                ? item.selectedVariant.colorHex.trim()
+                : undefined,
           };
         }
-        const qty =
-          typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0
-            ? Math.round(item?.quantity)
-            : 1;
+        const rawQty = typeof item?.quantity === 'number' ? item.quantity : Number(item?.quantity);
+        const qty = !isNaN(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
         return {
           ...item,
           quantity: qty,
@@ -116,19 +133,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       });
   }, [items]);
 
-  const subtotal = validItems.reduce((sum, item) => {
-    const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0 ? item.quantity : 1;
-    const price = typeof item?.product?.price === 'number' && !isNaN(item?.product?.price) ? item.product.price : 0;
-    return sum + price * qty;
-  }, 0);
+  const subtotal = React.useMemo(() => {
+    return validItems.reduce((sum, item) => {
+      const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0 ? item.quantity : 1;
+      const price = typeof item?.product?.price === 'number' && !isNaN(item?.product?.price) ? item.product.price : 0;
+      return sum + price * qty;
+    }, 0);
+  }, [validItems]);
 
-  const originalSubtotal = validItems.reduce((sum, item) => {
-    const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0 ? item.quantity : 1;
-    const orig = typeof item?.product?.originalPrice === 'number' && !isNaN(item?.product?.originalPrice)
-      ? item.product.originalPrice
-      : (typeof item?.product?.price === 'number' && !isNaN(item?.product?.price) ? item.product.price : 0);
-    return sum + orig * qty;
-  }, 0);
+  const originalSubtotal = React.useMemo(() => {
+    return validItems.reduce((sum, item) => {
+      const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0 ? item.quantity : 1;
+      const price = typeof item?.product?.price === 'number' && !isNaN(item?.product?.price) ? item.product.price : 0;
+      const orig = typeof item?.product?.originalPrice === 'number' && !isNaN(item?.product?.originalPrice) && item.product.originalPrice >= price
+        ? item.product.originalPrice
+        : price;
+      return sum + orig * qty;
+    }, 0);
+  }, [validItems]);
 
   const catalogSavings = Math.max(0, originalSubtotal - subtotal);
   const effectiveCouponDiscount = couponDiscount || 0;
@@ -377,34 +399,38 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               ) : (
                 <div className="space-y-3">
                   {(items || []).map((item, idx) => {
-                    const isMetadataValid = Boolean(
-                      item &&
-                      typeof item === 'object' &&
-                      item?.product &&
-                      typeof item?.product === 'object' &&
-                      item?.product?.id &&
-                      typeof item?.product?.id === 'string' &&
-                      item?.product?.name &&
-                      typeof item?.product?.name === 'string'
-                    );
+                    const isMetadataValid = isCompleteProduct(item?.product);
 
                     if (!isMetadataValid) {
-                      const fallbackId = item?.product?.id || '';
+                      const fallbackId =
+                        item?.product && typeof item.product === 'object' && typeof item.product.id === 'string'
+                          ? item.product.id
+                          : '';
+                      const partialName =
+                        item?.product && typeof item.product === 'object' && typeof item.product.name === 'string' && item.product.name.trim() !== ''
+                          ? item.product.name.trim()
+                          : null;
+
                       return (
                         <div
-                          key={`fallback-item-${fallbackId || idx}`}
-                          className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 text-amber-900 shadow-xs flex items-center justify-between gap-3 animate-in fade-in"
+                          key={`unavailable-item-${fallbackId || idx}`}
+                          className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-amber-200/90 text-[#2C2420] shadow-xs flex items-center justify-between gap-3 animate-in fade-in"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
-                              <AlertCircle className="w-4 h-4" />
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-amber-100/90 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0">
+                              <AlertCircle className="w-5 h-5 text-amber-700" />
                             </div>
                             <div className="min-w-0">
-                              <h3 className="font-semibold text-xs text-amber-950 truncate">
-                                {item?.product?.name || 'Item details unavailable'}
-                              </h3>
-                              <p className="text-[11px] text-amber-800 leading-tight">
-                                Product metadata is missing or incomplete. You can remove this item.
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                                  Notice
+                                </span>
+                                <h3 className="font-serif-luxury font-bold text-xs text-[#2C2420] truncate">
+                                  Item Unavailable
+                                </h3>
+                              </div>
+                              <p className="text-[11px] text-[#7A6458] mt-0.5 leading-tight truncate">
+                                {partialName ? `${partialName} (Metadata Incomplete)` : 'Product metadata is missing or incomplete.'}
                               </p>
                             </div>
                           </div>
@@ -412,27 +438,46 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <button
                             type="button"
                             onClick={() => onRemoveItem(fallbackId)}
-                            className="px-2.5 py-1 text-xs font-semibold text-amber-900 hover:text-red-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer shrink-0"
-                            title="Remove item"
+                            className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 hover:bg-rose-50 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                            title="Remove unavailable item from bag"
                           >
-                            Remove
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Remove</span>
                           </button>
                         </div>
                       );
                     }
 
                     const prod = item?.product;
-                    const prodId = prod?.id || '';
-                    const prodName = prod?.name || 'Handcrafted Bedsheet';
-                    const prodDimensions = prod?.dimensions || '108 x 108 inches (274 x 274 cm)';
-                    const itemPrice = typeof prod?.price === 'number' && !isNaN(prod?.price) ? prod.price : 0;
-                    const variant = item?.selectedVariant && typeof item?.selectedVariant === 'object' && item?.selectedVariant?.name
-                      ? item.selectedVariant
-                      : undefined;
-                    const displayImg = resolveBedsheetImage(variant?.image || prod?.image || '');
-                    const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0
-                      ? Math.round(item.quantity)
-                      : 1;
+                    const prodId = typeof prod?.id === 'string' ? prod.id : '';
+                    const prodName = typeof prod?.name === 'string' && prod.name.trim() !== '' ? prod.name.trim() : 'Handcrafted Bedsheet';
+                    const prodDimensions = typeof prod?.dimensions === 'string' && prod.dimensions.trim() !== '' ? prod.dimensions.trim() : '108 x 108 inches (274 x 274 cm)';
+                    const itemPrice = typeof prod?.price === 'number' && !isNaN(prod.price) && prod.price >= 0 ? prod.price : 0;
+                    
+                    const variant = (
+                      item?.selectedVariant &&
+                      typeof item.selectedVariant === 'object' &&
+                      typeof item.selectedVariant.name === 'string' &&
+                      item.selectedVariant.name.trim() !== ''
+                    ) ? item.selectedVariant : undefined;
+
+                    const variantName = variant?.name?.trim() || null;
+                    const variantColorHex = (
+                      variant?.colorHex &&
+                      typeof variant.colorHex === 'string' &&
+                      variant.colorHex.trim().startsWith('#')
+                    ) ? variant.colorHex.trim() : null;
+                    const variantImage = (
+                      variant?.image &&
+                      typeof variant.image === 'string' &&
+                      variant.image.trim() !== ''
+                    ) ? variant.image.trim() : null;
+
+                    const rawImg = variantImage || (typeof prod?.image === 'string' ? prod.image : '');
+                    const displayImg = resolveBedsheetImage(rawImg, prodId);
+                    
+                    const rawQty = typeof item?.quantity === 'number' ? item.quantity : Number(item?.quantity);
+                    const qty = !isNaN(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
                     const itemKey = `${prodId || 'item'}-${variant?.id || 'base'}-${idx}`;
 
                     return (
@@ -440,13 +485,20 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         key={itemKey}
                         className="flex gap-3 p-3 bg-white rounded-2xl border border-[#EAE2D5] shadow-xs"
                       >
-                        <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5]">
-                          <img
-                            src={displayImg}
-                            alt={prodName}
-                            onError={handleImageFallback}
-                            className="w-full h-full object-cover object-center"
-                          />
+                        <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5] flex items-center justify-center relative">
+                          {displayImg ? (
+                            <img
+                              src={displayImg}
+                              alt={prodName}
+                              onError={handleImageFallback}
+                              className="w-full h-full object-cover object-center"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-[#8C7A70] p-1 text-center">
+                              <Package className="w-6 h-6 opacity-40 mb-0.5" />
+                              <span className="text-[9px] uppercase tracking-wider">No Photo</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex-1 flex flex-col justify-between">
@@ -464,19 +516,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                               </button>
                             </div>
 
-                            {variant?.name && (
+                            {variantName ? (
                               <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-[#8C2E46]">
-                                {variant?.colorHex && (
+                                {variantColorHex ? (
                                   <span
-                                    className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block"
-                                    style={{ backgroundColor: variant.colorHex }}
+                                    className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block shrink-0"
+                                    style={{ backgroundColor: variantColorHex }}
                                   />
-                                )}
-                                <span>Color: {variant.name}</span>
+                                ) : null}
+                                <span className="truncate">Color: {variantName}</span>
                               </div>
-                            )}
+                            ) : null}
 
-                            <p className="text-[11px] text-[#7A6458] mt-0.5">
+                            <p className="text-[11px] text-[#7A6458] mt-0.5 truncate">
                               {prodDimensions}
                             </p>
                           </div>
@@ -484,24 +536,32 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <div className="flex items-center justify-between pt-2">
                             <div className="flex items-center border border-[#EAE2D5] rounded-lg bg-[#FAF7F2]">
                               <button
+                                type="button"
                                 onClick={() => prodId && onUpdateQuantity(prodId, Math.max(1, qty - 1))}
-                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer"
+                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
+                                aria-label="Decrease quantity"
                               >
                                 -
                               </button>
-                              <span className="px-2 text-xs font-semibold text-[#2C2420]">
+                              <span className="px-2 text-xs font-semibold text-[#2C2420] tabular-nums">
                                 {qty}
                               </span>
                               <button
+                                type="button"
                                 onClick={() => prodId && onUpdateQuantity(prodId, qty + 1)}
-                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer"
+                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
+                                aria-label="Increase quantity"
                               >
                                 +
                               </button>
                             </div>
 
                             <span className="text-sm font-bold text-[#2C2420] tabular-nums">
-                              ₹{(itemPrice * qty).toLocaleString('en-IN')}
+                              {typeof itemPrice === 'number' && !isNaN(itemPrice) && itemPrice >= 0 ? (
+                                `₹${(itemPrice * qty).toLocaleString('en-IN')}`
+                              ) : (
+                                <span className="text-xs text-amber-700 italic">Price Unavailable</span>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -744,8 +804,44 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         </div>
 
         {/* Drawer Footer Actions */}
+        {checkoutStep === 'cart' && (items || []).length > 0 && validItems.length === 0 && (
+          <div className="p-4 sm:p-5 border-t border-[#EAE2D5] bg-white space-y-3">
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Items in your bag are currently unavailable</p>
+                <p className="text-[11px] text-amber-800 mt-0.5">Please remove unavailable items to continue browsing our collection.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onRemoveItem('')}
+              className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Remove Unavailable Items</span>
+            </button>
+          </div>
+        )}
+
         {checkoutStep === 'cart' && validItems.length > 0 && (
           <div className="p-4 sm:p-5 border-t border-[#EAE2D5] bg-white space-y-3.5">
+            {/* Notice if any items in bag are unavailable */}
+            {(items || []).some((it) => !isCompleteProduct(it?.product)) && (
+              <div className="p-2.5 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span className="text-[11px] truncate">Unavailable items will not be included in checkout.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemoveItem('')}
+                  className="text-[11px] font-bold text-amber-900 hover:text-red-700 underline cursor-pointer shrink-0"
+                >
+                  Clear Unavailable
+                </button>
+              </div>
+            )}
             {/* Promo Code & Offers Module */}
             <div className="p-3 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5] space-y-2">
               <div className="flex items-center justify-between">

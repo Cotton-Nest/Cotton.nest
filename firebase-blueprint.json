@@ -125,6 +125,32 @@
         "updatedAt": { "type": "number", "description": "Timestamp of last edit" }
       },
       "required": ["id", "code", "title", "discountType", "discountValue", "expiryDate", "isActive"]
+    },
+    "CustomerWishlist": {
+      "title": "CustomerWishlist",
+      "description": "Bedsheet items saved to a customer wishlist with customer contact information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique id combining customerId and productId" },
+        "customerId": { "type": "string", "description": "Identifier of the customer" },
+        "customerName": { "type": "string", "description": "Customer name" },
+        "customerEmail": { "type": "string", "description": "Optional customer email" },
+        "customerPhone": { "type": "string", "description": "Optional customer phone/WhatsApp" },
+        "productId": { "type": "string", "description": "Target product ID" },
+        "productName": { "type": "string", "description": "Product title" },
+        "productPrice": { "type": "number", "description": "Price in INR" },
+        "productOriginalPrice": { "type": "number", "description": "MRP in INR" },
+        "productImage": { "type": "string", "description": "Product image URL" },
+        "productDimensions": { "type": "string", "description": "Dimensions" },
+        "collection": { "type": "string", "description": "Collection name" },
+        "threadCount": { "type": "string", "description": "Thread count" },
+        "fabric": { "type": "string", "description": "Fabric material" },
+        "selectedVariantId": { "type": "string", "description": "Optional selected variant ID" },
+        "selectedVariantName": { "type": "string", "description": "Optional selected variant name" },
+        "note": { "type": "string", "description": "Optional customer note" },
+        "createdAt": { "type": "number", "description": "Timestamp when wishlisted" }
+      },
+      "required": ["id", "customerId", "customerName", "productId", "productName", "productPrice", "productImage", "createdAt"]
     }
   },
   "firestore": {
@@ -155,6 +181,10 @@
     "/coupons/{couponId}": {
       "schema": "CouponOffer",
       "description": "Store promotional coupons and automatic discount offers"
+    },
+    "/wishlists/{wishlistId}": {
+      "schema": "CustomerWishlist",
+      "description": "Customer wishlists storing saved items with contact details"
     }
   }
 }

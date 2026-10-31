@@ -33,8 +33,10 @@ import { WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from '../data/theme';
 import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 import { AdminCouponsSection } from './AdminCouponsSection';
 import { AdminNotificationsSection } from './AdminNotificationsSection';
+import { AdminWishlistsSection } from './AdminWishlistsSection';
 import { ProductReview } from '../data/reviews';
 import {
+  Heart,
   Bell,
   Package,
   Percent,
@@ -124,8 +126,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateSeasonalConfig,
   reviews = [],
 }) => {
-  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'content' | 'appearance'>('products');
+  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'content' | 'appearance'>('products');
 
   // Seasonal Page state
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
@@ -1312,6 +1314,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               type="button"
+              onClick={() => setActiveAdminTab('wishlists')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'wishlists'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Heart className="w-3.5 h-3.5 text-rose-500" />
+              <span>Wishlists</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveAdminTab('seasonal')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
                 activeAdminTab === 'seasonal'
@@ -1552,6 +1567,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {adminAlertsCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('wishlists')}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+              style={
+                activeAdminTab === 'wishlists'
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
+            >
+              <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+              <span>Customer Wishlists</span>
             </button>
           </div>
 
@@ -3800,6 +3834,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             onNavigateToTab={(tab) => setActiveAdminTab(tab)}
             onUpdateProductStock={handleUpdateStockDirect}
             onToast={showToast}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 7: CUSTOMER WISHLISTS & VIP DIRECT OUTREACH          */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'wishlists' && (
+          <AdminWishlistsSection
+            onShowToast={showToast}
           />
         )}
 

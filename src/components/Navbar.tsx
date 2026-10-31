@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell } from 'lucide-react';
+import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, Heart } from 'lucide-react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,8 @@ interface NavbarProps {
   unreadNotificationsCount?: number;
   onOpenCompare?: () => void;
   comparedCount?: number;
+  wishlistCount?: number;
+  onOpenWishlist?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -44,6 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   unreadNotificationsCount = 0,
   onOpenCompare,
   comparedCount = 0,
+  wishlistCount = 0,
+  onOpenWishlist,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
@@ -387,6 +391,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* Wishlist CTA */}
+            {onOpenWishlist && (
+              <button
+                type="button"
+                onClick={onOpenWishlist}
+                aria-label="View Wishlist"
+                title="Curated Wishlist"
+                className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-rose-600 transition-colors rounded-lg hover:bg-black/5 cursor-pointer"
+              >
+                <Heart className={`w-5 h-5 ${wishlistCount > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
+                {wishlistCount > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums">
+                    {wishlistCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* Shopping Bag CTA */}
             <button
               onClick={openCart}
@@ -506,6 +528,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </button>
+
+            {onOpenWishlist && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenWishlist();
+                }}
+                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between text-[#2C2420] hover:bg-[#FAF7F2] cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Heart className={`w-4 h-4 ${wishlistCount > 0 ? 'fill-rose-500 text-rose-500' : 'text-[#8C2E46]'}`} />
+                  <span>Curated Wishlist</span>
+                </span>
+                {wishlistCount > 0 && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                    {wishlistCount} {wishlistCount === 1 ? 'item' : 'items'}
+                  </span>
+                )}
+              </button>
+            )}
 
             <button
               onClick={() => handleNavClick('story')}
