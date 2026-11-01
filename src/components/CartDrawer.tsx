@@ -326,7 +326,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     };
 
     // Save to server backend & local storage / Firestore
-    saveOrder(createdOrder);
+    try {
+      await saveOrder(createdOrder);
+    } catch (err) {
+      console.warn('saveOrder notice:', err);
+    }
 
     // Record coupon usage in Firestore/backend if coupon was applied
     if (appliedCoupon) {
@@ -570,6 +574,94 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   })}
                 </div>
               )}
+
+              {/* Shipping & Delivery Option Selector Directly in Cart / Shopping Bag */}
+              {validItems.length > 0 && (
+                <div className="pt-3 pb-1 space-y-2 border-t border-[#EAE2D5]">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-[#2C2420] flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-[#8C2E46]" />
+                      <span>Delivery Option</span>
+                    </label>
+                    <span className="text-[10px] text-[#8C2E46] font-semibold bg-[#FDEAF0] px-2 py-0.5 rounded-full">
+                      {shippingOption === 'india' ? 'Standard Courier (+₹100)' : shippingOption === 'sector46' ? 'Complimentary Free' : 'Pickup / Actuals'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    <label
+                      onClick={() => setShippingOption('india')}
+                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                        shippingOption === 'india'
+                          ? 'border-[#8C2E46] bg-[#FDEAF0]/50 ring-1 ring-[#8C2E46]'
+                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="radio"
+                          name="bag_shipping"
+                          checked={shippingOption === 'india'}
+                          onChange={() => setShippingOption('india')}
+                          className="accent-[#8C2E46]"
+                        />
+                        <div>
+                          <p className="font-semibold text-[#2C2420]">Across India</p>
+                          <p className="text-[11px] text-[#7A6458]">Standard Courier Delivery</p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-[#8C2E46]">+₹100</span>
+                    </label>
+
+                    <label
+                      onClick={() => setShippingOption('sector46')}
+                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                        shippingOption === 'sector46'
+                          ? 'border-[#2E7D46] bg-[#EAF7EE]/70 ring-1 ring-[#2E7D46]'
+                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="radio"
+                          name="bag_shipping"
+                          checked={shippingOption === 'sector46'}
+                          onChange={() => setShippingOption('sector46')}
+                          className="accent-[#2E7D46]"
+                        />
+                        <div>
+                          <p className="font-semibold text-[#2C2420]">Sector 46, Gurgaon</p>
+                          <p className="text-[11px] text-[#7A6458]">Complimentary Local Delivery</p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-[#2E7D46] uppercase text-[11px]">Free</span>
+                    </label>
+
+                    <label
+                      onClick={() => setShippingOption('gurgaon')}
+                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                        shippingOption === 'gurgaon'
+                          ? 'border-[#8C2E46] bg-[#FDEAF0]/50 ring-1 ring-[#8C2E46]'
+                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="radio"
+                          name="bag_shipping"
+                          checked={shippingOption === 'gurgaon'}
+                          onChange={() => setShippingOption('gurgaon')}
+                          className="accent-[#8C2E46]"
+                        />
+                        <div>
+                          <p className="font-semibold text-[#2C2420]">Rest of Gurgaon</p>
+                          <p className="text-[11px] text-[#7A6458]">Self Pickup / On Actuals</p>
+                        </div>
+                      </div>
+                      <span className="font-medium text-[#7A6458] text-[11px]">On Actuals / Pickup</span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -617,87 +709,28 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   />
                 </div>
 
-                {/* Shipping & Delivery Option Selector */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-semibold text-[#2C2420]">
-                      Shipping &amp; Delivery Option *
-                    </label>
-                    <span className="text-[11px] text-[#8C2E46] font-medium">As per T&amp;C</span>
+                {/* Selected Delivery Option Summary (Chosen in Bag) */}
+                <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-white border border-[#EAE2D5] flex items-center justify-center text-[#8C2E46] shrink-0">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#7A6458] block font-medium">Delivery Method (Selected in Bag)</span>
+                      <span className="font-semibold text-[#2C2420]">
+                        {shippingOption === 'india' && 'Across India (Standard Courier +₹100)'}
+                        {shippingOption === 'sector46' && 'Sector 46, Gurgaon (Free Local Delivery)'}
+                        {shippingOption === 'gurgaon' && 'Rest of Gurgaon (Self Pickup / On Actuals)'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    <label
-                      onClick={() => setShippingOption('india')}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                        shippingOption === 'india'
-                          ? 'border-[#8C2E46] bg-[#FDEAF0]/40 ring-1 ring-[#8C2E46]'
-                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="radio"
-                          name="shipping"
-                          checked={shippingOption === 'india'}
-                          onChange={() => setShippingOption('india')}
-                          className="accent-[#8C2E46]"
-                        />
-                        <div>
-                          <p className="font-semibold text-[#2C2420]">Across India</p>
-                          <p className="text-[11px] text-[#7A6458]">Standard Courier Delivery</p>
-                        </div>
-                      </div>
-                      <span className="font-bold text-[#8C2E46]">+₹100</span>
-                    </label>
-
-                    <label
-                      onClick={() => setShippingOption('sector46')}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                        shippingOption === 'sector46'
-                          ? 'border-[#2E7D46] bg-[#EAF7EE]/60 ring-1 ring-[#2E7D46]'
-                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="radio"
-                          name="shipping"
-                          checked={shippingOption === 'sector46'}
-                          onChange={() => setShippingOption('sector46')}
-                          className="accent-[#2E7D46]"
-                        />
-                        <div>
-                          <p className="font-semibold text-[#2C2420]">Sector 46, Gurgaon</p>
-                          <p className="text-[11px] text-[#7A6458]">Complimentary Local Delivery</p>
-                        </div>
-                      </div>
-                      <span className="font-bold text-[#2E7D46] uppercase text-[11px]">Free</span>
-                    </label>
-
-                    <label
-                      onClick={() => setShippingOption('gurgaon')}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                        shippingOption === 'gurgaon'
-                          ? 'border-[#8C2E46] bg-[#FDEAF0]/40 ring-1 ring-[#8C2E46]'
-                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="radio"
-                          name="shipping"
-                          checked={shippingOption === 'gurgaon'}
-                          onChange={() => setShippingOption('gurgaon')}
-                          className="accent-[#8C2E46]"
-                        />
-                        <div>
-                          <p className="font-semibold text-[#2C2420]">Rest of Gurgaon</p>
-                          <p className="text-[11px] text-[#7A6458]">Self Pickup / On Actuals</p>
-                        </div>
-                      </div>
-                      <span className="font-medium text-[#7A6458] text-[11px]">On Actuals / Pickup</span>
-                    </label>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCheckoutStep('cart')}
+                    className="text-[11px] font-semibold text-[#8C2E46] hover:underline cursor-pointer ml-2 shrink-0"
+                  >
+                    Change in Bag
+                  </button>
                 </div>
 
                 <div>

@@ -11,6 +11,7 @@ import { INITIAL_REVIEWS } from './src/data/reviews.ts';
 import { INITIAL_SEASONAL_CONFIG } from './src/data/seasonal.ts';
 import { INITIAL_COUPONS, CouponOffer } from './src/data/coupons.ts';
 import { WishlistItem } from './src/data/wishlist.ts';
+import { generateProductDescription } from './api/ai-description.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1047,6 +1048,21 @@ async function startServer() {
     };
     saveDatabase();
     res.json({ success: true, message: 'Factory reset completed' });
+  });
+
+  // AI-Powered Bedsheet Description Generator Endpoint (Secure Server-Side Gemini Integration)
+  app.post('/api/ai/generate-description', async (req, res) => {
+    try {
+      const payload = req.body || {};
+      const result = await generateProductDescription(payload);
+      res.json(result);
+    } catch (err: any) {
+      console.error('Error generating AI description on server:', err);
+      res.status(500).json({
+        success: false,
+        error: err.message || 'Failed to generate product description.',
+      });
+    }
   });
 
   /* ------------------- FRONTEND / VITE INTEGRATION ------------------- */

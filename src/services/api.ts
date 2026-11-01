@@ -420,53 +420,199 @@ export async function saveAllProducts(products: BedsheetProduct[]): Promise<void
   }
 }
 
-// ---------------- ORDERS API (FIRESTORE) ---------------- //
+// ---------------- ORDERS API (FIRESTORE & BACKEND AUTHORITATIVE) ---------------- //
 export async function getOrders(): Promise<Order[]> {
   const path = 'orders';
+  const orderMap = new Map<string, Order>();
+
+  // 1. Fetch from Firestore
   try {
     const snap = await getDocs(collection(db, path));
-    if (snap.empty) {
-      return INITIAL_ORDERS;
+    if (!snap.empty) {
+      snap.forEach((docSnap) => {
+        const data = docSnap.data() as Order;
+        if (data && docSnap.id) {
+          orderMap.set(docSnap.id, { ...data, id: docSnap.id });
+        }
+      });
     }
-    const orders: Order[] = [];
-    snap.forEach((docSnap) => {
-      orders.push({ ...(docSnap.data() as Order), id: docSnap.id });
-    });
-    orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return orders;
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
-    return INITIAL_ORDERS;
   }
+
+  // 2. Fetch from Express server backend (/api/orders)
+  try {
+    const res = await fetch('/api/orders');
+    if (res.ok) {
+      const serverOrders: Order[] = await res.json();
+      if (Array.isArray(serverOrders)) {
+        serverOrders.forEach((o) => {
+          if (o && o.id) {
+            // Keep existing from Firestore or insert
+            if (!orderMap.has(o.id)) {
+              orderMap.set(o.id, o);
+            }
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Backend /api/orders fetch notice:', err);
+  }
+
+  // 3. Check local storage cache
+  try {
+    const cached = localStorage.getItem('cotton_nest_orders');
+    if (cached) {
+      const localOrders: Order[] = JSON.parse(cached);
+      if (Array.isArray(localOrders)) {
+        localOrders.forEach((o) => {
+          if (o && o.id && !orderMap.has(o.id)) {
+            orderMap.set(o.id, o);
+          }
+        });
+      }
+    }
+  } catch {}
+
+  const merged = Array.from(orderMap.values());
+  merged.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+  // Cache merged list
+  try {
+    if (merged.length > 0) {
+      localStorage.setItem('cotton_nest_orders', JSON.stringify(merged));
+    }
+  } catch {}
+
+  return merged.length > 0 ? merged : INITIAL_ORDERS;
 }
 
 export async function saveOrder(order: Order): Promise<void> {
   const path = `orders/${order.id}`;
+
+  // Sanitize strictly: remove all undefined values so Firestore does NOT reject with unsupported undefined field
+  const safeOrder: Order = stripUndefined({
+    ...order,
+    customerEmail: order.customerEmail?.trim() || undefined,
+    customerPhone: order.customerPhone?.trim() || '',
+    customerAddress: order.customerAddress?.trim() || '',
+    notes: order.notes?.trim() || undefined,
+    userId: order.userId?.trim() || undefined,
+    timeline: order.timeline && order.timeline.length > 0 ? order.timeline : [
+      {
+        status: order.status || 'pending',
+        timestamp: order.createdAt || new Date().toISOString(),
+        title: 'Order Placed via WhatsApp',
+        description: 'Customer initiated order from Cotton Nest storefront.'
+      }
+    ],
+    trackingNumber: order.trackingNumber || `CN-TRK-${Math.floor(100000 + Math.random() * 900000)}`,
+  });
+
+  // Safe Firestore document without ANY undefined properties
+  const firestoreDoc: Record<string, any> = {};
+  for (const [key, val] of Object.entries(safeOrder)) {
+    if (val !== undefined) {
+      firestoreDoc[key] = val;
+    }
+  }
+
+  // 1. Optimistically update local storage
   try {
-    await setDoc(doc(db, 'orders', order.id), order);
+    const cached = localStorage.getItem('cotton_nest_orders');
+    let currentList: Order[] = cached ? JSON.parse(cached) : [];
+    if (!Array.isArray(currentList)) currentList = [];
+    currentList = [safeOrder, ...currentList.filter((o) => o.id !== safeOrder.id)];
+    localStorage.setItem('cotton_nest_orders', JSON.stringify(currentList));
+  } catch {}
+
+  // 2. Dual-write to Express server backend (/api/orders)
+  try {
+    await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(safeOrder),
+    });
+  } catch (serverErr) {
+    console.warn('Dual-write to /api/orders notice:', serverErr);
+  }
+
+  // 3. Write to Firestore
+  try {
+    await setDoc(doc(db, 'orders', safeOrder.id), firestoreDoc, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
-    throw error;
+    // Don't throw if server or localStorage already has it
+    console.warn('Firestore order save error (saved to backend):', error);
   }
 }
 
 export async function updateOrderStatus(orderId: string, status: string): Promise<void> {
   const path = `orders/${orderId}`;
+
+  // 1. Update local storage
   try {
-    await updateDoc(doc(db, 'orders', orderId), { status });
+    const cached = localStorage.getItem('cotton_nest_orders');
+    if (cached) {
+      const list: Order[] = JSON.parse(cached);
+      if (Array.isArray(list)) {
+        const updated = list.map((o) => (o.id === orderId ? { ...o, status: status as any } : o));
+        localStorage.setItem('cotton_nest_orders', JSON.stringify(updated));
+      }
+    }
+  } catch {}
+
+  // 2. Update Express server backend
+  try {
+    await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+  } catch (err) {
+    console.warn('Failed to update order status on server:', err);
+  }
+
+  // 3. Update Firestore
+  try {
+    await updateDoc(doc(db, 'orders', orderId), {
+      status,
+      updatedAt: Date.now(),
+    });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
-    throw error;
   }
 }
 
 export async function deleteOrder(orderId: string): Promise<void> {
   const path = `orders/${orderId}`;
+
+  // 1. Update local storage
+  try {
+    const cached = localStorage.getItem('cotton_nest_orders');
+    if (cached) {
+      const list: Order[] = JSON.parse(cached);
+      if (Array.isArray(list)) {
+        localStorage.setItem('cotton_nest_orders', JSON.stringify(list.filter((o) => o.id !== orderId)));
+      }
+    }
+  } catch {}
+
+  // 2. Delete from Express server
+  try {
+    await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    console.warn('Failed to delete order on server:', err);
+  }
+
+  // 3. Delete from Firestore
   try {
     await deleteDoc(doc(db, 'orders', orderId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
-    throw error;
   }
 }
 
@@ -1146,6 +1292,53 @@ export async function removeWishlistItemApi(id: string): Promise<void> {
     console.warn('Server wishlist DELETE notice:', err);
   }
 }
+
+// ---------------- AI BEDSHEET DESCRIPTION GENERATOR API ---------------- //
+export interface AiDescriptionPayload {
+  name?: string;
+  fabric?: string;
+  colorTone?: string;
+  pattern?: string;
+  dimensions?: string;
+  threadCount?: string;
+  pillowCovers?: string;
+  collection?: string;
+  features?: string[];
+  style?: 'elegant' | 'luxurious' | 'minimal' | 'detailed';
+  customNotes?: string;
+}
+
+export interface AiDescriptionResult {
+  success: boolean;
+  description: string;
+  source: 'gemini' | 'atelier_engine';
+  style: string;
+  model?: string;
+  warnings?: string;
+  error?: string;
+}
+
+export async function generateProductDescriptionApi(payload: AiDescriptionPayload): Promise<AiDescriptionResult> {
+  try {
+    const res = await fetch('/api/ai/generate-description', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      const data: AiDescriptionResult = await res.json();
+      return data;
+    } else {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Server responded with status ${res.status}`);
+    }
+  } catch (err: any) {
+    console.error('Failed to generate AI description:', err);
+    throw err;
+  }
+}
+
 
 
 

@@ -19,7 +19,12 @@ import {
   addProductGalleryImageApi,
   removeProductGalleryImageApi,
   saveUpdatedImagesStatsApi,
+  getOrders,
+  updateOrderStatus,
+  deleteOrder,
 } from '../services/api';
+import { db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -34,6 +39,7 @@ import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '.
 import { AdminCouponsSection } from './AdminCouponsSection';
 import { AdminNotificationsSection } from './AdminNotificationsSection';
 import { AdminWishlistsSection } from './AdminWishlistsSection';
+import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
 import {
   Heart,
@@ -44,6 +50,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   RotateCcw,
+  RefreshCw,
   Sparkles,
   Search,
   Upload,
@@ -255,6 +262,112 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [orderSearch, setOrderSearch] = useState('');
   const [deleteConfirmationProduct, setDeleteConfirmationProduct] = useState<BedsheetProduct | null>(null);
   const [isFactoryResetModalOpen, setIsFactoryResetModalOpen] = useState(false);
+
+  // AI Description Generator Modal State
+  const [isAiDescModalOpen, setIsAiDescModalOpen] = useState(false);
+  const [aiDescTarget, setAiDescTarget] = useState<{
+    targetType: 'new' | 'existing';
+    productId?: string;
+    context: {
+      name?: string;
+      fabric?: string;
+      colorTone?: string;
+      pattern?: string;
+      dimensions?: string;
+      threadCount?: string;
+      pillowCovers?: string;
+      collection?: string;
+      features?: string[];
+      currentDescription?: string;
+    };
+  } | null>(null);
+
+  const handleOpenAiDescForNewProduct = () => {
+    setAiDescTarget({
+      targetType: 'new',
+      context: {
+        name: newProduct.name,
+        fabric: newProduct.fabric,
+        colorTone: newProduct.colorTone,
+        pattern: newProduct.pattern,
+        dimensions: newProduct.dimensions,
+        threadCount: newProduct.threadCount,
+        pillowCovers: newProduct.pillowCovers,
+        collection: newProduct.collection,
+        features: newProduct.features,
+        currentDescription: newProduct.description,
+      },
+    });
+    setIsAiDescModalOpen(true);
+  };
+
+  const handleOpenAiDescForExistingProduct = (product: BedsheetProduct) => {
+    setAiDescTarget({
+      targetType: 'existing',
+      productId: product.id,
+      context: {
+        name: product.name,
+        fabric: product.fabric,
+        colorTone: product.colorTone,
+        pattern: product.pattern,
+        dimensions: product.dimensions,
+        threadCount: product.threadCount,
+        pillowCovers: product.pillowCovers,
+        collection: product.collection,
+        features: product.features,
+        currentDescription: product.description,
+      },
+    });
+    setIsAiDescModalOpen(true);
+  };
+
+  const handleInsertAiDescription = (description: string) => {
+    if (!aiDescTarget) return;
+    if (aiDescTarget.targetType === 'new') {
+      setNewProduct((prev) => ({ ...prev, description }));
+      showToast('AI Description applied to new bedsheet draft!');
+    } else if (aiDescTarget.targetType === 'existing' && aiDescTarget.productId) {
+      handleProductFieldChange(aiDescTarget.productId, 'description', description);
+      showToast('AI Description applied to bedsheet!');
+    }
+  };
+
+  // Orders Real-time Sync & Manual Refresh State
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
+  const [ordersLastSyncedAt, setOrdersLastSyncedAt] = useState<Date>(new Date());
+
+  const handleRefreshOrders = async () => {
+    setIsRefreshingOrders(true);
+    try {
+      const freshOrders = await getOrders();
+      setEditableOrders(freshOrders);
+      onUpdateOrders(freshOrders);
+      setOrdersLastSyncedAt(new Date());
+      showToast(`Refreshed ${freshOrders.length} orders from database`);
+    } catch (err) {
+      console.warn('Orders refresh notice:', err);
+    } finally {
+      setIsRefreshingOrders(false);
+    }
+  };
+
+  // Active sync for orders: listen to Firestore and re-query on mount / tab switch
+  useEffect(() => {
+    handleRefreshOrders();
+
+    const unsub = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      if (!snapshot.empty) {
+        const liveOrders: Order[] = [];
+        snapshot.forEach((d) => liveOrders.push({ ...(d.data() as Order), id: d.id }));
+        liveOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setEditableOrders(liveOrders);
+        onUpdateOrders(liveOrders);
+        setOrdersLastSyncedAt(new Date());
+      }
+    });
+
+    return () => unsub();
+  }, []);
 
   // Site Content local state
   const [editableContent, setEditableContent] = useState<SiteContent>(siteContent);
@@ -924,7 +1037,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   /* ---------------- ORDER HANDLERS ---------------- */
 
-  const handleUpdateOrderStatus = (orderId: string, nextStatus: OrderStatus) => {
+  const handleUpdateOrderStatus = async (orderId: string, nextStatus: OrderStatus) => {
     const updated = editableOrders.map((o) => {
       if (o.id === orderId) return { ...o, status: nextStatus };
       return o;
@@ -932,13 +1045,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setEditableOrders(updated);
     onUpdateOrders(updated);
     showToast(`Order #${orderId} status set to ${nextStatus.toUpperCase()}`);
+    try {
+      await updateOrderStatus(orderId, nextStatus);
+    } catch (err) {
+      console.warn('Failed to persist status change:', err);
+    }
   };
 
-  const handleDeleteOrder = (orderId: string) => {
+  const handleDeleteOrder = async (orderId: string) => {
     const updated = editableOrders.filter((o) => o.id !== orderId);
     setEditableOrders(updated);
     onUpdateOrders(updated);
     showToast(`Order #${orderId} deleted.`);
+    try {
+      await deleteOrder(orderId);
+    } catch (err) {
+      console.warn('Failed to delete order in database:', err);
+    }
   };
 
   /* ---------------- SEASONAL PAGE & FESTIVE DEALS HANDLERS ---------------- */
@@ -2484,11 +2607,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                         {/* Product Description / Story */}
                         <div>
-                          <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
-                            Bedsheet Editorial Description &amp; Details
-                          </label>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block">
+                              Bedsheet Editorial Description &amp; Details
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAiDescForExistingProduct(product)}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#8C2E46] bg-[#FDEAF0] hover:bg-[#F9D3DE] border border-[#FAD1DC] flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs hover:scale-102 active:scale-98"
+                              title="Generate luxury description using product specifications with Gemini AI"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-[#8C2E46] animate-pulse" />
+                              <span>✨ Generate Description with AI</span>
+                            </button>
+                          </div>
                           <textarea
-                            rows={2}
+                            rows={3}
                             value={product.description}
                             onChange={(e) => handleProductFieldChange(product.id, 'description', e.target.value)}
                             placeholder="Describe the print, feel, weave, color palette, and styling notes..."
@@ -2823,6 +2957,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={handleRefreshOrders}
+                  disabled={isRefreshingOrders}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-[#DEC89B] text-[#2C2420] hover:bg-[#FAF7F2] transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                  title="Reload orders from Firestore and server database"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-[#8C2E46] ${isRefreshingOrders ? 'animate-spin' : ''}`} />
+                  <span>{isRefreshingOrders ? 'Refreshing...' : 'Refresh Orders'}</span>
+                </button>
+
                 {(['all', 'pending', 'confirmed', 'dispatched', 'delivered', 'cancelled'] as const).map((st) => (
                   <button
                     key={st}
@@ -4058,11 +4203,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               {/* Description */}
               <div>
-                <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
-                  Product Description
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block">
+                    Product Description
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleOpenAiDescForNewProduct}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#8C2E46] bg-[#FDEAF0] hover:bg-[#F9D3DE] border border-[#FAD1DC] flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs hover:scale-102 active:scale-98"
+                    title="Generate luxury description using entered details with Gemini AI"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#8C2E46] animate-pulse" />
+                    <span>✨ Generate Description with AI</span>
+                  </button>
+                </div>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={newProduct.description || ''}
                   onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
                   placeholder="Describe the fabric feel, print details, and styling..."
@@ -4462,6 +4618,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* AI Bedsheet Description Generator Modal */}
+      {isAiDescModalOpen && aiDescTarget && (
+        <AiDescriptionModal
+          isOpen={isAiDescModalOpen}
+          onClose={() => setIsAiDescModalOpen(false)}
+          productContext={aiDescTarget.context}
+          onInsertDescription={handleInsertAiDescription}
+        />
       )}
 
     </div>

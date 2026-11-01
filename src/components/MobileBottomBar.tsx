@@ -1,5 +1,4 @@
-import React from 'react';
-import { ShoppingBag, Grid, MessageCircle, Package, Sparkles, Heart } from 'lucide-react';
+import { ShoppingBag, Grid, Package, Sparkles, Heart } from 'lucide-react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SeasonalConfig } from '../data/seasonal';
 
@@ -88,18 +87,6 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
         </div>
         <span className="text-[10px]">My Orders</span>
       </button>
-
-      {/* WhatsApp Quick Message */}
-      <a
-        href={COMPANY_DETAILS.whatsappUrl()}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Direct WhatsApp Message"
-        className="flex flex-col items-center gap-0.5 text-emerald-700"
-      >
-        <MessageCircle className="w-5 h-5" />
-        <span className="text-[10px]">WhatsApp</span>
-      </a>
 
       {/* Wishlist Button with Badge */}
       {openWishlist && (
