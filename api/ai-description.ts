@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 
 export type DescriptionStyle =
@@ -130,8 +129,10 @@ async function resolveImageInput(
     throw new Error("Product image URL must use HTTPS.");
   }
 
-  if (!allowedHosts.has(parsed.hostname) &&
-      !(process.env.NODE_ENV !== "production" && ["localhost", "127.0.0.1"].includes(parsed.hostname))) {
+  if (
+    !allowedHosts.has(parsed.hostname) &&
+    !(process.env.NODE_ENV !== "production" && ["localhost", "127.0.0.1"].includes(parsed.hostname))
+  ) {
     throw new Error("Use an image hosted on Cloudinary or Cotton Nest.");
   }
 
@@ -170,6 +171,9 @@ export async function generateProductDescription(
   const isKids = isKidsProduct(payload);
   const style = payload.style || (isKids ? "playful" : "elegant");
   const apiKey = process.env.GEMINI_API_KEY;
+
+  // Updated Gemini model configuration
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
   const name = payload.name?.trim() || "Cotton Nest Bedsheet";
 
@@ -246,7 +250,7 @@ Generate a premium Cotton Nest product description.
       }
 
       const response = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+        model,
         contents: [
           {
             role: "user",
@@ -267,7 +271,7 @@ Generate a premium Cotton Nest product description.
           description: generatedText,
           source: "gemini",
           style,
-          model: process.env.GEMINI_MODEL || "gemini-2.5-flash"
+          model
         };
       }
 
