@@ -1,4 +1,12 @@
-import { GoogleGenAI } from '@google/genai';
+
+import { GoogleGenAI } from "@google/genai";
+
+export type DescriptionStyle =
+  | "elegant"
+  | "luxurious"
+  | "minimal"
+  | "detailed"
+  | "playful";
 
 export interface GenerateDescriptionPayload {
   name?: string;
@@ -10,156 +18,275 @@ export interface GenerateDescriptionPayload {
   pillowCovers?: string;
   collection?: string;
   features?: string[];
-  style?: 'elegant' | 'luxurious' | 'minimal' | 'detailed';
+  style?: DescriptionStyle;
   customNotes?: string;
+  imageUrl?: string;
 }
 
 export interface GenerateDescriptionResponse {
   success: boolean;
   description: string;
-  source: 'gemini' | 'atelier_engine';
+  source: "gemini" | "atelier_engine";
   style: string;
   model?: string;
   warnings?: string;
   error?: string;
 }
 
-/**
- * Fallback Cotton Nest Atelier Luxury Copywriting Engine.
- * Used if Gemini API key is missing or external network call times out.
- * Strictly adheres to entered product specifications without inventing details.
- */
-export function generateAtelierDescription(payload: GenerateDescriptionPayload): string {
-  const name = (payload.name || 'Handcrafted Bedsheet').trim();
-  const fabric = (payload.fabric || '100% Pure Combed Cotton').trim();
-  const threadCount = (payload.threadCount || '350 Thread Count').trim();
-  const dimensions = (payload.dimensions || '108 x 108 inches King').trim();
-  const pillowCovers = (payload.pillowCovers || '2 Matching Pillow Covers (45 x 70 cm)').trim();
-  const pattern = (payload.pattern || 'Artisanal Floral Motif').trim();
-  const colorTone = (payload.colorTone || 'Natural Palette').trim();
-  const collection = (payload.collection || 'Signature Collection').trim();
-  const style = payload.style || 'elegant';
+function isKidsProduct(payload: GenerateDescriptionPayload): boolean {
+  const text = `${payload.name || ""} ${payload.pattern || ""} ${payload.collection || ""} ${payload.customNotes || ""}`.toLowerCase();
 
-  switch (style) {
-    case 'luxurious':
-      return `A masterwork of royal bedroom comfort from our ${collection}, ${name} is lavishly crafted from ${threadCount} ${fabric}. Rich ${colorTone} hues illuminate the intricate ${pattern}, while its expansive ${dimensions} tuck-in drop drapes seamlessly over deep king mattresses. Includes ${pillowCovers} tailored for timeless Indian grandeur.`;
-
-    case 'minimal':
-      return `${name} offers refined simplicity with ${fabric} in soothing ${colorTone}. Cut to generous ${dimensions} King dimensions with ${pillowCovers}, it brings breathable cool comfort, smooth anti-pilling texture, and serene everyday luxury without excess.`;
-
-    case 'detailed':
-      return `Expertly tailored for deep Indian King mattresses, ${name} features ${threadCount} ${fabric} woven with zero synthetic blends for year-round cooling breathability. The generous ${dimensions} cut guarantees an effortless tuck-in on all four sides, accented by a distinctive ${pattern} in ${colorTone} and complemented by ${pillowCovers}.`;
-
-    case 'elegant':
-    default:
-      return `Embrace serene bedroom luxury with ${name}, woven from breathable ${fabric} in delicate ${colorTone}. The artisanal ${pattern} brings timeless grace to your decor, while oversized ${dimensions} King proportions and ${pillowCovers} ensure a smooth, secure tuck-in and restorative night's rest.`;
-  }
+  return (
+    payload.style === "playful" ||
+    ["kid", "child", "baby", "nursery", "safari", "animal", "dino", "cartoon", "teddy", "cute", "star", "bear", "bunny", "jungle"].some(word => text.includes(word))
+  );
 }
 
-/**
- * Server-side AI Product Description Generator.
- * Connects to Gemini API using server-side credentials and provides clean error handling.
- */
-export async function generateProductDescription(payload: GenerateDescriptionPayload): Promise<GenerateDescriptionResponse> {
-  const style = payload.style || 'elegant';
-  const apiKey = process.env.GEMINI_API_KEY;
+export function generateAtelierDescription(payload: GenerateDescriptionPayload): string {
+  const name = (payload.name || "Bedsheet").trim();
+  const fabric = payload.fabric?.trim();
+  const threadCount = payload.threadCount?.trim();
+  const dimensions = payload.dimensions?.trim();
+  const pillowCovers = payload.pillowCovers?.trim();
+  const pattern = payload.pattern?.trim();
+  const colorTone = payload.colorTone?.trim();
+  const collection = payload.collection?.trim();
+  const style = payload.style || (isKidsProduct(payload) ? "playful" : "elegant");
 
-  const styleGuides: Record<string, string> = {
-    elegant: 'Graceful, calming, poetic yet grounded, highlighting natural sensory comfort and bedroom serenity.',
-    luxurious: 'Opulent, regal, emphasizing heirloom quality, royal Indian aesthetic, and rich cotton weave.',
-    minimal: 'Crisp, contemporary, direct, highlighting essential cotton purity and uncluttered elegance.',
-    detailed: 'Informative and descriptive, highlighting exact weave, dimensions, tuck-in drop, and matching pillow shams.',
+  const details = [
+    pattern && `featuring ${pattern}`,
+    colorTone && `in ${colorTone} tones`,
+    fabric && `made with ${fabric}`,
+    threadCount && `with ${threadCount}`,
+    dimensions && `measuring ${dimensions}`,
+    pillowCovers && `including ${pillowCovers}`
+  ].filter(Boolean).join(", ");
+
+  const opening = collection
+    ? `From the ${collection}, ${name}`
+    : name;
+
+  const description = `${opening} brings a distinctive touch to your bedroom${details ? `, ${details}` : ""}.`;
+
+  const endings: Record<string, string> = {
+    elegant: "Its thoughtfully coordinated design adds a graceful and inviting feel to your space.",
+    luxurious: "A refined choice for creating a beautifully styled bedroom.",
+    minimal: "A clean, understated design that complements everyday interiors.",
+    detailed: "A considered combination of design and the specifications provided.",
+    playful: "A cheerful design that brings personality and charm to the bedroom."
   };
 
-  const name = payload.name?.trim() || 'Cotton Nest Bedsheet';
-  const fabric = payload.fabric?.trim() || '100% Pure Combed Cotton';
-  const dimensions = payload.dimensions?.trim() || '108 x 108 inches (274 x 274 cm)';
-  const pillowCovers = payload.pillowCovers?.trim() || '2 Pillow Covers (45 x 70 cm)';
-  const threadCount = payload.threadCount?.trim() || '350 Thread Count';
-  const pattern = payload.pattern?.trim() || 'Artisanal Floral';
-  const colorTone = payload.colorTone?.trim() || 'Ivory & Pastels';
-  const collection = payload.collection?.trim() || 'Signature Collection';
-  const featuresList = (payload.features || []).filter(Boolean).join(', ');
+  return `${description} ${endings[style] || endings.elegant}`;
+}
 
-  const systemInstruction = `You are a luxury textile copywriter for 'Cotton Nest'—an artisanal boutique in Gurgaon, India, creating 100% natural pure cotton bedsheets for King size beds.
-Brand Voice:
-- High-end, soothing, trustworthy, authentic Indian craftsmanship.
-- NEVER invent specifications that contradict the provided inputs.
-- Emphasize zero-synthetic breathability, cool natural cotton touch, and oversized 108x108 inch King tuck-in drop.
-- Length: Exactly 2 to 4 sentences (between 45 and 85 words).
-- Do NOT output preamble, titles, quotation marks, or bullet points. Return ONLY the final description text.
-- Do NOT use robotic cliché phrases like 'haven of slumber', 'elevate your sleep', 'tapestry of', 'delve into'.`;
+async function resolveImageInput(
+  imageUrl?: string
+): Promise<{ mimeType: string; data: string } | null> {
+  if (!imageUrl) return null;
 
-  const userPrompt = `Product Specifications:
-- Product Name: ${name}
-- Collection: ${collection}
-- Fabric: ${fabric}
-- Thread Count: ${threadCount}
-- Pattern: ${pattern}
-- Color Palette / Tone: ${colorTone}
-- Dimensions: ${dimensions}
-- Pillow Covers: ${pillowCovers}
-${featuresList ? `- Key Highlights: ${featuresList}` : ''}
-- Copywriting Style: ${style.toUpperCase()} (${styleGuides[style] || styleGuides.elegant})
-${payload.customNotes?.trim() ? `- Owner's Specific Request: ${payload.customNotes.trim()}` : ''}
+  const maxBytes = 2.8 * 1024 * 1024;
 
-Generate an attractive, premium-quality bedsheet product description matching Cotton Nest's brand style:`;
+  const dataUrlMatch = imageUrl.match(
+    /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/i
+  );
 
-  // 1. Try Gemini Live API call if GEMINI_API_KEY is available
+  if (dataUrlMatch) {
+    const mimeType = dataUrlMatch[1].toLowerCase();
+    const data = dataUrlMatch[2];
+
+    if (Buffer.byteLength(data, "base64") > maxBytes) {
+      throw new Error("Product image is too large.");
+    }
+
+    return { mimeType, data };
+  }
+
+  let parsed: URL;
+
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
+    throw new Error("Invalid product image URL.");
+  }
+
+  const allowedHosts = new Set<string>(["res.cloudinary.com"]);
+
+  if (process.env.APP_URL) {
+    try {
+      allowedHosts.add(new URL(process.env.APP_URL).hostname);
+    } catch {}
+  }
+
+  if (process.env.VERCEL_URL) {
+    allowedHosts.add(
+      process.env.VERCEL_URL.replace(/^https?:\/\//, "").split("/")[0]
+    );
+  }
+
+  if (
+    parsed.protocol !== "https:" &&
+    !(process.env.NODE_ENV !== "production" && parsed.hostname === "localhost")
+  ) {
+    throw new Error("Product image URL must use HTTPS.");
+  }
+
+  if (!allowedHosts.has(parsed.hostname) &&
+      !(process.env.NODE_ENV !== "production" && ["localhost", "127.0.0.1"].includes(parsed.hostname))) {
+    throw new Error("Use an image hosted on Cloudinary or Cotton Nest.");
+  }
+
+  const response = await fetch(parsed.toString(), {
+    signal: AbortSignal.timeout(10000)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not retrieve product image: HTTP ${response.status}.`);
+  }
+
+  const mimeType = (response.headers.get("content-type") || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+
+  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mimeType)) {
+    throw new Error("Unsupported image format.");
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+
+  if (bytes.byteLength > maxBytes) {
+    throw new Error("Product image is too large.");
+  }
+
+  return {
+    mimeType,
+    data: bytes.toString("base64")
+  };
+}
+
+export async function generateProductDescription(
+  payload: GenerateDescriptionPayload
+): Promise<GenerateDescriptionResponse> {
+  const isKids = isKidsProduct(payload);
+  const style = payload.style || (isKids ? "playful" : "elegant");
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  const name = payload.name?.trim() || "Cotton Nest Bedsheet";
+
+  const styleGuides: Record<string, string> = {
+    playful: "Cheerful, whimsical and joyful.",
+    elegant: "Graceful, calming, poetic and premium.",
+    luxurious: "Refined, sophisticated and luxurious.",
+    minimal: "Crisp, contemporary and understated.",
+    detailed: "Informative, descriptive and clear."
+  };
+
+  const systemInstruction = `
+You are a professional textile product copywriter for Cotton Nest,
+a premium bedding brand in India.
+
+If an image is supplied, inspect it carefully.
+
+Describe only visible visual details:
+- Colours
+- Floral or geometric motifs
+- Borders
+- Patterns
+- Arrangement of designs
+- Overall visual appearance
+
+Never guess fabric, thread count, dimensions, softness,
+certifications or care properties from an image.
+
+Use only specifications explicitly supplied by the product owner.
+
+Never invent product claims.
+
+Write 2 to 4 attractive sentences, approximately 50 to 95 words.
+
+Brand tone: warm, elegant, authentic and premium.
+
+Return only the final product description.
+`;
+
+  const userPrompt = `
+Product name: ${name}
+Collection: ${payload.collection || "Not specified"}
+Pattern: ${payload.pattern || "Not specified"}
+Colour: ${payload.colorTone || "Not specified"}
+Fabric: ${payload.fabric || "Not specified"}
+Thread count: ${payload.threadCount || "Not specified"}
+Dimensions: ${payload.dimensions || "Not specified"}
+Pillow covers: ${payload.pillowCovers || "Not specified"}
+Additional features: ${(payload.features || []).join(", ") || "Not specified"}
+
+Writing style: ${styleGuides[style] || styleGuides.elegant}
+
+Additional instructions:
+${payload.customNotes || "None"}
+
+Generate a premium Cotton Nest product description.
+`;
+
   if (apiKey) {
     try {
-      const ai = new GoogleGenAI();
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Gemini API call timed out after 6 seconds')), 6000)
-      );
+      const ai = new GoogleGenAI({ apiKey });
 
-      const generatePromise = ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: userPrompt,
+      const imageInput = await resolveImageInput(payload.imageUrl);
+
+      const parts: any[] = [{ text: userPrompt }];
+
+      if (imageInput) {
+        parts.unshift({
+          inlineData: {
+            mimeType: imageInput.mimeType,
+            data: imageInput.data
+          }
+        });
+      }
+
+      const response = await ai.models.generateContent({
+        model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts
+          }
+        ],
         config: {
           systemInstruction,
-          temperature: 0.7,
-        },
+          temperature: 0.75
+        }
       });
 
-      const response = await Promise.race([generatePromise, timeoutPromise]);
-      let generatedText = response.text?.trim() || '';
-
-      // Clean up surrounding quotes if the model wrapped text in quotes
-      if (generatedText.startsWith('"') && generatedText.endsWith('"')) {
-        generatedText = generatedText.slice(1, -1).trim();
-      }
+      const generatedText = response.text?.trim() || "";
 
       if (generatedText.length > 20) {
         return {
           success: true,
           description: generatedText,
-          source: 'gemini',
+          source: "gemini",
           style,
-          model: 'gemini-3.8-flash',
+          model: process.env.GEMINI_MODEL || "gemini-2.5-flash"
         };
       }
-    } catch (err: any) {
-      console.warn('Gemini API generation note (falling back to atelier engine):', err.message || err);
-      // Fall through to deterministic atelier copywriting engine
-      const fallbackText = generateAtelierDescription(payload);
-      return {
-        success: true,
-        description: fallbackText,
-        source: 'atelier_engine',
-        style,
-        warnings: `Live Gemini API note: ${err.message || 'Service busy'}. Handcrafted description tailored to your exact specifications.`,
-      };
+
+      throw new Error("Gemini returned an empty description.");
+
+    } catch (error: any) {
+      console.error("Gemini generation failed:", error);
+
+      throw new Error(
+        error?.message || "Gemini description generation failed."
+      );
     }
   }
 
-  // 2. If GEMINI_API_KEY is not configured, generate via atelier engine
-  const fallbackText = generateAtelierDescription(payload);
   return {
     success: true,
-    description: fallbackText,
-    source: 'atelier_engine',
+    description: generateAtelierDescription(payload),
+    source: "atelier_engine",
     style,
-    warnings: 'Generated with Cotton Nest Atelier Brand Copy Engine.',
+    warnings: "Gemini API is not configured. This fallback does not analyse product images."
   };
 }

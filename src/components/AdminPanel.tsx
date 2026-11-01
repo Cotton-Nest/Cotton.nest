@@ -279,6 +279,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       collection?: string;
       features?: string[];
       currentDescription?: string;
+      imageUrl?: string;
     };
   } | null>(null);
 
@@ -296,6 +297,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         collection: newProduct.collection,
         features: newProduct.features,
         currentDescription: newProduct.description,
+        imageUrl: newProduct.image,
       },
     });
     setIsAiDescModalOpen(true);
@@ -316,6 +318,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         collection: product.collection,
         features: product.features,
         currentDescription: product.description,
+        imageUrl: product.image,
       },
     });
     setIsAiDescModalOpen(true);

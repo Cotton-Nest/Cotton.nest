@@ -18,6 +18,7 @@ interface AiDescriptionModalProps {
     collection?: string;
     features?: string[];
     currentDescription?: string;
+    imageUrl?: string;
   };
   onInsertDescription: (description: string) => void;
 }
@@ -70,6 +71,11 @@ export const AiDescriptionModal: React.FC<AiDescriptionModalProps> = ({
       features: productContext.features,
       style: styleToUse,
       customNotes: customNotes.trim() || undefined,
+      imageUrl: productContext.imageUrl
+        ? (productContext.imageUrl.startsWith('/')
+            ? new URL(productContext.imageUrl, window.location.origin).toString()
+            : productContext.imageUrl)
+        : undefined,
     };
 
     try {
