@@ -1,5 +1,4 @@
 import { ShoppingBag, Grid, Package, Sparkles, Heart } from 'lucide-react';
-import { COMPANY_DETAILS } from '../data/products';
 import { SeasonalConfig } from '../data/seasonal';
 
 interface MobileBottomBarProps {

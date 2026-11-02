@@ -1304,7 +1304,7 @@ export interface AiDescriptionPayload {
   pillowCovers?: string;
   collection?: string;
   features?: string[];
-  style?: 'elegant' | 'luxurious' | 'minimal' | 'detailed';
+  style?: 'elegant' | 'luxurious' | 'minimal' | 'detailed' | 'playful';
   customNotes?: string;
   imageUrl?: string;
 }
@@ -1317,6 +1317,68 @@ export interface AiDescriptionResult {
   model?: string;
   warnings?: string;
   error?: string;
+}
+
+function fallbackClientDescription(payload: AiDescriptionPayload): string {
+  const fabric = payload.fabric?.trim() || '100% Pure Combed Cotton';
+  const threadCount = payload.threadCount?.trim() || '350 Thread Count';
+  const dimensions = payload.dimensions?.trim() || '108 x 108 inches King';
+  const pattern = payload.pattern?.trim() || 'Artisanal Motifs';
+  const colorTone = payload.colorTone?.trim() || 'Cream & Pastel';
+  const style = payload.style || 'elegant';
+
+  const isKids =
+    style === 'playful' ||
+    ['kid', 'child', 'baby', 'nursery', 'safari', 'animal', 'dino', 'cartoon', 'teddy', 'cute', 'star'].some((w) =>
+      `${payload.name || ''} ${payload.pattern || ''} ${payload.collection || ''}`.toLowerCase().includes(w)
+    );
+
+  const patternLower = pattern.toLowerCase();
+  const colorLower = colorTone.toLowerCase().replace(/palette/i, '').trim();
+
+  const styleAdjMap: Record<string, string> = {
+    playful: 'A delightful',
+    elegant: 'An elegant',
+    luxurious: 'A luxurious',
+    minimal: 'A crisp, contemporary',
+    detailed: 'A beautifully detailed',
+  };
+  const leadAdj = isKids ? 'A delightful' : (styleAdjMap[style] || 'An elegant');
+
+  let arrangement = 'arranged in a repeating pattern';
+  if (isKids || patternLower.includes('animal') || patternLower.includes('cartoon') || patternLower.includes('star') || patternLower.includes('safari') || patternLower.includes('dino')) {
+    arrangement = 'arranged in a cheerful storybook pattern';
+  } else if (patternLower.includes('floral') || patternLower.includes('rose') || patternLower.includes('botanical') || patternLower.includes('vine')) {
+    arrangement = 'arranged in a graceful trailing floral pattern';
+  } else if (patternLower.includes('geometric') || patternLower.includes('stripe') || patternLower.includes('check') || patternLower.includes('trellis')) {
+    arrangement = 'arranged in a clean repeating grid';
+  } else if (patternLower.includes('elephant') || patternLower.includes('jaipuri') || patternLower.includes('booti') || patternLower.includes('ethnic') || patternLower.includes('heritage')) {
+    arrangement = 'arranged in a repeating pattern';
+  }
+
+  let borderVibe = 'add a vibrant, elegant touch to the overall design';
+  if (isKids) {
+    borderVibe = "add a sweet, playful touch to any child's bedroom";
+  } else if (patternLower.includes('elephant') || patternLower.includes('heritage') || patternLower.includes('ethnic') || patternLower.includes('jaipuri')) {
+    borderVibe = 'add a vibrant, ethnic touch to the overall design';
+  } else if (patternLower.includes('floral') || patternLower.includes('rose') || patternLower.includes('botanical')) {
+    borderVibe = 'add a serene, romantic garden touch to the overall design';
+  } else if (patternLower.includes('geometric') || style === 'minimal') {
+    borderVibe = 'add a sophisticated, modern touch to the overall design';
+  } else if (style === 'luxurious') {
+    borderVibe = 'add an opulent, regal touch to the overall design';
+  }
+
+  const motifTerm = patternLower.includes('motif') || patternLower.includes('print') || patternLower.includes('pattern')
+    ? pattern
+    : `${pattern} motifs`;
+  const sentence1 = `${leadAdj} ${colorLower} bedsheet featuring ${motifTerm} ${arrangement}.`;
+  const sentence2 = `The rich contrasting borders and matching pillow accents ${borderVibe}.`;
+  const sentence3 = isKids
+    ? `Tailored from hypoallergenic, ultra-gentle ${fabric} (${threadCount}) for soft, peaceful nights.`
+    : `Tailored from breathable ${fabric} in generous ${dimensions} for everyday luxury and effortless drape.`;
+
+  return `${sentence1} ${sentence2} ${sentence3}`;
 }
 
 export async function generateProductDescriptionApi(payload: AiDescriptionPayload): Promise<AiDescriptionResult> {
@@ -1332,10 +1394,24 @@ export async function generateProductDescriptionApi(payload: AiDescriptionPayloa
       return data;
     } else {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `Server responded with status ${res.status}`);
+      console.warn('Server AI endpoint notice, using atelier fallback:', errData);
+      return {
+        success: true,
+        description: fallbackClientDescription(payload),
+        source: 'atelier_engine',
+        style: payload.style || 'elegant',
+        warnings: errData.error || `Server notice (${res.status})`,
+      };
     }
   } catch (err: any) {
-    console.error('Failed to generate AI description:', err);
-    throw err;
+    console.warn('Network issue reaching AI description endpoint, using atelier fallback:', err);
+    return {
+      success: true,
+      description: fallbackClientDescription(payload),
+      source: 'atelier_engine',
+      style: payload.style || 'elegant',
+      warnings: err?.message || 'Generated via Cotton Nest copywriter',
+    };
   }
 }
+

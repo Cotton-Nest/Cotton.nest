@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, RefreshCw, Check, X, AlertCircle, Wand2, Info, Layers, ShieldCheck } from 'lucide-react';
 import { generateProductDescriptionApi, AiDescriptionPayload, AiDescriptionResult } from '../services/api';
 
-export type DescriptionStyle = 'elegant' | 'luxurious' | 'minimal' | 'detailed';
+export type DescriptionStyle = 'elegant' | 'luxurious' | 'minimal' | 'detailed' | 'playful';
 
 interface AiDescriptionModalProps {
   isOpen: boolean;
@@ -23,13 +23,21 @@ interface AiDescriptionModalProps {
   onInsertDescription: (description: string) => void;
 }
 
+function checkIsKidsContext(ctx: AiDescriptionModalProps['productContext']): boolean {
+  const text = `${ctx.name || ''} ${ctx.pattern || ''} ${ctx.collection || ''}`.toLowerCase();
+  return ['kid', 'child', 'baby', 'nursery', 'safari', 'animal', 'dino', 'cartoon', 'teddy', 'cute', 'star', 'bear', 'bunny', 'jungle'].some(
+    (w) => text.includes(w)
+  );
+}
+
 export const AiDescriptionModal: React.FC<AiDescriptionModalProps> = ({
   isOpen,
   onClose,
   productContext,
   onInsertDescription,
 }) => {
-  const [selectedStyle, setSelectedStyle] = useState<DescriptionStyle>('elegant');
+  const isKidsDetected = checkIsKidsContext(productContext);
+  const [selectedStyle, setSelectedStyle] = useState<DescriptionStyle>(isKidsDetected ? 'playful' : 'elegant');
   const [customNotes, setCustomNotes] = useState('');
   const [generatedDraft, setGeneratedDraft] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -41,13 +49,15 @@ export const AiDescriptionModal: React.FC<AiDescriptionModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setErrorMessage(null);
+      const kids = checkIsKidsContext(productContext);
+      const initialStyle: DescriptionStyle = kids ? 'playful' : 'elegant';
+      setSelectedStyle(initialStyle);
+
       if (!hasGeneratedOnce) {
-        // If there's an existing description, keep it in view or auto-generate first draft
         if (productContext.currentDescription && productContext.currentDescription.trim()) {
           setGeneratedDraft(productContext.currentDescription);
         } else {
-          // Trigger first generation
-          handleGenerate(selectedStyle);
+          handleGenerate(initialStyle);
         }
       }
     }
@@ -71,11 +81,7 @@ export const AiDescriptionModal: React.FC<AiDescriptionModalProps> = ({
       features: productContext.features,
       style: styleToUse,
       customNotes: customNotes.trim() || undefined,
-      imageUrl: productContext.imageUrl
-        ? (productContext.imageUrl.startsWith('/')
-            ? new URL(productContext.imageUrl, window.location.origin).toString()
-            : productContext.imageUrl)
-        : undefined,
+      imageUrl: productContext.imageUrl || undefined,
     };
 
     try {
@@ -113,6 +119,12 @@ export const AiDescriptionModal: React.FC<AiDescriptionModalProps> = ({
   const charCount = generatedDraft.length;
 
   const styleOptions: Array<{ id: DescriptionStyle; label: string; desc: string; icon: string }> = [
+    {
+      id: 'playful',
+      label: 'Kids & Cute',
+      desc: 'Playful characters, cute prints & child-safe soft cotton',
+      icon: '🧸',
+    },
     {
       id: 'elegant',
       label: 'Elegant',
@@ -234,7 +246,7 @@ export const AiDescriptionModal: React.FC<AiDescriptionModalProps> = ({
             <label className="block text-xs font-bold text-[#2C2420] uppercase tracking-wider">
               Choose Brand Copy Style
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               {styleOptions.map((st) => (
                 <button
                   key={st.id}
