@@ -98,5 +98,15 @@ service cloud.firestore {
     match /wishlists/{wishlistId} {
       allow read, write: if true;
     }
+
+    // Customer Loyalty Points & Rewards: 1 point per 50 Rs spent
+    match /loyalty/{accountId} {
+      allow read, write: if true;
+    }
+
+    // Customer Loyalty Ledger Transactions
+    match /loyalty_transactions/{txId} {
+      allow read, write: if true;
+    }
   }
 }

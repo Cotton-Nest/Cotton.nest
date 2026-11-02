@@ -151,6 +151,39 @@
         "createdAt": { "type": "number", "description": "Timestamp when wishlisted" }
       },
       "required": ["id", "customerId", "customerName", "productId", "productName", "productPrice", "productImage", "createdAt"]
+    },
+    "LoyaltyAccount": {
+      "title": "LoyaltyAccount",
+      "description": "Customer loyalty reward points balance and account information (1 point per 50 Rs spent)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique loyalty account key (userId, phone, or email)" },
+        "userId": { "type": "string", "description": "Associated Firebase auth user ID if signed in" },
+        "email": { "type": "string", "description": "Associated customer email" },
+        "phone": { "type": "string", "description": "Associated customer mobile/WhatsApp number" },
+        "customerName": { "type": "string", "description": "Customer display name" },
+        "pointsBalance": { "type": "number", "description": "Current active points balance" },
+        "lifetimeEarned": { "type": "number", "description": "Total cumulative points earned across all orders" },
+        "lifetimeSpent": { "type": "number", "description": "Total cumulative points redeemed as discounts" },
+        "updatedAt": { "type": "number", "description": "Timestamp of last balance change" }
+      },
+      "required": ["id", "pointsBalance", "lifetimeEarned", "lifetimeSpent", "updatedAt"]
+    },
+    "LoyaltyTransaction": {
+      "title": "LoyaltyTransaction",
+      "description": "Ledger entry for points earned from purchases or redeemed as checkout discounts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Transaction ID" },
+        "accountId": { "type": "string", "description": "Loyalty account identifier" },
+        "orderId": { "type": "string", "description": "Related order ID" },
+        "type": { "type": "string", "enum": ["earned", "redeemed", "bonus", "adjustment"], "description": "Type of points movement" },
+        "points": { "type": "number", "description": "Points value delta (positive or negative)" },
+        "amountInr": { "type": "number", "description": "Rupee value associated with order or discount" },
+        "description": { "type": "string", "description": "Human readable ledger note" },
+        "createdAt": { "type": "number", "description": "Transaction timestamp" }
+      },
+      "required": ["id", "accountId", "type", "points", "description", "createdAt"]
     }
   },
   "firestore": {
@@ -185,6 +218,14 @@
     "/wishlists/{wishlistId}": {
       "schema": "CustomerWishlist",
       "description": "Customer wishlists storing saved items with contact details"
+    },
+    "/loyalty/{accountId}": {
+      "schema": "LoyaltyAccount",
+      "description": "Customer loyalty reward points accounts and balances"
+    },
+    "/loyalty_transactions/{txId}": {
+      "schema": "LoyaltyTransaction",
+      "description": "Ledger records of points earned and redeemed"
     }
   }
 }

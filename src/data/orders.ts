@@ -30,6 +30,9 @@ export interface Order {
   totalSavings: number;
   couponCode?: string;
   couponDiscount?: number;
+  pointsUsed?: number;
+  pointsDiscount?: number;
+  pointsEarned?: number;
   status: OrderStatus;
   notes?: string;
   trackingNumber?: string;
