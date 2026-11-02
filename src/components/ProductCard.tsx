@@ -161,7 +161,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="absolute top-3 left-12 bg-[#FAF7F2]/95 backdrop-blur-sm px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#8C2E46] border border-[#FAD1DC] shadow-xs">
             {product.badge}
           </div>
-        ) : (!!customImage || (typeof product.image === 'string' && (isCloudinaryUrl(product.image) || (!product.image.includes('exact_sheet') && !product.image.startsWith('/images/exact_'))))) ? (
+        ) : (isOwnerMode && (!!customImage || (typeof product.image === 'string' && (isCloudinaryUrl(product.image) || (!product.image.includes('exact_sheet') && !product.image.startsWith('/images/exact_')))))) ? (
           <div className="absolute top-3 left-12 bg-[#FAF7F2]/95 backdrop-blur-xs text-[#2E6B4A] px-2 py-0.5 rounded text-[10px] font-semibold border border-[#BDE0CE] shadow-2xs flex items-center gap-1">
             <Check className="w-2.5 h-2.5 text-[#2E6B4A]" />
             <span>Updated Photo</span>

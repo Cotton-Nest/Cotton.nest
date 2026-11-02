@@ -177,6 +177,53 @@ export default function App() {
     };
   }, [customerProfile.id]);
 
+  // Automated 3-Day Wishlist Retention: Send 5% Coupon
+  useEffect(() => {
+    if (!wishlistItems || wishlistItems.length === 0) return;
+
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    wishlistItems.forEach(async (item) => {
+      const age = now - (item.createdAt || now);
+      if (age >= threeDaysMs) {
+        const sentKey = `cotton_nest_wishlist_coupon_sent_${item.productId}`;
+        if (!localStorage.getItem(sentKey)) {
+          localStorage.setItem(sentKey, String(now));
+          const notif: AppNotification = {
+            id: `wishlist-5pct-${item.productId}-${Date.now()}`,
+            recipientId: customerProfile.id || 'all',
+            type: 'promotion',
+            category: 'promotions',
+            title: '🎁 5% Wishlist Loyalty Reward Unlocked!',
+            message: `You've had "${item.productName}" saved in your wishlist for 3 days! Use code WISHLIST5 at checkout for an instant 5% loyalty discount.`,
+            timestamp: Date.now(),
+            isRead: false,
+            linkTarget: {
+              view: 'catalogue',
+              targetId: item.productId,
+            },
+            metadata: {
+              couponCode: 'WISHLIST5',
+              productId: item.productId,
+              productName: item.productName,
+            },
+          };
+          try {
+            await saveNotificationApi(notif);
+            triggerLocalPushNotification(
+              '🎁 5% Off Your Wishlisted Bedsheet!',
+              `Use code WISHLIST5 to get 5% off ${item.productName}.`,
+              { url: '/#catalogue' }
+            ).catch(() => {});
+          } catch (e) {
+            console.warn('Wishlist retention coupon dispatch notice:', e);
+          }
+        }
+      }
+    });
+  }, [wishlistItems, customerProfile.id]);
+
   const isProductWishlisted = (productId: string, variantId?: string) => {
     return wishlistItems.some(
       (item) => item.productId === productId && (!variantId || item.selectedVariantId === variantId)

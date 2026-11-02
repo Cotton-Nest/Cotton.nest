@@ -113,6 +113,28 @@ export const INITIAL_COUPONS: CouponOffer[] = [
     createdAt: 1768000000000,
     updatedAt: 1768000000000,
   },
+  {
+    id: 'coupon-wishlist5',
+    code: 'WISHLIST5',
+    title: '5% Wishlist Loyalty Reward',
+    description: 'Exclusive 5% discount for cherishing bedsheets in your wishlist for 3+ days.',
+    discountType: 'percentage',
+    discountValue: 5,
+    minOrderValue: 0,
+    maxDiscountAmount: 400,
+    startDate: '2026-01-01',
+    expiryDate: '2028-12-31',
+    isActive: true,
+    isAutomatic: false,
+    maxUses: 1000,
+    usedCount: 0,
+    oneUsePerCustomer: false,
+    usedByCustomers: [],
+    scope: 'all',
+    badgeText: 'WISHLIST 3-DAY GIFT',
+    createdAt: 1768000000000,
+    updatedAt: 1768000000000,
+  },
 ];
 
 export interface CartItemLike {

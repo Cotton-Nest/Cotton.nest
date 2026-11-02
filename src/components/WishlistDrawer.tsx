@@ -22,6 +22,8 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({
   onMoveToCart,
   onEditProfile,
 }) => {
+  const [copiedCode, setCopiedCode] = React.useState(false);
+
   if (!isOpen) return null;
 
   const totalValue = items.reduce((acc, item) => acc + (item.productPrice || 0), 0);
@@ -92,6 +94,40 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({
 
           {/* Wishlist Items List */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {/* 3-Day Retention 5% Coupon Reward Banner */}
+            {items.some((it) => (Date.now() - (it.createdAt || 0)) >= 3 * 24 * 60 * 60 * 1000) && (
+              <div className="p-3.5 bg-gradient-to-r from-amber-50 to-rose-50 rounded-2xl border border-amber-300 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-[#8C2E46]">
+                    <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
+                    <span>5% Wishlist Loyalty Reward Unlocked!</span>
+                  </span>
+                  <span className="text-[10px] font-bold bg-[#8C2E46] text-white px-2 py-0.5 rounded-full">
+                    3+ Days Saved
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#6B5D55] leading-relaxed">
+                  Because you've kept your favorites saved for 3 days, enjoy an exclusive <strong>5% discount</strong> on your order!
+                </p>
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-1.5 font-mono text-xs font-bold bg-white px-2.5 py-1 rounded-lg border border-amber-200 text-[#8C2E46]">
+                    <span>WISHLIST5</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('WISHLIST5');
+                      setCopiedCode(true);
+                      setTimeout(() => setCopiedCode(false), 2000);
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-semibold bg-[#8C2E46] hover:bg-[#732438] text-white rounded-lg transition-colors cursor-pointer"
+                  >
+                    {copiedCode ? '✓ Copied!' : 'Copy 5% Code'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {items.length === 0 ? (
               <div className="text-center py-16 space-y-3">
                 <div className="w-16 h-16 mx-auto rounded-full bg-rose-50 flex items-center justify-center text-rose-300">
@@ -105,7 +141,11 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({
                 </p>
               </div>
             ) : (
-              items.map((item) => (
+              items.map((item) => {
+                const daysSaved = Math.max(0, Math.floor((Date.now() - (item.createdAt || Date.now())) / (1000 * 60 * 60 * 24)));
+                const isThreeDays = daysSaved >= 3;
+
+                return (
                 <div
                   key={item.id}
                   className="p-3.5 rounded-2xl border border-[var(--color-border,#EAE2D5)] bg-white shadow-2xs flex gap-3 hover:border-[#DEC89B] transition-colors"
@@ -136,6 +176,18 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({
                         {item.threadCount || 'Pure Cotton'} · {item.productDimensions || 'King Size'}
                         {item.selectedVariantName ? ` · ${item.selectedVariantName}` : ''}
                       </p>
+
+                      {/* 3-Day Loyalty Status Badge */}
+                      {isThreeDays ? (
+                        <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md w-fit">
+                          <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+                          <span>5% Coupon Unlocked (Saved {daysSaved}d)</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 mt-1 text-[10px] text-[#8C7A70]">
+                          <span>Saved {daysSaved === 0 ? 'today' : `${daysSaved}d ago`} · {3 - daysSaved}d left for 5% coupon</span>
+                        </div>
+                      )}
 
                       <div className="flex items-baseline gap-1.5 mt-1">
                         <span className="text-xs font-bold text-[#2C2420]">
@@ -179,8 +231,9 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({
                     </div>
                   </div>
                 </div>
-              ))
-            )}
+              );
+            })
+          )}
           </div>
 
           {/* Drawer Footer */}

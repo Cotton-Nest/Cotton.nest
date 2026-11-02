@@ -14,10 +14,14 @@ import {
   Trash2,
   Sparkles,
   TrendingUp,
-  Tag
+  Tag,
+  Gift,
+  Send
 } from 'lucide-react';
 import { WishlistItem } from '../data/wishlist';
-import { getWishlistsApi, removeWishlistItemApi } from '../services/api';
+import { getWishlistsApi, removeWishlistItemApi, saveNotificationApi } from '../services/api';
+import { AppNotification } from '../data/notifications';
+import { triggerLocalPushNotification } from '../utils/pushNotifications';
 
 interface AdminWishlistsSectionProps {
   onShowToast: (msg: string) => void;
@@ -64,6 +68,62 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
       onShowToast(`Removed "${productName}" from wishlist.`);
     } catch (err: any) {
       onShowToast('Failed to delete item: ' + (err.message || 'Error'));
+    }
+  };
+
+  const handlePushWishlistCoupon = async (group: CustomerWishlistGroup) => {
+    try {
+      const notif: AppNotification = {
+        id: `wishlist-5pct-manual-${Date.now()}`,
+        recipientId: group.customerId || group.customerPhone || 'all',
+        type: 'promotion',
+        category: 'promotions',
+        title: '🎁 5% Wishlist Loyalty Reward Unlocked!',
+        message: `Hello ${group.customerName}! Because you've kept your favorites saved in your Cotton Nest wishlist for 3 days, enjoy an exclusive 5% loyalty discount with code WISHLIST5 at checkout!`,
+        timestamp: Date.now(),
+        isRead: false,
+        linkTarget: { view: 'catalogue' },
+        metadata: { couponCode: 'WISHLIST5' },
+      };
+      await saveNotificationApi(notif);
+      try {
+        await triggerLocalPushNotification(
+          '🎁 5% Wishlist Reward: WISHLIST5',
+          `5% coupon notification sent to ${group.customerName}.`,
+          { url: '/#catalogue' }
+        );
+      } catch {}
+      onShowToast(`✓ Pushed 5% coupon (WISHLIST5) to ${group.customerName}!`);
+    } catch (err: any) {
+      onShowToast('Failed to send coupon: ' + (err.message || 'Error'));
+    }
+  };
+
+  const handleBroadcastWishlistCouponToAll = async () => {
+    try {
+      const notif: AppNotification = {
+        id: `wishlist-5pct-broadcast-${Date.now()}`,
+        recipientId: 'all',
+        type: 'promotion',
+        category: 'promotions',
+        title: '🎁 5% Wishlist Loyalty Reward Unlocked!',
+        message: `Enjoy an exclusive 5% loyalty discount on your saved wishlist bedsheets with code WISHLIST5!`,
+        timestamp: Date.now(),
+        isRead: false,
+        linkTarget: { view: 'catalogue' },
+        metadata: { couponCode: 'WISHLIST5' },
+      };
+      await saveNotificationApi(notif);
+      try {
+        await triggerLocalPushNotification(
+          '🎁 5% Wishlist Loyalty Gift: Code WISHLIST5',
+          'Use code WISHLIST5 at checkout to enjoy 5% off your saved bedsheets.',
+          { url: '/#catalogue' }
+        );
+      } catch {}
+      onShowToast('✓ 5% Wishlist coupon (WISHLIST5) broadcasted to all customer leads!');
+    } catch (err: any) {
+      onShowToast('Failed to broadcast: ' + (err.message || 'Error'));
     }
   };
 
@@ -246,6 +306,35 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
         </div>
       </section>
 
+      {/* 3-Day Wishlist Retention Automation Banner */}
+      <section className="p-4 sm:p-5 bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-300/80 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-200">
+              <Gift className="w-4 h-4 text-amber-700" />
+            </span>
+            <h3 className="font-serif-luxury text-sm sm:text-base font-bold text-[#8C2E46]">
+              3-Day Wishlist Retention: 5% Coupon (WISHLIST5)
+            </h3>
+          </div>
+          <p className="text-xs text-[#6B5D55]">
+            Visitors with bedsheets saved in their wishlist for 3+ days automatically receive the <strong>WISHLIST5</strong> 5% discount coupon notification.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={handleBroadcastWishlistCouponToAll}
+            className="px-3.5 py-2 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Push 5% coupon notification (WISHLIST5) to all customers with wishlist items"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Broadcast 5% Coupon to Leads</span>
+          </button>
+        </div>
+      </section>
+
       {/* Search and Filters */}
       <section className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-96">
@@ -361,6 +450,17 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
                       </span>
                     </div>
 
+                    {/* Push 5% Coupon Action */}
+                    <button
+                      type="button"
+                      onClick={() => handlePushWishlistCoupon(group)}
+                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      title="Push 5% loyalty coupon notification (WISHLIST5) directly to this customer"
+                    >
+                      <Gift className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Push 5% Coupon</span>
+                    </button>
+
                     {hasPhone && (
                       <button
                         type="button"
@@ -377,7 +477,11 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
 
                 {/* Wishlisted Bedsheets Thumbnails & Metadata */}
                 <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {group.items.map((item) => (
+                  {group.items.map((item) => {
+                    const daysSaved = Math.max(0, Math.floor((Date.now() - (item.createdAt || Date.now())) / (1000 * 60 * 60 * 24)));
+                    const isThreeDays = daysSaved >= 3;
+
+                    return (
                     <div
                       key={item.id}
                       className="p-3 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] flex gap-3 items-center justify-between group/item"
@@ -398,6 +502,15 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
                           <span className="text-xs font-bold text-[#8C2E46] block">
                             ₹{item.productPrice.toLocaleString('en-IN')}
                           </span>
+                          {isThreeDays ? (
+                            <span className="text-[9px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 mt-0.5">
+                              ⭐ 3+ Days Saved (5% Eligible)
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-[#8C7A70] block mt-0.5">
+                              Saved {daysSaved === 0 ? 'today' : `${daysSaved}d ago`}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -422,7 +535,8 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
                         </button>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               </div>
             );

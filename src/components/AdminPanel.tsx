@@ -86,7 +86,8 @@ import {
   MoveVertical,
   ArrowUpDown,
   Gift,
-  Ticket
+  Ticket,
+  Camera
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -1966,6 +1967,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <span>Cloudinary & Server Store Connected</span>
                 </div>
 
+                {/* Total Pictures Count (Admin Panel Only) */}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-semibold shadow-2xs">
+                  <Camera className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span>
+                    {editableProducts.reduce((acc, p) => acc + 1 + (p.additionalImages?.length || 0) + (p.variants?.filter((v) => !!v.image)?.length || 0), 0)} Total Pictures (Admin Only)
+                  </span>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setIsFactoryResetModalOpen(true)}
@@ -2195,6 +2204,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <span className="absolute top-1 left-1 bg-[#2C2420]/80 text-white text-[9px] px-1 rounded font-bold">
                             #{currentPosition}
                           </span>
+                          {/* Picture count badge on photo (Admin Panel Only) */}
+                          <span
+                            title="Total pictures stored for this bedsheet in admin"
+                            className="absolute bottom-1 right-1 bg-black/85 text-amber-300 text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 shadow-xs border border-amber-400/30"
+                          >
+                            <Camera className="w-2.5 h-2.5" />
+                            <span>{1 + (product.additionalImages?.length || 0) + (product.variants?.filter((v) => !!v.image)?.length || 0)} pics</span>
+                          </span>
                         </div>
 
                         <div className="flex-1 space-y-2">
@@ -2239,6 +2256,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               <span className="truncate">Catalog Photo</span>
                             </div>
                           )}
+
+                          {/* Pictures Count Breakdown (Admin Panel Only) */}
+                          <div className="flex items-center gap-1 text-[10px] text-amber-900 bg-amber-50/90 border border-amber-200 px-2 py-0.5 rounded-md justify-center font-medium shadow-2xs">
+                            <Camera className="w-3 h-3 text-amber-700 shrink-0" />
+                            <span className="truncate">
+                              {1 + (product.additionalImages?.length || 0) + (product.variants?.filter((v) => !!v.image)?.length || 0)} Pictures (1 Cover{(product.additionalImages?.length || 0) > 0 ? ` + ${product.additionalImages?.length} Angles` : ''}{(product.variants?.filter((v) => !!v.image)?.length || 0) > 0 ? ` + ${product.variants?.filter((v) => !!v.image)?.length} Variants` : ''})
+                            </span>
+                          </div>
 
                           <button
                             type="button"
