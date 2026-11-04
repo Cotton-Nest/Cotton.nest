@@ -36,6 +36,17 @@ export interface SiteContent {
     pillar4Desc: string;
   };
   termsAndConditions: string;
+  shippingFeeIndia?: number;
+}
+
+export const ACROSS_INDIA_SHIPPING_FEE_INR = 29;
+
+export function normalizeShippingFee(rawFee?: unknown): number {
+  const num = typeof rawFee === 'number' ? rawFee : Number(rawFee);
+  if (rawFee === undefined || rawFee === null || rawFee === '' || isNaN(num) || num < 0 || num === 100) {
+    return ACROSS_INDIA_SHIPPING_FEE_INR;
+  }
+  return Math.round(num);
 }
 
 export const INITIAL_SITE_CONTENT: SiteContent = {
@@ -75,6 +86,7 @@ export const INITIAL_SITE_CONTENT: SiteContent = {
     pillar4Title: "Gurgaon Local Studio Reassurance",
     pillar4Desc: "Direct support, prompt exchange assistance, and open touch-and-feel visits in Sector 46.",
   },
+  shippingFeeIndia: ACROSS_INDIA_SHIPPING_FEE_INR,
   termsAndConditions: `*Hey Cozy Souls! 💖*
 You’re at *Cotton Nest – Feel the Softness* 🌸
 Your soft & stylish bedsheet hub. 🛍️
@@ -102,8 +114,6 @@ Your soft & stylish bedsheet hub. 🛍️
 *Feel the Softness. 🌸*`,
 };
 
-export const ACROSS_INDIA_SHIPPING_FEE_INR = 29;
-
 export function normalizeShippingInTerms(rawText?: string): string {
   const base = typeof rawText === 'string' && rawText.trim() !== ''
     ? rawText
@@ -119,4 +129,5 @@ export function normalizeShippingInTerms(rawText?: string): string {
       'Flat ₹29 Across India (shipping charges applied at order placement: ₹29).'
     );
 }
+
 

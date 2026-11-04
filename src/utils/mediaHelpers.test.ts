@@ -8,7 +8,7 @@ import {
   doesProductMatchCategory,
   BEDSHEETS_CATALOG,
 } from '../data/products';
-import { ACROSS_INDIA_SHIPPING_FEE_INR, normalizeShippingInTerms, INITIAL_SITE_CONTENT } from '../data/siteContent';
+import { ACROSS_INDIA_SHIPPING_FEE_INR, normalizeShippingInTerms, normalizeShippingFee, INITIAL_SITE_CONTENT } from '../data/siteContent';
 import { INITIAL_COMMENTS } from '../data/comments';
 
 test('isVideoMedia identifies video URLs, Cloudinary video paths, and data URIs accurately', () => {
@@ -93,6 +93,12 @@ test('normalizeProductCategory and doesProductMatchCategory match singular/plura
 
 test('shipping fee across India is strictly ₹29 and never ₹100 in siteContent, T&C, or comments', () => {
   assert.equal(ACROSS_INDIA_SHIPPING_FEE_INR, 29);
+  assert.equal(INITIAL_SITE_CONTENT.shippingFeeIndia, 29);
+  assert.equal(normalizeShippingFee(undefined), 29);
+  assert.equal(normalizeShippingFee(null), 29);
+  assert.equal(normalizeShippingFee(100), 29);
+  assert.equal(normalizeShippingFee(29), 29);
+  assert.equal(normalizeShippingFee(49), 49);
   assert.equal(INITIAL_SITE_CONTENT.termsAndConditions.includes('₹29'), true);
   assert.equal(INITIAL_SITE_CONTENT.termsAndConditions.includes('₹100'), false);
 

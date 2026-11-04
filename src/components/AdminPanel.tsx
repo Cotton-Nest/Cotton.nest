@@ -11,7 +11,7 @@ import {
   doesProductMatchCategory,
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
-import { SiteContent, INITIAL_SITE_CONTENT } from '../data/siteContent';
+import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingFee } from '../data/siteContent';
 import {
   uploadImageApi,
   removeProduct,
@@ -414,6 +414,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [editableContent, setEditableContent] = useState<SiteContent>(() => ({
     ...INITIAL_SITE_CONTENT,
     ...(siteContent || {}),
+    shippingFeeIndia: normalizeShippingFee(siteContent?.shippingFeeIndia),
     company: { ...INITIAL_SITE_CONTENT.company, ...(siteContent?.company || {}) },
     announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(siteContent?.announcement || {}) },
     hero: { ...INITIAL_SITE_CONTENT.hero, ...(siteContent?.hero || {}) },
@@ -510,6 +511,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       setEditableContent({
         ...INITIAL_SITE_CONTENT,
         ...siteContent,
+        shippingFeeIndia: normalizeShippingFee(siteContent.shippingFeeIndia),
         company: { ...INITIAL_SITE_CONTENT.company, ...(siteContent.company || {}) },
         announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(siteContent.announcement || {}) },
         hero: { ...INITIAL_SITE_CONTENT.hero, ...(siteContent.hero || {}) },
@@ -4694,6 +4696,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     }}
                     className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
                   />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
+                    Across India Delivery Charge (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editableContent.shippingFeeIndia ?? 29}
+                    onChange={(e) =>
+                      setEditableContent({
+                        ...editableContent,
+                        shippingFeeIndia: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-white border border-[#DEC89B] rounded-xl text-xs font-bold text-[#8C2E46] focus:outline-hidden focus:border-[#8C2E46]"
+                  />
+                  <p className="text-[10px] text-[#7A6458] mt-1">
+                    Standard courier fee Across India (Sector 46 Gurgaon remains FREE). Synced live via Firebase Firestore.
+                  </p>
                 </div>
               </div>
             </div>

@@ -14,7 +14,7 @@ import {
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { BedsheetProduct, BEDSHEETS_CATALOG } from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
-import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms } from '../data/siteContent';
+import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from '../data/siteContent';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
 import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
@@ -739,9 +739,15 @@ export async function getSiteContent(): Promise<SiteContent> {
       const data = docSnap.data() as SiteContent;
       if (data && data.company) {
         const normalizedTc = normalizeShippingInTerms(data.termsAndConditions);
-        if (normalizedTc !== data.termsAndConditions) {
+        const normalizedFee = normalizeShippingFee(data.shippingFeeIndia);
+        if (normalizedTc !== data.termsAndConditions || data.shippingFeeIndia !== normalizedFee) {
           data.termsAndConditions = normalizedTc;
-          setDoc(doc(db, 'site_content', 'main'), { termsAndConditions: normalizedTc, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+          data.shippingFeeIndia = normalizedFee;
+          setDoc(
+            doc(db, 'site_content', 'main'),
+            { termsAndConditions: normalizedTc, shippingFeeIndia: normalizedFee, updatedAt: Date.now() },
+            { merge: true }
+          ).catch(() => {});
         }
         return data;
       }
@@ -749,6 +755,7 @@ export async function getSiteContent(): Promise<SiteContent> {
     // Auto-seed Firestore so document exists
     const initialWithStamp = {
       ...INITIAL_SITE_CONTENT,
+      shippingFeeIndia: normalizeShippingFee(INITIAL_SITE_CONTENT.shippingFeeIndia),
       updatedAt: Date.now(),
     };
     await setDoc(doc(db, 'site_content', 'main'), initialWithStamp, { merge: true });
@@ -764,6 +771,7 @@ export async function saveSiteContentApi(content: SiteContent): Promise<void> {
   try {
     const cleanContent = stripUndefined({
       ...content,
+      shippingFeeIndia: normalizeShippingFee(content.shippingFeeIndia),
       termsAndConditions: normalizeShippingInTerms(content.termsAndConditions),
       updatedAt: Date.now(),
     });

@@ -62,12 +62,13 @@
     },
     "SiteContent": {
       "title": "SiteContent",
-      "description": "Store branding and contact information.",
+      "description": "Store branding, shipping fee, and contact information.",
       "type": "object",
       "properties": {
         "phoneNumber": { "type": "string", "description": "WhatsApp contact number" },
         "announcement": { "type": "string", "description": "Top announcement banner text" },
         "showAnnouncement": { "type": "boolean", "description": "Show/hide announcement" },
+        "shippingFeeIndia": { "type": "number", "description": "Across India standard courier shipping charge in INR (default 29)" },
         "updatedAt": { "type": "number", "description": "Timestamp of update" }
       }
     },

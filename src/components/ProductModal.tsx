@@ -27,6 +27,7 @@ interface ProductModalProps {
   onToggleCompare?: (product: BedsheetProduct) => void;
   isCompared?: boolean;
   onNotifyStock?: (product: BedsheetProduct) => void;
+  shippingFee?: number;
 }
 
 export const ProductModal: React.FC<ProductModalProps> = ({
@@ -47,6 +48,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   onToggleCompare,
   isCompared = false,
   onNotifyStock,
+  shippingFee = 29,
 }) => {
   const [quantity, setQuantity] = React.useState(1);
   const [added, setAdded] = React.useState(false);
@@ -1267,7 +1269,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <Truck className="w-4 h-4 text-[#B83F60] shrink-0 mt-0.5" />
                   <div>
                     <span className="font-semibold text-[#2C2420]">Delivery &amp; Shipping: </span>
-                    <span>Free hand delivery across Sector 46 Gurgaon. Rest of Gurgaon on actuals or atelier pickup. Across India: flat ₹29 dispatch.</span>
+                    <span>Free hand delivery across Sector 46 Gurgaon. Rest of Gurgaon on actuals or atelier pickup. Across India: flat ₹{shippingFee && shippingFee !== 100 ? shippingFee : 29} dispatch.</span>
                   </div>
                 </div>
 

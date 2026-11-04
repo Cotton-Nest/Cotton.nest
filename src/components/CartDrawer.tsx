@@ -25,6 +25,7 @@ interface CartDrawerProps {
   onClearCart: () => void;
   onOrderPlaced?: (order: Order) => void;
   onViewLiveOrders?: () => void;
+  shippingFee?: number;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -36,6 +37,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onClearCart,
   onOrderPlaced,
   onViewLiveOrders,
+  shippingFee = 29,
 }) => {
   const { user } = useAuth();
   const { pointsBalance, earnPoints, redeemPoints, refreshLoyalty, openLoyaltyModal } = useLoyalty();
@@ -172,8 +174,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const pointsToRedeem = useLoyaltyPoints ? maxRedeemablePoints : 0;
   const effectivePointsDiscount = calculatePointsDiscount(pointsToRedeem);
 
+  const acrossIndiaFee =
+    typeof shippingFee === 'number' && !isNaN(shippingFee) && shippingFee >= 0 && shippingFee !== 100
+      ? Math.round(shippingFee)
+      : 29;
   const totalSavings = catalogSavings + effectiveCouponDiscount + effectivePointsDiscount;
-  const shippingCost = shippingOption === 'india' ? 29 : 0;
+  const shippingCost = shippingOption === 'india' ? acrossIndiaFee : 0;
   const finalTotal = Math.max(0, subtotal - effectiveCouponDiscount - effectivePointsDiscount) + shippingCost;
   const pointsToEarn = calculateEarnedPoints(finalTotal); // 1 point for every 50 Rs spent
 
@@ -276,7 +282,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const shippingLabel =
     shippingOption === 'india'
-      ? 'Across India (₹29)'
+      ? `Across India (₹${acrossIndiaFee})`
       : shippingOption === 'sector46'
       ? 'Sector 46, Gurgaon (Complimentary)'
       : 'Rest of Gurgaon (Self Pickup / On Actuals)';
@@ -642,7 +648,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <span>Delivery Option</span>
                     </label>
                     <span className="text-[10px] text-[#8C2E46] font-semibold bg-[#FDEAF0] px-2 py-0.5 rounded-full">
-                      {shippingOption === 'india' ? 'Standard Courier (+₹29)' : shippingOption === 'sector46' ? 'Complimentary Free' : 'Pickup / Actuals'}
+                      {shippingOption === 'india' ? `Standard Courier (+₹${acrossIndiaFee})` : shippingOption === 'sector46' ? 'Complimentary Free' : 'Pickup / Actuals'}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 gap-2">
@@ -667,7 +673,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <p className="text-[11px] text-[#7A6458]">Standard Courier Delivery</p>
                         </div>
                       </div>
-                      <span className="font-bold text-[#8C2E46]">+₹29</span>
+                      <span className="font-bold text-[#8C2E46]">+₹{acrossIndiaFee}</span>
                     </label>
 
                     <label
@@ -776,7 +782,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div>
                       <span className="text-[10px] text-[#7A6458] block font-medium">Delivery Method (Selected in Bag)</span>
                       <span className="font-semibold text-[#2C2420]">
-                        {shippingOption === 'india' && 'Across India (Standard Courier +₹29)'}
+                        {shippingOption === 'india' && `Across India (Standard Courier +₹${acrossIndiaFee})`}
                         {shippingOption === 'sector46' && 'Sector 46, Gurgaon (Free Local Delivery)'}
                         {shippingOption === 'gurgaon' && 'Rest of Gurgaon (Self Pickup / On Actuals)'}
                       </span>

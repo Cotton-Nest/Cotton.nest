@@ -43,7 +43,7 @@ import { useLoyalty } from './context/LoyaltyContext';
 import { LoyaltyRewardsModal } from './components/LoyaltyRewardsModal';
 import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
-import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms } from './data/siteContent';
+import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from './data/siteContent';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from './data/seasonal';
 import {
   getProducts,
@@ -439,10 +439,13 @@ export default function App() {
       const saved = localStorage.getItem('cotton_nest_site_content');
       if (saved) {
         const parsed = JSON.parse(saved) as SiteContent;
-        if (parsed && typeof parsed.termsAndConditions === 'string') {
-          parsed.termsAndConditions = normalizeShippingInTerms(parsed.termsAndConditions);
+        if (parsed) {
+          if (typeof parsed.termsAndConditions === 'string') {
+            parsed.termsAndConditions = normalizeShippingInTerms(parsed.termsAndConditions);
+          }
+          parsed.shippingFeeIndia = normalizeShippingFee(parsed.shippingFeeIndia);
+          return parsed;
         }
-        return parsed;
       }
     } catch {
       // fallback
@@ -904,9 +907,11 @@ export default function App() {
           if (content && content.company) {
             const rawTc = String(content.termsAndConditions || INITIAL_SITE_CONTENT.termsAndConditions);
             const normalizedTc = normalizeShippingInTerms(rawTc);
+            const normalizedFee = normalizeShippingFee(content.shippingFeeIndia);
             const mergedContent: SiteContent = {
               ...INITIAL_SITE_CONTENT,
               ...content,
+              shippingFeeIndia: normalizedFee,
               company: { ...INITIAL_SITE_CONTENT.company, ...(content.company || {}) },
               announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(content.announcement || {}) },
               hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
@@ -914,7 +919,7 @@ export default function App() {
               termsAndConditions: normalizedTc,
             };
             setSiteContent(mergedContent);
-            if (normalizedTc !== rawTc) {
+            if (normalizedTc !== rawTc || content.shippingFeeIndia !== normalizedFee) {
               saveSiteContentApi(mergedContent).catch(() => {});
             }
             try {
@@ -1749,6 +1754,7 @@ export default function App() {
             onToggleCompare={handleToggleCompare}
             isCompared={selectedProduct ? comparedProductIds.includes(selectedProduct.id) : false}
             onNotifyStock={handleNotifyStock}
+            shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
             onViewTermsAndConditions={() => {
               setActiveTab('tc');
               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1785,6 +1791,7 @@ export default function App() {
             onRemoveItem={handleRemoveFromCart}
             onClearCart={handleClearCart}
             onOrderPlaced={(order) => setOrders((prev) => [order, ...prev])}
+            shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
             onViewLiveOrders={() => {
               setIsCartOpen(false);
               setActiveTab('orders');
