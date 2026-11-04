@@ -1792,6 +1792,8 @@ export default function App() {
             onClearCart={handleClearCart}
             onOrderPlaced={(order) => setOrders((prev) => [order, ...prev])}
             shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
+            customerProfile={customerProfile}
+            orders={orders}
             onViewLiveOrders={() => {
               setIsCartOpen(false);
               setActiveTab('orders');

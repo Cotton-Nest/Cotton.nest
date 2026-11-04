@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award, Plus, Home, Briefcase, Bookmark, CheckSquare, Square } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
 import { saveOrder, getCouponsApi, validateCouponApi, recordCouponUseApi, isVideoMedia } from '../services/api';
@@ -9,6 +9,8 @@ import { useLoyalty } from '../context/LoyaltyContext';
 import { calculateEarnedPoints, calculatePointsDiscount, LOYALTY_EARNING_RATE_INR, LOYALTY_POINT_VALUE_INR } from '../data/loyalty';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
+import { SavedAddress, getSavedAddresses, saveAddressToBook, formatFullAddress } from '../data/addresses';
+import { CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
 
 export interface CartItem {
   product: BedsheetProduct;
@@ -26,6 +28,8 @@ interface CartDrawerProps {
   onOrderPlaced?: (order: Order) => void;
   onViewLiveOrders?: () => void;
   shippingFee?: number;
+  customerProfile?: CustomerProfile | null;
+  orders?: Order[];
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -38,6 +42,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onOrderPlaced,
   onViewLiveOrders,
   shippingFee = 29,
+  customerProfile,
+  orders = [],
 }) => {
   const { user } = useAuth();
   const { pointsBalance, earnPoints, redeemPoints, refreshLoyalty, openLoyaltyModal } = useLoyalty();
@@ -70,6 +76,64 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [availableCoupons, setAvailableCoupons] = useState<CouponOffer[]>([]);
   const [showOffersList, setShowOffersList] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Saved Addresses State
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() =>
+    getSavedAddresses(customerProfile, orders)
+  );
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(() => {
+    const list = getSavedAddresses(customerProfile, orders);
+    const def = list.find((a) => a.isDefault);
+    return def ? def.id : list.length > 0 ? list[0].id : null;
+  });
+  const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
+  const [saveToAddressBook, setSaveToAddressBook] = useState<boolean>(true);
+  const [newAddressLabel, setNewAddressLabel] = useState<'Home' | 'Work' | 'Other'>('Home');
+
+  // Auto-fill and sync saved addresses on open or profile/orders update
+  useEffect(() => {
+    if (isOpen) {
+      const addrs = getSavedAddresses(customerProfile, orders);
+      setSavedAddresses(addrs);
+      if (addrs.length > 0) {
+        const active = addrs.find((a) => a.id === selectedAddressId) || addrs.find((a) => a.isDefault) || addrs[0];
+        if (active && !isAddingNewAddress) {
+          setSelectedAddressId(active.id);
+          const full = formatFullAddress(active);
+          if (!customerAddress) setCustomerAddress(full);
+          if (!customerName && active.name) setCustomerName(active.name);
+          if (!customerPhone && active.phone) setCustomerPhone(active.phone);
+        }
+      } else {
+        setIsAddingNewAddress(true);
+      }
+    }
+  }, [isOpen, customerProfile, orders]);
+
+  const handleSelectSavedAddress = (addr: SavedAddress) => {
+    setSelectedAddressId(addr.id);
+    setIsAddingNewAddress(false);
+    const formatted = formatFullAddress(addr);
+    setCustomerAddress(formatted);
+    if (addr.name) setCustomerName(addr.name);
+    if (addr.phone) setCustomerPhone(addr.phone);
+
+    // Auto-zone detection for user convenience
+    const lower = formatted.toLowerCase();
+    if (lower.includes('sector 46') || lower.includes('sec 46') || lower.includes('sec-46')) {
+      setShippingOption('sector46');
+    } else if (lower.includes('gurgaon') || lower.includes('gurugram')) {
+      if (shippingOption === 'india') {
+        setShippingOption('gurgaon');
+      }
+    }
+  };
+
+  const handleStartNewAddress = () => {
+    setSelectedAddressId(null);
+    setIsAddingNewAddress(true);
+    setCustomerAddress('');
+  };
 
   // Auto-fill from authenticated Google or Phone session
   useEffect(() => {
@@ -361,6 +425,26 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       await saveOrder(createdOrder);
     } catch (err) {
       console.warn('saveOrder notice:', err);
+    }
+
+    // Save address to saved addresses book for future instant checkout
+    if (saveToAddressBook && customerAddress.trim()) {
+      try {
+        const updatedList = saveAddressToBook({
+          label: newAddressLabel,
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
+          addressLine: customerAddress.trim(),
+        });
+        setSavedAddresses(updatedList);
+        saveCurrentCustomerProfile({
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
+          address: customerAddress.trim(),
+        });
+      } catch (err) {
+        console.warn('Address saving notice:', err);
+      }
     }
 
     // 1. Process loyalty points redemption if applied
@@ -797,18 +881,178 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[#2C2420] mb-1">
-                    Complete Delivery Address *
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="House/Flat No., Tower/Apartment, Sector/Area, City, Pincode"
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
-                  />
+                {/* Delivery Address Section with Saved Addresses Support */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-[#2C2420] flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#8C2E46]" />
+                      <span>Delivery Address *</span>
+                    </label>
+                    {savedAddresses.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isAddingNewAddress) {
+                            setIsAddingNewAddress(false);
+                            const sel = savedAddresses.find((a) => a.id === selectedAddressId) || savedAddresses[0];
+                            if (sel) handleSelectSavedAddress(sel);
+                          } else {
+                            handleStartNewAddress();
+                          }
+                        }}
+                        className="text-[11px] font-bold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        {isAddingNewAddress ? (
+                          <>
+                            <Bookmark className="w-3 h-3" />
+                            <span>Saved Addresses ({savedAddresses.length})</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3 h-3" />
+                            <span>+ New Address</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* List of Saved Addresses to Select From */}
+                  {!isAddingNewAddress && savedAddresses.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
+                        {savedAddresses.map((addr) => {
+                          const isSelected = selectedAddressId === addr.id;
+                          return (
+                            <div
+                              key={addr.id}
+                              onClick={() => handleSelectSavedAddress(addr)}
+                              className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-[#FFFDF9] border-[#C29E57] ring-1.5 ring-[#C29E57] shadow-xs'
+                                  : 'bg-white border-[#EAE2D5] hover:border-[#DEC89B] hover:bg-[#FAF7F2]'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                                      isSelected
+                                        ? 'border-[#8C2E46] bg-[#8C2E46]'
+                                        : 'border-[#DEC89B] bg-white'
+                                    }`}
+                                  >
+                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                  </div>
+                                  <span className="font-bold text-[#2C2420] text-xs">{addr.name}</span>
+                                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-[#FAF7F2] text-[#8C7A70] border border-[#DEC89B]/60 flex items-center gap-1">
+                                    {addr.label === 'Work' ? <Briefcase className="w-2.5 h-2.5" /> : <Home className="w-2.5 h-2.5" />}
+                                    <span>{addr.label || 'Home'}</span>
+                                  </span>
+                                  {addr.isDefault && (
+                                    <span className="text-[10px] font-semibold text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded border border-[#FAD1DC]">
+                                      Default
+                                    </span>
+                                  )}
+                                </div>
+                                {addr.phone && (
+                                  <span className="text-[11px] text-[#7A6458] font-medium shrink-0">
+                                    {addr.phone}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-1.5 text-[#6B5D55] text-xs leading-relaxed pl-6">
+                                {formatFullAddress(addr)}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Deliver to different address button */}
+                      <button
+                        type="button"
+                        onClick={handleStartNewAddress}
+                        className="w-full py-2 px-3 border border-dashed border-[#DEC89B] hover:border-[#8C2E46] rounded-xl text-xs font-semibold text-[#8C2E46] bg-white hover:bg-[#FAF7F2] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Deliver to a Different / New Address</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Manual / New Address Entry Form */}
+                  {(isAddingNewAddress || savedAddresses.length === 0) && (
+                    <div className="space-y-2.5 bg-[#FAF7F2]/70 p-3 rounded-2xl border border-[#DEC89B]">
+                      {savedAddresses.length > 0 && (
+                        <div className="flex items-center justify-between pb-1">
+                          <span className="text-[11px] font-bold text-[#2C2420] uppercase tracking-wider">
+                            New Address Details
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingNewAddress(false);
+                              if (savedAddresses.length > 0) {
+                                handleSelectSavedAddress(savedAddresses[0]);
+                              }
+                            }}
+                            className="text-[11px] font-semibold text-[#8C2E46] hover:underline cursor-pointer"
+                          >
+                            ← Use Saved Address
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Address Label Pills */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-[#8C7A70] font-medium">Save as:</span>
+                        {(['Home', 'Work', 'Other'] as const).map((lbl) => (
+                          <button
+                            key={lbl}
+                            type="button"
+                            onClick={() => setNewAddressLabel(lbl)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
+                              newAddressLabel === lbl
+                                ? 'bg-[#8C2E46] text-white border-[#8C2E46] shadow-2xs'
+                                : 'bg-white text-[#6B5D55] border-[#EAE2D5] hover:bg-[#FAF7F2]'
+                            }`}
+                          >
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+
+                      <textarea
+                        required
+                        rows={3}
+                        placeholder="House/Flat No., Tower/Apartment, Sector/Area, City, Pincode"
+                        value={customerAddress}
+                        onChange={(e) => {
+                          setCustomerAddress(e.target.value);
+                          const lower = e.target.value.toLowerCase();
+                          if (lower.includes('sector 46') || lower.includes('sec 46') || lower.includes('sec-46')) {
+                            setShippingOption('sector46');
+                          } else if (lower.includes('gurgaon') || lower.includes('gurugram')) {
+                            if (shippingOption === 'india') setShippingOption('gurgaon');
+                          }
+                        }}
+                        className="w-full px-3.5 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
+                      />
+
+                      <label className="flex items-center gap-2 pt-0.5 cursor-pointer text-xs text-[#2C2420]">
+                        <input
+                          type="checkbox"
+                          checked={saveToAddressBook}
+                          onChange={(e) => setSaveToAddressBook(e.target.checked)}
+                          className="w-3.5 h-3.5 accent-[#8C2E46] rounded cursor-pointer"
+                        />
+                        <span className="text-[11px] font-medium text-[#4A3B32]">
+                          Save this address to my saved addresses for future orders
+                        </span>
+                      </label>
+                    </div>
+                  )}
                 </div>
 
                 <div>
