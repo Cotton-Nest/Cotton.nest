@@ -55,12 +55,12 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
     });
 
     // Filter only products present in seasonalConfig.items
-    const matched = products
-      .filter((p) => itemMap.has(p.id))
+    const matched = (products || [])
+      .filter((p) => p && itemMap.has(p.id))
       .map((p) => {
         const itemDiscount = itemMap.get(p.id)!;
-        const regularPrice = p.price;
-        const originalPrice = p.originalPrice || Math.round(regularPrice * 1.35);
+        const regularPrice = Number(p.price) || 1320;
+        const originalPrice = Number(p.originalPrice) || Math.round(regularPrice * 1.35);
 
         let finalOfferPrice = itemDiscount.discountPrice;
         let finalDiscountPct = itemDiscount.discountPercentage;
@@ -96,9 +96,9 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
     return seasonalProductsWithPricing.filter(({ product, offerPrice, discountPercentage }) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchName = product.name.toLowerCase().includes(q);
-        const matchDesc = (product.description || '').toLowerCase().includes(q);
-        const matchPattern = (product.pattern || '').toLowerCase().includes(q);
+        const matchName = String(product.name || '').toLowerCase().includes(q);
+        const matchDesc = String(product.description || '').toLowerCase().includes(q);
+        const matchPattern = String(product.pattern || '').toLowerCase().includes(q);
         if (!matchName && !matchDesc && !matchPattern) return false;
       }
 

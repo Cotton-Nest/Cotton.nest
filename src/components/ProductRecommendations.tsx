@@ -63,7 +63,9 @@ export const ProductRecommendations: React.FC<ProductRecommendationsProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {displayItems.map((p) => {
           const displayImg = resolveBedsheetImage(p.image, p.id);
-          const isDiscounted = p.originalPrice > p.price;
+          const pPrice = Number(p.price) || 1320;
+          const pOrigPrice = Number(p.originalPrice) || pPrice;
+          const isDiscounted = pOrigPrice > pPrice;
 
           return (
             <div
@@ -75,7 +77,7 @@ export const ProductRecommendations: React.FC<ProductRecommendationsProps> = ({
                 <div className="aspect-square rounded-xl overflow-hidden bg-[#F4EFE6] relative mb-2 border border-[#EAE2D5]/60">
                   <img
                     src={displayImg}
-                    alt={p.name}
+                    alt={p.name || 'Bedsheet'}
                     onError={(e) => handleImageFallback(e, p.id)}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
@@ -87,19 +89,19 @@ export const ProductRecommendations: React.FC<ProductRecommendationsProps> = ({
                 </div>
 
                 <h5 className="font-serif-luxury font-bold text-xs text-[#2C2420] group-hover:text-[#8C2E46] transition-colors truncate">
-                  {p.name}
+                  {p.name || 'Pure Cotton Bedsheet'}
                 </h5>
-                <p className="text-[10px] text-[#7A6458] truncate">{p.collection}</p>
+                <p className="text-[10px] text-[#7A6458] truncate">{p.collection || 'Signature Collection'}</p>
               </div>
 
               <div className="mt-2 pt-2 border-t border-[#F4EFE6] flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-[#70252D] font-mono">
-                    ₹{p.price.toLocaleString('en-IN')}
+                    ₹{pPrice.toLocaleString('en-IN')}
                   </span>
                   {isDiscounted && (
                     <span className="text-[9px] text-stone-400 line-through ml-1">
-                      ₹{p.originalPrice}
+                      ₹{pOrigPrice}
                     </span>
                   )}
                 </div>

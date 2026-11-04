@@ -12,6 +12,7 @@ service cloud.firestore {
 
     function isOwnerOrAdmin() {
       return isSignedIn() && (
+        request.auth.token.email == 'adityaa.451485@gmail.com' ||
         request.auth.token.email == 'adityaa.22082011@gmail.com' ||
         request.auth.token.email_verified == true
       );

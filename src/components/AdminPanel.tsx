@@ -381,21 +381,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Active sync for orders: listen to Firestore and update local editableOrders
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'orders'), (snapshot) => {
-      if (!snapshot.empty) {
-        const liveOrders: Order[] = [];
-        snapshot.forEach((d) => liveOrders.push({ ...(d.data() as Order), id: d.id }));
-        liveOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        setEditableOrders(liveOrders);
-        setOrdersLastSyncedAt(new Date());
+    const unsub = onSnapshot(
+      collection(db, 'orders'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const liveOrders: Order[] = [];
+          snapshot.forEach((d) => {
+            const raw = d.data() as Order;
+            if (!raw) return;
+            liveOrders.push({
+              ...raw,
+              id: d.id,
+              customerName: String(raw.customerName || 'Atelier Customer'),
+              customerPhone: String(raw.customerPhone || ''),
+              customerAddress: String(raw.customerAddress || ''),
+              items: Array.isArray(raw.items) ? raw.items : [],
+              totalAmount: Number(raw.totalAmount) || 0,
+              status: raw.status || 'pending',
+              createdAt: raw.createdAt || new Date().toISOString(),
+            });
+          });
+          liveOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          setEditableOrders(liveOrders);
+          setOrdersLastSyncedAt(new Date());
+        }
+      },
+      (err) => {
+        console.warn('Orders live listener notice:', err);
       }
-    });
+    );
 
     return () => unsub();
   }, []);
 
-  // Site Content local state
-  const [editableContent, setEditableContent] = useState<SiteContent>(siteContent);
+  // Site Content local state (deep-merged with INITIAL_SITE_CONTENT so nested fields never crash)
+  const [editableContent, setEditableContent] = useState<SiteContent>(() => ({
+    ...INITIAL_SITE_CONTENT,
+    ...(siteContent || {}),
+    company: { ...INITIAL_SITE_CONTENT.company, ...(siteContent?.company || {}) },
+    announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(siteContent?.announcement || {}) },
+    hero: { ...INITIAL_SITE_CONTENT.hero, ...(siteContent?.hero || {}) },
+    story: { ...INITIAL_SITE_CONTENT.story, ...(siteContent?.story || {}) },
+  }));
 
   // File input refs for changing product photos, gallery photos/videos, and variant photos
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -483,8 +510,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, [products]);
 
   React.useEffect(() => {
-    if (siteContent && siteContent.company) {
-      setEditableContent(siteContent);
+    if (siteContent) {
+      setEditableContent({
+        ...INITIAL_SITE_CONTENT,
+        ...siteContent,
+        company: { ...INITIAL_SITE_CONTENT.company, ...(siteContent.company || {}) },
+        announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(siteContent.announcement || {}) },
+        hero: { ...INITIAL_SITE_CONTENT.hero, ...(siteContent.hero || {}) },
+        story: { ...INITIAL_SITE_CONTENT.story, ...(siteContent.story || {}) },
+      });
     }
   }, [siteContent]);
 
@@ -3471,9 +3505,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     cancelled: { bg: 'bg-gray-200', text: 'text-gray-700', border: 'border-gray-300' },
                   };
 
-                  const cleanPhone = order.customerPhone.replace(/\D/g, '');
+                  const safeStatus: OrderStatus = order.status && statusColors[order.status] ? order.status : 'pending';
+                  const cleanPhone = String(order.customerPhone || '').replace(/\D/g, '');
+                  const orderItems = Array.isArray(order.items) ? order.items : [];
+                  const orderTotal = Number(order.totalAmount) || 0;
                   const whatsappMsg = encodeURIComponent(
-                    `Hello ${order.customerName}! Cotton Nest here regarding your order #${order.id}. Current status is: ${order.status.toUpperCase()}.`
+                    `Hello ${order.customerName || 'Customer'}! Cotton Nest here regarding your order #${order.id}. Current status is: ${safeStatus.toUpperCase()}.`
                   );
 
                   return (
@@ -3493,16 +3530,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </span>
                           <span
                             className={`px-2.5 py-0.5 text-[11px] font-bold rounded-md border uppercase tracking-wider ${
-                              statusColors[order.status].bg
-                            } ${statusColors[order.status].text} ${statusColors[order.status].border}`}
+                              statusColors[safeStatus].bg
+                            } ${statusColors[safeStatus].text} ${statusColors[safeStatus].border}`}
                           >
-                            {order.status}
+                            {safeStatus}
                           </span>
                           <span className="text-xs text-[#8C7A70]">
-                            {new Date(order.createdAt).toLocaleString('en-IN', {
-                              dateStyle: 'medium',
-                              timeStyle: 'short',
-                            })}
+                            {order.createdAt
+                              ? new Date(order.createdAt).toLocaleString('en-IN', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })
+                              : 'Recent'}
                           </span>
                         </div>
 
@@ -3510,7 +3549,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <div className="flex items-center gap-2">
                           <label className="text-xs text-[#7A6458] font-medium">Status:</label>
                           <select
-                            value={order.status}
+                            value={safeStatus}
                             onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as OrderStatus)}
                             className="bg-white border border-[#EAE2D5] rounded-lg px-2.5 py-1 text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
                           >
@@ -3545,7 +3584,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </div>
 
                           <div className="font-semibold text-sm text-[#2C2420]">
-                            {order.customerName}
+                            {order.customerName || 'Atelier Customer'}
                           </div>
 
                           <div className="flex items-center gap-3 pt-1">
@@ -3564,13 +3603,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               className="px-2.5 py-1 bg-white hover:bg-[#F4EFE6] border border-[#DEC89B] text-[#2C2420] font-medium text-[11px] rounded-lg flex items-center gap-1 transition-colors"
                             >
                               <Phone className="w-3.5 h-3.5 text-[#C29E57]" />
-                              <span>{order.customerPhone}</span>
+                              <span>{order.customerPhone || 'N/A'}</span>
                             </a>
                           </div>
 
                           <div className="pt-2 text-[#6B5D55] leading-relaxed flex items-start gap-1.5">
                             <MapPin className="w-3.5 h-3.5 text-[#C29E57] shrink-0 mt-0.5" />
-                            <span>{order.customerAddress}</span>
+                            <span>{order.customerAddress || 'Gurgaon'}</span>
                           </div>
 
                           {order.notes && (
@@ -3583,11 +3622,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         {/* Itemized Order Products (Cols 6-12) */}
                         <div className="lg:col-span-7 space-y-3">
                           <div className="text-[10px] uppercase font-semibold text-[#8C7A70]">
-                            Items in Order ({order.items.length})
+                            Items in Order ({orderItems.length})
                           </div>
 
                           <div className="space-y-2">
-                            {order.items.map((item, iIdx) => (
+                            {orderItems.map((item, iIdx) => (
                               <div
                                 key={iIdx}
                                 className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-[#EAE2D5] gap-3"
@@ -3596,23 +3635,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#F4EFE6] border border-[#EAE2D5] shrink-0">
                                     <img
                                       src={resolveBedsheetImage(item.productImage)}
-                                      alt={item.productName}
+                                      alt={item.productName || 'Bedsheet'}
                                       onError={handleImageFallback}
                                       className="w-full h-full object-cover"
                                     />
                                   </div>
                                   <div>
                                     <div className="text-xs font-semibold text-[#2C2420]">
-                                      {item.productName}
+                                      {item.productName || 'Cotton Nest Bedsheet'}
                                     </div>
                                     <div className="text-[10px] text-[#8C7A70]">
-                                      {item.dimensions} · Qty: {item.quantity}
+                                      {item.dimensions || '108 x 108 inches'} · Qty: {item.quantity || 1}
                                     </div>
                                   </div>
                                 </div>
 
                                 <div className="text-xs font-bold text-[#2C2420] tabular-nums">
-                                  ₹{(item.price * item.quantity).toLocaleString('en-IN')}
+                                  ₹{((Number(item.price) || 0) * (Number(item.quantity) || 1)).toLocaleString('en-IN')}
                                 </div>
                               </div>
                             ))}
@@ -3635,7 +3674,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <div className="flex items-center justify-between">
                               <span className="text-[#7A6458]">Total Order Amount:</span>
                               <span className="text-base font-bold text-[#8C2E46] tabular-nums">
-                                ₹{order.totalAmount.toLocaleString('en-IN')}
+                                ₹{orderTotal.toLocaleString('en-IN')}
                               </span>
                             </div>
                           </div>
@@ -4545,13 +4584,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       const file = e.target.files?.[0];
                       if (file) {
                         setNewProductFile(file);
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          if (typeof reader.result === 'string') {
-                            setNewProduct({ ...newProduct, image: reader.result });
-                          }
-                        };
-                        reader.readAsDataURL(file);
+                        try {
+                          const previewUrl = URL.createObjectURL(file);
+                          setNewProduct({ ...newProduct, image: previewUrl });
+                        } catch {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            if (typeof reader.result === 'string') {
+                              setNewProduct({ ...newProduct, image: reader.result });
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
                       }
                     }}
                   />

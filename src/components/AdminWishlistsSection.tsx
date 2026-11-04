@@ -185,15 +185,15 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
 
     const headers = ['Customer Name', 'Phone', 'Email', 'Customer ID', 'Product Name', 'Price', 'Collection', 'Dimensions', 'Date Added'];
     const rows = wishlists.map((w) => [
-      `"${w.customerName.replace(/"/g, '""')}"`,
-      `"${(w.customerPhone || '').replace(/"/g, '""')}"`,
-      `"${(w.customerEmail || '').replace(/"/g, '""')}"`,
-      `"${w.customerId}"`,
-      `"${w.productName.replace(/"/g, '""')}"`,
-      w.productPrice,
-      `"${(w.collection || '').replace(/"/g, '""')}"`,
-      `"${(w.productDimensions || '').replace(/"/g, '""')}"`,
-      `"${new Date(w.createdAt).toISOString()}"`,
+      `"${String(w.customerName || '').replace(/"/g, '""')}"`,
+      `"${String(w.customerPhone || '').replace(/"/g, '""')}"`,
+      `"${String(w.customerEmail || '').replace(/"/g, '""')}"`,
+      `"${String(w.customerId || '')}"`,
+      `"${String(w.productName || '').replace(/"/g, '""')}"`,
+      Number(w.productPrice) || 0,
+      `"${String(w.collection || '').replace(/"/g, '""')}"`,
+      `"${String(w.productDimensions || '').replace(/"/g, '""')}"`,
+      `"${new Date(w.createdAt || Date.now()).toISOString()}"`,
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -213,11 +213,12 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
       return;
     }
 
-    const cleanPhone = group.customerPhone.replace(/\D/g, '');
+    const cleanPhone = String(group.customerPhone || '').replace(/\D/g, '');
     const targetItem = specificItem || group.items[0];
+    const itemPrice = Number(targetItem?.productPrice) || 0;
     const message = encodeURIComponent(
-      `Hello ${group.customerName}! Cotton Nest Atelier here in Sector 46 Gurgaon.\n\n` +
-      `We noticed you wishlisted our "${targetItem.productName}" (₹${targetItem.productPrice.toLocaleString('en-IN')})!\n\n` +
+      `Hello ${group.customerName || 'Customer'}! Cotton Nest Atelier here in Sector 46 Gurgaon.\n\n` +
+      `We noticed you wishlisted our "${targetItem?.productName || 'Pure Cotton Bedsheet'}" (₹${itemPrice.toLocaleString('en-IN')})!\n\n` +
       `We have stock ready for you with complimentary same-day delivery in Gurgaon. Would you like us to reserve a piece for you?`
     );
 

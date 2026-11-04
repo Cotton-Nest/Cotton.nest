@@ -84,7 +84,7 @@ import {
   getLocalWishlist,
   saveLocalWishlist,
 } from './data/wishlist';
-import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, testConnection } from './firebase';
 import { ReviewsSection } from './components/ReviewsSection';
 import { WriteReviewModal } from './components/WriteReviewModal';
@@ -707,25 +707,68 @@ export default function App() {
           const loadedProducts: BedsheetProduct[] = [];
           snapshot.forEach((docSnap) => {
             const data = docSnap.data() as BedsheetProduct;
+            // Clean up any orphaned gallery/video/variant sub-documents or incomplete records missing a product name
+            if (
+              docSnap.id.includes('_gallery_') ||
+              docSnap.id.includes('_video_') ||
+              docSnap.id.includes('_variant_') ||
+              !data ||
+              typeof data.name !== 'string' ||
+              !data.name.trim()
+            ) {
+              if (
+                docSnap.id.includes('_gallery_') ||
+                docSnap.id.includes('_video_') ||
+                docSnap.id.includes('_variant_') ||
+                !data?.name
+              ) {
+                deleteDoc(doc(db, 'products', docSnap.id)).catch(() => {});
+              }
+              return;
+            }
+            const cleanPrice = Number(data.price) || 1320;
+            const cleanOrigPrice = Number(data.originalPrice) || cleanPrice;
             loadedProducts.push({
               ...data,
               id: docSnap.id,
+              name: String(data.name).trim(),
+              collection: String(data.collection || 'Signature Collection'),
               size: data.size || 'King',
               productType: data.productType || 'Bedsheet',
               brand: data.brand || 'Cotton Nest',
+              price: cleanPrice,
+              originalPrice: cleanOrigPrice,
+              dimensions: String(data.dimensions || '108 x 108 inches (274 x 274 cm)'),
+              pillowCovers: String(data.pillowCovers || '2 Pillow Covers (45 x 70 cm)'),
+              threadCount: String(data.threadCount || '350 Thread Count'),
+              fabric: String(data.fabric || '100% Pure Percale Cotton'),
+              pattern: String(data.pattern || 'Botanical Print'),
+              colorTone: String(data.colorTone || 'Ivory & Pastels'),
+              description: String(data.description || '100% pure combed cotton bedsheet.'),
+              features: Array.isArray(data.features) ? data.features : [],
+              variants: Array.isArray(data.variants) ? data.variants : [],
+              additionalImages: Array.isArray(data.additionalImages) ? data.additionalImages : [],
+              videos: Array.isArray(data.videos) ? data.videos : [],
+              videoUrl: typeof data.videoUrl === 'string' ? data.videoUrl : '',
+              inStock: data.inStock !== false,
+              stockQuantity: typeof data.stockQuantity === 'number' ? data.stockQuantity : 10,
               image: resolveBedsheetImage(data.image, docSnap.id, data.updatedAt),
             });
           });
-          loadedProducts.sort((a, b) => {
-            const orderA = typeof a.order === 'number' ? a.order : 9999;
-            const orderB = typeof b.order === 'number' ? b.order : 9999;
-            return orderA - orderB;
-          });
-          setProducts(loadedProducts);
+          if (loadedProducts.length > 0) {
+            loadedProducts.sort((a, b) => {
+              const orderA = typeof a.order === 'number' ? a.order : 9999;
+              const orderB = typeof b.order === 'number' ? b.order : 9999;
+              return orderA - orderB;
+            });
+            setProducts(loadedProducts);
+          }
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'products');
+        try {
+          handleFirestoreError(error, OperationType.GET, 'products');
+        } catch {}
       }
     );
 
@@ -742,7 +785,9 @@ export default function App() {
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'theme/active');
+        try {
+          handleFirestoreError(error, OperationType.GET, 'theme/active');
+        } catch {}
       }
     );
 
@@ -753,12 +798,18 @@ export default function App() {
         if (docSnap.exists()) {
           const data = docSnap.data() as SeasonalConfig;
           if (data && typeof data === 'object' && typeof data.name === 'string') {
-            setSeasonalConfig(data);
+            setSeasonalConfig({
+              ...INITIAL_SEASONAL_CONFIG,
+              ...data,
+              items: Array.isArray(data.items) ? data.items : [],
+            });
           }
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'seasonal/active');
+        try {
+          handleFirestoreError(error, OperationType.GET, 'seasonal/active');
+        } catch {}
       }
     );
 
@@ -768,13 +819,29 @@ export default function App() {
       (snapshot) => {
         if (!snapshot.empty) {
           const loadedOrders: Order[] = [];
-          snapshot.forEach((d) => loadedOrders.push({ ...(d.data() as Order), id: d.id }));
-          loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          snapshot.forEach((d) => {
+            const raw = d.data() as Order;
+            if (!raw) return;
+            loadedOrders.push({
+              ...raw,
+              id: d.id,
+              customerName: String(raw.customerName || 'Atelier Customer'),
+              customerPhone: String(raw.customerPhone || ''),
+              customerAddress: String(raw.customerAddress || ''),
+              items: Array.isArray(raw.items) ? raw.items : [],
+              totalAmount: Number(raw.totalAmount) || 0,
+              status: raw.status || 'pending',
+              createdAt: raw.createdAt || new Date().toISOString(),
+            });
+          });
+          loadedOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
           setOrders(loadedOrders);
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'orders');
+        try {
+          handleFirestoreError(error, OperationType.GET, 'orders');
+        } catch {}
       }
     );
 
@@ -784,13 +851,30 @@ export default function App() {
       (snapshot) => {
         if (!snapshot.empty) {
           const loadedReviews: ProductReview[] = [];
-          snapshot.forEach((d) => loadedReviews.push({ ...(d.data() as ProductReview), id: d.id }));
-          loadedReviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          snapshot.forEach((d) => {
+            const raw = d.data() as ProductReview;
+            if (!raw) return;
+            loadedReviews.push({
+              ...raw,
+              id: d.id,
+              productId: String(raw.productId || ''),
+              productName: String(raw.productName || 'Cotton Nest Pure Cotton Bedsheet'),
+              customerName: String(raw.customerName || 'Verified Buyer'),
+              customerCity: String(raw.customerCity || 'Gurgaon'),
+              rating: Number(raw.rating) || 5,
+              title: String(raw.title || 'Verified Review'),
+              comment: String(raw.comment || ''),
+              createdAt: raw.createdAt || Date.now(),
+            });
+          });
+          loadedReviews.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
           setReviews(loadedReviews);
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'reviews');
+        try {
+          handleFirestoreError(error, OperationType.GET, 'reviews');
+        } catch {}
       }
     );
 
@@ -801,15 +885,25 @@ export default function App() {
         if (docSnap.exists()) {
           const content = docSnap.data() as SiteContent;
           if (content && content.company) {
-            setSiteContent(content);
+            const mergedContent: SiteContent = {
+              ...INITIAL_SITE_CONTENT,
+              ...content,
+              company: { ...INITIAL_SITE_CONTENT.company, ...(content.company || {}) },
+              announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(content.announcement || {}) },
+              hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
+              story: { ...INITIAL_SITE_CONTENT.story, ...(content.story || {}) },
+            };
+            setSiteContent(mergedContent);
             try {
-              localStorage.setItem('cotton_nest_site_content', JSON.stringify(content));
+              localStorage.setItem('cotton_nest_site_content', JSON.stringify(mergedContent));
             } catch {}
           }
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'site_content/main');
+        try {
+          handleFirestoreError(error, OperationType.GET, 'site_content/main');
+        } catch {}
       }
     );
 
@@ -927,7 +1021,11 @@ export default function App() {
   const handleUpdateProducts = async (updatedProducts: BedsheetProduct[]) => {
     lastAdminSaveRef.current = Date.now();
     setProducts(updatedProducts);
-    await saveAllProducts(updatedProducts);
+    try {
+      await saveAllProducts(updatedProducts);
+    } catch (err) {
+      console.warn('Failed to persist all products to Firestore:', err);
+    }
   };
 
   const handleUpdateSingleProduct = async (updatedProduct: BedsheetProduct) => {
@@ -960,7 +1058,11 @@ export default function App() {
     try {
       localStorage.setItem('cotton_nest_site_content', JSON.stringify(updatedContent));
     } catch {}
-    await saveSiteContentApi(updatedContent);
+    try {
+      await saveSiteContentApi(updatedContent);
+    } catch (err) {
+      console.warn('Failed to persist site content to Firestore:', err);
+    }
   };
 
   // Admin: Reset products back to factory defaults on server & local
@@ -1077,10 +1179,14 @@ export default function App() {
 
     const defaultP = BEDSHEETS_CATALOG.find((p) => p.id === productId);
     if (defaultP) {
-      await updateSingleProduct(productId, { image: defaultP.image });
       setProducts((prev) =>
         prev.map((p) => (p.id === productId ? { ...p, image: defaultP.image } : p))
       );
+      try {
+        await updateSingleProduct(productId, { image: defaultP.image });
+      } catch (err) {
+        console.warn('Failed to reset image in Firestore:', err);
+      }
     }
   };
 
@@ -1091,7 +1197,11 @@ export default function App() {
       return cat ? { ...p, image: cat.image } : p;
     });
     setProducts(updated);
-    await saveAllProducts(updated);
+    try {
+      await saveAllProducts(updated);
+    } catch (err) {
+      console.warn('Failed to reset all photos in Firestore:', err);
+    }
   };
 
   const totalCartCount = (cartItems || []).reduce((acc, item) => {
@@ -1307,6 +1417,7 @@ export default function App() {
           />
 
           {/* Main Content Area */}
+          <ErrorBoundary fallbackTitle="Storefront View Encountered an Issue" onReset={() => setActiveTab('home')}>
           <main className="flex-1">
             
             {/* TAB 1: HOME VIEW */}
@@ -1551,6 +1662,7 @@ export default function App() {
             )}
 
           </main>
+          </ErrorBoundary>
 
           {/* Global Product Detail Modal */}
           <ProductModal
@@ -1597,6 +1709,7 @@ export default function App() {
             onUploadImage={handleUploadImage}
             onResetImage={handleResetImage}
             onResetAll={handleResetAllPhotos}
+            onUpdateSingleProduct={handleUpdateSingleProduct}
           />
 
           {/* Slide-over Cart / Checkout Drawer */}
