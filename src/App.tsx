@@ -43,7 +43,7 @@ import { useLoyalty } from './context/LoyaltyContext';
 import { LoyaltyRewardsModal } from './components/LoyaltyRewardsModal';
 import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
-import { SiteContent, INITIAL_SITE_CONTENT } from './data/siteContent';
+import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms } from './data/siteContent';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from './data/seasonal';
 import {
   getProducts,
@@ -440,7 +440,7 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved) as SiteContent;
         if (parsed && typeof parsed.termsAndConditions === 'string') {
-          parsed.termsAndConditions = parsed.termsAndConditions.replace(/Across India:\s*\*?₹100\*?/gi, 'Across India: *₹29*');
+          parsed.termsAndConditions = normalizeShippingInTerms(parsed.termsAndConditions);
         }
         return parsed;
       }
@@ -902,6 +902,8 @@ export default function App() {
         if (docSnap.exists()) {
           const content = docSnap.data() as SiteContent;
           if (content && content.company) {
+            const rawTc = String(content.termsAndConditions || INITIAL_SITE_CONTENT.termsAndConditions);
+            const normalizedTc = normalizeShippingInTerms(rawTc);
             const mergedContent: SiteContent = {
               ...INITIAL_SITE_CONTENT,
               ...content,
@@ -909,12 +911,12 @@ export default function App() {
               announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(content.announcement || {}) },
               hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
               story: { ...INITIAL_SITE_CONTENT.story, ...(content.story || {}) },
-              termsAndConditions: String(content.termsAndConditions || INITIAL_SITE_CONTENT.termsAndConditions).replace(
-                /Across India:\s*\*?₹100\*?/gi,
-                'Across India: *₹29*'
-              ),
+              termsAndConditions: normalizedTc,
             };
             setSiteContent(mergedContent);
+            if (normalizedTc !== rawTc) {
+              saveSiteContentApi(mergedContent).catch(() => {});
+            }
             try {
               localStorage.setItem('cotton_nest_site_content', JSON.stringify(mergedContent));
             } catch {}

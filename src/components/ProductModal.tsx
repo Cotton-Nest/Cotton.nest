@@ -387,7 +387,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-20 p-2 text-[#7A6458] hover:text-[#2C2420] rounded-full bg-white/80 backdrop-blur-xs border border-[#EAE2D5] transition-colors"
+          aria-label="Close product details"
+          className="absolute top-4 right-4 z-20 p-2 text-[#7A6458] hover:text-[#2C2420] rounded-full bg-white/80 backdrop-blur-xs border border-[#EAE2D5] transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>

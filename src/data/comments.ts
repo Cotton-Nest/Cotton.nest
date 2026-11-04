@@ -113,7 +113,7 @@ export const INITIAL_COMMENTS: CommentItem[] = [
     reply: {
       author: "Cotton Nest Atelier",
       role: "Dispatch Desk",
-      text: "Yes Kavita! We ship pan-India via express air couriers (BlueDart / Delhivery) for just ₹100 flat. Bangalore delivery takes 3 to 4 business days with live tracking provided.",
+      text: "Yes Kavita! We ship pan-India via express air couriers (BlueDart / Delhivery) for just ₹29 flat. Bangalore delivery takes 3 to 4 business days with live tracking provided.",
       date: Date.now() - 10 * 24 * 60 * 60 * 1000
     }
   }
@@ -127,7 +127,18 @@ export function getLocalComments(): CommentItem[] {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.map((c: CommentItem) => {
+          if (c?.reply?.text && c.reply.text.includes('₹100')) {
+            return {
+              ...c,
+              reply: {
+                ...c.reply,
+                text: c.reply.text.replace(/₹100/g, '₹29'),
+              },
+            };
+          }
+          return c;
+        });
       }
     }
   } catch {

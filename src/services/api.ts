@@ -14,7 +14,7 @@ import {
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { BedsheetProduct, BEDSHEETS_CATALOG } from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
-import { SiteContent, INITIAL_SITE_CONTENT } from '../data/siteContent';
+import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms } from '../data/siteContent';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
 import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
@@ -738,6 +738,11 @@ export async function getSiteContent(): Promise<SiteContent> {
     if (docSnap.exists()) {
       const data = docSnap.data() as SiteContent;
       if (data && data.company) {
+        const normalizedTc = normalizeShippingInTerms(data.termsAndConditions);
+        if (normalizedTc !== data.termsAndConditions) {
+          data.termsAndConditions = normalizedTc;
+          setDoc(doc(db, 'site_content', 'main'), { termsAndConditions: normalizedTc, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+        }
         return data;
       }
     }
@@ -759,6 +764,7 @@ export async function saveSiteContentApi(content: SiteContent): Promise<void> {
   try {
     const cleanContent = stripUndefined({
       ...content,
+      termsAndConditions: normalizeShippingInTerms(content.termsAndConditions),
       updatedAt: Date.now(),
     });
     await setDoc(doc(db, 'site_content', 'main'), cleanContent, { merge: true });

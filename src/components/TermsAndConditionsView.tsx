@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles, ArrowRight } from 'lucide-react';
-import { SiteContent } from '../data/siteContent';
+import { SiteContent, normalizeShippingInTerms } from '../data/siteContent';
 
 interface TermsAndConditionsViewProps {
   siteContent?: SiteContent;
@@ -12,7 +12,7 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
   onExploreCatalogue,
 }) => {
   const customTc = siteContent?.termsAndConditions
-    ? siteContent.termsAndConditions.replace(/Across India:\s*\*?₹100\*?/gi, 'Across India: *₹29*')
+    ? normalizeShippingInTerms(siteContent.termsAndConditions)
     : undefined;
 
   const renderFormattedContent = (rawText: string) => {

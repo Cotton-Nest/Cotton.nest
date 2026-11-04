@@ -101,3 +101,22 @@ Your soft & stylish bedsheet hub. 🛍️
 💖 *Thank you for shopping with Cotton Nest!*
 *Feel the Softness. 🌸*`,
 };
+
+export const ACROSS_INDIA_SHIPPING_FEE_INR = 29;
+
+export function normalizeShippingInTerms(rawText?: string): string {
+  const base = typeof rawText === 'string' && rawText.trim() !== ''
+    ? rawText
+    : INITIAL_SITE_CONTENT.termsAndConditions;
+
+  return base
+    .replace(/Across India:\s*\*?(?:₹|Rs\.?\s*)?100(?:\s*(?:rs|INR|\/-))?\*?/gi, 'Across India: *₹29*')
+    .replace(/Rest of India:\s*\*?(?:₹|Rs\.?\s*)?100(?:\s*(?:rs|INR|\/-))?\*?/gi, 'Rest of India: *₹29*')
+    .replace(/for just\s*(?:₹|Rs\.?\s*)?100\s*flat/gi, 'for just ₹29 flat')
+    .replace(/flat\s*(?:₹|Rs\.?\s*)?100\s*(?:dispatch|shipping|delivery|courier)/gi, 'flat ₹29 dispatch')
+    .replace(
+      /Shipping charges shall be levied as applicable at the time of order placement\./gi,
+      'Flat ₹29 Across India (shipping charges applied at order placement: ₹29).'
+    );
+}
+

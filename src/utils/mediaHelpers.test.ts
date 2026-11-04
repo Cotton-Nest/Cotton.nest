@@ -8,6 +8,8 @@ import {
   doesProductMatchCategory,
   BEDSHEETS_CATALOG,
 } from '../data/products';
+import { ACROSS_INDIA_SHIPPING_FEE_INR, normalizeShippingInTerms, INITIAL_SITE_CONTENT } from '../data/siteContent';
+import { INITIAL_COMMENTS } from '../data/comments';
 
 test('isVideoMedia identifies video URLs, Cloudinary video paths, and data URIs accurately', () => {
   assert.equal(isVideoMedia('https://res.cloudinary.com/demo/video/upload/v1/sample.mp4'), true);
@@ -89,3 +91,20 @@ test('normalizeProductCategory and doesProductMatchCategory match singular/plura
   assert.equal(matchesProductCategory('Winter Bedsheet', 'Winter Bedsheets'), true);
 });
 
+test('shipping fee across India is strictly ₹29 and never ₹100 in siteContent, T&C, or comments', () => {
+  assert.equal(ACROSS_INDIA_SHIPPING_FEE_INR, 29);
+  assert.equal(INITIAL_SITE_CONTENT.termsAndConditions.includes('₹29'), true);
+  assert.equal(INITIAL_SITE_CONTENT.termsAndConditions.includes('₹100'), false);
+
+  const legacyTc1 = '👉 Across India: *₹100*';
+  assert.equal(normalizeShippingInTerms(legacyTc1), '👉 Across India: *₹29*');
+
+  const legacyTc2 = 'Rest of India\n• Shipping charges shall be levied as applicable at the time of order placement.';
+  assert.equal(normalizeShippingInTerms(legacyTc2).includes('₹29'), true);
+
+  for (const comment of INITIAL_COMMENTS) {
+    if (comment.reply?.text) {
+      assert.equal(comment.reply.text.includes('₹100'), false);
+    }
+  }
+});

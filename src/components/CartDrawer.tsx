@@ -424,7 +424,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 text-[#6B5D55] hover:text-[#2C2420] rounded-full hover:bg-[#F4EFE6] transition-colors"
+            aria-label="Close shopping bag"
+            className="p-1.5 text-[#6B5D55] hover:text-[#2C2420] rounded-full hover:bg-[#F4EFE6] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
