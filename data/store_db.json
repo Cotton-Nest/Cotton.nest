@@ -2,7 +2,7 @@
   "products": [
     {
       "id": "gulabi-bagh-rose",
-      "name": "Nandini",
+      "name": "Nandini Gulabi Bagh Rose",
       "collection": "Floral Heritage",
       "size": "King",
       "productType": "Bedsheet",
@@ -49,7 +49,7 @@
     },
     {
       "id": "mint-meadow-sage",
-      "name": "Nandini",
+      "name": "Nandini Pastel Sage Rose",
       "collection": "Botanical Serenity",
       "size": "King",
       "productType": "Bedsheet",
@@ -89,7 +89,7 @@
     },
     {
       "id": "ivory-garland-wreath",
-      "name": "Nandini",
+      "name": "Nandini Ivory Garland",
       "collection": "Royal Heritage",
       "size": "King",
       "productType": "Bedsheet",
@@ -141,7 +141,7 @@
     },
     {
       "id": "shivaura-trellis-slate",
-      "name": "The Petals ",
+      "name": "Shivaura Chevron Trellis",
       "collection": "Shivaura Collection",
       "size": "Super King",
       "productType": "Bedsheet",
@@ -167,7 +167,7 @@
     },
     {
       "id": "milky-white-poppy",
-      "name": "Milky White ",
+      "name": "Milky White Poppy Meadow",
       "collection": "Inspired By Nature",
       "size": "Queen",
       "productType": "Bedsheet",
@@ -193,7 +193,7 @@
     },
     {
       "id": "amber-orchid-medallion",
-      "name": "Heritage",
+      "name": "Heritage Amber Orchid",
       "collection": "108x108 Classic",
       "size": "Double",
       "productType": "Bedsheet",
@@ -219,7 +219,7 @@
     },
     {
       "id": "peacock-teal-paisley",
-      "name": "Batik",
+      "name": "Batik Royal Peacock Teal",
       "collection": "Artisanal Block",
       "size": "King",
       "productType": "Bedsheet",
@@ -688,7 +688,15 @@
     }
   ],
   "wishlists": [],
-  "loyaltyAccounts": {},
+  "loyaltyAccounts": {
+    "guest_default_wallet": {
+      "id": "guest_default_wallet",
+      "pointsBalance": 0,
+      "lifetimeEarned": 0,
+      "lifetimeSpent": 0,
+      "updatedAt": 1793790618535
+    }
+  },
   "loyaltyTransactions": [],
   "updatedAt": 1793784166957
 }

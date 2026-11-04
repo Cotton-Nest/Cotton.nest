@@ -233,11 +233,13 @@ export const FabricInspectorModal: React.FC<FabricInspectorModalProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <div className="flex items-baseline gap-2">
               <span className="text-xl font-bold text-[var(--color-text,#2C2420)] tabular-nums">
-                ₹{product.price.toLocaleString('en-IN')}
+                ₹{(product.price || 0).toLocaleString('en-IN')}
               </span>
-              <span className="text-xs text-[#9B8C83] line-through tabular-nums">
-                ₹{product.originalPrice.toLocaleString('en-IN')}
-              </span>
+              {(product.originalPrice || 0) > (product.price || 0) && (
+                <span className="text-xs text-[#9B8C83] line-through tabular-nums">
+                  ₹{(product.originalPrice || 0).toLocaleString('en-IN')}
+                </span>
+              )}
               <span className="text-xs font-semibold text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded border border-[#FAD1DC]">
                 Pure Cotton Guaranteed
               </span>

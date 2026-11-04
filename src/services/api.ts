@@ -23,14 +23,17 @@ import { CouponOffer, INITIAL_COUPONS, evaluateCouponEligibility, CartItemLike, 
 import { AppNotification, StockSubscription, PushSubscriptionData, INITIAL_CUSTOMER_NOTIFICATIONS } from '../data/notifications';
 import { WishlistItem } from '../data/wishlist';
 
-// Re-export Cloudinary service helpers
+// Re-export Cloudinary & media service helpers
 export {
   uploadToCloudinary,
   deleteFromCloudinary,
   isCloudinaryUrl,
   isVideoMedia,
+  getProductGalleryMedia,
+  getProductMediaCounts,
   checkCloudinaryConfig,
 } from './cloudinary';
+import { isVideoMedia } from './cloudinary';
 
 // ---------------- SANITIZATION & LINK STORAGE HELPERS ---------------- //
 
@@ -64,30 +67,37 @@ export function cleanLinkOnly(url?: string | null, fallbackId?: string): string 
   }
   const trimmed = url.trim();
   // Never persist raw base64 data blobs in Firestore
-  if (trimmed.startsWith('data:image/') || trimmed.startsWith('blob:')) {
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/') || trimmed.startsWith('blob:')) {
     return resolveBedsheetImage('', fallbackId);
   }
   return trimmed;
 }
 
-// ---------------- IMAGE UPLOAD & HOSTING ---------------- //
+// ---------------- IMAGE & VIDEO UPLOAD & HOSTING ---------------- //
 export async function uploadImageApi(imageInput: string | File, productId?: string): Promise<string> {
   let hostedUrl: string;
 
-  // If already hosted on Cloudinary or external HTTPS URL, it is already a clean link
+  // If already hosted on Cloudinary, external HTTPS URL, or local /uploads/ path, it is already a clean link
   if (
     typeof imageInput === 'string' &&
-    (isCloudinaryUrl(imageInput) || imageInput.startsWith('https://') || imageInput.startsWith('http://'))
+    (isCloudinaryUrl(imageInput) ||
+      imageInput.startsWith('https://') ||
+      imageInput.startsWith('http://') ||
+      imageInput.startsWith('/uploads/') ||
+      imageInput.startsWith('/images/'))
   ) {
-    hostedUrl = imageInput;
+    hostedUrl = imageInput.trim();
   } else {
-    // Upload image to Cloudinary (with automatic resilient server fallback)
+    // Upload image or video to Cloudinary (with automatic resilient server fallback)
     const uploadResult = await uploadToCloudinary(imageInput, productId);
     hostedUrl = uploadResult.url;
   }
 
-  // Strictly store link only in Firestore
-  if (productId && hostedUrl) {
+  // Only update custom_images and products/{productId} if productId is a real product ID (not a gallery/variant subkey)
+  const isGalleryOrVariantSubkey =
+    productId && (productId.includes('_gallery_') || productId.includes('_video_') || productId.includes('_variant_'));
+
+  if (productId && hostedUrl && !isGalleryOrVariantSubkey) {
     try {
       await setDoc(
         doc(db, 'custom_images', productId),
@@ -137,10 +147,9 @@ export async function getCustomImagesApi(): Promise<Record<string, string>> {
   }
 }
 
-// ---------------- IMAGE STATS & MEMORY PERSISTENCE ---------------- //
+// ---------------- IMAGE & VIDEO STATS & MEMORY PERSISTENCE ---------------- //
 
 export async function saveUpdatedImagesStatsApi(count: number): Promise<void> {
-  const path = 'custom_images_stats/summary';
   try {
     await setDoc(
       doc(db, 'custom_images_stats', 'summary'),
@@ -156,7 +165,6 @@ export async function saveUpdatedImagesStatsApi(count: number): Promise<void> {
 }
 
 export async function getUpdatedImagesStatsApi(): Promise<number | null> {
-  const path = 'custom_images_stats/summary';
   try {
     const snap = await getDoc(doc(db, 'custom_images_stats', 'summary'));
     if (snap.exists()) {
@@ -172,8 +180,8 @@ export async function getUpdatedImagesStatsApi(): Promise<number | null> {
 }
 
 /**
- * Computes the total count of custom/updated photos across all bedsheets
- * (including primary images, extra gallery photos, and custom variants).
+ * Computes the total count of custom/updated photos & videos across all bedsheets
+ * (including primary images/videos, extra gallery photos/videos, and custom variants).
  */
 export function computeUpdatedImagesCount(
   products: BedsheetProduct[],
@@ -188,8 +196,9 @@ export function computeUpdatedImagesCount(
     }
   });
 
-  // 2. Product primary, additional, and variant images
+  // 2. Product primary, additional, video, and variant media
   products.forEach((p) => {
+    if (!p) return;
     if (
       p.image &&
       (isCloudinaryUrl(p.image) || (!p.image.includes('exact_sheet') && !p.image.startsWith('/images/exact_')))
@@ -202,6 +211,16 @@ export function computeUpdatedImagesCount(
           countedUrls.add(img);
         }
       });
+    }
+    if (p.videos && Array.isArray(p.videos)) {
+      p.videos.forEach((vid) => {
+        if (vid && typeof vid === 'string' && vid.trim() !== '') {
+          countedUrls.add(vid);
+        }
+      });
+    }
+    if (p.videoUrl && typeof p.videoUrl === 'string' && p.videoUrl.trim() !== '') {
+      countedUrls.add(p.videoUrl);
     }
     if (p.variants && Array.isArray(p.variants)) {
       p.variants.forEach((v) => {
@@ -219,21 +238,25 @@ export function computeUpdatedImagesCount(
 }
 
 /**
- * Adds an additional gallery image to an existing product in Firestore & Cloudinary.
+ * Adds an additional gallery image or video to an existing product in Firestore & Cloudinary/Server.
  */
 export async function addProductGalleryImageApi(
   productId: string,
-  imageInput: File | string,
+  mediaInput: File | string,
   currentAdditionalImages: string[] = []
 ): Promise<string> {
-  // 1. Upload to Cloudinary to get hosted link
-  const subKey = `gallery_${Date.now()}`;
-  const hostedUrl = await uploadImageApi(imageInput, `${productId}_${subKey}`);
+  const isVideo = isVideoMedia(mediaInput);
+  const subKey = `${isVideo ? 'video' : 'gallery'}_${Date.now()}`;
+  const uploadResult = await uploadToCloudinary(mediaInput, `${productId}_${subKey}`);
+  const hostedUrl = uploadResult.url;
 
-  // 2. Append to product additionalImages and save in Firestore
-  const newAdditional = [...currentAdditionalImages, hostedUrl];
+  const newAdditional = Array.from(new Set([...currentAdditionalImages, hostedUrl]));
+  const videoUrls = newAdditional.filter((u) => isVideoMedia(u));
+
   await updateSingleProduct(productId, {
     additionalImages: newAdditional,
+    videos: videoUrls,
+    videoUrl: videoUrls[0] || '',
     updatedAt: Date.now(),
   });
 
@@ -241,16 +264,20 @@ export async function addProductGalleryImageApi(
 }
 
 /**
- * Removes an additional gallery image from a product.
+ * Removes an additional gallery image or video from a product.
  */
 export async function removeProductGalleryImageApi(
   productId: string,
-  imageUrlToRemove: string,
+  mediaUrlToRemove: string,
   currentAdditionalImages: string[] = []
 ): Promise<string[]> {
-  const updatedAdditional = currentAdditionalImages.filter((u) => u !== imageUrlToRemove);
+  const updatedAdditional = currentAdditionalImages.filter((u) => u !== mediaUrlToRemove);
+  const videoUrls = updatedAdditional.filter((u) => isVideoMedia(u));
+
   await updateSingleProduct(productId, {
     additionalImages: updatedAdditional,
+    videos: videoUrls,
+    videoUrl: videoUrls[0] || '',
     updatedAt: Date.now(),
   });
   return updatedAdditional;
@@ -273,6 +300,13 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
     const products: BedsheetProduct[] = [];
     snap.forEach((docSnap) => {
       const data = docSnap.data() as BedsheetProduct;
+      if (docSnap.id.includes('_gallery_') || docSnap.id.includes('_video_') || !data.name) {
+        // Clean up orphaned subkey document in background
+        if (docSnap.id.includes('_gallery_') || docSnap.id.includes('_video_')) {
+          deleteDoc(doc(db, 'products', docSnap.id)).catch(() => {});
+        }
+        return;
+      }
       products.push({
         ...data,
         id: docSnap.id,

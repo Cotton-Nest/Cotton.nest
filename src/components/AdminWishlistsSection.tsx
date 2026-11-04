@@ -163,12 +163,13 @@ export const AdminWishlistsSection: React.FC<AdminWishlistsSectionProps> = ({ on
 
   // Filtered customer groups
   const filteredGroups = customerGroups.filter((group) => {
-    const q = searchQuery.toLowerCase().trim();
+    if (!group) return false;
+    const q = (searchQuery || '').trim().toLowerCase();
     if (!q) return true;
-    const nameMatch = group.customerName.toLowerCase().includes(q);
-    const phoneMatch = group.customerPhone ? group.customerPhone.includes(q) : false;
-    const emailMatch = group.customerEmail ? group.customerEmail.toLowerCase().includes(q) : false;
-    const itemMatch = group.items.some((it) => it.productName.toLowerCase().includes(q));
+    const nameMatch = String(group.customerName || '').toLowerCase().includes(q);
+    const phoneMatch = group.customerPhone ? String(group.customerPhone).includes(q) : false;
+    const emailMatch = group.customerEmail ? String(group.customerEmail).toLowerCase().includes(q) : false;
+    const itemMatch = Array.isArray(group.items) && group.items.some((it) => it && String(it.productName || '').toLowerCase().includes(q));
     return nameMatch || phoneMatch || emailMatch || itemMatch;
   });
 

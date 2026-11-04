@@ -18,6 +18,7 @@ import { OfferBanner } from './components/OfferBanner';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { OwnerAuthModal } from './components/OwnerAuthModal';
 import { WhatsAppPhotoHelperModal, WhatsAppHelperData } from './components/WhatsAppPhotoHelperModal';
 import { LiveOrdersView } from './components/LiveOrdersView';
@@ -930,10 +931,16 @@ export default function App() {
   };
 
   const handleUpdateSingleProduct = async (updatedProduct: BedsheetProduct) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
-    );
-    setSelectedProduct(updatedProduct);
+    setProducts((prev) => {
+      const exists = prev.some((p) => p.id === updatedProduct.id);
+      if (exists) {
+        return prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
+      }
+      return [updatedProduct, ...prev];
+    });
+    if (selectedProduct && selectedProduct.id === updatedProduct.id) {
+      setSelectedProduct(updatedProduct);
+    }
     try {
       await updateSingleProduct(updatedProduct.id, updatedProduct);
     } catch (err) {
@@ -1247,25 +1254,27 @@ export default function App() {
 
       {/* If Admin is Open, show full Admin Panel */}
       {isAdminOpen ? (
-        <AdminPanel
-          products={products}
-          onUpdateProducts={handleUpdateProducts}
-          onResetDefaults={handleResetProducts}
-          onExitAdmin={() => setIsAdminOpen(false)}
-          customImages={customImages}
-          onUploadImage={handleUploadImage}
-          orders={orders}
-          onUpdateOrders={handleUpdateOrders}
-          siteContent={siteContent}
-          onUpdateSiteContent={handleUpdateSiteContent}
-          onResetAllImages={handleResetAllPhotos}
-          onUpdateSingleProduct={handleUpdateSingleProduct}
-          currentTheme={themeConfig}
-          onThemePublished={handleThemePublished}
-          seasonalConfig={seasonalConfig}
-          onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
-          reviews={reviews}
-        />
+        <ErrorBoundary fallbackTitle="Admin Panel Encountered an Issue" onReset={() => setIsAdminOpen(false)}>
+          <AdminPanel
+            products={products}
+            onUpdateProducts={handleUpdateProducts}
+            onResetDefaults={handleResetProducts}
+            onExitAdmin={() => setIsAdminOpen(false)}
+            customImages={customImages}
+            onUploadImage={handleUploadImage}
+            orders={orders}
+            onUpdateOrders={handleUpdateOrders}
+            siteContent={siteContent}
+            onUpdateSiteContent={handleUpdateSiteContent}
+            onResetAllImages={handleResetAllPhotos}
+            onUpdateSingleProduct={handleUpdateSingleProduct}
+            currentTheme={themeConfig}
+            onThemePublished={handleThemePublished}
+            seasonalConfig={seasonalConfig}
+            onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
+            reviews={reviews}
+          />
+        </ErrorBoundary>
       ) : (
         <>
           {/* Top subtle golden luxury scroll progress indicator */}

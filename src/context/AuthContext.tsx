@@ -10,7 +10,19 @@ import {
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-export const OWNER_EMAIL = 'adityaa.22082011@gmail.com';
+export const OWNER_EMAILS = [
+  'adityaa.451485@gmail.com',
+  'adityaa.22082011@gmail.com',
+  'cottonnest.atelier@gmail.com',
+];
+
+export const OWNER_EMAIL = 'adityaa.451485@gmail.com';
+
+export function isOwnerEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return OWNER_EMAILS.some((e) => e.toLowerCase() === clean);
+}
 
 export interface UserProfile {
   id: string;
@@ -58,17 +70,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   });
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const clearAuthError = () => setAuthError(null);
 
-  // Sync with real Firebase Auth state
+  // Sync with real Firebase Auth state with safe fallback
   useEffect(() => {
+    // Safety timer so auth never blocks the UI
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      clearTimeout(safetyTimer);
       setFirebaseUser(fbUser);
       if (fbUser) {
         const email = fbUser.email?.toLowerCase() || '';
-        const isOwner = email === OWNER_EMAIL.toLowerCase();
+        const isOwner = isOwnerEmail(email);
         const defaultName =
           fbUser.displayName ||
           email.split('@')[0] ||
@@ -113,14 +131,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, []);
 
-  // Initialize Google Identity Services (GIS) API when script loads
+  // Initialize Google Identity Services (GIS) API once when script loads
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    let isInitialized = false;
     const setupGis = () => {
+      if (isInitialized) return;
       const google = (window as any).google;
       if (google?.accounts?.id && firebaseConfig?.oAuthClientId) {
         try {
@@ -138,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             auto_select: false,
             cancel_on_tap_outside: true,
           });
+          isInitialized = true;
         } catch (e) {
           console.warn('Google Identity Services init notice:', e);
         }
@@ -353,8 +377,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isOwner = Boolean(
-    (user?.email && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase()) ||
-    (firebaseUser?.email && firebaseUser.email.toLowerCase() === OWNER_EMAIL.toLowerCase()) ||
+    isOwnerEmail(user?.email) ||
+    isOwnerEmail(firebaseUser?.email) ||
     user?.isOwner
   );
 

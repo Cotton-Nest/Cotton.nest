@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { X, Upload, RotateCcw, Check, Sparkles, Image as ImageIcon, Plus, Trash2, Cloud, Layers, Play, Video } from 'lucide-react';
+import { X, Upload, RotateCcw, Check, Sparkles, Image as ImageIcon, Plus, Trash2, Cloud, Layers, Play, Video, Film, Link as LinkIcon } from 'lucide-react';
 import { BEDSHEETS_CATALOG, BedsheetProduct } from '../data/products';
 import {
   uploadImageApi,
@@ -9,7 +9,7 @@ import {
   saveUpdatedImagesStatsApi,
 } from '../services/api';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
-import { isCloudinaryUrl, isVideoMedia } from '../services/cloudinary';
+import { isCloudinaryUrl, isVideoMedia, getProductGalleryMedia, getProductMediaCounts } from '../services/cloudinary';
 
 interface PhotoUploadModalProps {
   isOpen: boolean;
@@ -45,6 +45,9 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const galleryInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const videoInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [videoUrlDrafts, setVideoUrlDrafts] = useState<Record<string, string>>({});
+  const [openUrlInputId, setOpenUrlInputId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -100,13 +103,17 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
           : 'Adding extra angle photo to bedsheet gallery...'
       );
       const target = displayProducts.find((p) => p.id === productId);
-      const currentAdditional = target?.additionalImages || [];
+      const currentAdditional = getProductGalleryMedia(target);
       const newImageUrl = await addProductGalleryImageApi(productId, file, currentAdditional);
 
       if (onUpdateSingleProduct && target) {
+        const nextAdditional = Array.from(new Set([...currentAdditional, newImageUrl]));
+        const nextVideos = nextAdditional.filter((u) => isVideoMedia(u));
         onUpdateSingleProduct({
           ...target,
-          additionalImages: [...currentAdditional, newImageUrl],
+          additionalImages: nextAdditional,
+          videos: nextVideos,
+          videoUrl: nextVideos[0] || target.videoUrl || '',
         });
       }
 
@@ -125,26 +132,66 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
     }
   };
 
-  // Remove extra angle image
+  // Add video or photo URL directly to bedsheet gallery
+  const handleAddMediaUrl = async (productId: string) => {
+    const rawUrl = (videoUrlDrafts[productId] || '').trim();
+    if (!rawUrl) return;
+    setUploadingId(`gallery_${productId}`);
+    setErrorMessage(null);
+    const isVideo = isVideoMedia(rawUrl);
+    try {
+      const target = displayProducts.find((p) => p.id === productId);
+      const currentAdditional = getProductGalleryMedia(target);
+      const savedUrl = await addProductGalleryImageApi(productId, rawUrl, currentAdditional);
+      if (onUpdateSingleProduct && target) {
+        const nextAdditional = Array.from(new Set([...currentAdditional, savedUrl]));
+        const nextVideos = nextAdditional.filter((u) => isVideoMedia(u));
+        onUpdateSingleProduct({
+          ...target,
+          additionalImages: nextAdditional,
+          videos: nextVideos,
+          videoUrl: nextVideos[0] || target.videoUrl || '',
+        });
+      }
+      setVideoUrlDrafts((prev) => ({ ...prev, [productId]: '' }));
+      setOpenUrlInputId(null);
+      setSuccessMessage(
+        isVideo
+          ? '✓ Video link added to bedsheet gallery & saved in Firebase!'
+          : '✓ Media link added to bedsheet gallery & saved in Firebase!'
+      );
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err: any) {
+      setErrorMessage(`Could not add media link: ${err.message || err}`);
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
+  // Remove extra angle image or video
   const handleRemoveGalleryImage = async (productId: string, imageUrl: string) => {
     try {
       const target = displayProducts.find((p) => p.id === productId);
       if (!target) return;
+      const currentAdditional = getProductGalleryMedia(target);
       const updatedAdditional = await removeProductGalleryImageApi(
         productId,
         imageUrl,
-        target.additionalImages || []
+        currentAdditional
       );
+      const updatedVideos = updatedAdditional.filter((u) => isVideoMedia(u));
       if (onUpdateSingleProduct) {
         onUpdateSingleProduct({
           ...target,
           additionalImages: updatedAdditional,
+          videos: updatedVideos,
+          videoUrl: updatedVideos[0] || '',
         });
       }
-      setSuccessMessage('Angle photo removed.');
+      setSuccessMessage('Gallery media removed.');
       setTimeout(() => setSuccessMessage(null), 2000);
     } catch (err: any) {
-      setErrorMessage('Could not remove photo: ' + (err.message || err));
+      setErrorMessage('Could not remove media: ' + (err.message || err));
     }
   };
 
@@ -251,13 +298,13 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
           <div>
             <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#A8823B] uppercase tracking-wider mb-1">
               <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
-              Photo Studio &amp; Image Memory
+              Photo &amp; Video Studio
             </div>
             <h2 className="font-serif-luxury text-xl sm:text-2xl font-bold text-[#2C2420]">
-              Custom Bedsheet Photos &amp; Image Gallery
+              Custom Bedsheet Photos &amp; Videos Gallery
             </h2>
             <p className="text-xs text-[#6B5D55] mt-0.5">
-              Change existing photos, add multiple angle shots, or add new bedsheets. Permanent links are saved in Firebase &amp; Cloudinary.
+              Change existing photos, upload product videos (MP4/WebM/MOV), add multiple angle shots, or add new bedsheets.
             </p>
 
             {/* Persistent Image Memory Stats Banner */}
@@ -339,11 +386,11 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
 
               <div>
                 <label className="text-[10px] font-semibold text-[#8C7A70] uppercase block mb-1">
-                  Select Photo File *
+                  Select Photo or Video File *
                 </label>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,video/*"
                   onChange={(e) => setNewSheetFile(e.target.files?.[0] || null)}
                   className="w-full text-xs text-[#7A6458] file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#FAF7F2] file:text-[#8C2E46] hover:file:bg-[#FDEAF0]"
                 />
@@ -385,11 +432,11 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
           <div className="flex items-center gap-2">
             <label className="px-3.5 py-2 bg-[#8C2E46] hover:bg-[#A33452] text-white text-xs font-semibold rounded-xl cursor-pointer shadow-xs transition-colors flex items-center gap-1.5">
               <Upload className="w-3.5 h-3.5" />
-              <span>Select Multiple Photos</span>
+              <span>Select Multiple Photos / Videos</span>
               <input
                 type="file"
                 multiple
-                accept="image/*"
+                accept="image/*,video/*"
                 onChange={handleBulkUpload}
                 className="hidden"
               />
@@ -442,7 +489,8 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                 product.updatedAt
               );
 
-              const additionalImages = product.additionalImages || [];
+              const additionalImages = getProductGalleryMedia(product);
+              const mediaCounts = getProductMediaCounts(product);
               const isUploadingThis = uploadingId === product.id || uploadingId === `gallery_${product.id}`;
 
               return (
@@ -454,24 +502,42 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                       : 'border-[#EAE2D5] bg-[#FAF7F2]'
                   }`}
                 >
-                  {/* Image Preview with Custom Indicator */}
+                  {/* Image / Video Preview with Custom Indicator */}
                   <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-[#F4EFE6] border border-[#EAE2D5] mb-2.5 group">
-                    <img
-                      src={currentImage}
-                      alt={product.name}
-                      referrerPolicy="no-referrer"
-                      onError={handleImageFallback}
-                      className="w-full h-full object-cover object-center"
-                    />
+                    {isVideoMedia(currentImage) ? (
+                      <video
+                        src={currentImage}
+                        muted
+                        loop
+                        playsInline
+                        autoPlay
+                        className="w-full h-full object-cover object-center"
+                      />
+                    ) : (
+                      <img
+                        src={currentImage}
+                        alt={product.name}
+                        referrerPolicy="no-referrer"
+                        onError={handleImageFallback}
+                        className="w-full h-full object-cover object-center"
+                      />
+                    )}
 
                     {hasCustom ? (
                       <span className="absolute top-2 left-2 bg-[#2E7D46] text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
                         <Check className="w-3 h-3" />
-                        Custom Photo
+                        Custom Media
                       </span>
                     ) : (
                       <span className="absolute top-2 left-2 bg-[#2C2420]/70 text-white text-[10px] font-medium px-2 py-0.5 rounded-md backdrop-blur-xs">
                         Catalog Stock
+                      </span>
+                    )}
+
+                    {mediaCounts.hasVideo && (
+                      <span className="absolute bottom-2 left-2 bg-zinc-900/90 text-[#E6C687] text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border border-[#C29E57]/40">
+                        <Play className="w-2.5 h-2.5 fill-[#E6C687]" />
+                        <span>{mediaCounts.videoCount} Video{mediaCounts.videoCount > 1 ? 's' : ''}</span>
                       </span>
                     )}
 
@@ -491,14 +557,14 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                     {product.name}
                   </h4>
                   <p className="text-[11px] text-[#7A6458] mb-2.5">
-                    ₹{product.price.toLocaleString('en-IN')} · 108×108 King
+                    ₹{product.price.toLocaleString('en-IN')} · {mediaCounts.imageCount} Photos · {mediaCounts.videoCount} Videos
                   </p>
 
-                  {/* Additional Gallery Angle Images Strip */}
+                  {/* Additional Gallery Angle Images & Videos Strip */}
                   {additionalImages.length > 0 && (
                     <div className="mb-2.5 p-2 bg-white rounded-xl border border-[#EAE2D5]">
                       <p className="text-[10px] font-semibold text-[#8C7A70] uppercase mb-1.5 flex items-center justify-between">
-                        <span>Gallery Angles ({additionalImages.length})</span>
+                        <span>Gallery Photos &amp; Videos ({additionalImages.length})</span>
                       </p>
                       <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
                         {additionalImages.map((extraUrl, extraIdx) => {
@@ -529,7 +595,7 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                                 type="button"
                                 onClick={() => handleRemoveGalleryImage(product.id, extraUrl)}
                                 className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover/extra:opacity-100 transition-opacity cursor-pointer z-10"
-                                title="Delete this angle"
+                                title="Delete this media"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -540,14 +606,14 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                     </div>
                   )}
 
-                  {/* Card Action Buttons: Change Primary Photo + Add Extra Photo/Video */}
+                  {/* Card Action Buttons: Change Primary Photo + Add Extra Photo + Add Video + Video Link */}
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       <input
                         type="file"
                         ref={(el) => { fileInputRefs.current[product.id] = el; }}
                         onChange={(e) => handleFileSelect(product.id, e.target.files?.[0])}
-                        accept="image/*"
+                        accept="image/*,video/*"
                         className="hidden"
                       />
 
@@ -557,7 +623,7 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                         className="flex-1 py-1.5 px-2 bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] text-[#2C2420] text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                       >
                         <ImageIcon className="w-3.5 h-3.5 text-[#C29E57]" />
-                        <span>{hasCustom ? 'Change Photo' : 'Upload Photo'}</span>
+                        <span>{hasCustom ? 'Change Cover' : 'Upload Cover'}</span>
                       </button>
 
                       {hasCustom && (
@@ -572,23 +638,71 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                       )}
                     </div>
 
-                    {/* Add extra angle / gallery image or video button */}
+                    {/* Add extra angle photo or video buttons */}
                     <input
                       type="file"
                       ref={(el) => { galleryInputRefs.current[product.id] = el; }}
                       onChange={(e) => handleAddGalleryImage(product.id, e.target.files?.[0])}
-                      accept="image/*,video/*"
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <input
+                      type="file"
+                      ref={(el) => { videoInputRefs.current[product.id] = el; }}
+                      onChange={(e) => handleAddGalleryImage(product.id, e.target.files?.[0])}
+                      accept="video/mp4,video/webm,video/quicktime,video/*"
                       className="hidden"
                     />
 
-                    <button
-                      type="button"
-                      onClick={() => galleryInputRefs.current[product.id]?.click()}
-                      className="w-full py-1 px-2 bg-[#FAF7F2] hover:bg-white border border-dashed border-[#C29E57] text-[#8C2E46] text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3 text-[#C29E57]" />
-                      <span>+ Add Extra Angle (Photo or Video)</span>
-                    </button>
+                    <div className="grid grid-cols-3 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => galleryInputRefs.current[product.id]?.click()}
+                        className="py-1 px-1.5 bg-[#FAF7F2] hover:bg-white border border-dashed border-[#C29E57] text-[#8C2E46] text-[10px] font-semibold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3 text-[#C29E57]" />
+                        <span>+ Photo</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => videoInputRefs.current[product.id]?.click()}
+                        className="py-1 px-1.5 bg-zinc-900 hover:bg-zinc-800 text-[#E6C687] text-[10px] font-semibold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Film className="w-3 h-3 text-[#E6C687]" />
+                        <span>+ Video</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setOpenUrlInputId(openUrlInputId === product.id ? null : product.id)}
+                        className="py-1 px-1.5 bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] text-[#2C2420] text-[10px] font-semibold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <LinkIcon className="w-3 h-3 text-[#8C2E46]" />
+                        <span>+ URL</span>
+                      </button>
+                    </div>
+
+                    {openUrlInputId === product.id && (
+                      <div className="flex items-center gap-1 pt-1">
+                        <input
+                          type="url"
+                          value={videoUrlDrafts[product.id] || ''}
+                          onChange={(e) =>
+                            setVideoUrlDrafts((prev) => ({ ...prev, [product.id]: e.target.value }))
+                          }
+                          placeholder="Paste MP4 video or image URL..."
+                          className="flex-1 px-2 py-1 bg-white border border-[#DEC89B] rounded-lg text-[10px] text-[#2C2420] focus:outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddMediaUrl(product.id)}
+                          className="px-2 py-1 bg-[#8C2E46] text-white text-[10px] font-bold rounded-lg cursor-pointer"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

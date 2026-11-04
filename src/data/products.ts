@@ -19,7 +19,9 @@ export interface BedsheetProduct {
   colorTone: string;
   description: string;
   image: string;
-  additionalImages?: string[]; // Extra gallery/detail photos of this bedsheet
+  additionalImages?: string[]; // Extra gallery/detail photos & videos of this bedsheet
+  videos?: string[];           // Dedicated product video URLs (MP4, WebM, MOV, Cloudinary video reels)
+  videoUrl?: string;           // Primary featured video URL if any
   variants?: BedsheetVariant[]; // Multiple color variants or extra photos of this bedsheet
   badge?: string;
   inStock: boolean;
@@ -71,7 +73,7 @@ export const COMPANY_DETAILS = {
 export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   {
     id: "gulabi-bagh-rose",
-    name: "Nandini",
+    name: "Nandini Gulabi Bagh Rose",
     collection: "Floral Heritage",
     size: "King",
     productType: "Bedsheet",
@@ -117,7 +119,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "mint-meadow-sage",
-    name: "Nandini",
+    name: "Nandini Pastel Sage Rose",
     collection: "Botanical Serenity",
     size: "King",
     productType: "Bedsheet",
@@ -157,7 +159,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "ivory-garland-wreath",
-    name: "Nandini",
+    name: "Nandini Ivory Garland",
     collection: "Royal Heritage",
     size: "King",
     productType: "Bedsheet",
@@ -209,7 +211,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "shivaura-trellis-slate",
-    name: "The Petals ",
+    name: "Shivaura Chevron Trellis",
     collection: "Shivaura Collection",
     size: "Super King",
     productType: "Bedsheet",
@@ -235,7 +237,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "milky-white-poppy",
-    name: "Milky White ",
+    name: "Milky White Poppy Meadow",
     collection: "Inspired By Nature",
     size: "Queen",
     productType: "Bedsheet",
@@ -261,7 +263,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "amber-orchid-medallion",
-    name: "Heritage",
+    name: "Heritage Amber Orchid",
     collection: "108x108 Classic",
     size: "Double",
     productType: "Bedsheet",
@@ -287,7 +289,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "peacock-teal-paisley",
-    name: "Batik",
+    name: "Batik Royal Peacock Teal",
     collection: "Artisanal Block",
     size: "King",
     productType: "Bedsheet",

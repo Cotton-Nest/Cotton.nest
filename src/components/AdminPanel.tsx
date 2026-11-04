@@ -32,6 +32,9 @@ import {
   uploadToCloudinary,
   deleteFromCloudinary,
   isCloudinaryUrl,
+  isVideoMedia,
+  getProductGalleryMedia,
+  getProductMediaCounts,
   checkCloudinaryConfig
 } from '../services/cloudinary';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
@@ -90,7 +93,11 @@ import {
   ArrowUpDown,
   Gift,
   Ticket,
-  Camera
+  Camera,
+  Video,
+  Play,
+  Film,
+  Link as LinkIcon
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -184,6 +191,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [expandedVariants, setExpandedVariants] = useState<Record<string, boolean>>({});
   // Expanded specifications & story editors for specific product IDs
   const [expandedSpecs, setExpandedSpecs] = useState<Record<string, boolean>>({});
+  // Expanded photos & videos gallery managers for specific product IDs
+  const [expandedGallery, setExpandedGallery] = useState<Record<string, boolean>>({});
+  // Per-product gallery upload loading state & video/image URL input drafts
+  const [galleryUploadingId, setGalleryUploadingId] = useState<string | null>(null);
+  const [galleryUrlDrafts, setGalleryUrlDrafts] = useState<Record<string, string>>({});
 
   // New variant draft form per product: { [productId]: { name: string; colorHex: string; image: string } }
   const [variantDrafts, setVariantDrafts] = useState<Record<string, { name: string; colorHex: string; image: string }>>({});
@@ -193,6 +205,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [cloudinaryStatus, setCloudinaryStatus] = useState<{ configured: boolean; cloudName?: string; error?: string } | null>(null);
   const [isCloudinaryHelpModalOpen, setIsCloudinaryHelpModalOpen] = useState(false);
   const [newProductFile, setNewProductFile] = useState<File | null>(null);
+  const [newProductGalleryFiles, setNewProductGalleryFiles] = useState<File[]>([]);
+  const [newProductGalleryUrls, setNewProductGalleryUrls] = useState<string[]>([]);
+  const [newProductVideoUrlDraft, setNewProductVideoUrlDraft] = useState('');
 
   React.useEffect(() => {
     checkCloudinaryConfig().then((status) => {
@@ -232,6 +247,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newProductCustomSize, setNewProductCustomSize] = useState('');
   const [newProductCustomType, setNewProductCustomType] = useState('');
   const newProductFileRef = useRef<HTMLInputElement>(null);
+  const newProductGalleryFileRef = useRef<HTMLInputElement>(null);
+  const newProductVideoFileRef = useRef<HTMLInputElement>(null);
   const newProductVariantFileRef = useRef<HTMLInputElement>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
   const [newProductVariantDraft, setNewProductVariantDraft] = useState<{
@@ -380,8 +397,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Site Content local state
   const [editableContent, setEditableContent] = useState<SiteContent>(siteContent);
 
-  // File input refs for changing product photos and variant photos
+  // File input refs for changing product photos, gallery photos/videos, and variant photos
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const galleryFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const videoFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const variantFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Safely persist product changes with debouncing to avoid race conditions
@@ -498,8 +517,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleDiscountPercentChange = (id: string, discountPct: number) => {
     updateProductItem(id, (p) => {
       const pct = Math.min(90, Math.max(0, discountPct));
-      const newPrice = Math.round(p.originalPrice * (1 - pct / 100));
-      return { ...p, price: newPrice };
+      const orig = Number(p.originalPrice) || Number(p.price) || 0;
+      const newPrice = Math.round(orig * (1 - pct / 100));
+      return { ...p, originalPrice: orig, price: newPrice };
     }, true);
     showToast(discountPct === 0 ? '0% Discount applied (Selling at Full MRP)!' : `${discountPct}% Discount applied!`);
   };
@@ -735,6 +755,109 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
+  /* ---------------- PHOTOS & VIDEOS GALLERY HANDLERS ---------------- */
+
+  const toggleGalleryPanel = (productId: string) => {
+    setExpandedGallery((prev) => ({
+      ...prev,
+      [productId]: !prev[productId],
+    }));
+  };
+
+  const handleAddGalleryMediaToProduct = async (productId: string, fileOrUrl?: File | string) => {
+    if (!fileOrUrl) return;
+    const targetProduct = editableProducts.find((p) => p.id === productId);
+    if (!targetProduct) return;
+
+    const isVid = isVideoMedia(fileOrUrl);
+    setGalleryUploadingId(productId);
+    showToast(
+      isVid
+        ? `Uploading video for "${targetProduct.name}"...`
+        : `Uploading gallery photo for "${targetProduct.name}"...`
+    );
+
+    try {
+      const currentAdditional = getProductGalleryMedia(targetProduct);
+      const hostedUrl = await addProductGalleryImageApi(productId, fileOrUrl, currentAdditional);
+      const nextAdditional = Array.from(new Set([...currentAdditional, hostedUrl]));
+      const nextVideos = nextAdditional.filter((u) => isVideoMedia(u));
+
+      const updatedProduct: BedsheetProduct = {
+        ...targetProduct,
+        additionalImages: nextAdditional,
+        videos: nextVideos,
+        videoUrl: nextVideos[0] || targetProduct.videoUrl || '',
+        updatedAt: Date.now(),
+      };
+
+      const updatedList = editableProducts.map((p) => (p.id === productId ? updatedProduct : p));
+      setEditableProducts(updatedList);
+      if (onUpdateSingleProduct) {
+        onUpdateSingleProduct(updatedProduct);
+      } else {
+        onUpdateProducts(updatedList);
+      }
+
+      showToast(
+        isVid
+          ? `🎬 Video added to "${targetProduct.name}" gallery!`
+          : `📸 Photo added to "${targetProduct.name}" gallery!`
+      );
+    } catch (err: any) {
+      console.error('Failed to add gallery media:', err);
+      showToast(`Media upload failed: ${err.message || err}`);
+    } finally {
+      setGalleryUploadingId(null);
+      if (galleryFileInputRefs.current[productId]) {
+        galleryFileInputRefs.current[productId]!.value = '';
+      }
+      if (videoFileInputRefs.current[productId]) {
+        videoFileInputRefs.current[productId]!.value = '';
+      }
+    }
+  };
+
+  const handleAddGalleryUrlToProduct = async (productId: string) => {
+    const rawUrl = (galleryUrlDrafts[productId] || '').trim();
+    if (!rawUrl) {
+      showToast('Please enter or paste a valid video or image URL.');
+      return;
+    }
+    await handleAddGalleryMediaToProduct(productId, rawUrl);
+    setGalleryUrlDrafts((prev) => ({ ...prev, [productId]: '' }));
+  };
+
+  const handleRemoveGalleryMediaFromProduct = async (productId: string, mediaUrl: string) => {
+    const targetProduct = editableProducts.find((p) => p.id === productId);
+    if (!targetProduct) return;
+
+    try {
+      const currentAdditional = getProductGalleryMedia(targetProduct);
+      const nextAdditional = await removeProductGalleryImageApi(productId, mediaUrl, currentAdditional);
+      const nextVideos = nextAdditional.filter((u) => isVideoMedia(u));
+
+      const updatedProduct: BedsheetProduct = {
+        ...targetProduct,
+        additionalImages: nextAdditional,
+        videos: nextVideos,
+        videoUrl: nextVideos[0] || '',
+        updatedAt: Date.now(),
+      };
+
+      const updatedList = editableProducts.map((p) => (p.id === productId ? updatedProduct : p));
+      setEditableProducts(updatedList);
+      if (onUpdateSingleProduct) {
+        onUpdateSingleProduct(updatedProduct);
+      } else {
+        onUpdateProducts(updatedList);
+      }
+      showToast('Removed media from product gallery.');
+    } catch (err: any) {
+      showToast(`Could not remove media: ${err.message || err}`);
+    }
+  };
+
   /* ---------------- COLOR VARIANT HANDLERS ---------------- */
 
   const toggleVariantsPanel = (productId: string) => {
@@ -864,6 +987,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     }
 
+    // Upload any additional gallery photos or videos selected for this new bedsheet
+    const uploadedAdditionalUrls: string[] = [...newProductGalleryUrls];
+    if (newProductGalleryFiles.length > 0) {
+      showToast(`Uploading ${newProductGalleryFiles.length} additional photo(s)/video(s)...`);
+      for (let i = 0; i < newProductGalleryFiles.length; i++) {
+        try {
+          const gFile = newProductGalleryFiles[i];
+          const res = await uploadToCloudinary(gFile, `${createdId}_media_${i}`);
+          if (res.url) {
+            uploadedAdditionalUrls.push(res.url);
+          }
+        } catch (gErr) {
+          console.warn('Could not upload additional media file:', gErr);
+        }
+      }
+    }
+
+    const dedupedAdditional = Array.from(new Set(uploadedAdditionalUrls.filter(Boolean)));
+    const uploadedVideos = dedupedAdditional.filter((u) => isVideoMedia(u));
+
     const finalSize = newProduct.size === 'Other' ? (newProductCustomSize.trim() || 'Custom Size') : (newProduct.size || 'King');
     const finalProductType = newProduct.productType === 'Other' ? (newProductCustomType.trim() || 'Custom') : (newProduct.productType || 'Bedsheet');
     const finalBrand = (newProduct.brand || 'Cotton Nest').trim() || 'Cotton Nest';
@@ -885,6 +1028,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       colorTone: newProduct.colorTone || 'Ivory & Pastels',
       description: newProduct.description || 'Pristine 100% pure cotton bedsheet.',
       image: finalImageUrl,
+      additionalImages: dedupedAdditional,
+      videos: uploadedVideos,
+      videoUrl: uploadedVideos[0] || '',
       cloudinaryPublicId: assignedPublicId,
       variants: newProduct.variants || [],
       badge: newProduct.badge || 'New Arrival',
@@ -912,6 +1058,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     reorderProductsApi(updated.map((p) => p.id)).catch(() => {});
     setIsAddProductModalOpen(false);
     setNewProductFile(null);
+    setNewProductGalleryFiles([]);
+    setNewProductGalleryUrls([]);
+    setNewProductVideoUrlDraft('');
     showToast(`"${fullProduct.name}" created and saved to store!`);
   };
 
@@ -1253,16 +1402,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Metrics
-  const totalProducts = editableProducts.length;
-  const inStockCount = editableProducts.filter((p) => p.inStock).length;
-  const outOfStockCount = totalProducts - inStockCount;
-  const totalInventoryUnits = editableProducts.reduce(
-    (acc, p) => acc + (p.inStock ? (p.stockQuantity ?? 10) : 0),
+  const totalProducts = (editableProducts || []).length;
+  const inStockCount = (editableProducts || []).filter((p) => p && p.inStock).length;
+  const outOfStockCount = Math.max(0, totalProducts - inStockCount);
+  const totalInventoryUnits = (editableProducts || []).reduce(
+    (acc, p) => acc + (p && p.inStock ? (p.stockQuantity ?? 10) : 0),
     0
   );
-  const totalRevenue = editableOrders.reduce((sum, o) => sum + (o.status !== 'cancelled' ? o.totalAmount : 0), 0);
-  const pendingOrdersCount = editableOrders.filter((o) => o.status === 'pending').length;
-  const lowStockCount = editableProducts.filter((p) => p.inStock && p.stockQuantity !== undefined && p.stockQuantity <= 3).length;
+  const totalRevenue = (editableOrders || []).reduce((sum, o) => sum + (o && o.status !== 'cancelled' ? (Number(o.totalAmount) || 0) : 0), 0);
+  const pendingOrdersCount = (editableOrders || []).filter((o) => o && o.status === 'pending').length;
+  const lowStockCount = (editableProducts || []).filter((p) => p && p.inStock && p.stockQuantity !== undefined && p.stockQuantity <= 3).length;
   const adminAlertsCount = outOfStockCount + lowStockCount + pendingOrdersCount;
 
   const handleUpdateStockDirect = (productId: string, inStock: boolean, quantity: number) => {
@@ -1275,26 +1424,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Filtered Products
-  const filteredProducts = editableProducts.filter((p) => {
+  const filteredProducts = (editableProducts || []).filter((p) => {
+    if (!p) return false;
+    const pName = String(p.name || '');
+    const pColl = String(p.collection || '');
+    const q = (searchQuery || '').trim().toLowerCase();
     const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.collection.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      pName.toLowerCase().includes(q) ||
+      pColl.toLowerCase().includes(q);
     if (!matchesSearch) return false;
-    if (filterStatus === 'inStock') return p.inStock;
+    if (filterStatus === 'inStock') return Boolean(p.inStock);
     if (filterStatus === 'outOfStock') return !p.inStock;
     return true;
   });
 
   // Filtered Orders
-  const filteredOrders = editableOrders.filter((o) => {
+  const filteredOrders = (editableOrders || []).filter((o) => {
+    if (!o) return false;
     if (orderFilter !== 'all' && o.status !== orderFilter) return false;
     if (orderSearch) {
-      const q = orderSearch.toLowerCase();
+      const q = (orderSearch || '').trim().toLowerCase();
+      const oId = String(o.id || '');
+      const cName = String(o.customerName || '');
+      const cPhone = String(o.customerPhone || '');
+      const cAddress = String(o.customerAddress || '');
       return (
-        o.id.toLowerCase().includes(q) ||
-        o.customerName.toLowerCase().includes(q) ||
-        o.customerPhone.includes(q) ||
-        o.customerAddress.toLowerCase().includes(q)
+        oId.toLowerCase().includes(q) ||
+        cName.toLowerCase().includes(q) ||
+        cPhone.toLowerCase().includes(q) ||
+        cAddress.toLowerCase().includes(q)
       );
     }
     return true;
@@ -2100,12 +2259,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <section className="space-y-4">
               {filteredProducts.map((product, idx) => {
                 const currentImg = product.image || customImages[product.id];
-                const discountPct = Math.max(
-                  0,
-                  Math.round(
-                    ((product.originalPrice - product.price) / (product.originalPrice || 1)) * 100
-                  )
-                );
+                const origPrice = Number(product.originalPrice) || 0;
+                const currPrice = Number(product.price) || 0;
+                const rawDiscount = origPrice > currPrice && origPrice > 0
+                  ? Math.round(((origPrice - currPrice) / origPrice) * 100)
+                  : 0;
+                const discountPct = Number.isFinite(rawDiscount) && !isNaN(rawDiscount) ? Math.max(0, rawDiscount) : 0;
                 const isVariantsOpen = expandedVariants[product.id] || false;
                 const isSpecsOpen = expandedSpecs[product.id] || false;
                 const draft = variantDrafts[product.id] || { name: '', colorHex: '#C29E57', image: '' };
@@ -2202,26 +2361,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
                       
-                      {/* Photo Column */}
+                      {/* Photo / Video Column */}
                       <div className="lg:col-span-3 flex items-center gap-3">
                         <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-[#F4EFE6] border border-[#EAE2D5] shrink-0">
-                          <img
-                            src={resolveBedsheetImage(currentImg, product.id)}
-                            alt={product.name}
-                            referrerPolicy="no-referrer"
-                            onError={(e) => handleImageFallback(e, product.id)}
-                            className="w-full h-full object-cover object-center"
-                          />
+                          {isVideoMedia(currentImg) ? (
+                            <video
+                              src={currentImg}
+                              muted
+                              loop
+                              playsInline
+                              autoPlay
+                              className="w-full h-full object-cover object-center"
+                            />
+                          ) : (
+                            <img
+                              src={resolveBedsheetImage(currentImg, product.id)}
+                              alt={product.name}
+                              referrerPolicy="no-referrer"
+                              onError={(e) => handleImageFallback(e, product.id)}
+                              className="w-full h-full object-cover object-center"
+                            />
+                          )}
                           <span className="absolute top-1 left-1 bg-[#2C2420]/80 text-white text-[9px] px-1 rounded font-bold">
                             #{currentPosition}
                           </span>
-                          {/* Picture count badge on photo (Admin Panel Only) */}
+                          {getProductMediaCounts(product).hasVideo && (
+                            <span className="absolute top-1 right-1 bg-zinc-900/90 text-[#E6C687] text-[8px] px-1 py-0.5 rounded font-bold flex items-center gap-0.5 border border-[#C29E57]/40">
+                              <Play className="w-2 h-2 fill-[#E6C687]" />
+                              <span>VID</span>
+                            </span>
+                          )}
+                          {/* Picture & video count badge on photo (Admin Panel Only) */}
                           <span
-                            title="Total pictures stored for this bedsheet in admin"
+                            title="Total pictures and videos stored for this bedsheet in admin"
                             className="absolute bottom-1 right-1 bg-black/85 text-amber-300 text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 shadow-xs border border-amber-400/30"
                           >
                             <Camera className="w-2.5 h-2.5" />
-                            <span>{1 + (product.additionalImages?.length || 0) + (product.variants?.filter((v) => !!v.image)?.length || 0)} pics</span>
+                            <span>
+                              {getProductMediaCounts(product).imageCount}p
+                              {getProductMediaCounts(product).videoCount > 0 ? ` · ${getProductMediaCounts(product).videoCount}v` : ''}
+                            </span>
                           </span>
                         </div>
 
@@ -2230,17 +2409,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             type="file"
                             ref={(el) => { fileInputRefs.current[product.id] = el; }}
                             onChange={(e) => handleReplaceImage(product.id, e.target.files?.[0])}
-                            accept="image/*"
+                            accept="image/*,video/*"
                             className="hidden"
                           />
 
-                          {/* Primary Replace Image Action */}
+                          {/* Primary Replace Image / Video Action */}
                           <button
                             type="button"
                             disabled={replacingProductId === product.id}
                             onClick={() => fileInputRefs.current[product.id]?.click()}
                             className="w-full px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-                            title="Upload and host replacement photo on Cloudinary, updating Firestore immediately"
+                            title="Upload and host replacement photo or video on Cloudinary, updating Firestore immediately"
                           >
                             {replacingProductId === product.id ? (
                               <>
@@ -2250,29 +2429,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             ) : (
                               <>
                                 <Upload className="w-3.5 h-3.5" />
-                                <span>Replace Image</span>
+                                <span>Replace Cover</span>
                               </>
                             )}
                           </button>
 
-                          {/* Image Hosting Badge */}
-                          {isCloudinaryUrl(currentImg) ? (
-                            <div className="flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md justify-center font-medium">
-                              <Cloud className="w-3 h-3 text-emerald-600 shrink-0" />
-                              <span className="truncate">Cloudinary CDN</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 text-[10px] text-[#7A6458] bg-white border border-[#EAE2D5] px-2 py-0.5 rounded-md justify-center">
-                              <ImageIcon className="w-3 h-3 text-[#C29E57] shrink-0" />
-                              <span className="truncate">Catalog Photo</span>
-                            </div>
-                          )}
+                          {/* Quick Add Video / Photo Button */}
+                          <button
+                            type="button"
+                            onClick={() => toggleGalleryPanel(product.id)}
+                            className="w-full px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-[#E6C687] rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                            title="Open Photos & Videos Gallery to add product videos or extra angle photos"
+                          >
+                            <Film className="w-3 h-3 text-[#E6C687] shrink-0" />
+                            <span>+ Add Video / Angles</span>
+                          </button>
 
-                          {/* Pictures Count Breakdown (Admin Panel Only) */}
+                          {/* Media Count Breakdown (Admin Panel Only) */}
                           <div className="flex items-center gap-1 text-[10px] text-amber-900 bg-amber-50/90 border border-amber-200 px-2 py-0.5 rounded-md justify-center font-medium shadow-2xs">
                             <Camera className="w-3 h-3 text-amber-700 shrink-0" />
                             <span className="truncate">
-                              {1 + (product.additionalImages?.length || 0) + (product.variants?.filter((v) => !!v.image)?.length || 0)} Pictures (1 Cover{(product.additionalImages?.length || 0) > 0 ? ` + ${product.additionalImages?.length} Angles` : ''}{(product.variants?.filter((v) => !!v.image)?.length || 0) > 0 ? ` + ${product.variants?.filter((v) => !!v.image)?.length} Variants` : ''})
+                              {getProductMediaCounts(product).imageCount} Photos · {getProductMediaCounts(product).videoCount} Videos
                             </span>
                           </div>
 
@@ -2758,10 +2935,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     )}
 
                     {/* ======================================================== */}
-                    {/* COLOR VARIANTS & MULTI-PHOTO UPLOAD SECTION FOR THIS SHEET */}
+                    {/* PHOTOS, VIDEOS & COLOR VARIANTS SECTION FOR THIS SHEET    */}
                     {/* ======================================================== */}
                     <div className="pt-3 border-t border-[#EAE2D5] flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <button
                           type="button"
                           onClick={() => toggleSpecsPanel(product.id)}
@@ -2774,6 +2951,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <Layers className="w-3.5 h-3.5 text-[#C29E57]" />
                           <span>Specs, Size &amp; Story</span>
                           {isSpecsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleGalleryPanel(product.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer border ${
+                            expandedGallery[product.id]
+                              ? 'bg-zinc-900 text-[#E6C687] border-zinc-900'
+                              : 'bg-white text-[#2C2420] border-[#DEC89B] hover:bg-[#FAF7F2]'
+                          }`}
+                        >
+                          <Film className="w-3.5 h-3.5 text-[#C29E57]" />
+                          <span>
+                            Photos &amp; Videos ({getProductGalleryMedia(product).length})
+                          </span>
+                          {getProductMediaCounts(product).videoCount > 0 && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-[#8C2E46] text-white text-[9px] font-bold">
+                              {getProductMediaCounts(product).videoCount} Video{getProductMediaCounts(product).videoCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {expandedGallery[product.id] ? (
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          )}
                         </button>
 
                         <button
@@ -2812,6 +3014,154 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                       )}
                     </div>
+
+                    {/* Expanded Photos & Videos Gallery Studio */}
+                    {expandedGallery[product.id] && (
+                      <div className="mt-3 p-4 bg-white rounded-2xl border border-[#DEC89B] space-y-4 animate-in fade-in duration-150">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#EAE2D5] pb-2.5">
+                          <div>
+                            <h4 className="text-xs font-bold text-[#2C2420] flex items-center gap-1.5">
+                              <Film className="w-4 h-4 text-[#8C2E46]" />
+                              <span>Photos &amp; Videos Gallery for "{product.name}"</span>
+                            </h4>
+                            <p className="text-[11px] text-[#7A6458]">
+                              Upload extra angle photos, product showcase videos (MP4/WebM/MOV), or paste a video/image link.
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              ref={(el) => { galleryFileInputRefs.current[product.id] = el; }}
+                              onChange={async (e) => {
+                                const files = e.target.files;
+                                if (!files || files.length === 0) return;
+                                for (let i = 0; i < files.length; i++) {
+                                  await handleAddGalleryMediaToProduct(product.id, files[i]);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                            <input
+                              type="file"
+                              accept="video/mp4,video/webm,video/quicktime,video/*"
+                              ref={(el) => { videoFileInputRefs.current[product.id] = el; }}
+                              onChange={(e) => handleAddGalleryMediaToProduct(product.id, e.target.files?.[0])}
+                              className="hidden"
+                            />
+
+                            <button
+                              type="button"
+                              disabled={galleryUploadingId === product.id}
+                              onClick={() => galleryFileInputRefs.current[product.id]?.click()}
+                              className="px-3 py-1.5 bg-[#FAF7F2] hover:bg-[#F4EFE6] border border-[#DEC89B] text-[#2C2420] text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+                            >
+                              <ImageIcon className="w-3.5 h-3.5 text-[#C29E57]" />
+                              <span>+ Upload Photos</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={galleryUploadingId === product.id}
+                              onClick={() => videoFileInputRefs.current[product.id]?.click()}
+                              className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-[#E6C687] text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                            >
+                              {galleryUploadingId === product.id ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Uploading...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Video className="w-3.5 h-3.5 text-[#E6C687]" />
+                                  <span>+ Upload Video</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Paste Video or Photo URL Bar */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-[#FAF7F2] p-2.5 rounded-xl border border-[#EAE2D5]">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#7A6458] shrink-0">
+                            <LinkIcon className="w-3.5 h-3.5 text-[#8C2E46]" />
+                            <span>Add Video / Image URL:</span>
+                          </div>
+                          <input
+                            type="url"
+                            value={galleryUrlDrafts[product.id] || ''}
+                            onChange={(e) =>
+                              setGalleryUrlDrafts((prev) => ({ ...prev, [product.id]: e.target.value }))
+                            }
+                            placeholder="https://.../product-video.mp4 or image link"
+                            className="flex-1 px-3 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                          />
+                          <button
+                            type="button"
+                            disabled={galleryUploadingId === product.id}
+                            onClick={() => handleAddGalleryUrlToProduct(product.id)}
+                            className="px-3.5 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0"
+                          >
+                            + Add Link
+                          </button>
+                        </div>
+
+                        {/* Gallery Thumbnails Grid */}
+                        {getProductGalleryMedia(product).length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                            {getProductGalleryMedia(product).map((mediaUrl, mIdx) => {
+                              const isVid = isVideoMedia(mediaUrl);
+                              return (
+                                <div
+                                  key={`${mediaUrl}-${mIdx}`}
+                                  className="relative group rounded-xl overflow-hidden border border-[#EAE2D5] bg-zinc-900 aspect-square flex flex-col justify-between"
+                                >
+                                  {isVid ? (
+                                    <video
+                                      src={mediaUrl}
+                                      controls
+                                      muted
+                                      playsInline
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <img
+                                      src={resolveBedsheetImage(mediaUrl, product.id)}
+                                      alt={`Angle ${mIdx + 1}`}
+                                      onError={handleImageFallback}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  )}
+                                  <span
+                                    className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                      isVid
+                                        ? 'bg-zinc-900/90 text-[#E6C687] border border-[#C29E57]/40'
+                                        : 'bg-black/70 text-white'
+                                    }`}
+                                  >
+                                    {isVid ? '▶ Video' : `Photo #${mIdx + 1}`}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveGalleryMediaFromProduct(product.id, mediaUrl)}
+                                    className="absolute top-1.5 right-1.5 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-xs opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                    title="Remove from gallery"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-[#8C7A70] italic">
+                            No extra angle photos or videos yet. Use "+ Upload Photos", "+ Upload Video", or paste a video link above.
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                       {/* Expanded Variant Manager */}
                       {isVariantsOpen && (
@@ -3601,16 +3951,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               {/* Bedsheets List */}
               <div className="space-y-3">
-                {editableProducts
+                {(editableProducts || [])
                   .filter((p) => {
-                    if (!seasonalSearchQuery.trim()) return true;
-                    return p.name.toLowerCase().includes(seasonalSearchQuery.toLowerCase());
+                    if (!p) return false;
+                    const q = (seasonalSearchQuery || '').trim().toLowerCase();
+                    if (!q) return true;
+                    return String(p.name || '').toLowerCase().includes(q);
                   })
                   .map((product) => {
                     const seasonalItem = (editableSeasonal.items || []).find((i) => i.productId === product.id);
                     const isIncluded = !!seasonalItem;
                     const resolvedImg = resolveBedsheetImage(product.image, product.id, product.updatedAt);
-                    const originalPrice = product.originalPrice || Math.round(product.price * 1.35);
+                    const orig = Number(product.originalPrice) || (product.price ? Math.round(Number(product.price) * 1.35) : 0);
+                    const originalPrice = Number.isFinite(orig) ? orig : 0;
+                    const currPrice = Number(product.price) || 0;
 
                     return (
                       <div
@@ -3633,7 +3987,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           <img
                             src={resolvedImg}
-                            alt={product.name}
+                            alt={product.name || 'Bedsheet'}
                             className="w-14 h-14 rounded-xl object-cover border border-[var(--color-border,#EAE2D5)] shrink-0 bg-stone-100"
                           />
 
@@ -3642,10 +3996,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               htmlFor={`seasonal-toggle-${product.id}`}
                               className="font-serif-luxury text-sm font-bold text-[var(--color-text,#2C2420)] truncate block cursor-pointer hover:underline"
                             >
-                              {product.name}
+                              {product.name || 'Untitled Bedsheet'}
                             </label>
                             <p className="text-[11px] text-[var(--color-text-secondary,#6B5D55)]">
-                              Regular: ₹{product.price} · MRP: ₹{originalPrice} · {product.fabric || '100% Pure Cotton'}
+                              Regular: ₹{currPrice.toLocaleString('en-IN')} · MRP: ₹{originalPrice.toLocaleString('en-IN')} · {product.fabric || '100% Pure Cotton'}
                             </p>
                             {isIncluded && (
                               <span className="inline-block mt-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded border border-emerald-200">
@@ -3667,7 +4021,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 type="number"
                                 min={100}
                                 max={originalPrice}
-                                value={seasonalItem?.discountPrice ?? Math.round(product.price * 0.8)}
+                                value={seasonalItem?.discountPrice ?? Math.round((Number(product.price) || 0) * 0.8)}
                                 onChange={(e) => handleUpdateSeasonalItemPrice(product.id, Number(e.target.value))}
                                 className="w-24 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-primary,#70252D)] focus:outline-hidden"
                               />
@@ -4159,22 +4513,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <form onSubmit={handleCreateNewProduct} className="space-y-5">
               
-              {/* Photo Preview & Picker */}
+              {/* Cover Photo / Video Preview & Picker */}
               <div className="flex items-center gap-4 p-4 bg-[#F4EFE6] rounded-2xl border border-[#EAE2D5]">
                 <div className="w-24 h-24 rounded-xl overflow-hidden bg-white border border-[#EAE2D5] shrink-0">
-                  <img
-                    src={resolveBedsheetImage(newProduct.image)}
-                    alt="Preview"
-                    onError={handleImageFallback}
-                    className="w-full h-full object-cover"
-                  />
+                  {isVideoMedia(newProductFile || newProduct.image) ? (
+                    <video
+                      src={newProduct.image}
+                      muted
+                      loop
+                      playsInline
+                      autoPlay
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={resolveBedsheetImage(newProduct.image)}
+                      alt="Preview"
+                      onError={handleImageFallback}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2 flex-1">
                   <input
                     type="file"
                     ref={newProductFileRef}
-                    accept="image/*"
+                    accept="image/*,video/*"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -4197,7 +4562,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     className="px-3 py-1.5 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Upload className="w-3.5 h-3.5 text-[#C29E57]" />
-                    <span>{newProductFile ? 'Change Selected Photo' : 'Choose Photo From Device'}</span>
+                    <span>{newProductFile ? 'Change Cover Photo / Video' : 'Choose Cover Photo or Video'}</span>
                   </button>
                   <p className="text-[10px] text-[#8C7A70]">
                     {newProductFile ? (
@@ -4206,10 +4571,131 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         "{newProductFile.name}" selected · Will upload to Cloudinary upon publishing.
                       </span>
                     ) : (
-                      'Select any photo from your phone gallery or computer.'
+                      'Select any cover photo or video from your phone gallery or computer.'
                     )}
                   </p>
                 </div>
+              </div>
+
+              {/* Additional Gallery Photos & Videos (Optional) */}
+              <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-[#DEC89B] space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-semibold text-[#2C2420] flex items-center gap-1.5">
+                    <Film className="w-3.5 h-3.5 text-[#8C2E46]" />
+                    <span>Additional Gallery Photos &amp; Videos (Optional)</span>
+                  </label>
+                  <span className="text-[11px] text-[#7A6458]">
+                    {newProductGalleryFiles.length + newProductGalleryUrls.length} extra media item(s) queued
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    ref={newProductGalleryFileRef}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0) {
+                        setNewProductGalleryFiles((prev) => [...prev, ...files]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  <input
+                    type="file"
+                    multiple
+                    accept="video/mp4,video/webm,video/quicktime,video/*"
+                    ref={newProductVideoFileRef}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0) {
+                        setNewProductGalleryFiles((prev) => [...prev, ...files]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => newProductGalleryFileRef.current?.click()}
+                    className="px-3 py-1.5 bg-white hover:bg-[#F4EFE6] border border-[#DEC89B] text-[#2C2420] text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-[#C29E57]" />
+                    <span>+ Add Gallery Photos</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => newProductVideoFileRef.current?.click()}
+                    className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-[#E6C687] text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Video className="w-3.5 h-3.5 text-[#E6C687]" />
+                    <span>+ Add Product Video</span>
+                  </button>
+                </div>
+
+                {/* Video or Photo Link Input */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={newProductVideoUrlDraft}
+                    onChange={(e) => setNewProductVideoUrlDraft(e.target.value)}
+                    placeholder="Or paste a direct video (.mp4/.webm) or photo URL..."
+                    className="flex-1 px-3 py-1.5 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = newProductVideoUrlDraft.trim();
+                      if (!trimmed) return;
+                      setNewProductGalleryUrls((prev) => Array.from(new Set([...prev, trimmed])));
+                      setNewProductVideoUrlDraft('');
+                    }}
+                    className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-xl cursor-pointer shrink-0"
+                  >
+                    + Add URL
+                  </button>
+                </div>
+
+                {/* Queued files & URLs list */}
+                {(newProductGalleryFiles.length > 0 || newProductGalleryUrls.length > 0) && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {newProductGalleryFiles.map((f, i) => (
+                      <span
+                        key={`file-${i}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-[#EAE2D5] rounded-lg text-[11px] font-medium text-[#2C2420]"
+                      >
+                        {isVideoMedia(f) ? <Film className="w-3 h-3 text-[#8C2E46]" /> : <ImageIcon className="w-3 h-3 text-[#C29E57]" />}
+                        <span className="max-w-[140px] truncate">{f.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewProductGalleryFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                          className="text-[#8C7A70] hover:text-red-600 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {newProductGalleryUrls.map((u, i) => (
+                      <span
+                        key={`url-${i}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-[#EAE2D5] rounded-lg text-[11px] font-medium text-[#2C2420]"
+                      >
+                        {isVideoMedia(u) ? <Film className="w-3 h-3 text-[#8C2E46]" /> : <LinkIcon className="w-3 h-3 text-[#C29E57]" />}
+                        <span className="max-w-[160px] truncate">{u}</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewProductGalleryUrls((prev) => prev.filter((_, idx) => idx !== i))}
+                          className="text-[#8C7A70] hover:text-red-600 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Title & Collection */}

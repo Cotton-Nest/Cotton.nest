@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell, Heart, ZoomIn, Sparkles } from 'lucide-react';
+import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell, Heart, ZoomIn, Sparkles, Play, Video, Film } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
-import { isCloudinaryUrl } from '../services/cloudinary';
+import { isCloudinaryUrl, isVideoMedia, getProductMediaCounts } from '../services/cloudinary';
 import { FabricInspectorModal } from './FabricInspectorModal';
 
 interface ProductCardProps {
@@ -58,6 +58,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const rawImage = activeVariant?.image || product.image || customImage;
   const displayImage = resolveBedsheetImage(rawImage, product.id, product.updatedAt);
+  const isDisplayVideo = isVideoMedia(displayImage);
+  const mediaCounts = getProductMediaCounts(product);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,9 +79,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     });
   };
 
-  const discountPercent = Math.round(
-    ((product.originalPrice - product.price) / product.originalPrice) * 100
-  );
+  const origPrice = Number(product.originalPrice) || 0;
+  const currPrice = Number(product.price) || 0;
+  const rawDiscount = origPrice > currPrice && origPrice > 0
+    ? Math.round(((origPrice - currPrice) / origPrice) * 100)
+    : 0;
+  const discountPercent = Number.isFinite(rawDiscount) && !isNaN(rawDiscount) ? Math.max(0, rawDiscount) : 0;
 
   const isOutOfStock = !product.inStock || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
   const isLowStock = !isOutOfStock && product.stockQuantity !== undefined && product.stockQuantity > 0 && product.stockQuantity <= 3;
@@ -92,37 +97,49 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         isOutOfStock ? 'opacity-75 border-amber-200' : 'border-[var(--color-border,#EAE2D5)]'
       }`}
     >
-      {/* Product Image Slot with Fabric Weave Hover Zoom */}
+      {/* Product Image / Video Slot with Fabric Weave Hover Zoom */}
       <div
         className="relative aspect-[4/3] bg-[#F4EFE6] overflow-hidden"
-        onMouseEnter={() => setIsHoverZooming(true)}
+        onMouseEnter={() => !isDisplayVideo && setIsHoverZooming(true)}
         onMouseLeave={() => setIsHoverZooming(false)}
         onMouseMove={(e) => {
+          if (isDisplayVideo) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
           const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
           setHoverZoomPos({ x, y });
         }}
       >
-        <img
-          src={displayImage}
-          alt={product.name}
-          referrerPolicy="no-referrer"
-          loading="eager"
-          decoding="async"
-          onError={(e) => {
-            handleImageFallback(e, product.id);
-          }}
-          className="w-full h-full object-cover object-center will-change-transform"
-          style={{
-            transformOrigin: isHoverZooming ? `${hoverZoomPos.x}% ${hoverZoomPos.y}%` : 'center center',
-            transform: isHoverZooming ? 'scale(2.25)' : 'scale(1)',
-            transition: isHoverZooming ? 'transform 0.12s ease-out' : 'transform 0.4s ease-out',
-          }}
-        />
+        {isDisplayVideo ? (
+          <video
+            src={displayImage}
+            muted
+            loop
+            autoPlay
+            playsInline
+            className="w-full h-full object-cover object-center"
+          />
+        ) : (
+          <img
+            src={displayImage}
+            alt={product.name}
+            referrerPolicy="no-referrer"
+            loading="eager"
+            decoding="async"
+            onError={(e) => {
+              handleImageFallback(e, product.id);
+            }}
+            className="w-full h-full object-cover object-center will-change-transform"
+            style={{
+              transformOrigin: isHoverZooming ? `${hoverZoomPos.x}% ${hoverZoomPos.y}%` : 'center center',
+              transform: isHoverZooming ? 'scale(2.25)' : 'scale(1)',
+              transition: isHoverZooming ? 'transform 0.12s ease-out' : 'transform 0.4s ease-out',
+            }}
+          />
+        )}
 
         {/* Micro reticle when hovering to inspect fabric weave */}
-        {isHoverZooming && (
+        {isHoverZooming && !isDisplayVideo && (
           <div
             className="absolute pointer-events-none w-14 h-14 rounded-full border border-white/60 shadow-[0_0_10px_rgba(255,255,255,0.4)] backdrop-brightness-110"
             style={{
@@ -131,6 +148,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               transform: 'translate(-50%, -50%)',
             }}
           />
+        )}
+
+        {/* Video Reel Available Indicator Pill (Bottom Left) */}
+        {mediaCounts.hasVideo && (
+          <div className="absolute bottom-3 left-3 z-10 bg-[#2C2420]/85 backdrop-blur-md text-[#E6C687] px-2.5 py-1 rounded-lg text-[10px] font-bold border border-[#E6C687]/40 shadow-xs flex items-center gap-1 pointer-events-none">
+            <Play className="w-3 h-3 fill-[#E6C687] text-[#E6C687]" />
+            <span>{mediaCounts.videoCount > 1 ? `${mediaCounts.videoCount} Videos` : 'Video'}</span>
+          </div>
         )}
 
         {/* Wishlist Heart Button (Top Left) */}
@@ -202,7 +227,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept="image/*"
+              accept="image/*,video/*"
               className="hidden"
             />
             <button
@@ -211,10 +236,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 e.stopPropagation();
                 fileInputRef.current?.click();
               }}
-              title="Upload custom photo"
+              title="Upload custom photo or video"
               className="p-1.5 bg-[#FAF7F2]/90 hover:bg-white text-[#6B5D55] hover:text-[#B83F60] rounded-lg border border-[#EAE2D5] shadow-xs text-[10px] flex items-center gap-1 backdrop-blur-xs transition-colors cursor-pointer"
             >
-              <span>📷 Photo</span>
+              <span>📷 Photo / Video</span>
             </button>
           </div>
         )}
@@ -257,7 +282,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               {product.collection || 'Signature Cotton'}
             </span>
             <span className="text-[11px] text-[#8C7A70]">
-              {product.threadCount} · {product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions}
+              {product.threadCount || '300 TC'} · {product.dimensions ? (product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions) : '108 x 108 inches'}
             </span>
           </div>
 
@@ -315,15 +340,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="flex items-baseline justify-between">
             <div className="flex items-baseline gap-2">
               <span className="text-xl font-bold text-[#2C2420] tabular-nums tracking-tight">
-                ₹{product.price.toLocaleString('en-IN')}
+                ₹{currPrice.toLocaleString('en-IN')}
               </span>
-              <span className="text-xs text-[#9B8C83] line-through tabular-nums">
-                ₹{product.originalPrice.toLocaleString('en-IN')}
-              </span>
+              {origPrice > currPrice && (
+                <span className="text-xs text-[#9B8C83] line-through tabular-nums">
+                  ₹{origPrice.toLocaleString('en-IN')}
+                </span>
+              )}
             </div>
-            <span className="text-xs font-semibold text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded border border-[#FAD1DC]">
-              Save {discountPercent}%
-            </span>
+            {discountPercent > 0 && (
+              <span className="text-xs font-semibold text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded border border-[#FAD1DC]">
+                Save {discountPercent}%
+              </span>
+            )}
           </div>
 
           {/* Clean Editorial Delivery & Exchange Strip */}

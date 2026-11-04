@@ -118,11 +118,12 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
     const today = new Date().toISOString().split('T')[0];
     return coupons.filter((c) => {
       // Search
+      const q = (searchQuery || '').trim().toLowerCase();
       const matchesSearch =
-        searchQuery === '' ||
-        c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.description && c.description.toLowerCase().includes(searchQuery.toLowerCase()));
+        !q ||
+        String(c.code || '').toLowerCase().includes(q) ||
+        String(c.title || '').toLowerCase().includes(q) ||
+        (c.description ? String(c.description).toLowerCase().includes(q) : false);
 
       if (!matchesSearch) return false;
 

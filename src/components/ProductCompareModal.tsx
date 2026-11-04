@@ -41,11 +41,11 @@ export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
       render: (p: BedsheetProduct) => (
         <div className="space-y-0.5">
           <div className="text-sm font-bold text-[#70252D] font-serif-luxury">
-            ₹{p.price.toLocaleString('en-IN')}
+            ₹{(p.price || 0).toLocaleString('en-IN')}
           </div>
-          {p.originalPrice > p.price ? (
+          {(p.originalPrice || 0) > (p.price || 0) ? (
             <div className="text-[11px] text-[#7A6458] line-through">
-              MRP: ₹{p.originalPrice.toLocaleString('en-IN')}
+              MRP: ₹{(p.originalPrice || 0).toLocaleString('en-IN')}
             </div>
           ) : (
             <span className="text-[10px] text-stone-400">Regular Atelier Price</span>

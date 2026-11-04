@@ -9,6 +9,9 @@
  */
 
 import { compressImage } from '../utils/imageCompressor';
+import { isVideoMedia, getProductGalleryMedia, getProductMediaCounts } from '../utils/mediaHelpers';
+
+export { isVideoMedia, getProductGalleryMedia, getProductMediaCounts };
 
 export interface CloudinaryUploadResponse {
   url: string;
@@ -17,7 +20,7 @@ export interface CloudinaryUploadResponse {
   height?: number;
   format?: string;
   resource_type?: 'image' | 'video' | string;
-  provider: 'cloudinary';
+  provider: 'cloudinary' | 'server';
 }
 
 /**
@@ -26,21 +29,6 @@ export interface CloudinaryUploadResponse {
 export function isCloudinaryUrl(url?: string | null): boolean {
   if (!url || typeof url !== 'string') return false;
   return url.startsWith('https://res.cloudinary.com/') || url.startsWith('http://res.cloudinary.com/');
-}
-
-/**
- * Detects whether a media URL or File represents a video
- */
-export function isVideoMedia(urlOrFile?: string | File | null): boolean {
-  if (!urlOrFile) return false;
-  if (urlOrFile instanceof File) {
-    return urlOrFile.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|ogg|ogv)$/i.test(urlOrFile.name);
-  }
-  if (typeof urlOrFile === 'string') {
-    if (urlOrFile.startsWith('data:video/')) return true;
-    return /\.(mp4|webm|mov|m4v|ogg|ogv)($|\?)/i.test(urlOrFile) || urlOrFile.includes('/video/upload/');
-  }
-  return false;
 }
 
 /**
@@ -68,19 +56,26 @@ export async function checkCloudinaryConfig(): Promise<{ configured: boolean; cl
 }
 
 /**
- * Uploads an image or video (File or base64 data URL) to Cloudinary via signed direct upload.
- * Uses the exact same Cloudinary account, cloudName, API Key, and Secret for both photos and videos.
+ * Uploads an image or video (File or base64 data URL) to Cloudinary via signed direct upload
+ * (or falls back to permanent server storage in /uploads/).
  *
- * Returns the permanent HTTPS Cloudinary media URL to store in Firestore.
+ * Returns the permanent URL to store in Firestore.
  */
 export async function uploadToCloudinary(
   mediaInput: File | string,
   productId?: string
 ): Promise<CloudinaryUploadResponse> {
-  // If already an HTTP/HTTPS URL, return immediately
-  if (typeof mediaInput === 'string' && (mediaInput.startsWith('http://') || mediaInput.startsWith('https://'))) {
+  // If already an HTTP/HTTPS URL or server /uploads/ URL, return immediately
+  if (
+    typeof mediaInput === 'string' &&
+    (mediaInput.startsWith('http://') ||
+      mediaInput.startsWith('https://') ||
+      mediaInput.startsWith('/uploads/') ||
+      mediaInput.startsWith('/images/'))
+  ) {
     return {
-      url: mediaInput,
+      url: mediaInput.trim(),
+      resource_type: isVideoMedia(mediaInput) ? 'video' : 'image',
       provider: 'cloudinary',
     };
   }

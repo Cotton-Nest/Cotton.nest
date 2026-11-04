@@ -4,7 +4,7 @@ import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/produ
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { updateSingleProduct, addProductGalleryImageApi, removeProductGalleryImageApi, getCouponsApi } from '../services/api';
-import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl, isVideoMedia } from '../services/cloudinary';
+import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl, isVideoMedia, getProductGalleryMedia } from '../services/cloudinary';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
 import { CouponOffer } from '../data/coupons';
 import { ProductRecommendations } from './ProductRecommendations';
@@ -54,6 +54,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [selectedPreviewUrl, setSelectedPreviewUrl] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const galleryFileInputRef = React.useRef<HTMLInputElement>(null);
+  const galleryVideoInputRef = React.useRef<HTMLInputElement>(null);
 
   // Owner Edit Mode State
   const [isEditing, setIsEditing] = React.useState(initialEditMode);
@@ -228,16 +229,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     const isVideo = isVideoMedia(fileOrUrl);
     setSaveSuccessMessage(
       isVideo
-        ? 'Uploading video angle to Cloudinary & saving in Firebase...'
-        : 'Uploading extra angle photo to Cloudinary & Firebase...'
+        ? 'Uploading video reel & saving in Firebase...'
+        : 'Uploading extra angle photo & saving in Firebase...'
     );
     try {
-      const currentAdditional = product.additionalImages || [];
+      const currentAdditional = getProductGalleryMedia(product);
       const newUrl = await addProductGalleryImageApi(product.id, fileOrUrl, currentAdditional);
-      const updatedList = [...currentAdditional, newUrl];
+      const updatedList = Array.from(new Set([...currentAdditional, newUrl]));
+      const videoList = updatedList.filter((u) => isVideoMedia(u));
       const updatedProduct: BedsheetProduct = {
         ...product,
         additionalImages: updatedList,
+        videos: videoList,
+        videoUrl: videoList[0] || '',
         updatedAt: Date.now(),
       };
       if (onUpdateProduct) {
@@ -246,7 +250,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setSelectedPreviewUrl(newUrl);
       setSaveSuccessMessage(
         isVideo
-          ? '✓ Video angle added & saved in Firebase!'
+          ? '✓ Video added to gallery & saved in Firebase!'
           : '✓ Extra angle photo added & saved in Firebase!'
       );
       setShowVideoUrlModal(false);
@@ -261,23 +265,31 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       if (galleryFileInputRef.current) {
         galleryFileInputRef.current.value = '';
       }
+      if (galleryVideoInputRef.current) {
+        galleryVideoInputRef.current.value = '';
+      }
     }
   };
 
   const handleAddAdditionalPhotoDirect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !product) return;
-    await handleAddAngleMedia(file);
+    const files = e.target.files;
+    if (!files || files.length === 0 || !product) return;
+    for (let i = 0; i < files.length; i++) {
+      await handleAddAngleMedia(files[i]);
+    }
   };
 
   const handleRemoveAdditionalPhotoDirect = async (urlToRemove: string) => {
     if (!product) return;
     try {
-      const currentAdditional = product.additionalImages || [];
+      const currentAdditional = getProductGalleryMedia(product);
       const updatedList = await removeProductGalleryImageApi(product.id, urlToRemove, currentAdditional);
+      const videoList = updatedList.filter((u) => isVideoMedia(u));
       const updatedProduct: BedsheetProduct = {
         ...product,
         additionalImages: updatedList,
+        videos: videoList,
+        videoUrl: videoList[0] || '',
         updatedAt: Date.now(),
       };
       if (onUpdateProduct) {
@@ -286,10 +298,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       if (selectedPreviewUrl === urlToRemove) {
         setSelectedPreviewUrl(null);
       }
-      setSaveSuccessMessage('Photo angle removed.');
+      setSaveSuccessMessage('Media removed from gallery.');
       setTimeout(() => setSaveSuccessMessage(null), 2000);
     } catch (err: any) {
-      console.error('Failed to remove angle photo:', err);
+      console.error('Failed to remove angle media:', err);
     }
   };
 
@@ -314,9 +326,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     });
   };
 
-  const discountPercent = Math.round(
-    ((product.originalPrice - product.price) / product.originalPrice) * 100
-  );
+  const origPrice = Number(product.originalPrice) || 0;
+  const currPrice = Number(product.price) || 0;
+  const rawDiscount = origPrice > currPrice && origPrice > 0
+    ? Math.round(((origPrice - currPrice) / origPrice) * 100)
+    : 0;
+  const discountPercent = Number.isFinite(rawDiscount) && !isNaN(rawDiscount) ? Math.max(0, rawDiscount) : 0;
+  const savingsAmount = origPrice > currPrice ? origPrice - currPrice : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2C2420]/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -497,7 +513,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </button>
 
                 {/* 2. Additional Gallery Angle Photos & Videos */}
-                {(product.additionalImages || []).map((imgUrl, idx) => {
+                {getProductGalleryMedia(product).map((imgUrl, idx) => {
                   const isSelected = selectedPreviewUrl === imgUrl;
                   const isVideo = isVideoMedia(imgUrl);
                   return (
@@ -548,14 +564,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   );
                 })}
 
-                {/* 3. Owner Action: Add Extra Angle Photo or Video Button */}
+                {/* 3. Owner Action: Add Extra Angle Photo, Video, or URL Buttons */}
                 {isOwnerMode && (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <input
                       type="file"
+                      multiple
                       ref={galleryFileInputRef}
                       onChange={handleAddAdditionalPhotoDirect}
                       accept="image/*,video/*"
+                      className="hidden"
+                    />
+                    <input
+                      type="file"
+                      multiple
+                      ref={galleryVideoInputRef}
+                      onChange={handleAddAdditionalPhotoDirect}
+                      accept="video/*"
                       className="hidden"
                     />
                     <button
@@ -563,21 +588,32 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       disabled={isSaving}
                       onClick={() => galleryFileInputRef.current?.click()}
                       className="w-14 h-14 rounded-xl border-2 border-dashed border-[#C29E57] bg-[#FAF7F2] hover:bg-white text-[#8C2E46] flex flex-col items-center justify-center gap-0.5 shrink-0 transition-colors cursor-pointer disabled:opacity-50"
-                      title="Upload photo or video angle (MP4, WebM, MOV, JPG, PNG)"
+                      title="Upload extra photo angle (JPG, PNG, WebP)"
                     >
                       <Plus className="w-4 h-4 text-[#C29E57]" />
-                      <span className="text-[9px] font-bold">+ Angle</span>
+                      <span className="text-[9px] font-bold">+ Photo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={() => galleryVideoInputRef.current?.click()}
+                      className="w-14 h-14 rounded-xl border-2 border-dashed border-[#8C2E46]/60 bg-[#FDEAF0]/60 hover:bg-white text-[#8C2E46] flex flex-col items-center justify-center gap-0.5 shrink-0 transition-colors cursor-pointer disabled:opacity-50"
+                      title="Upload product video file (MP4, WebM, MOV)"
+                    >
+                      <Video className="w-4 h-4 text-[#8C2E46]" />
+                      <span className="text-[9px] font-bold">+ Video</span>
                     </button>
 
                     <button
                       type="button"
                       disabled={isSaving}
                       onClick={() => setShowVideoUrlModal(!showVideoUrlModal)}
-                      className="h-14 px-2 rounded-xl border border-[#DEC89B] bg-[#FAF7F2] hover:bg-white text-[#7A6458] hover:text-[#8C2E46] flex flex-col items-center justify-center gap-0.5 shrink-0 transition-colors cursor-pointer text-[9px] font-semibold"
-                      title="Add video or media by URL"
+                      className="h-14 px-2.5 rounded-xl border border-[#DEC89B] bg-[#FAF7F2] hover:bg-white text-[#7A6458] hover:text-[#8C2E46] flex flex-col items-center justify-center gap-0.5 shrink-0 transition-colors cursor-pointer text-[9px] font-semibold"
+                      title="Add video or photo by URL link"
                     >
-                      <Video className="w-3.5 h-3.5 text-[#8C2E46]" />
-                      <span>URL</span>
+                      <LinkIcon className="w-3.5 h-3.5 text-[#8C2E46]" />
+                      <span>+ Link</span>
                     </button>
                   </div>
                 )}
@@ -631,11 +667,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <div className="p-2.5 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5]">
                 <p className="text-[10px] text-[#7A6458] uppercase">Dimension</p>
-                <p className="font-semibold text-[#2C2420] mt-0.5">{product.dimensions.split('(')[0].trim()}</p>
+                <p className="font-semibold text-[#2C2420] mt-0.5">
+                  {product.dimensions ? (product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions) : '108 x 108 in'}
+                </p>
               </div>
               <div className="p-2.5 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5]">
                 <p className="text-[10px] text-[#7A6458] uppercase">Thread Count</p>
-                <p className="font-semibold text-[#2C2420] mt-0.5">{product.threadCount}</p>
+                <p className="font-semibold text-[#2C2420] mt-0.5">{product.threadCount || '300 TC'}</p>
               </div>
               <div className="p-2.5 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5]">
                 <p className="text-[10px] text-[#7A6458] uppercase">Material</p>
@@ -833,23 +871,50 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   />
                 </div>
 
-                {/* Photo Upload prompt inside edit panel */}
-                <div className="bg-white p-3 rounded-xl border border-[#DEC89B] space-y-1.5">
-                  <div className="flex items-center justify-between">
+                {/* Photo & Video Upload prompt inside edit panel */}
+                <div className="bg-white p-3.5 rounded-xl border border-[#DEC89B] space-y-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs font-semibold text-[#2C2420] flex items-center gap-1.5">
-                      <ImageIcon className="w-3.5 h-3.5 text-[#C29E57]" />
-                      Bedsheet Photo
+                      <Film className="w-3.5 h-3.5 text-[#8C2E46]" />
+                      Bedsheet Photos &amp; Videos
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-2.5 py-1 text-xs font-semibold bg-[#FDEAF0] text-[#8C2E46] border border-[#FAD1DC] rounded-lg hover:bg-[#F9D3DE] cursor-pointer"
-                    >
-                      Choose New Photo
-                    </button>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-2.5 py-1 text-xs font-semibold bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] rounded-lg hover:bg-[#F4EFE6] cursor-pointer flex items-center gap-1"
+                      >
+                        <ImageIcon className="w-3 h-3 text-[#C29E57]" />
+                        <span>Replace Cover</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => galleryFileInputRef.current?.click()}
+                        className="px-2.5 py-1 text-xs font-semibold bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] rounded-lg hover:bg-[#F4EFE6] cursor-pointer flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3 text-[#C29E57]" />
+                        <span>+ Photo</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => galleryVideoInputRef.current?.click()}
+                        className="px-2.5 py-1 text-xs font-semibold bg-[#FDEAF0] text-[#8C2E46] border border-[#FAD1DC] rounded-lg hover:bg-[#F9D3DE] cursor-pointer flex items-center gap-1"
+                      >
+                        <Video className="w-3 h-3 text-[#8C2E46]" />
+                        <span>+ Add Video</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowVideoUrlModal(true)}
+                        className="px-2.5 py-1 text-xs font-semibold bg-[#FAF7F2] text-[#8C2E46] border border-[#DEC89B] rounded-lg hover:bg-white cursor-pointer flex items-center gap-1"
+                      >
+                        <LinkIcon className="w-3 h-3 text-[#8C2E46]" />
+                        <span>+ Video Link</span>
+                      </button>
+                    </div>
                   </div>
                   <p className="text-[10px] text-[#7A6458]">
-                    Photos are automatically compressed to ~70KB and stored directly in Firebase Firestore.
+                    Upload high-res photos or MP4/WebM/MOV fabric drape videos, or paste a video link. Synced across Cloudinary &amp; Firebase Firestore.
                   </p>
                 </div>
 
@@ -930,16 +995,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
               {/* Price & Savings */}
               <div className="space-y-3">
-                <div className="flex items-baseline gap-3">
+                <div className="flex items-baseline gap-3 flex-wrap">
                   <span className="text-3xl font-bold text-[#2C2420] tabular-nums">
-                    ₹{product.price.toLocaleString('en-IN')}
+                    ₹{currPrice.toLocaleString('en-IN')}
                   </span>
-                  <span className="text-sm text-[#9B8C83] line-through tabular-nums">
-                    ₹{product.originalPrice.toLocaleString('en-IN')}
-                  </span>
-                  <span className="text-xs font-semibold text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded border border-[#FAD1DC]">
-                    Save {discountPercent}% (₹{(product.originalPrice - product.price).toLocaleString('en-IN')})
-                  </span>
+                  {origPrice > currPrice && (
+                    <span className="text-sm text-[#9B8C83] line-through tabular-nums">
+                      ₹{origPrice.toLocaleString('en-IN')}
+                    </span>
+                  )}
+                  {discountPercent > 0 && (
+                    <span className="text-xs font-semibold text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded border border-[#FAD1DC]">
+                      Save {discountPercent}% (₹{savingsAmount.toLocaleString('en-IN')})
+                    </span>
+                  )}
                 </div>
 
                 {/* Eligible Offer Teaser */}

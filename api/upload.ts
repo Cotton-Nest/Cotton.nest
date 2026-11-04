@@ -22,21 +22,27 @@ export default async function handler(req: any, res: any) {
       } catch {}
     }
 
-    const { image, productId, public_id } = body || {};
+    const { image, media, video, productId, public_id, resource_type } = body || {};
+    const mediaData = media || video || image;
 
-    if (!image || typeof image !== 'string') {
-      return res.status(400).json({ error: 'Image data (base64 data URI or URL) is required.' });
+    if (!mediaData || typeof mediaData !== 'string') {
+      return res.status(400).json({ error: 'Media data (base64 data URI or URL) is required.' });
     }
 
-    // If it is already a Cloudinary URL, return directly
-    if (image.startsWith('https://res.cloudinary.com/')) {
+    // If it is already a Cloudinary URL or external HTTPS URL, return directly
+    if (mediaData.startsWith('https://res.cloudinary.com/') || mediaData.startsWith('http://') || mediaData.startsWith('https://')) {
       return res.status(200).json({
-        url: image,
+        url: mediaData,
         public_id: public_id || null,
         provider: 'cloudinary',
-        message: 'Already hosted on Cloudinary'
+        message: 'Already hosted URL'
       });
     }
+
+    const isVideo =
+      resource_type === 'video' ||
+      mediaData.startsWith('data:video/') ||
+      /\.(mp4|webm|mov|m4v|ogg|ogv)($|\?)/i.test(mediaData);
 
     const config = getCloudinaryConfig();
     if (!config) {
@@ -49,14 +55,17 @@ export default async function handler(req: any, res: any) {
 
     const uploadOptions: any = {
       folder: 'cotton_nest/bedsheets',
-      resource_type: 'image',
+      resource_type: isVideo ? 'video' : 'auto',
       overwrite: true,
       tags: ['cotton_nest', productId ? `product_${productId}` : 'general_sheet'],
-      transformation: [
+    };
+
+    if (!isVideo) {
+      uploadOptions.transformation = [
         { quality: 'auto:good' },
         { fetch_format: 'auto' }
-      ]
-    };
+      ];
+    }
 
     if (public_id) {
       uploadOptions.public_id = public_id;
@@ -65,7 +74,7 @@ export default async function handler(req: any, res: any) {
       uploadOptions.public_id = `sheet_${sanitized}_${Date.now()}`;
     }
 
-    const result = await cloudinary.uploader.upload(image, uploadOptions);
+    const result = await cloudinary.uploader.upload(mediaData, uploadOptions);
 
     return res.status(200).json({
       url: result.secure_url,
@@ -73,12 +82,13 @@ export default async function handler(req: any, res: any) {
       width: result.width,
       height: result.height,
       format: result.format,
+      resource_type: result.resource_type || (isVideo ? 'video' : 'image'),
       provider: 'cloudinary'
     });
   } catch (err: any) {
     console.error('Cloudinary upload error:', err);
     return res.status(500).json({
-      error: err.message || 'Failed to upload image to Cloudinary.',
+      error: err.message || 'Failed to upload media to Cloudinary.',
     });
   }
 }

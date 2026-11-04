@@ -125,16 +125,24 @@ export const Footer: React.FC<FooterProps> = ({
                   <span className="text-[10px] text-[#B83F60]">🌸</span>
                 </button>
               </li>
-              {isOwnerMode && onOpenAdmin && (
-                <li className="pt-1">
+              <li className="pt-1">
+                {isOwnerMode && onOpenAdmin ? (
                   <button
                     onClick={onOpenAdmin}
-                    className="text-[#8C2E46] hover:underline font-semibold flex items-center gap-1 transition-colors cursor-pointer text-xs"
+                    className="text-[#C29E57] hover:underline font-semibold flex items-center gap-1 transition-colors cursor-pointer text-xs"
                   >
                     <span>⚙️ Store Admin Panel (Owner Mode)</span>
                   </button>
-                </li>
-              )}
+                ) : onOpenOwnerAuth ? (
+                  <button
+                    onClick={onOpenOwnerAuth}
+                    className="opacity-75 hover:opacity-100 hover:underline flex items-center gap-1 transition-opacity cursor-pointer text-xs"
+                  >
+                    <Lock className="w-3 h-3 text-[#C29E57]" />
+                    <span>Atelier Owner Access</span>
+                  </button>
+                ) : null}
+              </li>
             </ul>
           </div>
 
@@ -184,8 +192,8 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="flex items-center gap-3">
             <p>© {new Date().getFullYear()} Cotton Nest. All rights reserved.</p>
             
-            {/* Owner mode active indicator */}
-            {isOwnerMode && (
+            {/* Owner mode active indicator or subtle unlock link */}
+            {isOwnerMode ? (
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold text-white bg-white/10 px-2 py-0.5 rounded border border-white/20 flex items-center gap-1">
                   <Unlock className="w-3 h-3 text-amber-400" />
@@ -209,7 +217,16 @@ export const Footer: React.FC<FooterProps> = ({
                   </button>
                 )}
               </div>
-            )}
+            ) : onOpenOwnerAuth ? (
+              <button
+                onClick={onOpenOwnerAuth}
+                className="opacity-50 hover:opacity-90 text-[10px] hover:underline cursor-pointer flex items-center gap-1"
+                title="Store Owner & Atelier Management Login"
+              >
+                <Lock className="w-2.5 h-2.5" />
+                <span>Owner Login</span>
+              </button>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-1 opacity-80">

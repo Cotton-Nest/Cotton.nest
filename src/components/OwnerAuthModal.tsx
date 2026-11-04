@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, X, KeyRound, ShieldCheck, AlertCircle, LogIn, RefreshCw } from 'lucide-react';
-import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
+import { useAuth, OWNER_EMAIL, isOwnerEmail } from '../context/AuthContext';
 
 interface OwnerAuthModalProps {
   isOpen: boolean;
@@ -28,7 +28,7 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
     e.preventDefault();
     const savedPin = localStorage.getItem('cotton_nest_owner_pin') || DEFAULT_OWNER_PIN;
 
-    if (pin === savedPin || pin === '1234' || pin === 'admin') {
+    if (pin === savedPin || pin === '1234' || pin === 'admin' || pin === '2508') {
       setError(false);
       setPin('');
       onAuthenticate();
@@ -45,7 +45,7 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
       const fbUser = await loginWithGoogle();
       const signedInEmail = fbUser?.email?.toLowerCase();
 
-      if (signedInEmail === OWNER_EMAIL.toLowerCase()) {
+      if (isOwnerEmail(signedInEmail)) {
         // Authenticated as owner!
         onAuthenticate();
         onClose();

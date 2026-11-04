@@ -218,7 +218,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                       }
                 }
               >
-                {p.name.split(' ')[0]} ({count})
+                {p.pattern || p.name} ({count})
               </button>
             );
           })}
