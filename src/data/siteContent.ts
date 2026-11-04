@@ -96,7 +96,7 @@ Your soft & stylish bedsheet hub. 🛍️
 🚚 *SHIPPING & DELIVERY*
 👉 Sector 46, Gurgaon: *Complimentary Delivery*
 👉 Rest of Gurgaon: *Self Pickup or actual delivery charges*
-👉 Across India: *₹100*
+👉 Across India: *₹29*
 
 💖 *Thank you for shopping with Cotton Nest!*
 *Feel the Softness. 🌸*`,

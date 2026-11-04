@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon } from 'lucide-react';
-import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { updateSingleProduct, addProductGalleryImageApi, removeProductGalleryImageApi, getCouponsApi } from '../services/api';
@@ -67,6 +67,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [editPillowCovers, setEditPillowCovers] = React.useState('');
   const [editDescription, setEditDescription] = React.useState('');
   const [editBadge, setEditBadge] = React.useState('');
+  const [editProductType, setEditProductType] = React.useState('Bedsheet');
+  const [editSize, setEditSize] = React.useState('King');
   const [editInStock, setEditInStock] = React.useState(true);
   const [editStockQuantity, setEditStockQuantity] = React.useState(10);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -107,6 +109,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setEditPillowCovers(product.pillowCovers);
       setEditDescription(product.description);
       setEditBadge(product.badge || '');
+      setEditProductType(product.productType || 'Bedsheet');
+      setEditSize(product.size || 'King');
       setEditInStock(product.inStock);
       setEditStockQuantity(product.stockQuantity ?? 10);
     }
@@ -137,6 +141,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         pillowCovers: editPillowCovers.trim() || product.pillowCovers,
         description: editDescription.trim() || product.description,
         badge: editBadge.trim() ? editBadge.trim() : '',
+        productType: editProductType || product.productType || 'Bedsheet',
+        size: editSize || product.size || 'King',
         inStock: editInStock,
         stockQuantity: Number(editStockQuantity),
         updatedAt: Date.now(),
@@ -502,11 +508,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   }`}
                   title="Main Cover Photo"
                 >
-                  <img
-                    src={resolveBedsheetImage(product.image, product.id)}
-                    alt="Cover"
-                    className="w-full h-full object-cover"
-                  />
+                  {isVideoMedia(product.image) ? (
+                    <video
+                      src={product.image}
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={resolveBedsheetImage(product.image, product.id)}
+                      alt="Cover"
+                      onError={(e) => handleImageFallback(e, product.id)}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                   <span className="absolute bottom-0 inset-x-0 bg-[#2C2420]/75 text-white text-[8px] font-bold text-center py-0.5">
                     Cover
                   </span>
@@ -819,18 +835,54 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </div>
                 </div>
 
-                {/* Badge / Tag */}
-                <div>
-                  <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
-                    Badge / Highlight Tag
-                  </label>
-                  <input
-                    type="text"
-                    value={editBadge}
-                    onChange={(e) => setEditBadge(e.target.value)}
-                    placeholder="e.g. Best Seller, 108x108 Pack"
-                    className="w-full px-3 py-1.5 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
-                  />
+                {/* Category (Product Type), Size & Badge */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
+                      Category / Type
+                    </label>
+                    <select
+                      value={editProductType}
+                      onChange={(e) => setEditProductType(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                    >
+                      {STANDARD_PRODUCT_TYPES.filter((t) => t !== 'Other').map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                      {!STANDARD_PRODUCT_TYPES.includes(editProductType as any) && (
+                        <option value={editProductType}>{editProductType}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
+                      Size
+                    </label>
+                    <select
+                      value={editSize}
+                      onChange={(e) => setEditSize(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                    >
+                      {STANDARD_SIZES.filter((s) => s !== 'Other').map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                      {!STANDARD_SIZES.includes(editSize as any) && (
+                        <option value={editSize}>{editSize}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
+                      Badge / Highlight Tag
+                    </label>
+                    <input
+                      type="text"
+                      value={editBadge}
+                      onChange={(e) => setEditBadge(e.target.value)}
+                      placeholder="e.g. Best Seller"
+                      className="w-full px-3 py-1.5 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                    />
+                  </div>
                 </div>
 
                 {/* In Stock Toggle & Stock Qty */}
@@ -1214,7 +1266,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <Truck className="w-4 h-4 text-[#B83F60] shrink-0 mt-0.5" />
                   <div>
                     <span className="font-semibold text-[#2C2420]">Delivery &amp; Shipping: </span>
-                    <span>Free hand delivery across Sector 46 Gurgaon. Rest of Gurgaon on actuals or atelier pickup. Across India: flat ₹100 dispatch.</span>
+                    <span>Free hand delivery across Sector 46 Gurgaon. Rest of Gurgaon on actuals or atelier pickup. Across India: flat ₹29 dispatch.</span>
                   </div>
                 </div>
 

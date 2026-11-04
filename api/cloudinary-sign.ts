@@ -5,13 +5,31 @@ function cleanEnv(val?: string | null): string {
   return val.trim().replace(/^["']|["']$/g, '').trim();
 }
 
+function isPlaceholderCredential(val: string): boolean {
+  if (!val) return true;
+  const lower = val.toLowerCase();
+  return (
+    lower.includes('my_cloud_name') ||
+    lower.includes('your_cloud_name') ||
+    lower.includes('my_api_key') ||
+    lower.includes('your_api_key') ||
+    lower.includes('my_api_secret') ||
+    lower.includes('your_api_secret') ||
+    lower === 'demo' ||
+    lower === 'placeholder' ||
+    lower === 'none' ||
+    lower === 'undefined' ||
+    lower === 'null'
+  );
+}
+
 export function getCloudinaryConfig() {
   let cloudName = cleanEnv(process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || process.env.VITE_CLOUDINARY_CLOUD_NAME);
   let apiKey = cleanEnv(process.env.CLOUDINARY_API_KEY || process.env.VITE_CLOUDINARY_API_KEY);
   let apiSecret = cleanEnv(process.env.CLOUDINARY_API_SECRET);
   const cloudinaryUrl = cleanEnv(process.env.CLOUDINARY_URL);
 
-  if (cloudinaryUrl) {
+  if (cloudinaryUrl && !isPlaceholderCredential(cloudinaryUrl)) {
     const match = cloudinaryUrl.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
     if (match) {
       apiKey = apiKey || cleanEnv(match[1]);
@@ -20,7 +38,14 @@ export function getCloudinaryConfig() {
     }
   }
 
-  if (cloudName && apiKey && apiSecret) {
+  if (
+    cloudName &&
+    apiKey &&
+    apiSecret &&
+    !isPlaceholderCredential(cloudName) &&
+    !isPlaceholderCredential(apiKey) &&
+    !isPlaceholderCredential(apiSecret)
+  ) {
     cloudinary.config({
       cloud_name: cloudName,
       api_key: apiKey,
@@ -46,7 +71,7 @@ export default async function handler(req: any, res: any) {
   try {
     const config = getCloudinaryConfig();
     if (!config || !config.cloudName || !config.apiKey || !config.apiSecret) {
-      return res.status(503).json({
+      return res.status(200).json({
         configured: false,
         error: 'Cloudinary credentials are not configured on the server.',
         help: 'Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET (or CLOUDINARY_URL) in your deployment environment variables.',

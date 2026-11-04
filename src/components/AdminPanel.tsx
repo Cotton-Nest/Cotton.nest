@@ -6,7 +6,9 @@ import {
   BEDSHEETS_CATALOG,
   STANDARD_SIZES,
   STANDARD_PRODUCT_TYPES,
-  POPULAR_BRANDS
+  POPULAR_BRANDS,
+  normalizeProductCategory,
+  doesProductMatchCategory,
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from '../data/siteContent';
@@ -164,6 +166,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [editableProducts, setEditableProducts] = useState<BedsheetProduct[]>(products);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'inStock' | 'outOfStock'>('all');
+  const [adminCategoryFilter, setAdminCategoryFilter] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Authoritative count of updated/custom photos remembered across sessions
@@ -179,13 +182,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Drag and drop card reordering state
   const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
   const [dragOverProductId, setDragOverProductId] = useState<string | null>(null);
-
-  // Sync with upstream products updates
-  useEffect(() => {
-    if (products && products.length > 0) {
-      setEditableProducts(products);
-    }
-  }, [products]);
 
   // Expanded variant managers for specific product IDs
   const [expandedVariants, setExpandedVariants] = useState<Record<string, boolean>>({});
@@ -503,11 +499,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, [orders]);
 
   React.useEffect(() => {
-    if (!saveTimeoutRef.current) {
+    if (!saveTimeoutRef.current && !galleryUploadingId && !replacingProductId && products && products.length > 0) {
       setEditableProducts(products);
       latestProductsRef.current = products;
     }
-  }, [products]);
+  }, [products, galleryUploadingId, replacingProductId]);
 
   React.useEffect(() => {
     if (siteContent) {
@@ -587,7 +583,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleProductFieldChange = (id: string, field: keyof BedsheetProduct, value: any) => {
-    updateProductItem(id, (p) => ({ ...p, [field]: value }), false);
+    const isImmediateField = field === 'productType' || field === 'size';
+    updateProductItem(id, (p) => ({ ...p, [field]: value }), isImmediateField);
+    if (field === 'productType') {
+      showToast(`Category synced: "${value}"`);
+    }
   };
 
   const toggleSpecsPanel = (productId: string) => {
@@ -729,14 +729,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const targetProduct = editableProducts.find((p) => p.id === productId);
     if (!targetProduct) return;
 
+    // If the user selected a video file on the card's Upload button, route it cleanly to the product's video gallery
+    // so the product retains its cover photo while gaining the video in its gallery & video player!
+    if (isVideoMedia(file)) {
+      setExpandedGallery((prev) => ({ ...prev, [productId]: true }));
+      await handleAddGalleryMediaToProduct(productId, file);
+      return;
+    }
+
     const previousImage = targetProduct.image;
     const previousPublicId = targetProduct.cloudinaryPublicId;
 
     setReplacingProductId(productId);
-    showToast(`Uploading replacement image to Cloudinary for "${targetProduct.name}"...`);
+    showToast(`Uploading replacement photo for "${targetProduct.name}"...`);
 
     try {
-      // 1. Upload to Cloudinary via signed direct upload
+      // 1. Upload to Cloudinary (or fast server binary storage)
       const uploadResult = await uploadToCloudinary(file, productId);
       const newUrl = uploadResult.url;
       const newPublicId = uploadResult.public_id;
@@ -762,14 +770,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       const updatedList = editableProducts.map((p) => (p.id === productId ? updatedProduct : p));
       setEditableProducts(updatedList);
+      latestProductsRef.current = updatedList;
       if (onUpdateSingleProduct) {
         onUpdateSingleProduct(updatedProduct);
       } else {
         onUpdateProducts(updatedList);
       }
-      onUploadImage(productId, newUrl);
 
-      showToast(`Image replaced & hosted on Cloudinary for "${targetProduct.name}"!`);
+      showToast(`Photo replaced & synced for "${targetProduct.name}"!`);
 
       // 4. Safely cleanup previous Cloudinary asset ONLY after successful save
       if (previousPublicId && previousPublicId !== newPublicId && isCloudinaryUrl(previousImage)) {
@@ -780,7 +788,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } catch (err: any) {
       console.error('Failed to replace image:', err);
       // Retain previous image and show clear error message
-      showToast(`Image replacement failed: ${err.message || err}`);
+      showToast(`Photo replacement failed: ${err.message || err}`);
     } finally {
       setReplacingProductId(null);
       if (fileInputRefs.current[productId]) {
@@ -1072,7 +1080,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       for (let i = 0; i < newProductGalleryFiles.length; i++) {
         try {
           const gFile = newProductGalleryFiles[i];
-          const res = await uploadToCloudinary(gFile, `${createdId}_media_${i}`);
+          const subType = isVideoMedia(gFile) ? 'video' : 'gallery';
+          const res = await uploadToCloudinary(gFile, `${createdId}_${subType}_${Date.now()}_${i}`);
           if (res.url) {
             uploadedAdditionalUrls.push(res.url);
           }
@@ -1501,17 +1510,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }), true);
   };
 
+  // Available Categories synced between Admin Panel and Catalogue
+  const adminCategoriesList = React.useMemo(() => {
+    const set = new Set<string>();
+    STANDARD_PRODUCT_TYPES.filter((t) => t !== 'Other').forEach((t) => set.add(t));
+    (editableProducts || []).forEach((p) => {
+      if (p && p.productType && typeof p.productType === 'string' && p.productType.trim()) {
+        set.add(normalizeProductCategory(p.productType));
+      }
+    });
+    return Array.from(set);
+  }, [editableProducts]);
+
   // Filtered Products
   const filteredProducts = (editableProducts || []).filter((p) => {
     if (!p) return false;
     const pName = String(p.name || '');
     const pColl = String(p.collection || '');
+    const pType = String(p.productType || 'Bedsheet');
     const q = (searchQuery || '').trim().toLowerCase();
     const matchesSearch =
       !q ||
       pName.toLowerCase().includes(q) ||
-      pColl.toLowerCase().includes(q);
+      pColl.toLowerCase().includes(q) ||
+      pType.toLowerCase().includes(q);
     if (!matchesSearch) return false;
+    if (adminCategoryFilter !== 'all' && !doesProductMatchCategory(p, adminCategoryFilter)) {
+      return false;
+    }
     if (filterStatus === 'inStock') return Boolean(p.inStock);
     if (filterStatus === 'outOfStock') return !p.inStock;
     return true;
@@ -2250,49 +2276,101 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </section>
 
             {/* Search & Filter */}
-            <section className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8988D]" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search bedsheet name or collection..."
-                  className="w-full pl-9 pr-4 py-2 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] placeholder-[#A8988D] focus:outline-hidden focus:border-[#C29E57]"
-                />
+            <section className="space-y-3">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="relative w-full sm:w-80">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8988D]" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search name, collection, or category..."
+                    className="w-full pl-9 pr-4 py-2 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] placeholder-[#A8988D] focus:outline-hidden focus:border-[#C29E57]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    onClick={() => setFilterStatus('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      filterStatus === 'all'
+                        ? 'bg-[#2C2420] text-white'
+                        : 'bg-[#FAF7F2] text-[#6B5D55] border border-[#EAE2D5]'
+                    }`}
+                  >
+                    All ({totalProducts})
+                  </button>
+                  <button
+                    onClick={() => setFilterStatus('inStock')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      filterStatus === 'inStock'
+                        ? 'bg-emerald-700 text-white'
+                        : 'bg-[#FAF7F2] text-[#6B5D55] border border-[#EAE2D5]'
+                    }`}
+                  >
+                    In Stock ({inStockCount})
+                  </button>
+                  <button
+                    onClick={() => setFilterStatus('outOfStock')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      filterStatus === 'outOfStock'
+                        ? 'bg-amber-700 text-white'
+                        : 'bg-[#FAF7F2] text-[#6B5D55] border border-[#EAE2D5]'
+                    }`}
+                  >
+                    Out of Stock ({outOfStockCount})
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 self-start sm:self-auto">
+              {/* Admin Category Filter Bar (Synced with Storefront Catalogue Categories) */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar text-xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#8C7A70] shrink-0 flex items-center gap-1">
+                  <Layers className="w-3.5 h-3.5 text-[#C29E57]" />
+                  <span>Filter Category:</span>
+                </span>
                 <button
-                  onClick={() => setFilterStatus('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    filterStatus === 'all'
-                      ? 'bg-[#2C2420] text-white'
-                      : 'bg-[#FAF7F2] text-[#6B5D55] border border-[#EAE2D5]'
+                  type="button"
+                  onClick={() => setAdminCategoryFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-colors cursor-pointer border shrink-0 ${
+                    adminCategoryFilter === 'all'
+                      ? 'bg-[#8C2E46] text-white border-[#8C2E46]'
+                      : 'bg-[#FAF7F2] text-[#2C2420] border-[#EAE2D5] hover:border-[#DEC89B]'
                   }`}
                 >
-                  All ({totalProducts})
+                  All Categories ({totalProducts})
                 </button>
-                <button
-                  onClick={() => setFilterStatus('inStock')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    filterStatus === 'inStock'
-                      ? 'bg-emerald-700 text-white'
-                      : 'bg-[#FAF7F2] text-[#6B5D55] border border-[#EAE2D5]'
-                  }`}
-                >
-                  In Stock ({inStockCount})
-                </button>
-                <button
-                  onClick={() => setFilterStatus('outOfStock')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    filterStatus === 'outOfStock'
-                      ? 'bg-amber-700 text-white'
-                      : 'bg-[#FAF7F2] text-[#6B5D55] border border-[#EAE2D5]'
-                  }`}
-                >
-                  Out of Stock ({outOfStockCount})
-                </button>
+                {adminCategoriesList.map((cat) => {
+                  const count = (editableProducts || []).filter((p) => doesProductMatchCategory(p, cat)).length;
+                  const isSelected = normalizeProductCategory(adminCategoryFilter).toLowerCase() === normalizeProductCategory(cat).toLowerCase() && adminCategoryFilter !== 'all';
+                  const displayLabel =
+                    cat === 'Winter Bedsheet'
+                      ? 'Winter Bedsheets'
+                      : cat === 'Bedsheet'
+                      ? 'Bedsheets'
+                      : cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setAdminCategoryFilter(isSelected ? 'all' : cat)}
+                      className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-colors cursor-pointer border shrink-0 flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-[#8C2E46] text-white border-[#8C2E46]'
+                          : 'bg-[#FAF7F2] text-[#2C2420] border-[#EAE2D5] hover:border-[#DEC89B]'
+                      }`}
+                    >
+                      <span>{displayLabel}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-white text-[#7A6458] border border-[#EAE2D5]'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
 
@@ -2828,7 +2906,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <Truck className="w-3 h-3 text-[#B83F60]" />
                             <span>+ Shipping Extra:</span>
                           </span>
-                          <span className="text-[10px] text-[#7A6458]">₹100 India · Free in Sec 46 Gurgaon</span>
+                          <span className="text-[10px] text-[#7A6458]">₹29 India · Free in Sec 46 Gurgaon</span>
                         </div>
                       </div>
 
@@ -5127,7 +5205,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       className="w-full mt-1.5 px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs text-[#2C2420] focus:outline-hidden"
                     />
                   )}
-                  <p className="text-[10px] text-[#8C7A70] mt-1">Bedsheet, Blanket, Comforter, or custom</p>
+                  <p className="text-[10px] text-[#8C7A70] mt-1">Bedsheet, Winter Bedsheet, Dohar, Bed Cover, Quilt, Blanket, Comforter, or custom</p>
                 </div>
 
                 {/* Brand - Backend Only */}

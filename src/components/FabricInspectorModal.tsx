@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCcw, Sparkles, ShieldCheck, Heart, ShoppingBag, Eye, Move } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant } from '../data/products';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
+import { isVideoMedia } from '../services/cloudinary';
 
 interface FabricInspectorModalProps {
   isOpen: boolean;
@@ -38,7 +39,9 @@ export const FabricInspectorModal: React.FC<FabricInspectorModalProps> = ({
 
   if (!isOpen || !product) return null;
 
-  const rawImage = activeVariant?.image || product.image || customImage;
+  const rawCandidate = activeVariant?.image || product.image || customImage;
+  const nonVideoGalleryImage = (product.additionalImages || []).find((u) => u && !isVideoMedia(u));
+  const rawImage = isVideoMedia(rawCandidate) ? (nonVideoGalleryImage || '') : rawCandidate;
   const displayImage = resolveBedsheetImage(rawImage, product.id, product.updatedAt);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {

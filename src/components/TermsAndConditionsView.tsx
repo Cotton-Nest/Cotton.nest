@@ -11,7 +11,9 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
   siteContent,
   onExploreCatalogue,
 }) => {
-  const customTc = siteContent?.termsAndConditions;
+  const customTc = siteContent?.termsAndConditions
+    ? siteContent.termsAndConditions.replace(/Across India:\s*\*?₹100\*?/gi, 'Across India: *₹29*')
+    : undefined;
 
   const renderFormattedContent = (rawText: string) => {
     const lines = rawText.split('\n');
@@ -222,7 +224,7 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
                 <div className="flex items-start gap-2.5">
                   <span className="text-lg">👉</span>
                   <p className="text-[#2C2420]">
-                    Across India: <strong className="font-bold text-[#2C2420]">₹100</strong>
+                    Across India: <strong className="font-bold text-[#2C2420]">₹29</strong>
                   </p>
                 </div>
               </div>

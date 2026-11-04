@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
-import { saveOrder, getCouponsApi, validateCouponApi, recordCouponUseApi } from '../services/api';
+import { saveOrder, getCouponsApi, validateCouponApi, recordCouponUseApi, isVideoMedia } from '../services/api';
 import { sendWhatsAppCartOrder } from '../utils/whatsappOrder';
 import { useAuth } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
@@ -173,7 +173,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const effectivePointsDiscount = calculatePointsDiscount(pointsToRedeem);
 
   const totalSavings = catalogSavings + effectiveCouponDiscount + effectivePointsDiscount;
-  const shippingCost = shippingOption === 'india' ? 100 : 0;
+  const shippingCost = shippingOption === 'india' ? 29 : 0;
   const finalTotal = Math.max(0, subtotal - effectiveCouponDiscount - effectivePointsDiscount) + shippingCost;
   const pointsToEarn = calculateEarnedPoints(finalTotal); // 1 point for every 50 Rs spent
 
@@ -276,7 +276,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const shippingLabel =
     shippingOption === 'india'
-      ? 'Across India (₹100)'
+      ? 'Across India (₹29)'
       : shippingOption === 'sector46'
       ? 'Sector 46, Gurgaon (Complimentary)'
       : 'Rest of Gurgaon (Self Pickup / On Actuals)';
@@ -537,12 +537,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       >
                         <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5] flex items-center justify-center relative">
                           {displayImg ? (
-                            <img
-                              src={displayImg}
-                              alt={prodName}
-                              onError={handleImageFallback}
-                              className="w-full h-full object-cover object-center"
-                            />
+                            isVideoMedia(displayImg) ? (
+                              <video
+                                src={displayImg}
+                                muted
+                                loop
+                                playsInline
+                                autoPlay
+                                className="w-full h-full object-cover object-center"
+                              />
+                            ) : (
+                              <img
+                                src={displayImg}
+                                alt={prodName}
+                                onError={handleImageFallback}
+                                className="w-full h-full object-cover object-center"
+                              />
+                            )
                           ) : (
                             <div className="flex flex-col items-center justify-center text-[#8C7A70] p-1 text-center">
                               <Package className="w-6 h-6 opacity-40 mb-0.5" />
@@ -630,7 +641,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <span>Delivery Option</span>
                     </label>
                     <span className="text-[10px] text-[#8C2E46] font-semibold bg-[#FDEAF0] px-2 py-0.5 rounded-full">
-                      {shippingOption === 'india' ? 'Standard Courier (+₹100)' : shippingOption === 'sector46' ? 'Complimentary Free' : 'Pickup / Actuals'}
+                      {shippingOption === 'india' ? 'Standard Courier (+₹29)' : shippingOption === 'sector46' ? 'Complimentary Free' : 'Pickup / Actuals'}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 gap-2">
@@ -655,7 +666,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <p className="text-[11px] text-[#7A6458]">Standard Courier Delivery</p>
                         </div>
                       </div>
-                      <span className="font-bold text-[#8C2E46]">+₹100</span>
+                      <span className="font-bold text-[#8C2E46]">+₹29</span>
                     </label>
 
                     <label
@@ -764,7 +775,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div>
                       <span className="text-[10px] text-[#7A6458] block font-medium">Delivery Method (Selected in Bag)</span>
                       <span className="font-semibold text-[#2C2420]">
-                        {shippingOption === 'india' && 'Across India (Standard Courier +₹100)'}
+                        {shippingOption === 'india' && 'Across India (Standard Courier +₹29)'}
                         {shippingOption === 'sector46' && 'Sector 46, Gurgaon (Free Local Delivery)'}
                         {shippingOption === 'gurgaon' && 'Rest of Gurgaon (Self Pickup / On Actuals)'}
                       </span>

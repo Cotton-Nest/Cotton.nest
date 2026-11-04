@@ -29,7 +29,9 @@ import {
   COMPANY_DETAILS,
   STANDARD_SIZES,
   STANDARD_PRODUCT_TYPES,
-  POPULAR_BRANDS
+  POPULAR_BRANDS,
+  normalizeProductCategory,
+  doesProductMatchCategory,
 } from '../data/products';
 import { ProductCard } from './ProductCard';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
@@ -151,7 +153,9 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     (products || []).forEach((p) => {
       if (!p) return;
       if (p.size && typeof p.size === 'string' && p.size.trim()) sizesSet.add(p.size.trim());
-      if (p.productType && typeof p.productType === 'string' && p.productType.trim()) typesSet.add(p.productType.trim());
+      if (p.productType && typeof p.productType === 'string' && p.productType.trim()) {
+        typesSet.add(normalizeProductCategory(p.productType));
+      }
       if (p.brand && typeof p.brand === 'string' && p.brand.trim()) brandsSet.add(p.brand.trim());
 
       // Extract colors
@@ -274,16 +278,9 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           if (!matchesSize) return false;
         }
 
-        // 2. Product Type constraint (Multi-select: Match any selected type)
+        // 2. Product Type / Category constraint (Multi-select: Match any selected category)
         if (selectedProductTypes.length > 0) {
-          const matchesType = selectedProductTypes.some((t) => {
-            const cleanT = String(t || '').toLowerCase();
-            return (
-              itemType.toLowerCase() === cleanT ||
-              prodName.toLowerCase().includes(cleanT) ||
-              prodColl.toLowerCase().includes(cleanT)
-            );
-          });
+          const matchesType = selectedProductTypes.some((t) => doesProductMatchCategory(product, t));
           if (!matchesType) return false;
         }
 
@@ -419,8 +416,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         return s.includes(cleanVal);
       }
       if (type === 'productType') {
-        const t = String(p.productType || 'Bedsheet').toLowerCase();
-        return t === cleanVal;
+        return doesProductMatchCategory(p, value);
       }
       if (type === 'brand') {
         const b = String(p.brand || 'Cotton Nest').toLowerCase();
@@ -594,6 +590,58 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 ) : (
                   <ChevronDown className="w-3 h-3 text-[#8C7A70]" />
                 )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 3B. Dedicated Category Filter Bar (Bedsheet, Winter Bedsheets, Dohar, Bed Cover, Quilt, Blanket, Comforter & Admin Custom Types) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar mb-2.5 text-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8C7A70] shrink-0 flex items-center gap-1 pr-1">
+            <Layers className="w-3.5 h-3.5 text-[#C29E57]" />
+            <span>Category:</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedProductTypes([])}
+            className={`px-3 py-1.5 rounded-xl whitespace-nowrap font-semibold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
+              selectedProductTypes.length === 0
+                ? 'bg-[#2C2420] text-white border-[#2C2420] shadow-2xs'
+                : 'bg-white hover:bg-[#FAF7F2] text-[#6B5D55] border-[#EAE2D5]'
+            }`}
+          >
+            <span>All Categories ({products.length})</span>
+          </button>
+          {availableFilterData.types.map((catType) => {
+            const isSelected = selectedProductTypes.some(
+              (s) => normalizeProductCategory(s).toLowerCase() === normalizeProductCategory(catType).toLowerCase()
+            );
+            const count = getCountForFilter('productType', catType);
+            const displayLabel =
+              catType === 'Winter Bedsheet'
+                ? 'Winter Bedsheets'
+                : catType === 'Bedsheet'
+                ? 'Bedsheets'
+                : catType;
+            return (
+              <button
+                key={catType}
+                type="button"
+                onClick={() => toggleProductType(catType)}
+                className={`px-3 py-1.5 rounded-xl whitespace-nowrap font-semibold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
+                  isSelected
+                    ? 'bg-[#8C2E46] text-white border-[#8C2E46] shadow-2xs'
+                    : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B]'
+                }`}
+              >
+                <span>{displayLabel}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
+                  }`}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}

@@ -66,3 +66,6 @@ export function handleImageFallback(e: React.SyntheticEvent<HTMLImageElement, Ev
     target.src = fallback;
   }
 }
+
+export { isVideoMedia } from './mediaHelpers';
+

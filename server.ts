@@ -155,9 +155,9 @@ function saveDatabase(): void {
 async function startServer() {
   const app = express();
 
-  // Support large base64 image uploads for custom photos and variants
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  // Support large media uploads for custom photos, variants, and product videos
+  app.use(express.json({ limit: '200mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
   const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
   if (!fs.existsSync(UPLOADS_DIR)) {
@@ -169,10 +169,11 @@ async function startServer() {
     fs.mkdirSync(IMAGES_DIR, { recursive: true });
   }
 
-  // Serve uploaded and static images with no-cache revalidation so devices never get stuck on stale photos
+  // Serve uploaded and static images/videos with proper range request support for video streaming
   app.use(
     '/uploads',
     express.static(UPLOADS_DIR, {
+      acceptRanges: true,
       setHeaders: (res) => {
         res.setHeader('Cache-Control', 'no-cache, must-revalidate');
       },
@@ -284,7 +285,7 @@ async function startServer() {
       const config = initCloudinary();
 
       if (!config || !config.cloudName || !config.apiKey || !config.apiSecret) {
-        return res.status(503).json({
+        return res.status(200).json({
           configured: false,
           error: 'Cloudinary credentials are not configured on server.',
           help: 'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET (or CLOUDINARY_URL) environment variables.',
@@ -330,6 +331,74 @@ async function startServer() {
       res.status(500).json({ error: err.message || 'Failed to generate signature' });
     }
   });
+
+  // High-speed direct binary upload endpoint (zero Base64 overhead, prevents event-loop freeze on large videos)
+  app.post(
+    '/api/upload-binary',
+    express.raw({ type: '*/*', limit: '200mb' }),
+    async (req, res) => {
+      try {
+        const buffer = req.body;
+        if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+          return res.status(400).json({ error: 'Binary media payload is required' });
+        }
+
+        const productId = String(req.query.productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_');
+        const mime = String(req.headers['content-type'] || '').toLowerCase();
+        const isVideo =
+          req.query.resource_type === 'video' ||
+          mime.startsWith('video/') ||
+          /\.(mp4|webm|mov|m4v|ogg)$/i.test(String(req.query.filename || ''));
+
+        let ext = String(req.query.ext || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        if (!ext) {
+          if (mime.includes('webm')) ext = 'webm';
+          else if (mime.includes('quicktime') || mime.includes('mov')) ext = 'mov';
+          else if (mime.includes('ogg')) ext = 'ogg';
+          else if (isVideo) ext = 'mp4';
+          else if (mime.includes('png')) ext = 'png';
+          else if (mime.includes('webp')) ext = 'webp';
+          else ext = 'jpg';
+        }
+
+        const filename = `sheet_${productId}_${Date.now()}.${ext}`;
+        const filepath = path.join(UPLOADS_DIR, filename);
+        await fs.promises.writeFile(filepath, buffer);
+
+        // If Cloudinary is configured, attempt upload from local file in background or directly
+        const config = initCloudinary();
+        if (config) {
+          try {
+            const result = await cloudinary.uploader.upload(filepath, {
+              folder: 'cotton_nest/bedsheets',
+              resource_type: isVideo ? 'video' : 'auto',
+              overwrite: true,
+              public_id: `sheet_${productId}_${Date.now()}`,
+            });
+            if (result?.secure_url) {
+              return res.json({
+                url: result.secure_url,
+                public_id: result.public_id,
+                provider: 'cloudinary',
+                resource_type: result.resource_type || (isVideo ? 'video' : 'image'),
+              });
+            }
+          } catch (cloudErr: any) {
+            console.warn('Binary Cloudinary upload fallback to local server file:', cloudErr.message);
+          }
+        }
+
+        return res.json({
+          url: `/uploads/${filename}`,
+          provider: 'server',
+          resource_type: isVideo ? 'video' : 'image',
+        });
+      } catch (err: any) {
+        console.error('Failed to process binary media upload:', err);
+        return res.status(500).json({ error: err.message || 'Failed to save binary media' });
+      }
+    }
+  );
 
   // Dedicated media (image & video) upload API with primary Cloudinary support
   app.post('/api/upload', async (req, res) => {
@@ -389,26 +458,41 @@ async function startServer() {
         }
       }
 
-      // Guaranteed local fallback if Cloudinary encounters network or quota limits
-      const videoMatches = mediaData.match(/^data:video\/([a-zA-Z0-9-+.]+);base64,(.+)$/);
-      if (videoMatches) {
-        const ext = videoMatches[1] === 'quicktime' ? 'mov' : (videoMatches[1] || 'mp4');
-        const filename = `sheet_${(productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.${ext}`;
-        const filepath = path.join(UPLOADS_DIR, filename);
-        fs.writeFileSync(filepath, Buffer.from(videoMatches[2], 'base64'));
-        return res.json({
-          url: `/uploads/${filename}`,
-          provider: 'server',
-          resource_type: 'video',
-        });
-      }
+      // Fast non-regex data URL parser (avoids catastrophic regex backtracking on large video/image buffers)
+      const base64Marker = ';base64,';
+      const markerIdx = mediaData.indexOf(base64Marker);
+      if (mediaData.startsWith('data:') && markerIdx !== -1) {
+        const header = mediaData.slice(5, markerIdx).toLowerCase(); // e.g. "video/mp4;codecs=avc1" or "image/jpeg"
+        const mimeMain = header.split(';')[0] || '';
+        const [mediaKind, rawSubtype] = mimeMain.split('/');
+        const base64Payload = mediaData.slice(markerIdx + base64Marker.length);
+        const safeProductId = (productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_');
 
-      const matches = mediaData.match(/^data:image\/([a-zA-Z0-9-+.]+);base64,(.+)$/);
-      if (matches) {
-        const ext = matches[1] === 'jpeg' ? 'jpg' : (matches[1] || 'jpg');
-        const filename = `sheet_${(productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.${ext}`;
+        if (mediaKind === 'video' || isVideo) {
+          let ext = 'mp4';
+          if (rawSubtype === 'quicktime' || rawSubtype === 'mov') ext = 'mov';
+          else if (rawSubtype === 'webm') ext = 'webm';
+          else if (rawSubtype === 'ogg' || rawSubtype === 'ogv') ext = 'ogg';
+          else if (rawSubtype === 'x-m4v' || rawSubtype === 'm4v') ext = 'm4v';
+
+          const filename = `sheet_${safeProductId}_${Date.now()}.${ext}`;
+          const filepath = path.join(UPLOADS_DIR, filename);
+          await fs.promises.writeFile(filepath, Buffer.from(base64Payload, 'base64'));
+          return res.json({
+            url: `/uploads/${filename}`,
+            provider: 'server',
+            resource_type: 'video',
+          });
+        }
+
+        let ext = 'jpg';
+        if (rawSubtype === 'png') ext = 'png';
+        else if (rawSubtype === 'webp') ext = 'webp';
+        else if (rawSubtype === 'gif') ext = 'gif';
+
+        const filename = `sheet_${safeProductId}_${Date.now()}.${ext}`;
         const filepath = path.join(UPLOADS_DIR, filename);
-        fs.writeFileSync(filepath, Buffer.from(matches[2], 'base64'));
+        await fs.promises.writeFile(filepath, Buffer.from(base64Payload, 'base64'));
         return res.json({
           url: `/uploads/${filename}`,
           provider: 'server',
@@ -501,13 +585,29 @@ async function startServer() {
 
   app.put('/api/products/:id', (req, res) => {
     const { id } = req.params;
-    const updated = req.body;
-    const index = db.products.findIndex((p) => p.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
+    const updated = req.body || {};
     const now = Date.now();
     (db as any).updatedAt = now;
+    const index = db.products.findIndex((p) => p.id === id);
+    if (index === -1) {
+      // Upsert product if it exists in Firestore but not yet in local store_db.json
+      const newEntry = {
+        id,
+        name: updated.name || id,
+        collection: updated.collection || 'Signature Collection',
+        size: updated.size || 'King',
+        productType: updated.productType || 'Bedsheet',
+        brand: updated.brand || 'Cotton Nest',
+        price: Number(updated.price) || 1320,
+        originalPrice: Number(updated.originalPrice) || Number(updated.price) || 1320,
+        inStock: updated.inStock !== false,
+        ...updated,
+        updatedAt: now,
+      };
+      db.products.push(newEntry);
+      saveDatabase();
+      return res.json(newEntry);
+    }
     db.products[index] = { ...db.products[index], ...updated, updatedAt: now };
     saveDatabase();
     res.json(db.products[index]);
@@ -515,11 +615,7 @@ async function startServer() {
 
   app.delete('/api/products/:id', (req, res) => {
     const { id } = req.params;
-    const beforeCount = db.products.length;
     db.products = db.products.filter((p) => p.id !== id);
-    if (db.products.length === beforeCount) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
     (db as any).updatedAt = Date.now();
     saveDatabase();
     res.json({ success: true, id });

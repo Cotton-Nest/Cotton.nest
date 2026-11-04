@@ -174,7 +174,39 @@ export async function uploadToCloudinary(
     signErrorMsg = signErr.message;
   }
 
-  // 2. Secondary Fallback: Server-side upload endpoint (/api/upload)
+  // 2. Secondary Fallback: Direct binary stream upload (/api/upload-binary) - zero Base64 bloat, instant for videos
+  try {
+    const queryParams = new URLSearchParams({
+      productId: productId || 'sheet',
+      resource_type: isVideo ? 'video' : 'image',
+      ext,
+      filename: mediaInput instanceof File ? mediaInput.name : fileName,
+    });
+    const binRes = await fetch(`/api/upload-binary?${queryParams.toString()}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': uploadBlob.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+      },
+      body: uploadBlob,
+    });
+
+    const binData = await binRes.json().catch(() => null);
+    if (binRes.ok && binData?.url) {
+      return {
+        url: binData.url,
+        public_id: binData.public_id,
+        width: binData.width,
+        height: binData.height,
+        format: binData.format,
+        resource_type: binData.resource_type || (isVideo ? 'video' : 'image'),
+        provider: binData.provider || 'server',
+      };
+    }
+  } catch (binErr: any) {
+    console.warn('Binary upload endpoint fallback notice:', binErr.message);
+  }
+
+  // 3. Tertiary Fallback: JSON Base64 upload endpoint (/api/upload)
   try {
     let payload = dataUrl;
     if (!payload) {
@@ -191,7 +223,6 @@ export async function uploadToCloudinary(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         media: payload,
-        image: payload,
         productId: productId || 'sheet',
         resource_type: resourceType,
       }),
@@ -207,7 +238,7 @@ export async function uploadToCloudinary(
         height: uploadData.height,
         format: uploadData.format,
         resource_type: uploadData.resource_type || (isVideo ? 'video' : 'image'),
-        provider: 'cloudinary',
+        provider: uploadData.provider || 'server',
       };
     } else if (uploadData?.error) {
       signErrorMsg = uploadData.error;
@@ -217,7 +248,7 @@ export async function uploadToCloudinary(
   }
 
   // Throw clear, actionable error
-  const finalMsg = signErrorMsg || 'Media upload failed. Please ensure Cloudinary credentials are set in your environment variables.';
+  const finalMsg = signErrorMsg || 'Media upload failed. Please try a smaller file or check your connection.';
   throw new Error(finalMsg);
 }
 

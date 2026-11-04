@@ -38,8 +38,103 @@ export interface BedsheetProduct {
 export const STANDARD_SIZES = ['Single', 'Double', 'Queen', 'King', 'Super King', 'Other'] as const;
 export type StandardSize = (typeof STANDARD_SIZES)[number];
 
-export const STANDARD_PRODUCT_TYPES = ['Bedsheet', 'Blanket', 'Comforter', 'Other'] as const;
+export const STANDARD_PRODUCT_TYPES = [
+  'Bedsheet',
+  'Winter Bedsheet',
+  'Dohar',
+  'Bed Cover',
+  'Quilt',
+  'Blanket',
+  'Comforter',
+  'Other',
+] as const;
 export type StandardProductType = (typeof STANDARD_PRODUCT_TYPES)[number];
+
+/**
+ * Normalizes a product category / type string to a canonical label
+ * so singular/plural variations (e.g. "Winter Bedsheets" -> "Winter Bedsheet")
+ * match consistently across Catalogue filters and Admin Panel.
+ */
+export function normalizeProductCategory(raw?: string): string {
+  const val = String(raw || 'Bedsheet').trim();
+  if (!val) return 'Bedsheet';
+  const lower = val.toLowerCase().replace(/\s+/g, ' ');
+  if (
+    lower === 'winter bedsheet' ||
+    lower === 'winter bedsheets' ||
+    lower === 'winter sheet' ||
+    lower === 'winter sheets' ||
+    lower.includes('winter bedsheet') ||
+    lower.includes('winter sheet') ||
+    lower.includes('flannel')
+  ) {
+    return 'Winter Bedsheet';
+  }
+  if (lower === 'bedsheet' || lower === 'bedsheets') return 'Bedsheet';
+  if (lower === 'dohar' || lower === 'dohars' || lower.includes('dohar')) return 'Dohar';
+  if (
+    lower === 'bed cover' ||
+    lower === 'bed covers' ||
+    lower === 'bedcover' ||
+    lower === 'bedcovers' ||
+    lower.includes('bed cover') ||
+    lower.includes('bedcover') ||
+    lower.includes('bedspread')
+  ) {
+    return 'Bed Cover';
+  }
+  if (lower === 'quilt' || lower === 'quilts' || lower === 'razai' || lower.includes('quilt') || lower.includes('razai')) {
+    return 'Quilt';
+  }
+  if (lower === 'blanket' || lower === 'blankets' || lower.includes('blanket')) return 'Blanket';
+  if (lower === 'comforter' || lower === 'comforters' || lower.includes('comforter')) return 'Comforter';
+  return val;
+}
+
+/**
+ * Checks whether a product's type matches a selected filter category.
+ */
+export function matchesProductCategory(productType: string | undefined, selectedType: string): boolean {
+  if (!selectedType || selectedType.toLowerCase() === 'all') return true;
+  return normalizeProductCategory(productType).toLowerCase() === normalizeProductCategory(selectedType).toLowerCase();
+}
+
+/**
+ * Authoritative category matcher used by both CatalogueView and AdminPanel
+ * so product counts and filter results stay 100% synchronized.
+ */
+export function doesProductMatchCategory(product: BedsheetProduct | null | undefined, selectedCategory: string): boolean {
+  if (!product) return false;
+  if (!selectedCategory || selectedCategory.toLowerCase() === 'all') return true;
+
+  const normSelected = normalizeProductCategory(selectedCategory).toLowerCase();
+  const normProductType = normalizeProductCategory(product.productType).toLowerCase();
+
+  if (normProductType === normSelected) {
+    return true;
+  }
+
+  const nameAndColl = `${product.name || ''} ${product.collection || ''}`.toLowerCase();
+  if (normSelected === 'winter bedsheet') {
+    return nameAndColl.includes('winter bedsheet') || nameAndColl.includes('winter sheet') || nameAndColl.includes('flannel bedsheet') || nameAndColl.includes('warm bedsheet');
+  }
+  if (normSelected === 'dohar') {
+    return nameAndColl.includes('dohar');
+  }
+  if (normSelected === 'bed cover') {
+    return nameAndColl.includes('bed cover') || nameAndColl.includes('bedcover') || nameAndColl.includes('bedspread');
+  }
+  if (normSelected === 'quilt') {
+    return nameAndColl.includes('quilt') || nameAndColl.includes('razai');
+  }
+  if (normSelected === 'comforter') {
+    return nameAndColl.includes('comforter');
+  }
+  if (normSelected === 'blanket') {
+    return nameAndColl.includes('blanket');
+  }
+  return false;
+}
 
 export const POPULAR_BRANDS = [
   'Cotton Nest',

@@ -59,18 +59,44 @@ export function stripUndefined<T>(obj: T): T {
 
 /**
  * Ensures Firestore documents only store clean URL links (HTTPS or relative public paths),
- * strictly preventing bloated base64 data URIs from entering database records.
+ * strictly preventing bloated base64 data URIs or temporary blob URLs from entering database records.
  */
 export function cleanLinkOnly(url?: string | null, fallbackId?: string): string {
   if (!url || typeof url !== 'string' || url.trim() === '') {
     return resolveBedsheetImage('', fallbackId);
   }
   const trimmed = url.trim();
-  // Never persist raw base64 data blobs in Firestore
-  if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/') || trimmed.startsWith('blob:')) {
+  // Never persist raw base64 data blobs or ephemeral object URLs in Firestore
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
     return resolveBedsheetImage('', fallbackId);
   }
   return trimmed;
+}
+
+/**
+ * Filters an array of media URLs (additionalImages / videos) so only clean HTTP(S) or server /uploads/ /images/ links are stored.
+ */
+export function cleanMediaArray(urls?: string[]): string[] {
+  if (!Array.isArray(urls)) return [];
+  return Array.from(
+    new Set(
+      urls
+        .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+        .map((u) => u.trim())
+        .filter((u) => !u.startsWith('data:') && !u.startsWith('blob:'))
+    )
+  );
+}
+
+export function isSubkeyDocumentId(id?: string | null): boolean {
+  if (!id || typeof id !== 'string') return false;
+  return (
+    id.includes('_gallery_') ||
+    id.includes('_video_') ||
+    id.includes('_variant_') ||
+    id.includes('_media_') ||
+    id.includes('_angle_')
+  );
 }
 
 // ---------------- IMAGE & VIDEO UPLOAD & HOSTING ---------------- //
@@ -93,9 +119,8 @@ export async function uploadImageApi(imageInput: string | File, productId?: stri
     hostedUrl = uploadResult.url;
   }
 
-  // Only update custom_images and products/{productId} if productId is a real product ID (not a gallery/variant subkey)
-  const isGalleryOrVariantSubkey =
-    productId && (productId.includes('_gallery_') || productId.includes('_video_') || productId.includes('_variant_'));
+  // Only update custom_images and products/{productId} if productId is a real product ID (not a gallery/variant/media subkey)
+  const isGalleryOrVariantSubkey = isSubkeyDocumentId(productId);
 
   if (productId && hostedUrl && !isGalleryOrVariantSubkey) {
     try {
@@ -113,14 +138,24 @@ export async function uploadImageApi(imageInput: string | File, productId?: stri
     }
 
     try {
-      await setDoc(
-        doc(db, 'products', productId),
-        {
+      const prodRef = doc(db, 'products', productId);
+      const existingSnap = await getDoc(prodRef);
+      if (existingSnap.exists() && existingSnap.data()?.name) {
+        const existingData = existingSnap.data() as BedsheetProduct;
+        const isVid = isVideoMedia(hostedUrl) || isVideoMedia(imageInput);
+        const nextUpdates: Record<string, any> = {
           image: hostedUrl,
           updatedAt: Date.now(),
-        },
-        { merge: true }
-      );
+        };
+        if (isVid) {
+          const prevAdd = cleanMediaArray(existingData.additionalImages);
+          const prevVids = cleanMediaArray(existingData.videos);
+          nextUpdates.additionalImages = Array.from(new Set([...prevAdd, hostedUrl]));
+          nextUpdates.videos = Array.from(new Set([...prevVids, hostedUrl]));
+          nextUpdates.videoUrl = hostedUrl;
+        }
+        await setDoc(prodRef, nextUpdates, { merge: true });
+      }
     } catch (err) {
       console.warn('Could not update product image in Firestore:', err);
     }
@@ -135,6 +170,7 @@ export async function getCustomImagesApi(): Promise<Record<string, string>> {
     const snap = await getDocs(collection(db, path));
     const images: Record<string, string> = {};
     snap.forEach((d) => {
+      if (isSubkeyDocumentId(d.id)) return;
       const data = d.data();
       if (data && data.imageUrl && typeof data.imageUrl === 'string') {
         images[d.id] = data.imageUrl;
@@ -190,14 +226,15 @@ export function computeUpdatedImagesCount(
   const countedUrls = new Set<string>();
 
   // 1. Registered custom_images from Firestore
-  Object.values(customImages).forEach((u) => {
+  Object.entries(customImages || {}).forEach(([k, u]) => {
+    if (isSubkeyDocumentId(k)) return;
     if (u && typeof u === 'string' && u.trim() !== '') {
       countedUrls.add(u);
     }
   });
 
   // 2. Product primary, additional, video, and variant media
-  products.forEach((p) => {
+  (products || []).forEach((p) => {
     if (!p) return;
     if (
       p.image &&
@@ -250,8 +287,8 @@ export async function addProductGalleryImageApi(
   const uploadResult = await uploadToCloudinary(mediaInput, `${productId}_${subKey}`);
   const hostedUrl = uploadResult.url;
 
-  const newAdditional = Array.from(new Set([...currentAdditionalImages, hostedUrl]));
-  const videoUrls = newAdditional.filter((u) => isVideoMedia(u));
+  const newAdditional = cleanMediaArray([...currentAdditionalImages, hostedUrl]);
+  const videoUrls = newAdditional.filter((u) => isVideoMedia(u) || (u === hostedUrl && isVideo));
 
   await updateSingleProduct(productId, {
     additionalImages: newAdditional,
@@ -271,7 +308,7 @@ export async function removeProductGalleryImageApi(
   mediaUrlToRemove: string,
   currentAdditionalImages: string[] = []
 ): Promise<string[]> {
-  const updatedAdditional = currentAdditionalImages.filter((u) => u !== mediaUrlToRemove);
+  const updatedAdditional = cleanMediaArray(currentAdditionalImages).filter((u) => u !== mediaUrlToRemove);
   const videoUrls = updatedAdditional.filter((u) => isVideoMedia(u));
 
   await updateSingleProduct(productId, {
@@ -300,9 +337,9 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
     const products: BedsheetProduct[] = [];
     snap.forEach((docSnap) => {
       const data = docSnap.data() as BedsheetProduct;
-      if (docSnap.id.includes('_gallery_') || docSnap.id.includes('_video_') || !data.name) {
+      if (isSubkeyDocumentId(docSnap.id) || !data || typeof data.name !== 'string' || !data.name.trim()) {
         // Clean up orphaned subkey document in background
-        if (docSnap.id.includes('_gallery_') || docSnap.id.includes('_video_')) {
+        if (isSubkeyDocumentId(docSnap.id) || !data?.name) {
           deleteDoc(doc(db, 'products', docSnap.id)).catch(() => {});
         }
         return;
@@ -310,6 +347,9 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
       products.push({
         ...data,
         id: docSnap.id,
+        additionalImages: cleanMediaArray(data.additionalImages),
+        videos: cleanMediaArray(data.videos),
+        videoUrl: data.videoUrl && !data.videoUrl.startsWith('data:') && !data.videoUrl.startsWith('blob:') ? data.videoUrl : '',
         image: cleanLinkOnly(resolveBedsheetImage(data.image, docSnap.id, data.updatedAt), docSnap.id),
       });
     });
@@ -323,78 +363,101 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
 
     return products;
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
+    try {
+      handleFirestoreError(error, OperationType.LIST, path);
+    } catch {}
+    return BEDSHEETS_CATALOG;
   }
 }
 
 export async function addProduct(product: BedsheetProduct): Promise<BedsheetProduct> {
   const path = `products/${product.id}`;
+  const cleanProduct: BedsheetProduct = stripUndefined({
+    ...product,
+    updatedAt: Date.now(),
+    image: cleanLinkOnly(product.image, product.id),
+    additionalImages: cleanMediaArray(product.additionalImages),
+    videos: cleanMediaArray(product.videos),
+    videoUrl:
+      product.videoUrl && !product.videoUrl.startsWith('data:') && !product.videoUrl.startsWith('blob:')
+        ? product.videoUrl
+        : '',
+    variants: product.variants
+      ? product.variants.map((v) => ({ ...v, image: cleanLinkOnly(v.image, product.id) }))
+      : [],
+  });
+
+  // Mirror to server database in background
+  fetch(`/api/products/${product.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cleanProduct),
+  }).catch(() => {});
+
   try {
-    const cleanProduct: BedsheetProduct = stripUndefined({
-      ...product,
-      updatedAt: Date.now(),
-      image: cleanLinkOnly(product.image, product.id),
-      variants: product.variants
-        ? product.variants.map((v) => ({ ...v, image: cleanLinkOnly(v.image, product.id) }))
-        : [],
-    });
     await setDoc(doc(db, 'products', product.id), cleanProduct, { merge: true });
-
-    // Mirror to server database in background
-    fetch(`/api/products/${product.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cleanProduct),
-    }).catch(() => {});
-
-    return cleanProduct;
   } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, path);
-    throw error;
+    try {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    } catch {}
   }
+
+  return cleanProduct;
 }
 
 export async function updateSingleProduct(id: string, updates: Partial<BedsheetProduct>): Promise<void> {
+  if (isSubkeyDocumentId(id)) return;
   const path = `products/${id}`;
+  const sanitized = stripUndefined({ ...updates });
+  if (sanitized.image) {
+    sanitized.image = cleanLinkOnly(sanitized.image, id);
+  }
+  if (sanitized.additionalImages && Array.isArray(sanitized.additionalImages)) {
+    sanitized.additionalImages = cleanMediaArray(sanitized.additionalImages);
+  }
+  if (sanitized.videos && Array.isArray(sanitized.videos)) {
+    sanitized.videos = cleanMediaArray(sanitized.videos);
+  }
+  if (typeof sanitized.videoUrl === 'string' && (sanitized.videoUrl.startsWith('data:') || sanitized.videoUrl.startsWith('blob:'))) {
+    sanitized.videoUrl = '';
+  }
+  if (sanitized.variants && Array.isArray(sanitized.variants)) {
+    sanitized.variants = sanitized.variants.map((v) => ({
+      ...v,
+      image: cleanLinkOnly(v.image, id),
+    }));
+  }
+  const cleanUpdates = {
+    ...sanitized,
+    updatedAt: Date.now(),
+  };
+
+  // Mirror to server in background
+  fetch(`/api/products/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cleanUpdates),
+  }).catch(() => {});
+
   try {
-    const sanitized = stripUndefined(updates);
-    if (sanitized.image) {
-      sanitized.image = cleanLinkOnly(sanitized.image, id);
-    }
-    if (sanitized.variants && Array.isArray(sanitized.variants)) {
-      sanitized.variants = sanitized.variants.map((v) => ({
-        ...v,
-        image: cleanLinkOnly(v.image, id),
-      }));
-    }
-    const cleanUpdates = {
-      ...sanitized,
-      updatedAt: Date.now(),
-    };
     // Use setDoc with merge: true so it creates or updates safely without failing on missing doc
     await setDoc(doc(db, 'products', id), cleanUpdates, { merge: true });
-
-    // Mirror to server in background
-    fetch(`/api/products/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cleanUpdates),
-    }).catch(() => {});
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
-    throw error;
+    try {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    } catch {}
   }
 }
 
 export async function removeProduct(id: string): Promise<void> {
   const path = `products/${id}`;
+  fetch(`/api/products/${id}`, { method: 'DELETE' }).catch(() => {});
   try {
     await deleteDoc(doc(db, 'products', id));
-    fetch(`/api/products/${id}`, { method: 'DELETE' }).catch(() => {});
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-    throw error;
+    try {
+      handleFirestoreError(error, OperationType.DELETE, path);
+    } catch {}
   }
 }
 
@@ -407,51 +470,67 @@ export async function reorderProductsApi(orderedIds: string[]): Promise<void> {
   try {
     const batch = writeBatch(db);
     orderedIds.forEach((id, index) => {
+      if (isSubkeyDocumentId(id)) return;
       const productRef = doc(db, 'products', id);
-      batch.update(productRef, {
-        order: index,
-        updatedAt: Date.now(),
-      });
+      batch.set(
+        productRef,
+        {
+          order: index,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
     });
     await batch.commit();
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
-    throw error;
+    try {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    } catch {}
   }
 }
 
 export async function saveAllProducts(products: BedsheetProduct[]): Promise<void> {
   const path = 'products';
+  const sanitizedList: BedsheetProduct[] = [];
+
+  (products || []).forEach((p, idx) => {
+    if (!p || !p.id || isSubkeyDocumentId(p.id) || !p.name) return;
+    const cleanProd: BedsheetProduct = stripUndefined({
+      ...p,
+      order: typeof p.order === 'number' ? p.order : idx,
+      updatedAt: Date.now(),
+      image: cleanLinkOnly(p.image, p.id),
+      additionalImages: cleanMediaArray(p.additionalImages),
+      videos: cleanMediaArray(p.videos),
+      videoUrl:
+        p.videoUrl && !p.videoUrl.startsWith('data:') && !p.videoUrl.startsWith('blob:')
+          ? p.videoUrl
+          : '',
+      variants: p.variants
+        ? p.variants.map((v) => ({ ...v, image: cleanLinkOnly(v.image, p.id) }))
+        : [],
+    });
+    sanitizedList.push(cleanProd);
+  });
+
+  // Mirror to server in background
+  fetch('/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sanitizedList),
+  }).catch(() => {});
+
   try {
     const batch = writeBatch(db);
-    const sanitizedList: BedsheetProduct[] = [];
-
-    products.forEach((p, idx) => {
-      const productRef = doc(db, 'products', p.id);
-      const cleanProd: BedsheetProduct = stripUndefined({
-        ...p,
-        order: typeof p.order === 'number' ? p.order : idx,
-        updatedAt: Date.now(),
-        image: cleanLinkOnly(p.image, p.id),
-        variants: p.variants
-          ? p.variants.map((v) => ({ ...v, image: cleanLinkOnly(v.image, p.id) }))
-          : [],
-      });
-      sanitizedList.push(cleanProd);
+    sanitizedList.forEach((cleanProd) => {
+      const productRef = doc(db, 'products', cleanProd.id);
       batch.set(productRef, cleanProd, { merge: true });
     });
-
     await batch.commit();
-
-    // Mirror to server in background
-    fetch('/api/products', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sanitizedList),
-    }).catch(() => {});
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+    try {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    } catch {}
   }
 }
 

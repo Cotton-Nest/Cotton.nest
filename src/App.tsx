@@ -56,6 +56,7 @@ import {
   getSiteContent,
   saveSiteContentApi,
   uploadImageApi,
+  addProductGalleryImageApi,
   getPublishedThemeApi,
   savePublishedThemeApi,
   getReviewsApi,
@@ -97,7 +98,7 @@ import {
   applyThemeToDom,
   isValidHex,
 } from './data/theme';
-import { resolveBedsheetImage } from './utils/imageUrl';
+import { resolveBedsheetImage, isVideoMedia } from './utils/imageUrl';
 import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, Cloud, ChevronUp, ChevronDown, Star } from 'lucide-react';
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
@@ -437,7 +438,11 @@ export default function App() {
     try {
       const saved = localStorage.getItem('cotton_nest_site_content');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as SiteContent;
+        if (parsed && typeof parsed.termsAndConditions === 'string') {
+          parsed.termsAndConditions = parsed.termsAndConditions.replace(/Across India:\s*\*?₹100\*?/gi, 'Across India: *₹29*');
+        }
+        return parsed;
       }
     } catch {
       // fallback
@@ -707,27 +712,36 @@ export default function App() {
           const loadedProducts: BedsheetProduct[] = [];
           snapshot.forEach((docSnap) => {
             const data = docSnap.data() as BedsheetProduct;
-            // Clean up any orphaned gallery/video/variant sub-documents or incomplete records missing a product name
-            if (
+            // Clean up any orphaned gallery/video/variant/media/angle sub-documents or incomplete records missing a product name
+            const isSubkey =
               docSnap.id.includes('_gallery_') ||
               docSnap.id.includes('_video_') ||
               docSnap.id.includes('_variant_') ||
+              docSnap.id.includes('_media_') ||
+              docSnap.id.includes('_angle_');
+            if (
+              isSubkey ||
               !data ||
               typeof data.name !== 'string' ||
               !data.name.trim()
             ) {
-              if (
-                docSnap.id.includes('_gallery_') ||
-                docSnap.id.includes('_video_') ||
-                docSnap.id.includes('_variant_') ||
-                !data?.name
-              ) {
+              if (isSubkey || !data?.name) {
                 deleteDoc(doc(db, 'products', docSnap.id)).catch(() => {});
               }
               return;
             }
             const cleanPrice = Number(data.price) || 1320;
             const cleanOrigPrice = Number(data.originalPrice) || cleanPrice;
+            const safeAdditional = Array.isArray(data.additionalImages)
+              ? data.additionalImages.filter(
+                  (u) => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('data:') && !u.startsWith('blob:')
+                )
+              : [];
+            const safeVideos = Array.isArray(data.videos)
+              ? data.videos.filter(
+                  (u) => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('data:') && !u.startsWith('blob:')
+                )
+              : [];
             loadedProducts.push({
               ...data,
               id: docSnap.id,
@@ -747,9 +761,12 @@ export default function App() {
               description: String(data.description || '100% pure combed cotton bedsheet.'),
               features: Array.isArray(data.features) ? data.features : [],
               variants: Array.isArray(data.variants) ? data.variants : [],
-              additionalImages: Array.isArray(data.additionalImages) ? data.additionalImages : [],
-              videos: Array.isArray(data.videos) ? data.videos : [],
-              videoUrl: typeof data.videoUrl === 'string' ? data.videoUrl : '',
+              additionalImages: safeAdditional,
+              videos: safeVideos,
+              videoUrl:
+                typeof data.videoUrl === 'string' && !data.videoUrl.startsWith('data:') && !data.videoUrl.startsWith('blob:')
+                  ? data.videoUrl
+                  : safeVideos[0] || '',
               inStock: data.inStock !== false,
               stockQuantity: typeof data.stockQuantity === 'number' ? data.stockQuantity : 10,
               image: resolveBedsheetImage(data.image, docSnap.id, data.updatedAt),
@@ -892,6 +909,10 @@ export default function App() {
               announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(content.announcement || {}) },
               hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
               story: { ...INITIAL_SITE_CONTENT.story, ...(content.story || {}) },
+              termsAndConditions: String(content.termsAndConditions || INITIAL_SITE_CONTENT.termsAndConditions).replace(
+                /Across India:\s*\*?₹100\*?/gi,
+                'Across India: *₹29*'
+              ),
             };
             setSiteContent(mergedContent);
             try {
@@ -914,8 +935,23 @@ export default function App() {
         if (!snapshot.empty) {
           const imageMap: Record<string, string> = {};
           snapshot.forEach((d) => {
+            if (
+              d.id.includes('_gallery_') ||
+              d.id.includes('_video_') ||
+              d.id.includes('_variant_') ||
+              d.id.includes('_media_') ||
+              d.id.includes('_angle_')
+            ) {
+              return;
+            }
             const data = d.data();
-            if (data && data.imageUrl && typeof data.imageUrl === 'string') {
+            if (
+              data &&
+              data.imageUrl &&
+              typeof data.imageUrl === 'string' &&
+              !data.imageUrl.startsWith('data:') &&
+              !data.imageUrl.startsWith('blob:')
+            ) {
               imageMap[d.id] = data.imageUrl;
             }
           });
@@ -1151,10 +1187,36 @@ export default function App() {
     }
   };
 
-  // Save custom images to Cloudinary & Firestore so photos persist across all devices
+  // Save custom images or videos to Cloudinary & Firestore so media persists across all devices without breaking product state
   const handleUploadImage = async (productId: string, fileOrDataUrl: string | File) => {
     try {
+      const isVidFile =
+        typeof fileOrDataUrl !== 'string'
+          ? fileOrDataUrl.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|ogg)$/i.test(fileOrDataUrl.name)
+          : isVideoMedia(fileOrDataUrl);
+
+      if (isVidFile) {
+        const finalUrl = await addProductGalleryImageApi(productId, fileOrDataUrl);
+        if (!finalUrl) return;
+        setProducts((prev) =>
+          prev.map((p) => {
+            if (p.id !== productId) return p;
+            const currentAdditional = Array.isArray(p.additionalImages) ? p.additionalImages : [];
+            const currentVideos = Array.isArray(p.videos) ? p.videos : [];
+            return {
+              ...p,
+              additionalImages: currentAdditional.includes(finalUrl) ? currentAdditional : [...currentAdditional, finalUrl],
+              videos: currentVideos.includes(finalUrl) ? currentVideos : [...currentVideos, finalUrl],
+              videoUrl: p.videoUrl || finalUrl,
+              updatedAt: Date.now(),
+            };
+          })
+        );
+        return;
+      }
+
       const finalUrl = await uploadImageApi(fileOrDataUrl, productId);
+      if (!finalUrl) return;
 
       // Update state
       setCustomImages((prev) => ({ ...prev, [productId]: finalUrl }));
@@ -1166,7 +1228,7 @@ export default function App() {
         prev.map((p) => (p.id === productId ? { ...p, image: finalUrl, updatedAt: Date.now() } : p))
       );
     } catch (err) {
-      console.error('Failed to upload image:', err);
+      console.error('Failed to upload media:', err);
     }
   };
 

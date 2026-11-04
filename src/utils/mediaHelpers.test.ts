@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isVideoMedia, getProductGalleryMedia, getProductMediaCounts } from './mediaHelpers';
+import {
+  STANDARD_PRODUCT_TYPES,
+  normalizeProductCategory,
+  matchesProductCategory,
+  doesProductMatchCategory,
+  BEDSHEETS_CATALOG,
+} from '../data/products';
 
 test('isVideoMedia identifies video URLs, Cloudinary video paths, and data URIs accurately', () => {
   assert.equal(isVideoMedia('https://res.cloudinary.com/demo/video/upload/v1/sample.mp4'), true);
@@ -49,3 +56,36 @@ test('getProductMediaCounts calculates photoCount, videoCount, and firstVideoUrl
   assert.equal(counts.hasVideo, true);
   assert.equal(counts.firstVideoUrl, 'https://cdn.example.com/reel.mp4');
 });
+
+test('STANDARD_PRODUCT_TYPES includes Winter Bedsheet, Dohar, Bed Cover, and Quilt', () => {
+  assert.ok(STANDARD_PRODUCT_TYPES.includes('Bedsheet'));
+  assert.ok(STANDARD_PRODUCT_TYPES.includes('Winter Bedsheet'));
+  assert.ok(STANDARD_PRODUCT_TYPES.includes('Dohar'));
+  assert.ok(STANDARD_PRODUCT_TYPES.includes('Bed Cover'));
+  assert.ok(STANDARD_PRODUCT_TYPES.includes('Quilt'));
+  assert.ok(STANDARD_PRODUCT_TYPES.includes('Blanket'));
+  assert.ok(STANDARD_PRODUCT_TYPES.includes('Comforter'));
+});
+
+test('normalizeProductCategory and doesProductMatchCategory match singular/plural and keyword categories', () => {
+  assert.equal(normalizeProductCategory('Winter Bedsheets'), 'Winter Bedsheet');
+  assert.equal(normalizeProductCategory('flannel winter sheet'), 'Winter Bedsheet');
+  assert.equal(normalizeProductCategory('Dohars'), 'Dohar');
+  assert.equal(normalizeProductCategory('Bed Covers'), 'Bed Cover');
+  assert.equal(normalizeProductCategory('Jaipuri Razai Quilt'), 'Quilt');
+
+  const sampleBase = BEDSHEETS_CATALOG[0];
+  const winterProd = { ...sampleBase, productType: 'Winter Bedsheet' as const };
+  const doharProd = { ...sampleBase, productType: 'Dohar' as const };
+  const bedCoverProd = { ...sampleBase, productType: 'Bed Cover' as const };
+  const quiltProd = { ...sampleBase, productType: 'Quilt' as const };
+
+  assert.equal(doesProductMatchCategory(winterProd, 'Winter Bedsheet'), true);
+  assert.equal(doesProductMatchCategory(winterProd, 'Winter Bedsheets'), true);
+  assert.equal(doesProductMatchCategory(winterProd, 'Bedsheet'), false);
+  assert.equal(doesProductMatchCategory(doharProd, 'Dohar'), true);
+  assert.equal(doesProductMatchCategory(bedCoverProd, 'Bed Cover'), true);
+  assert.equal(doesProductMatchCategory(quiltProd, 'Quilt'), true);
+  assert.equal(matchesProductCategory('Winter Bedsheet', 'Winter Bedsheets'), true);
+});
+
