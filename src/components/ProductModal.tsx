@@ -554,7 +554,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                             e.stopPropagation();
                             handleRemoveAdditionalPhotoDirect(imgUrl);
                           }}
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity shadow-xs cursor-pointer z-10"
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-xs cursor-pointer z-10"
                           title="Delete this angle"
                         >
                           <Trash2 className="w-2.5 h-2.5" />

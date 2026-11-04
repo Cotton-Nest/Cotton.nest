@@ -886,9 +886,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       } else {
         onUpdateProducts(updatedList);
       }
-      showToast('Removed media from product gallery.');
+      showToast('Angle deleted from product gallery.');
     } catch (err: any) {
-      showToast(`Could not remove media: ${err.message || err}`);
+      showToast(`Could not delete angle: ${err.message || err}`);
+    }
+  };
+
+  const handleClearAllAnglesFromProduct = async (productId: string, includeVariants = false) => {
+    const targetProduct = editableProducts.find((p) => p.id === productId);
+    if (!targetProduct) return;
+
+    try {
+      const updates: Partial<BedsheetProduct> = {
+        additionalImages: [],
+        videos: [],
+        videoUrl: '',
+        ...(includeVariants ? { variants: [] } : {}),
+        updatedAt: Date.now(),
+      };
+
+      await updateSingleProduct(productId, updates);
+
+      const updatedProduct: BedsheetProduct = {
+        ...targetProduct,
+        ...updates,
+      };
+
+      const updatedList = editableProducts.map((p) => (p.id === productId ? updatedProduct : p));
+      setEditableProducts(updatedList);
+      if (onUpdateSingleProduct) {
+        onUpdateSingleProduct(updatedProduct);
+      } else {
+        onUpdateProducts(updatedList);
+      }
+      showToast(`Deleted all extra angles for "${targetProduct.name}".`);
+    } catch (err: any) {
+      showToast(`Could not clear angles: ${err.message || err}`);
     }
   };
 
@@ -915,12 +948,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       image: draft.image,
     };
 
+    const targetProduct = editableProducts.find((p) => p.id === productId);
+    const nextVariants = [...(targetProduct?.variants || []), newVar];
+
     const updated = editableProducts.map((p) => {
       if (p.id === productId) {
-        const currentVariants = p.variants ? [...p.variants] : [];
         return {
           ...p,
-          variants: [...currentVariants, newVar],
+          variants: nextVariants,
+          updatedAt: Date.now(),
         };
       }
       return p;
@@ -928,6 +964,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     setEditableProducts(updated);
     onUpdateProducts(updated);
+    updateSingleProduct(productId, { variants: nextVariants, updatedAt: Date.now() }).catch(() => {});
 
     // Reset draft
     setVariantDrafts((prev) => ({
@@ -939,19 +976,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleRemoveVariant = (productId: string, variantId: string) => {
-    const updated = editableProducts.map((p) => {
-      if (p.id === productId && p.variants) {
-        return {
-          ...p,
-          variants: p.variants.filter((v) => v.id !== variantId),
-        };
-      }
-      return p;
-    });
+    const targetProduct = editableProducts.find((p) => p.id === productId);
+    if (!targetProduct) return;
+
+    const nextVariants = (targetProduct.variants || []).filter((v) => v.id !== variantId);
+    const updatedProduct: BedsheetProduct = {
+      ...targetProduct,
+      variants: nextVariants,
+      updatedAt: Date.now(),
+    };
+
+    const updated = editableProducts.map((p) => (p.id === productId ? updatedProduct : p));
 
     setEditableProducts(updated);
-    onUpdateProducts(updated);
-    showToast('Variant removed.');
+    if (onUpdateSingleProduct) {
+      onUpdateSingleProduct(updatedProduct);
+    } else {
+      onUpdateProducts(updated);
+    }
+    updateSingleProduct(productId, { variants: nextVariants, updatedAt: Date.now() }).catch(() => {});
+    showToast('Angle / color variant deleted.');
   };
 
   const handleVariantPhotoUpload = async (productId: string, variantId: string, file?: File) => {
@@ -2468,16 +2512,93 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             )}
                           </button>
 
-                          {/* Quick Add Video / Photo Button */}
+                          {/* Quick Add / Manage Video & Angles Button */}
                           <button
                             type="button"
                             onClick={() => toggleGalleryPanel(product.id)}
                             className="w-full px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-[#E6C687] rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                            title="Open Photos & Videos Gallery to add product videos or extra angle photos"
+                            title="Open Photos & Videos Gallery to add or delete product videos or extra angle photos"
                           >
                             <Film className="w-3 h-3 text-[#E6C687] shrink-0" />
-                            <span>+ Add Video / Angles</span>
+                            <span>
+                              {getProductGalleryMedia(product).length + (product.variants?.length || 0) > 0
+                                ? `Manage / Delete Angles (${getProductGalleryMedia(product).length + (product.variants?.length || 0)})`
+                                : '+ Add Video / Angles'}
+                            </span>
                           </button>
+
+                          {/* Inline Quick Angle Delete Strip (if angles or variant angles exist) */}
+                          {(getProductGalleryMedia(product).length > 0 || (product.variants?.length || 0) > 0) && (
+                            <div className="p-1.5 bg-white rounded-lg border border-[#EAE2D5] space-y-1.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[9px] font-bold uppercase text-[#7A6458]">
+                                  Angles ({getProductGalleryMedia(product).length + (product.variants?.length || 0)})
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleClearAllAnglesFromProduct(
+                                      product.id,
+                                      (product.variants?.length || 0) > 0
+                                    )
+                                  }
+                                  className="text-[9px] font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                                  title="Delete all extra angle photos, videos, and swatch angles for this bedsheet"
+                                >
+                                  <Trash2 className="w-2.5 h-2.5" />
+                                  <span>Delete All Angles</span>
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+                                {getProductGalleryMedia(product).map((angleUrl, aIdx) => (
+                                  <div
+                                    key={`inline-angle-${aIdx}`}
+                                    className="relative w-9 h-9 rounded-md overflow-hidden border border-[#EAE2D5] bg-zinc-900 shrink-0"
+                                  >
+                                    {isVideoMedia(angleUrl) ? (
+                                      <video src={angleUrl} muted playsInline className="w-full h-full object-cover" />
+                                    ) : (
+                                      <img
+                                        src={resolveBedsheetImage(angleUrl, product.id)}
+                                        alt={`Angle ${aIdx + 1}`}
+                                        onError={(e) => handleImageFallback(e, product.id)}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveGalleryMediaFromProduct(product.id, angleUrl)}
+                                      className="absolute top-0 right-0 w-4 h-4 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center rounded-bl text-[9px] font-bold cursor-pointer shadow-2xs"
+                                      title={`Delete Angle #${aIdx + 1}`}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                                {(product.variants || []).map((v, vIdx) => (
+                                  <div
+                                    key={`inline-var-${v.id || vIdx}`}
+                                    className="relative w-9 h-9 rounded-md overflow-hidden border border-[#FAD1DC] bg-[#FAF7F2] shrink-0"
+                                  >
+                                    <img
+                                      src={resolveBedsheetImage(v.image, product.id)}
+                                      alt={v.name || `Variant ${vIdx + 1}`}
+                                      onError={(e) => handleImageFallback(e, product.id)}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveVariant(product.id, v.id)}
+                                      className="absolute top-0 right-0 w-4 h-4 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center rounded-bl text-[9px] font-bold cursor-pointer shadow-2xs"
+                                      title={`Delete Variant Angle: ${v.name}`}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Media Count Breakdown (Admin Panel Only) */}
                           <div className="flex items-center gap-1 text-[10px] text-amber-900 bg-amber-50/90 border border-amber-200 px-2 py-0.5 rounded-md justify-center font-medium shadow-2xs">
@@ -2998,7 +3119,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         >
                           <Film className="w-3.5 h-3.5 text-[#C29E57]" />
                           <span>
-                            Photos &amp; Videos ({getProductGalleryMedia(product).length})
+                            Angles, Photos &amp; Videos ({getProductGalleryMedia(product).length + (product.variants?.length || 0)})
                           </span>
                           {getProductMediaCounts(product).videoCount > 0 && (
                             <span className="px-1.5 py-0.2 rounded-full bg-[#8C2E46] text-white text-[9px] font-bold">
@@ -3056,14 +3177,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <div>
                             <h4 className="text-xs font-bold text-[#2C2420] flex items-center gap-1.5">
                               <Film className="w-4 h-4 text-[#8C2E46]" />
-                              <span>Photos &amp; Videos Gallery for "{product.name}"</span>
+                              <span>Angles, Photos &amp; Videos Gallery for "{product.name}"</span>
                             </h4>
                             <p className="text-[11px] text-[#7A6458]">
-                              Upload extra angle photos, product showcase videos (MP4/WebM/MOV), or paste a video/image link.
+                              Upload or delete extra angle photos, product showcase videos (MP4/WebM/MOV), or paste a video/image link.
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <input
                               type="file"
                               multiple
@@ -3093,7 +3214,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               className="px-3 py-1.5 bg-[#FAF7F2] hover:bg-[#F4EFE6] border border-[#DEC89B] text-[#2C2420] text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
                             >
                               <ImageIcon className="w-3.5 h-3.5 text-[#C29E57]" />
-                              <span>+ Upload Photos</span>
+                              <span>+ Upload Angle Photos</span>
                             </button>
 
                             <button
@@ -3114,6 +3235,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 </>
                               )}
                             </button>
+
+                            {(getProductGalleryMedia(product).length > 0 || (product.variants?.length || 0) > 0) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleClearAllAnglesFromProduct(
+                                    product.id,
+                                    (product.variants?.length || 0) > 0
+                                  )
+                                }
+                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+                                title="Delete all extra angle photos, videos, and variant angles from this bedsheet"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                <span>Delete All Angles</span>
+                              </button>
+                            )}
                           </div>
                         </div>
 
@@ -3121,7 +3259,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-[#FAF7F2] p-2.5 rounded-xl border border-[#EAE2D5]">
                           <div className="flex items-center gap-1.5 text-xs font-semibold text-[#7A6458] shrink-0">
                             <LinkIcon className="w-3.5 h-3.5 text-[#8C2E46]" />
-                            <span>Add Video / Image URL:</span>
+                            <span>Add Video / Angle URL:</span>
                           </div>
                           <input
                             type="url"
@@ -3129,7 +3267,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             onChange={(e) =>
                               setGalleryUrlDrafts((prev) => ({ ...prev, [product.id]: e.target.value }))
                             }
-                            placeholder="https://.../product-video.mp4 or image link"
+                            placeholder="https://.../product-video.mp4 or angle image link"
                             className="flex-1 px-3 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
                           />
                           <button
@@ -3142,57 +3280,113 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </button>
                         </div>
 
-                        {/* Gallery Thumbnails Grid */}
+                        {/* Gallery Angle Thumbnails Grid */}
                         {getProductGalleryMedia(product).length > 0 ? (
-                          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                            {getProductGalleryMedia(product).map((mediaUrl, mIdx) => {
-                              const isVid = isVideoMedia(mediaUrl);
-                              return (
-                                <div
-                                  key={`${mediaUrl}-${mIdx}`}
-                                  className="relative group rounded-xl overflow-hidden border border-[#EAE2D5] bg-zinc-900 aspect-square flex flex-col justify-between"
-                                >
-                                  {isVid ? (
-                                    <video
-                                      src={mediaUrl}
-                                      controls
-                                      muted
-                                      playsInline
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <img
-                                      src={resolveBedsheetImage(mediaUrl, product.id)}
-                                      alt={`Angle ${mIdx + 1}`}
-                                      onError={handleImageFallback}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  )}
-                                  <span
-                                    className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                      isVid
-                                        ? 'bg-zinc-900/90 text-[#E6C687] border border-[#C29E57]/40'
-                                        : 'bg-black/70 text-white'
-                                    }`}
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-[#7A6458]">
+                              Extra Angle Photos &amp; Videos ({getProductGalleryMedia(product).length})
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                              {getProductGalleryMedia(product).map((mediaUrl, mIdx) => {
+                                const isVid = isVideoMedia(mediaUrl);
+                                return (
+                                  <div
+                                    key={`${mediaUrl}-${mIdx}`}
+                                    className="relative group rounded-xl overflow-hidden border border-[#EAE2D5] bg-zinc-900 flex flex-col justify-between"
                                   >
-                                    {isVid ? '▶ Video' : `Photo #${mIdx + 1}`}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveGalleryMediaFromProduct(product.id, mediaUrl)}
-                                    className="absolute top-1.5 right-1.5 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-xs opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                    title="Remove from gallery"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              );
-                            })}
+                                    <div className="relative aspect-square w-full overflow-hidden">
+                                      {isVid ? (
+                                        <video
+                                          src={mediaUrl}
+                                          controls
+                                          muted
+                                          playsInline
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <img
+                                          src={resolveBedsheetImage(mediaUrl, product.id)}
+                                          alt={`Angle ${mIdx + 1}`}
+                                          onError={(e) => handleImageFallback(e, product.id)}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      )}
+                                      <span
+                                        className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                          isVid
+                                            ? 'bg-zinc-900/90 text-[#E6C687] border border-[#C29E57]/40'
+                                            : 'bg-black/70 text-white'
+                                        }`}
+                                      >
+                                        {isVid ? '▶ Video' : `Angle #${mIdx + 1}`}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveGalleryMediaFromProduct(product.id, mediaUrl)}
+                                        className="absolute top-1.5 right-1.5 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-xs transition-opacity cursor-pointer"
+                                        title="Delete this angle"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveGalleryMediaFromProduct(product.id, mediaUrl)}
+                                      className="w-full py-1.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                      title="Delete this angle"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      <span>Delete Angle</span>
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         ) : (
                           <p className="text-xs text-[#8C7A70] italic">
-                            No extra angle photos or videos yet. Use "+ Upload Photos", "+ Upload Video", or paste a video link above.
+                            No extra gallery angle photos or videos yet. Use "+ Upload Angle Photos", "+ Upload Video", or paste a link above.
                           </p>
+                        )}
+
+                        {/* Also show Color Variant Angles here so all extra photos can be deleted in one place */}
+                        {product.variants && product.variants.length > 0 && (
+                          <div className="pt-3 border-t border-[#EAE2D5] space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C2E46]">
+                                Color Swatch Angles ({product.variants.length})
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                              {product.variants.map((variant, vIdx) => (
+                                <div
+                                  key={variant.id || vIdx}
+                                  className="relative group rounded-xl overflow-hidden border border-[#FAD1DC] bg-[#FAF7F2] flex flex-col justify-between"
+                                >
+                                  <div className="relative aspect-square w-full overflow-hidden">
+                                    <img
+                                      src={resolveBedsheetImage(variant.image, product.id)}
+                                      alt={variant.name || `Variant ${vIdx + 1}`}
+                                      onError={(e) => handleImageFallback(e, product.id)}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#2C2420]/80 text-white truncate max-w-[80%]">
+                                      {variant.name || `Angle #${vIdx + 1}`}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveVariant(product.id, variant.id)}
+                                    className="w-full py-1.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                    title={`Delete ${variant.name} angle`}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Delete Angle</span>
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}

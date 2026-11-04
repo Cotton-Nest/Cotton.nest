@@ -564,7 +564,7 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                   {additionalImages.length > 0 && (
                     <div className="mb-2.5 p-2 bg-white rounded-xl border border-[#EAE2D5]">
                       <p className="text-[10px] font-semibold text-[#8C7A70] uppercase mb-1.5 flex items-center justify-between">
-                        <span>Gallery Photos &amp; Videos ({additionalImages.length})</span>
+                        <span>Angles, Photos &amp; Videos ({additionalImages.length})</span>
                       </p>
                       <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
                         {additionalImages.map((extraUrl, extraIdx) => {
@@ -572,7 +572,7 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                           return (
                             <div
                               key={extraIdx}
-                              className="relative w-11 h-11 rounded-lg overflow-hidden border border-[#EAE2D5] shrink-0 group/extra bg-zinc-900"
+                              className="relative w-12 h-12 rounded-lg overflow-hidden border border-[#EAE2D5] shrink-0 group/extra bg-zinc-900"
                             >
                               {isVideo ? (
                                 <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900 text-white relative">
@@ -588,16 +588,17 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                                 <img
                                   src={resolveBedsheetImage(extraUrl, product.id)}
                                   alt="Detail shot"
+                                  onError={(e) => handleImageFallback(e, product.id)}
                                   className="w-full h-full object-cover"
                                 />
                               )}
                               <button
                                 type="button"
                                 onClick={() => handleRemoveGalleryImage(product.id, extraUrl)}
-                                className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover/extra:opacity-100 transition-opacity cursor-pointer z-10"
-                                title="Delete this media"
+                                className="absolute top-0.5 right-0.5 w-4 h-4 rounded bg-red-600 hover:bg-red-700 text-white flex items-center justify-center cursor-pointer z-10 shadow-2xs"
+                                title="Delete this angle"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-2.5 h-2.5" />
                               </button>
                             </div>
                           );

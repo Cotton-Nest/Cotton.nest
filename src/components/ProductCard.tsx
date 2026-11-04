@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell, Heart, ZoomIn, Sparkles, Play, Video, Film } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
@@ -91,9 +92,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <>
-    <article
+    <motion.article
       onClick={() => onQuickView(product)}
-      className={`group bg-[var(--color-surface,#FFFFFF)] rounded-2xl border overflow-hidden hover:border-[var(--color-accent,#C29E57)]/60 hover:shadow-md transition-all duration-300 flex flex-col cursor-pointer ${
+      initial={false}
+      whileHover={{
+        scale: 1.02,
+        y: -4,
+        boxShadow: '0 20px 38px -10px rgba(44, 36, 32, 0.16), 0 8px 18px -6px rgba(194, 158, 87, 0.14)',
+      }}
+      whileTap={{ scale: 0.995 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 24, mass: 0.8 }}
+      className={`group bg-[var(--color-surface,#FFFFFF)] rounded-2xl border overflow-hidden hover:border-[var(--color-accent,#C29E57)]/60 shadow-xs transition-colors duration-300 flex flex-col cursor-pointer ${
         isOutOfStock ? 'opacity-75 border-amber-200' : 'border-[var(--color-border,#EAE2D5)]'
       }`}
     >
@@ -425,7 +434,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </div>
 
       </div>
-    </article>
+    </motion.article>
 
     {/* Fabric Weave Detail Modal */}
     <FabricInspectorModal
