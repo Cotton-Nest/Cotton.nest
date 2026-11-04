@@ -20,7 +20,10 @@ import {
   Layers,
   Box,
   Percent,
-  Sliders
+  Sliders,
+  Square,
+  Grid2X2,
+  List
 } from 'lucide-react';
 import {
   BedsheetProduct,
@@ -33,8 +36,10 @@ import {
   normalizeProductCategory,
   doesProductMatchCategory,
 } from '../data/products';
-import { ProductCard } from './ProductCard';
+import { ProductCard, ProductCardViewMode } from './ProductCard';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
+
+export type CatalogueViewMode = ProductCardViewMode;
 
 interface CatalogueViewProps {
   products?: BedsheetProduct[];
@@ -120,6 +125,28 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'featured' | 'price-low' | 'price-high' | 'rating' | 'newest'>('featured');
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
+
+  // View mode state: 'single' (default: 1 bedsheet view at a time), 'tile', or 'list'
+  const [viewMode, setViewMode] = useState<CatalogueViewMode>(() => {
+    try {
+      const saved = localStorage.getItem('cotton_nest_catalogue_view_mode');
+      if (saved === 'single' || saved === 'tile' || saved === 'list') {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'single'; // By default keep it one bedsheet view at a time instead of 2 bedsheets
+  });
+
+  const handleViewModeChange = (mode: CatalogueViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('cotton_nest_catalogue_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
 
   // Multi-select Filters State
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
@@ -736,13 +763,82 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           </div>
         )}
 
-        {/* 5. Products Grid (2-column on mobile, 3-4 columns desktop, matching Screenshot 2) */}
+        {/* 5. View Mode Switcher & Count Header */}
+        <div className="flex items-center justify-between gap-3 pb-3 mb-4 border-b border-[#DEC89B]/50 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm sm:text-base text-[#2C2420]">
+              {filteredProducts.length} {filteredProducts.length === 1 ? 'Product' : 'Products'}
+            </span>
+            {activeFiltersCount > 0 && (
+              <span className="text-[11px] text-[#8C7A70] bg-[#FAF7F2] px-2 py-0.5 rounded-md border border-[#EAE2D5]">
+                {activeFiltersCount} active filter{activeFiltersCount > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {/* View mode toggle buttons: 1 View (Single bedsheet at a time), Tile (Grid), List (Row) */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#DEC89B] shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('single')}
+              title="1 View (One bedsheet at a time)"
+              aria-label="1 View"
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === 'single'
+                  ? 'bg-[#8C2E46] text-white shadow-xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#FAF7F2]'
+              }`}
+            >
+              <Square className="w-3.5 h-3.5" />
+              <span className="text-[11px]">1 View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('tile')}
+              title="Tile View (Grid view)"
+              aria-label="Tile View"
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === 'tile'
+                  ? 'bg-[#8C2E46] text-white shadow-xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#FAF7F2]'
+              }`}
+            >
+              <Grid2X2 className="w-3.5 h-3.5" />
+              <span className="text-[11px]">Tile</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('list')}
+              title="List View (Horizontal cards)"
+              aria-label="List View"
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-[#8C2E46] text-white shadow-xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#FAF7F2]'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="text-[11px]">List</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 6. Products Container (Single: 1 bedsheet view at a time / Tile: 2 on mobile, 3-4 on desktop / List: row cards) */}
         {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+          <div
+            className={
+              viewMode === 'single'
+                ? 'grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto'
+                : viewMode === 'list'
+                ? 'flex flex-col space-y-4 max-w-4xl mx-auto'
+                : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6'
+            }
+          >
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
+                viewMode={viewMode}
                 onQuickView={onQuickView}
                 onAddToCart={onAddToCart}
                 isAdded={addedProductIds.has(product.id)}

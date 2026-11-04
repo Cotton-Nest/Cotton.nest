@@ -8,6 +8,8 @@ import { ProductReview, getProductRatingSummary } from '../data/reviews';
 import { isCloudinaryUrl, isVideoMedia, getProductMediaCounts } from '../services/cloudinary';
 import { FabricInspectorModal } from './FabricInspectorModal';
 
+export type ProductCardViewMode = 'single' | 'tile' | 'list';
+
 interface ProductCardProps {
   product: BedsheetProduct;
   onQuickView: (product: BedsheetProduct, editMode?: boolean) => void;
@@ -23,6 +25,7 @@ interface ProductCardProps {
   onNotifyStock?: (product: BedsheetProduct) => void;
   isWishlisted?: boolean;
   onToggleWishlist?: (product: BedsheetProduct, variant?: BedsheetVariant) => void;
+  viewMode?: ProductCardViewMode;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -40,6 +43,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onNotifyStock,
   isWishlisted = false,
   onToggleWishlist,
+  viewMode = 'single',
 }) => {
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -102,13 +106,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       }}
       whileTap={{ scale: 0.995 }}
       transition={{ type: 'spring', stiffness: 320, damping: 24, mass: 0.8 }}
-      className={`group bg-[var(--color-surface,#FFFFFF)] rounded-2xl border overflow-hidden hover:border-[var(--color-accent,#C29E57)]/60 shadow-xs transition-colors duration-300 flex flex-col cursor-pointer ${
+      className={`group bg-[var(--color-surface,#FFFFFF)] rounded-2xl border overflow-hidden hover:border-[var(--color-accent,#C29E57)]/60 shadow-xs transition-colors duration-300 cursor-pointer ${
+        viewMode === 'list' ? 'flex flex-col sm:flex-row' : 'flex flex-col'
+      } ${
+        viewMode === 'single' ? 'sm:rounded-3xl shadow-sm' : ''
+      } ${
         isOutOfStock ? 'opacity-75 border-amber-200' : 'border-[var(--color-border,#EAE2D5)]'
       }`}
     >
       {/* Product Image / Video Slot with Fabric Weave Hover Zoom */}
       <div
-        className="relative aspect-[4/3] bg-[#F4EFE6] overflow-hidden"
+        className={`relative bg-[#F4EFE6] overflow-hidden shrink-0 ${
+          viewMode === 'list'
+            ? 'w-full sm:w-72 md:w-80 aspect-[4/3] sm:aspect-auto sm:min-h-[240px]'
+            : viewMode === 'single'
+            ? 'aspect-[4/3] sm:aspect-[16/10]'
+            : 'aspect-[4/3]'
+        }`}
         onMouseEnter={() => !isDisplayVideo && setIsHoverZooming(true)}
         onMouseLeave={() => setIsHoverZooming(false)}
         onMouseMove={(e) => {
@@ -282,21 +296,36 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </div>
 
       {/* Card Content & Metadata */}
-      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
-        
+      <div
+        className={`flex-1 flex flex-col justify-between ${
+          viewMode === 'list'
+            ? 'p-4 sm:p-6 space-y-3'
+            : viewMode === 'single'
+            ? 'p-4 sm:p-6 space-y-3.5'
+            : 'p-3 sm:p-4 space-y-2.5'
+        }`}
+      >
         <div>
           {/* Collection & Fabric specs */}
           <div className="flex items-center justify-between text-xs text-[#7A6458] mb-1.5 font-medium tracking-wide">
-            <span className="uppercase text-[11px] text-[var(--color-accent,#C29E57)] font-semibold">
+            <span className="uppercase text-[11px] text-[var(--color-accent,#C29E57)] font-semibold truncate max-w-[140px] sm:max-w-none">
               {product.collection || 'Signature Cotton'}
             </span>
-            <span className="text-[11px] text-[#8C7A70]">
-              {product.threadCount || '300 TC'} · {product.dimensions ? (product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions) : '108 x 108 inches'}
+            <span className="text-[11px] text-[#8C7A70] shrink-0">
+              {product.threadCount || '300 TC'} · {product.dimensions ? (product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions) : '108 x 108 in'}
             </span>
           </div>
 
           {/* Product Title */}
-          <h3 className="font-serif-luxury text-xl font-medium tracking-tight text-[var(--color-text,#2C2420)] line-clamp-1 group-hover:text-[var(--color-primary,#70252D)] transition-colors">
+          <h3
+            className={`font-serif-luxury font-medium tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors line-clamp-1 ${
+              viewMode === 'single'
+                ? 'text-xl sm:text-2xl'
+                : viewMode === 'list'
+                ? 'text-lg sm:text-xl'
+                : 'text-base sm:text-lg'
+            }`}
+          >
             {product.name}
           </h3>
 
@@ -312,10 +341,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {/* Color Variants Swatches */}
           {product.variants && product.variants.length > 0 && (
             <div className="flex items-center gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-              <span className="text-[11px] text-[#8C7A70] uppercase font-semibold">
+              <span className="text-[11px] text-[#8C7A70] uppercase font-semibold shrink-0">
                 {activeVariant ? activeVariant.name : `${product.variants.length} Colors`}:
               </span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {product.variants.map((v) => (
                   <button
                     key={v.id}
@@ -339,7 +368,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           )}
 
           {/* Clean Description */}
-          <p className="text-xs text-[#6B5D55] line-clamp-2 mt-1.5 leading-relaxed font-normal">
+          <p
+            className={`text-[#6B5D55] mt-1.5 leading-relaxed font-normal ${
+              viewMode === 'single'
+                ? 'text-xs sm:text-sm line-clamp-2 sm:line-clamp-3'
+                : viewMode === 'list'
+                ? 'text-xs line-clamp-2'
+                : 'text-[11px] sm:text-xs line-clamp-2'
+            }`}
+          >
             {product.description}
           </p>
         </div>
@@ -348,7 +385,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="pt-2 border-t border-[#EAE2D5]/70 space-y-2">
           <div className="flex items-baseline justify-between">
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold text-[#2C2420] tabular-nums tracking-tight">
+              <span
+                className={`font-bold text-[#2C2420] tabular-nums tracking-tight ${
+                  viewMode === 'single' ? 'text-2xl sm:text-3xl' : 'text-xl'
+                }`}
+              >
                 ₹{currPrice.toLocaleString('en-IN')}
               </span>
               {origPrice > currPrice && (
@@ -370,14 +411,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <Truck className="w-3.5 h-3.5 text-[#3E7D5A]" />
               Free Sec 46 Gurgaon Delivery
             </span>
-            <span className="text-[#8C2E46] font-medium hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); onQuickView(product); }}>
+            <span
+              className="text-[#8C2E46] font-medium hover:underline cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickView(product);
+              }}
+            >
               48h Defect Exchange
             </span>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="pt-1 grid grid-cols-2 gap-2">
+        <div className={`pt-1 grid gap-2 ${viewMode === 'list' ? 'grid-cols-2 max-w-sm' : 'grid-cols-2'}`}>
           {/* Add to Bag or Out of Stock Notify */}
           {isOutOfStock ? (
             <button
