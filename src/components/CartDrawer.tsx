@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
 import { saveOrder, getCouponsApi, validateCouponApi, recordCouponUseApi } from '../services/api';
 import { sendWhatsAppCartOrder } from '../utils/whatsappOrder';
 import { useAuth } from '../context/AuthContext';
+import { useLoyalty } from '../context/LoyaltyContext';
+import { calculateEarnedPoints, calculatePointsDiscount, LOYALTY_EARNING_RATE_INR, LOYALTY_POINT_VALUE_INR } from '../data/loyalty';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
 
@@ -36,6 +38,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onViewLiveOrders,
 }) => {
   const { user } = useAuth();
+  const { pointsBalance, earnPoints, redeemPoints, refreshLoyalty, openLoyaltyModal } = useLoyalty();
   const [checkoutStep, setCheckoutStep] = React.useState<'cart' | 'checkout' | 'success'>('cart');
   const [customerName, setCustomerName] = React.useState('');
   const [customerPhone, setCustomerPhone] = React.useState('');
@@ -47,7 +50,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     total: number;
     summary: string;
     whatsappUrl: string;
+    pointsEarned?: number;
+    pointsUsed?: number;
+    pointsDiscount?: number;
   } | null>(null);
+
+  // Loyalty Points State
+  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState<boolean>(false);
 
   // Coupon & Offer State
   const [couponCodeInput, setCouponCodeInput] = useState('');
@@ -154,9 +163,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const catalogSavings = Math.max(0, originalSubtotal - subtotal);
   const effectiveCouponDiscount = couponDiscount || 0;
-  const totalSavings = catalogSavings + effectiveCouponDiscount;
+
+  // Loyalty points discount calculation: 1 point = 1 Rupee discount at checkout
+  const maxRedeemablePoints = Math.min(
+    Math.max(0, pointsBalance),
+    Math.max(0, subtotal - effectiveCouponDiscount)
+  );
+  const pointsToRedeem = useLoyaltyPoints ? maxRedeemablePoints : 0;
+  const effectivePointsDiscount = calculatePointsDiscount(pointsToRedeem);
+
+  const totalSavings = catalogSavings + effectiveCouponDiscount + effectivePointsDiscount;
   const shippingCost = shippingOption === 'india' ? 100 : 0;
-  const finalTotal = Math.max(0, subtotal - effectiveCouponDiscount) + shippingCost;
+  const finalTotal = Math.max(0, subtotal - effectiveCouponDiscount - effectivePointsDiscount) + shippingCost;
+  const pointsToEarn = calculateEarnedPoints(finalTotal); // 1 point for every 50 Rs spent
 
   // Auto-apply or re-validate coupons when bag items or subtotal change
   useEffect(() => {
@@ -282,6 +301,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       totalSavings,
       couponCode: appliedCoupon?.code,
       couponDiscount: effectiveCouponDiscount,
+      pointsUsed: pointsToRedeem,
+      pointsDiscount: effectivePointsDiscount,
+      pointsEarned: pointsToEarn,
       shippingMethod: shippingLabel,
       shippingCost,
       items: validItems.map((i) => ({
@@ -310,6 +332,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       totalSavings,
       couponCode: appliedCoupon?.code,
       couponDiscount: effectiveCouponDiscount,
+      pointsUsed: pointsToRedeem > 0 ? pointsToRedeem : undefined,
+      pointsDiscount: effectivePointsDiscount > 0 ? effectivePointsDiscount : undefined,
+      pointsEarned: pointsToEarn > 0 ? pointsToEarn : undefined,
       notes: customerNotes.trim() || undefined,
       items: validItems.map((i) => {
         const pName = i?.product?.name || 'Handcrafted Bedsheet';
@@ -332,6 +357,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       console.warn('saveOrder notice:', err);
     }
 
+    // 1. Process loyalty points redemption if applied
+    if (pointsToRedeem > 0) {
+      try {
+        await redeemPoints(pointsToRedeem, orderId, customerPhone.trim());
+      } catch (err) {
+        console.warn('Loyalty points redeem notice:', err);
+      }
+    }
+
+    // 2. Credit earned loyalty points (1 point every 50 Rs spent)
+    if (pointsToEarn > 0) {
+      try {
+        await earnPoints(finalTotal, orderId, customerPhone.trim());
+      } catch (err) {
+        console.warn('Loyalty points earn notice:', err);
+      }
+    }
+
     // Record coupon usage in Firestore/backend if coupon was applied
     if (appliedCoupon) {
       recordCouponUseApi(appliedCoupon.id, customerPhone.trim() || user?.email).catch(() => {});
@@ -343,9 +386,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
     setLastOrderDetails({
       orderId,
-      total: subtotal,
+      total: finalTotal,
       summary: fullMessage,
       whatsappUrl: waUrl,
+      pointsEarned: pointsToEarn,
+      pointsUsed: pointsToRedeem,
+      pointsDiscount: effectivePointsDiscount,
     });
 
     setCheckoutStep('success');
@@ -800,6 +846,33 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </p>
               </div>
 
+              {/* Loyalty Points Earned / Redeemed Feedback */}
+              <div className="p-3.5 bg-gradient-to-r from-amber-50 to-[#FAF7F2] rounded-2xl border border-amber-200 text-left text-xs space-y-1.5 shadow-2xs">
+                <div className="flex items-center justify-between font-bold text-amber-950">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-[#C29E57]" />
+                    <span>Royal Club Loyalty Rewards</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={openLoyaltyModal}
+                    className="text-[11px] font-bold text-[#8C2E46] underline cursor-pointer"
+                  >
+                    View Wallet &amp; Perks
+                  </button>
+                </div>
+                {Boolean(lastOrderDetails.pointsEarned && lastOrderDetails.pointsEarned > 0) && (
+                  <p className="text-[11px] text-amber-900 font-semibold">
+                    🎁 +{lastOrderDetails.pointsEarned} Points earned on this purchase! (1 pt / ₹50)
+                  </p>
+                )}
+                {Boolean(lastOrderDetails.pointsUsed && lastOrderDetails.pointsUsed > 0) && (
+                  <p className="text-[11px] text-emerald-800 font-medium">
+                    ✨ {lastOrderDetails.pointsUsed} Points redeemed for ₹{lastOrderDetails.pointsDiscount} instant cash discount.
+                  </p>
+                )}
+              </div>
+
               <a
                 href={lastOrderDetails.whatsappUrl}
                 target="_blank"
@@ -1010,6 +1083,64 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               )}
             </div>
 
+            {/* Loyalty Points Rewards & Checkout Redemption Module */}
+            <div className="p-3 bg-gradient-to-r from-amber-50/80 to-[#FAF7F2] rounded-2xl border border-amber-200/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#2C2420] flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-[#C29E57]" />
+                  <span>Loyalty Points Rewards</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={openLoyaltyModal}
+                  className="text-[11px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-0.5"
+                >
+                  <Sparkles className="w-3 h-3 text-[#C29E57]" />
+                  <span>Rules &amp; Wallet</span>
+                </button>
+              </div>
+
+              {pointsBalance > 0 ? (
+                <div className="p-2.5 bg-white rounded-xl border border-amber-300 text-xs space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-[#2C2420] flex items-center gap-1.5">
+                        <span>Available Balance:</span>
+                        <span className="text-amber-800 font-mono">{pointsBalance} pts</span>
+                      </span>
+                      <p className="text-[10px] text-[#7A6458]">
+                        Worth ₹{calculatePointsDiscount(pointsBalance)} discount (1 pt = ₹1)
+                      </p>
+                    </div>
+
+                    <label className="flex items-center gap-1.5 cursor-pointer bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={useLoyaltyPoints}
+                        onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
+                        className="accent-[#70252D] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-[#70252D]">
+                        {useLoyaltyPoints ? 'Applied' : 'Redeem Points'}
+                      </span>
+                    </label>
+                  </div>
+
+                  {useLoyaltyPoints && (
+                    <div className="pt-1.5 border-t border-amber-100 flex items-center justify-between text-[11px] text-emerald-800 font-semibold">
+                      <span>✓ Redeeming {pointsToRedeem} points:</span>
+                      <span>-₹{effectivePointsDiscount.toLocaleString('en-IN')} off</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-2 bg-white/70 rounded-xl border border-[#EAE2D5] text-[11px] text-[#7A6458] flex items-center justify-between">
+                  <span>Earn <strong>1 point for every ₹{LOYALTY_EARNING_RATE_INR}</strong> spent.</span>
+                  <span className="font-semibold text-amber-800">1 pt = ₹{LOYALTY_POINT_VALUE_INR} off</span>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-1 text-xs">
               <div className="flex justify-between text-[#7A6458]">
                 <span>Items Subtotal</span>
@@ -1030,6 +1161,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <span>-₹{effectiveCouponDiscount.toLocaleString('en-IN')}</span>
                 </div>
               )}
+              {effectivePointsDiscount > 0 && (
+                <div className="flex justify-between text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-semibold">
+                  <span className="flex items-center gap-1">
+                    <Award className="w-3 h-3 text-[#A8823B]" />
+                    <span>Loyalty Points ({pointsToRedeem} pts)</span>
+                  </span>
+                  <span>-₹{effectivePointsDiscount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
               <div className="flex justify-between text-[#7A6458]">
                 <span className="flex items-center gap-1">
                   <Truck className="w-3 h-3 text-[#B83F60]" />
@@ -1042,6 +1182,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <div className="flex justify-between text-sm font-bold text-[#2C2420] pt-1.5 border-t border-[#EAE2D5]">
                 <span>Order Total</span>
                 <span className="text-base text-[#8C2E46]">₹{finalTotal.toLocaleString('en-IN')}</span>
+              </div>
+
+              {/* Earn Points Preview Banner (1 pt per 50 Rs) */}
+              <div className="mt-2 p-2 rounded-xl bg-amber-50/80 border border-amber-200/90 flex items-center justify-between text-[11px] text-amber-900 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+                  <span>Points to Earn on this Purchase:</span>
+                </span>
+                <span className="font-bold text-amber-950">+{pointsToEarn} pts (1 pt / ₹50)</span>
               </div>
             </div>
 

@@ -29,6 +29,7 @@ export function resolveBedsheetImage(src?: string | null, productId?: string, up
   // Self-contained data URLs and remote URLs
   if (
     trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('data:video/') ||
     trimmed.startsWith('blob:') ||
     trimmed.startsWith('http://') ||
     trimmed.startsWith('https://')

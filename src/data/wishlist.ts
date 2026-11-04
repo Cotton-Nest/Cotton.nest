@@ -25,6 +25,8 @@ export interface CustomerProfile {
   email?: string;
   phone?: string;
   address?: string;
+  city?: string;
+  pincode?: string;
   isGuest?: boolean;
 }
 

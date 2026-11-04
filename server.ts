@@ -11,6 +11,7 @@ import { INITIAL_REVIEWS } from './src/data/reviews.ts';
 import { INITIAL_SEASONAL_CONFIG } from './src/data/seasonal.ts';
 import { INITIAL_COUPONS, CouponOffer } from './src/data/coupons.ts';
 import { WishlistItem } from './src/data/wishlist.ts';
+import { LoyaltyAccount, LoyaltyTransaction, calculateEarnedPoints, calculatePointsDiscount, sanitizeLoyaltyKey } from './src/data/loyalty.ts';
 import { generateProductDescription } from './api/ai-description.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,6 +33,8 @@ interface StoreDatabase {
   seasonalConfig?: any;
   coupons?: CouponOffer[];
   wishlists?: WishlistItem[];
+  loyaltyAccounts?: Record<string, LoyaltyAccount>;
+  loyaltyTransactions?: LoyaltyTransaction[];
 }
 
 function initDatabase(): StoreDatabase {
@@ -45,6 +48,34 @@ function initDatabase(): StoreDatabase {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.products)) {
         let needsSave = false;
+        // Ensure all products have size, productType, and brand
+        parsed.products = parsed.products.map((p: any) => {
+          let modified = false;
+          const updated = { ...p };
+          if (!updated.size) {
+            updated.size = 'King';
+            modified = true;
+          }
+          if (!updated.productType) {
+            updated.productType = 'Bedsheet';
+            modified = true;
+          }
+          if (!updated.brand) {
+            updated.brand = 'Cotton Nest';
+            modified = true;
+          }
+          if (modified) needsSave = true;
+          return updated;
+        });
+
+        // Ensure newly added catalog items (e.g. blanket, comforter) are present if missing
+        for (const defaultItem of BEDSHEETS_CATALOG) {
+          if (!parsed.products.some((p: any) => p.id === defaultItem.id)) {
+            parsed.products.push(defaultItem);
+            needsSave = true;
+          }
+        }
+
         if (!parsed.reviews || !Array.isArray(parsed.reviews)) {
           parsed.reviews = INITIAL_REVIEWS;
           needsSave = true;
@@ -59,6 +90,14 @@ function initDatabase(): StoreDatabase {
         }
         if (!parsed.wishlists || !Array.isArray(parsed.wishlists)) {
           parsed.wishlists = [];
+          needsSave = true;
+        }
+        if (!parsed.loyaltyAccounts || typeof parsed.loyaltyAccounts !== 'object') {
+          parsed.loyaltyAccounts = {};
+          needsSave = true;
+        }
+        if (!parsed.loyaltyTransactions || !Array.isArray(parsed.loyaltyTransactions)) {
+          parsed.loyaltyTransactions = [];
           needsSave = true;
         }
         if (needsSave) {
@@ -84,6 +123,8 @@ function initDatabase(): StoreDatabase {
     seasonalConfig: INITIAL_SEASONAL_CONFIG,
     coupons: INITIAL_COUPONS,
     wishlists: [],
+    loyaltyAccounts: {},
+    loyaltyTransactions: [],
   };
 
   try {
@@ -290,18 +331,23 @@ async function startServer() {
     }
   });
 
-  // Dedicated image upload API with primary Cloudinary support
+  // Dedicated media (image & video) upload API with primary Cloudinary support
   app.post('/api/upload', async (req, res) => {
     try {
-      const { image, productId, public_id } = req.body || {};
-      if (!image || typeof image !== 'string') {
-        return res.status(400).json({ error: 'Image data is required' });
+      const { image, media, productId, public_id, resource_type } = req.body || {};
+      const mediaData = media || image;
+      if (!mediaData || typeof mediaData !== 'string') {
+        return res.status(400).json({ error: 'Media data is required' });
       }
 
       // If already a Cloudinary URL or remote HTTPS URL, return directly
-      if (image.startsWith('https://res.cloudinary.com/') || image.startsWith('http://') || image.startsWith('https://')) {
-        return res.json({ url: image, provider: 'cloudinary' });
+      if (mediaData.startsWith('https://res.cloudinary.com/') || mediaData.startsWith('http://') || mediaData.startsWith('https://')) {
+        return res.json({ url: mediaData, provider: 'cloudinary' });
       }
+
+      const isVideo = resource_type === 'video' ||
+        mediaData.startsWith('data:video/') ||
+        /\.(mp4|webm|mov|m4v|ogg)($|\?)/i.test(mediaData);
 
       // Try uploading to Cloudinary first
       const config = initCloudinary();
@@ -309,14 +355,17 @@ async function startServer() {
         try {
           const uploadOptions: any = {
             folder: 'cotton_nest/bedsheets',
-            resource_type: 'image',
+            resource_type: isVideo ? 'video' : 'auto',
             overwrite: true,
             tags: ['cotton_nest', productId ? `product_${productId}` : 'general_sheet'],
-            transformation: [
+          };
+
+          if (!isVideo) {
+            uploadOptions.transformation = [
               { quality: 'auto:good' },
               { fetch_format: 'auto' }
-            ]
-          };
+            ];
+          }
 
           if (public_id) {
             uploadOptions.public_id = public_id;
@@ -325,7 +374,7 @@ async function startServer() {
             uploadOptions.public_id = `sheet_${sanitized}_${Date.now()}`;
           }
 
-          const result = await cloudinary.uploader.upload(image, uploadOptions);
+          const result = await cloudinary.uploader.upload(mediaData, uploadOptions);
           return res.json({
             url: result.secure_url,
             public_id: result.public_id,
@@ -333,6 +382,7 @@ async function startServer() {
             width: result.width,
             height: result.height,
             format: result.format,
+            resource_type: result.resource_type || (isVideo ? 'video' : 'image'),
           });
         } catch (cloudErr: any) {
           console.warn('Cloudinary upload had an issue, falling back to permanent server storage:', cloudErr.message);
@@ -340,7 +390,20 @@ async function startServer() {
       }
 
       // Guaranteed local fallback if Cloudinary encounters network or quota limits
-      const matches = image.match(/^data:image\/([a-zA-Z0-9-+.]+);base64,(.+)$/);
+      const videoMatches = mediaData.match(/^data:video\/([a-zA-Z0-9-+.]+);base64,(.+)$/);
+      if (videoMatches) {
+        const ext = videoMatches[1] === 'quicktime' ? 'mov' : (videoMatches[1] || 'mp4');
+        const filename = `sheet_${(productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.${ext}`;
+        const filepath = path.join(UPLOADS_DIR, filename);
+        fs.writeFileSync(filepath, Buffer.from(videoMatches[2], 'base64'));
+        return res.json({
+          url: `/uploads/${filename}`,
+          provider: 'server',
+          resource_type: 'video',
+        });
+      }
+
+      const matches = mediaData.match(/^data:image\/([a-zA-Z0-9-+.]+);base64,(.+)$/);
       if (matches) {
         const ext = matches[1] === 'jpeg' ? 'jpg' : (matches[1] || 'jpg');
         const filename = `sheet_${(productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.${ext}`;
@@ -349,13 +412,14 @@ async function startServer() {
         return res.json({
           url: `/uploads/${filename}`,
           provider: 'server',
+          resource_type: 'image',
         });
       }
 
-      res.status(400).json({ error: 'Invalid image format provided' });
+      res.status(400).json({ error: 'Invalid media format provided' });
     } catch (err: any) {
-      console.error('Failed to process image upload:', err);
-      res.status(500).json({ error: err.message || 'Failed to save image' });
+      console.error('Failed to process media upload:', err);
+      res.status(500).json({ error: err.message || 'Failed to save media' });
     }
   });
 
@@ -1037,6 +1101,133 @@ async function startServer() {
     );
     saveDatabase();
     res.json({ success: true });
+  });
+
+  /* ------------------- LOYALTY POINTS & REWARDS API ------------------- */
+  // 1 point for every 50 Rs spent; 1 point = 1 Rupee discount at checkout
+
+  // 1. Get loyalty account balance and metadata
+  app.get('/api/loyalty/:id', (req, res) => {
+    const rawId = req.params.id;
+    const accountId = sanitizeLoyaltyKey(rawId);
+    if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
+
+    let account = db.loyaltyAccounts[accountId];
+    if (!account) {
+      account = {
+        id: accountId,
+        pointsBalance: 0,
+        lifetimeEarned: 0,
+        lifetimeSpent: 0,
+        updatedAt: Date.now(),
+      };
+      db.loyaltyAccounts[accountId] = account;
+      saveDatabase();
+    }
+
+    res.json(account);
+  });
+
+  // 2. Earn loyalty points on purchase (1 pt per 50 Rs)
+  app.post('/api/loyalty/earn', (req, res) => {
+    const { accountId: rawId, points, amountInr, orderId, account, tx } = req.body || {};
+    const accountId = sanitizeLoyaltyKey(rawId);
+
+    if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
+    if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
+
+    const calculatedPoints = typeof points === 'number' ? points : calculateEarnedPoints(amountInr || 0);
+    const existing = db.loyaltyAccounts[accountId] || {
+      id: accountId,
+      pointsBalance: 0,
+      lifetimeEarned: 0,
+      lifetimeSpent: 0,
+      updatedAt: Date.now(),
+    };
+
+    const updatedAccount: LoyaltyAccount = {
+      ...existing,
+      ...(account || {}),
+      id: accountId,
+      pointsBalance: (existing.pointsBalance || 0) + calculatedPoints,
+      lifetimeEarned: (existing.lifetimeEarned || 0) + calculatedPoints,
+      updatedAt: Date.now(),
+    };
+
+    db.loyaltyAccounts[accountId] = updatedAccount;
+
+    const transaction: LoyaltyTransaction = tx || {
+      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      accountId,
+      orderId: orderId || 'order_unknown',
+      type: 'earned',
+      points: calculatedPoints,
+      amountInr: amountInr || 0,
+      description: `Earned on Order #${orderId || ''} (1 pt / ₹50)`,
+      createdAt: Date.now(),
+    };
+
+    db.loyaltyTransactions.unshift(transaction);
+    saveDatabase();
+
+    res.json({ account: updatedAccount, tx: transaction, pointsEarned: calculatedPoints });
+  });
+
+  // 3. Redeem loyalty points as checkout discount
+  app.post('/api/loyalty/redeem', (req, res) => {
+    const { accountId: rawId, points, discountInr, orderId, account, tx } = req.body || {};
+    const accountId = sanitizeLoyaltyKey(rawId);
+
+    if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
+    if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
+
+    const existing = db.loyaltyAccounts[accountId] || {
+      id: accountId,
+      pointsBalance: 0,
+      lifetimeEarned: 0,
+      lifetimeSpent: 0,
+      updatedAt: Date.now(),
+    };
+
+    const pointsToDeduct = Math.min(existing.pointsBalance || 0, Math.max(0, Number(points) || 0));
+    const effectiveDiscount = discountInr !== undefined ? discountInr : calculatePointsDiscount(pointsToDeduct);
+
+    const updatedAccount: LoyaltyAccount = {
+      ...existing,
+      ...(account || {}),
+      id: accountId,
+      pointsBalance: Math.max(0, (existing.pointsBalance || 0) - pointsToDeduct),
+      lifetimeSpent: (existing.lifetimeSpent || 0) + pointsToDeduct,
+      updatedAt: Date.now(),
+    };
+
+    db.loyaltyAccounts[accountId] = updatedAccount;
+
+    const transaction: LoyaltyTransaction = tx || {
+      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      accountId,
+      orderId: orderId || 'order_unknown',
+      type: 'redeemed',
+      points: -pointsToDeduct,
+      amountInr: effectiveDiscount,
+      description: `Redeemed for ₹${effectiveDiscount} discount on Order #${orderId || ''}`,
+      createdAt: Date.now(),
+    };
+
+    db.loyaltyTransactions.unshift(transaction);
+    saveDatabase();
+
+    res.json({ account: updatedAccount, tx: transaction, discountInr: effectiveDiscount });
+  });
+
+  // 4. Get transactions ledger for an account
+  app.get('/api/loyalty/:id/transactions', (req, res) => {
+    const rawId = req.params.id;
+    const accountId = sanitizeLoyaltyKey(rawId);
+    if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
+
+    const userTxs = db.loyaltyTransactions.filter((t) => t.accountId === accountId);
+    res.json(userTxs);
   });
 
   // Reset database back to default factory settings

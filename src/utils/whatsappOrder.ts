@@ -255,6 +255,9 @@ export interface CartOrderPayload {
   totalSavings?: number;
   couponCode?: string;
   couponDiscount?: number;
+  pointsUsed?: number;
+  pointsDiscount?: number;
+  pointsEarned?: number;
   shippingMethod?: string;
   shippingCost?: number;
   items: Array<{
@@ -286,7 +289,8 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
     : `CN-${payload.orderId}`;
 
   const couponDiscount = payload.couponDiscount || 0;
-  const finalTotal = Math.max(0, payload.subtotal - couponDiscount) + (payload.shippingCost || 0);
+  const pointsDiscount = payload.pointsDiscount || 0;
+  const finalTotal = Math.max(0, payload.subtotal - couponDiscount - pointsDiscount) + (payload.shippingCost || 0);
 
   const customerLines = [
     `* Name: ${payload.customerName}`,
@@ -312,6 +316,10 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
     messageLines.push(`🎟️ Coupon Applied: ${payload.couponCode} (-₹${couponDiscount.toLocaleString('en-IN')})`);
   }
 
+  if (payload.pointsUsed && payload.pointsUsed > 0 && pointsDiscount > 0) {
+    messageLines.push(`✨ Loyalty Points Redeemed: ${payload.pointsUsed} pts (-₹${pointsDiscount.toLocaleString('en-IN')})`);
+  }
+
   if (payload.shippingCost && payload.shippingCost > 0) {
     messageLines.push(`🚚 Shipping: +₹${payload.shippingCost.toLocaleString('en-IN')}`);
   } else if (payload.shippingMethod) {
@@ -320,8 +328,12 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
 
   messageLines.push(`💰 Final Total: ₹${finalTotal.toLocaleString('en-IN')}`);
 
+  if (payload.pointsEarned && payload.pointsEarned > 0) {
+    messageLines.push(`🎁 Loyalty Points Earned: +${payload.pointsEarned} pts (1 pt per ₹50)`);
+  }
+
   if (payload.totalSavings && payload.totalSavings > 0) {
-    const totalAllSavings = payload.totalSavings + couponDiscount;
+    const totalAllSavings = payload.totalSavings + couponDiscount + pointsDiscount;
     messageLines.push(`(Total Savings: ₹${totalAllSavings.toLocaleString('en-IN')})`);
   }
 

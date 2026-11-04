@@ -1,8 +1,9 @@
 import React from 'react';
-import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, Heart } from 'lucide-react';
+import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, Heart, Award } from 'lucide-react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
 import { useAuth } from '../context/AuthContext';
+import { useLoyalty } from '../context/LoyaltyContext';
 import { SeasonalConfig } from '../data/seasonal';
 import { GoogleSignInButton } from './GoogleSignInButton';
 
@@ -26,6 +27,7 @@ interface NavbarProps {
   comparedCount?: number;
   wishlistCount?: number;
   onOpenWishlist?: () => void;
+  onOpenAccount?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -48,10 +50,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   comparedCount = 0,
   wishlistCount = 0,
   onOpenWishlist,
+  onOpenAccount,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
   const { user, isAuthenticated, logout } = useAuth();
+  const { pointsBalance, pointsRupeesValue, openLoyaltyModal } = useLoyalty();
 
   const announcementText = content?.announcement.text || "100% Pure Combed Natural Cotton Bedsheets · Sector 46 Gurgaon Atelier";
   const brandName = content?.company.name || "Cotton Nest";
@@ -322,7 +326,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 {/* Dropdown Menu */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl border border-[#DEC89B] shadow-xl p-2 z-50 animate-in fade-in duration-100">
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-[#DEC89B] shadow-xl p-2 z-50 animate-in fade-in duration-100">
                     <div className="p-2 border-b border-[#EAE2D5]">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-bold text-[#2C2420] truncate">{user.name}</p>
@@ -334,6 +338,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                       <p className="text-[10px] text-[#7A6458] truncate">{user.email || user.phone}</p>
                     </div>
+
+                    {onOpenAccount && (
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          onOpenAccount();
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
+                      >
+                        <User className="w-3.5 h-3.5 text-[#8C2E46]" />
+                        <span>My Account</span>
+                      </button>
+                    )}
 
                     {user.isOwner && onOpenAdmin && (
                       <button
@@ -373,6 +390,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               <GoogleSignInButton variant="navbar" customText="Sign In" />
             )}
 
+            {/* Account Hub CTA */}
+            {onOpenAccount && (
+              <button
+                type="button"
+                onClick={onOpenAccount}
+                aria-label="My Account"
+                title="My Account"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-[#2C2420] hover:text-[#8C2E46] bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] rounded-xl transition-all cursor-pointer shadow-2xs"
+              >
+                <User className="w-3.5 h-3.5 text-[#8C2E46]" />
+                <span className="hidden sm:inline">Account</span>
+              </button>
+            )}
+
             {/* Notification Bell CTA */}
             {onOpenNotifications && (
               <button
@@ -386,24 +417,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {unreadNotificationsCount > 0 && (
                   <span className="absolute top-1 right-1 min-w-4 h-4 px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums animate-pulse">
                     {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {/* Wishlist CTA */}
-            {onOpenWishlist && (
-              <button
-                type="button"
-                onClick={onOpenWishlist}
-                aria-label="View Wishlist"
-                title="Curated Wishlist"
-                className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-rose-600 transition-colors rounded-lg hover:bg-black/5 cursor-pointer"
-              >
-                <Heart className={`w-5 h-5 ${wishlistCount > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
-                {wishlistCount > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums">
-                    {wishlistCount}
                   </span>
                 )}
               </button>
@@ -529,24 +542,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </button>
 
-            {onOpenWishlist && (
+            {onOpenAccount && (
               <button
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  onOpenWishlist();
+                  onOpenAccount();
                 }}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between text-[#2C2420] hover:bg-[#FAF7F2] cursor-pointer"
+                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-between text-[#2C2420] hover:bg-[#FAF7F2] cursor-pointer"
               >
                 <span className="flex items-center gap-2">
-                  <Heart className={`w-4 h-4 ${wishlistCount > 0 ? 'fill-rose-500 text-rose-500' : 'text-[#8C2E46]'}`} />
-                  <span>Curated Wishlist</span>
+                  <User className="w-4 h-4 text-[#8C2E46]" />
+                  <span>My Account</span>
                 </span>
-                {wishlistCount > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
-                    {wishlistCount} {wishlistCount === 1 ? 'item' : 'items'}
-                  </span>
-                )}
+                <span className="text-xs text-[#8C7A70]">→</span>
               </button>
             )}
 

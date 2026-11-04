@@ -1,373 +1,366 @@
 {
   "products": [
     {
-      "features": [
-        "Symmetrical focal placement on king size beds",
-        "Includes 2 printed matching pillowcovers (45x70 cm)",
-        "Zero polyester, 100% breathable pure cotton",
-        "Easy wash and iron friendly"
-      ],
-      "colorTone": "Ivory, Warm Amber Gold & Ash Grey",
-      "updatedAt": 1792390298493,
-      "pattern": "Centerpiece Bouquet",
-      "description": "Original 108x108 pack with commanding artistic centerpiece bouquet of golden amber orchids and soft silver foliage, enclosed with trailing vine borders.",
-      "collection": "108x108 Classic",
-      "threadCount": "300 Thread Count",
-      "price": 1000,
-      "order": 0,
-      "inStock": true,
-      "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "originalPrice": 1000,
-      "name": "Heritage",
-      "badge": "108x108 Label Pack",
-      "id": "amber-orchid-medallion",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390297/cotton_nest/bedsheets/sheet_amber-orchid-medallion_1792390297.jpg",
-      "fabric": "100% Glace Finish Cotton"
-    },
-    {
-      "inStock": true,
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "threadCount": "300 Thread Count",
-      "updatedAt": 1792471357198,
-      "description": "An elegant floral pattern featuring delicate flowering branches with small blossoms, scattered leaves, and intricately detailed birds perched along the branches. The design has a natural, flowing arrangement with an artistic botanical style, creating a graceful and sophisticated look.",
-      "stockQuantity": 15,
-      "price": 1250,
-      "originalPrice": 1250,
-      "name": "Flamingo",
-      "fabric": "100% Twill Cotton",
-      "badge": "New Arrival",
-      "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "id": "bedsheet-mvg72tgo",
-      "order": 1,
-      "image": "/images/exact_sheet1_pink_rose_1790997736396.jpg"
-    },
-    {
-      "pattern": "Vintage Rose Floral",
-      "originalPrice": 1320,
-      "threadCount": "300 Thread Count",
-      "description": "Classic English vintage rose bouquets bloomed across pristine ivory cotton, styled with signature dusty rose piped pillow shams and matching accent runner.",
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
       "id": "gulabi-bagh-rose",
+      "name": "Nandini",
+      "collection": "Floral Heritage",
+      "size": "King",
+      "productType": "Bedsheet",
+      "brand": "Cotton Nest",
       "price": 1320,
-      "order": 2,
-      "fabric": "100% Pure Glace Percale Cotton",
+      "originalPrice": 1320,
       "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_gulabi-bagh-rose_1792387962",
+      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
+      "threadCount": "300 Thread Count",
+      "fabric": "100% Pure Glace Percale Cotton",
+      "pattern": "Vintage Rose Floral",
+      "colorTone": "Blush Pink & Ivory Cream",
+      "description": "Classic English vintage rose bouquets bloomed across pristine ivory cotton, styled with signature dusty rose piped pillow shams and matching accent runner.",
+      "image": "/images/exact_sheet1_pink_rose_1790997736396.jpg",
+      "badge": "Best Seller",
+      "inStock": true,
       "variants": [
         {
-          "image": "/images/exact_sheet1_pink_rose_1790997736396.jpg",
-          "name": "Blush English Rose",
           "id": "var-rose-blush",
-          "colorHex": "#E8A598"
+          "name": "Blush English Rose",
+          "colorHex": "#E8A598",
+          "image": "/images/exact_sheet1_pink_rose_1790997736396.jpg"
         },
         {
-          "colorHex": "#9BB29B",
+          "id": "var-rose-sage",
           "name": "Pastel Sage Rose",
-          "image": "/images/exact_sheet2_sage_mint_rose_1790997747019.jpg",
-          "id": "var-rose-sage"
+          "colorHex": "#9BB29B",
+          "image": "/images/exact_sheet2_sage_mint_rose_1790997747019.jpg"
         },
         {
-          "colorHex": "#4E6B8A",
           "id": "var-rose-blue",
           "name": "Royal Sapphire Rose",
+          "colorHex": "#4E6B8A",
           "image": "/images/exact_sheet9_rosemary_blue_rose_1791027541188.jpg"
         }
       ],
-      "collection": "Floral Heritage",
-      "colorTone": "Blush Pink & Ivory Cream",
-      "updatedAt": 1792389897682,
-      "inStock": true,
       "features": [
         "Extra Large King 108x108 inch tuck-in drop",
         "Includes 2 matching piped pillow shams",
         "Breathable, cool against the skin",
         "Color-fast reactive dye print"
       ],
-      "badge": "Best Seller",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792389896/cotton_nest/bedsheets/sheet_gulabi-bagh-rose_1792389895.jpg",
-      "name": "Nandini"
+      "updatedAt": 1793784166957
     },
     {
-      "pattern": "Circular Floral Wreath",
-      "collection": "Royal Heritage",
-      "description": "Ornate circular garland medallions woven with antique pink roses and gentle gold-apricot blossoms over a calming fine pinstripe cream texture.",
-      "threadCount": "300 Thread Count",
-      "features": [
-        "Traditional garland symmetry brings calm energy",
-        "Softens with every domestic machine wash",
-        "Dual pillow covers with secure flap closure",
-        "High breathability for Indian summers"
-      ],
-      "price": 1320,
-      "order": 3,
-      "name": "Nandini",
-      "id": "ivory-garland-wreath",
-      "originalPrice": 1320,
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "inStock": true,
-      "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "colorTone": "Warm Cream, Soft Gold & Dusty Pink",
-      "updatedAt": 1792465922649,
-      "fabric": "100% Pure Natural Cotton",
-      "badge": "Timeless Classic",
-      "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_ivory-garland-wreath_1792465917",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792465919/cotton_nest/bedsheets/sheet_ivory-garland-wreath_1792465917.jpg",
-      "stockQuantity": 10
-    },
-    {
-      "features": [
-        "Earthy botanical aesthetics for conscious homes",
-        "Authentic block-print inspired poppy stems",
-        "Coordinating sage checkered pillowcases included",
-        "Soft pre-washed hand feel"
-      ],
-      "originalPrice": 1200,
-      "pattern": "Poppy Meadow & Grid",
-      "name": "Milky White ",
-      "fabric": "100% Pure Organic Cotton",
-      "badge": "Milky White 108x108",
-      "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390238/cotton_nest/bedsheets/sheet_milky-white-poppy_1792390238.jpg",
-      "collection": "Inspired By Nature",
-      "threadCount": "300 Thread Count",
-      "description": "Milky white structured micro-grid background highlighted with hand-sketched orange poppy flowers, flanked by sage green checkered pillow shams (108x108).",
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "inStock": true,
-      "id": "milky-white-poppy",
-      "price": 1200,
-      "order": 4,
-      "colorTone": "Milky White, Burnt Orange & Sage Green",
-      "updatedAt": 1792390239713
-    },
-    {
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792389965/cotton_nest/bedsheets/sheet_mint-meadow-sage_1792389965.jpg",
-      "badge": "Customer Favorite",
-      "collection": "Botanical Serenity",
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
       "id": "mint-meadow-sage",
+      "name": "Nandini",
+      "collection": "Botanical Serenity",
+      "size": "King",
+      "productType": "Bedsheet",
+      "brand": "Cotton Nest",
+      "price": 1360,
+      "originalPrice": 1360,
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
+      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
+      "threadCount": "350 Thread Count",
       "fabric": "100% Long-Staple Cotton",
       "pattern": "Soft Sage Botanicals",
-      "name": "Nandini",
-      "threadCount": "350 Thread Count",
-      "inStock": true,
+      "colorTone": "Pastel Sage, Mint & Coral Pink",
       "description": "Serene pastel seafoam sage backdrop layered with blushing pink, crimson, and golden tea roses, framed with tailored sage striped pillow borders.",
+      "image": "/images/exact_sheet2_sage_mint_rose_1790997747019.jpg",
+      "badge": "Customer Favorite",
+      "inStock": true,
+      "variants": [
+        {
+          "id": "var-sage-base",
+          "name": "Pastel Sage & Coral",
+          "colorHex": "#9BB29B",
+          "image": "/images/exact_sheet2_sage_mint_rose_1790997747019.jpg"
+        },
+        {
+          "id": "var-sage-ivory",
+          "name": "Ivory Garland Wreath",
+          "colorHex": "#DFD3C3",
+          "image": "/images/exact_sheet3_cream_garland_1790997759822.jpg"
+        }
+      ],
       "features": [
         "Subtle matte sateen finish for silk-like drape",
         "Anti-pilling combed cotton weave",
         "Generous side drape for deep mattresses",
         "Oeko-Tex skin friendly certified"
-      ],
-      "price": 1360,
-      "order": 5,
-      "originalPrice": 1360,
-      "variants": [
-        {
-          "name": "Pastel Sage & Coral",
-          "colorHex": "#9BB29B",
-          "image": "/images/exact_sheet2_sage_mint_rose_1790997747019.jpg",
-          "id": "var-sage-base"
-        },
-        {
-          "colorHex": "#DFD3C3",
-          "name": "Ivory Garland Wreath",
-          "image": "/images/exact_sheet3_cream_garland_1790997759822.jpg",
-          "id": "var-sage-ivory"
-        }
-      ],
-      "colorTone": "Pastel Sage, Mint & Coral Pink",
-      "updatedAt": 1792389966094,
-      "dimensions": "108 x 108 inches (274 x 274 cm)"
+      ]
     },
     {
+      "id": "ivory-garland-wreath",
+      "name": "Nandini",
+      "collection": "Royal Heritage",
+      "size": "King",
+      "productType": "Bedsheet",
+      "brand": "Swayam",
+      "price": 1320,
+      "originalPrice": 1320,
       "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "name": "Batik",
-      "inStock": true,
-      "fabric": "100% Sanganeri Weave Cotton",
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "threadCount": "350 Thread Count",
-      "description": "Deep regal peacock teal hand-block motif bedsheet framed with traditional intricate paisley daaman border and repeating floral bootis.",
-      "badge": "Heritage Paisley",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390348/cotton_nest/bedsheets/sheet_peacock-teal-paisley_1792390348.jpg",
-      "id": "peacock-teal-paisley",
+      "threadCount": "300 Thread Count",
+      "fabric": "100% Pure Natural Cotton",
+      "pattern": "Circular Floral Wreath",
+      "colorTone": "Warm Cream, Soft Gold & Dusty Pink",
+      "description": "Ornate circular garland medallions woven with antique pink roses and gentle gold-apricot blossoms over a calming fine pinstripe cream texture.",
+      "image": "/images/exact_sheet3_cream_garland_1790997759822.jpg",
+      "badge": "Timeless Classic",
+      "inStock": true,
       "features": [
-        "Traditional Indian block print jaal border",
-        "Rich indigo-teal palette stays vibrant after wash",
-        "Heavyweight drape stays tucked on high mattresses",
-        "Breathable comfort for all four seasons"
-      ],
-      "collection": "Artisanal Block",
-      "originalPrice": 1050,
-      "pattern": "Royal Paisley Jaal",
-      "colorTone": "Peacock Blue & Natural Cream",
-      "updatedAt": 1792390349079,
-      "order": 6,
-      "price": 1050
+        "Traditional garland symmetry brings calm energy",
+        "Softens with every domestic machine wash",
+        "Dual pillow covers with secure flap closure",
+        "High breathability for Indian summers"
+      ]
     },
     {
+      "id": "petals-print-marigold",
+      "name": "The Petals Print Golden Sprig",
+      "collection": "The Petals Print",
+      "size": "King",
+      "productType": "Bedsheet",
+      "brand": "Spaces",
+      "price": 1220,
+      "originalPrice": 1220,
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
+      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
+      "threadCount": "400 Thread Count",
+      "fabric": "100% Luxury Percale Cotton",
       "pattern": "Golden Botanical Vines",
+      "colorTone": "Crisp White & Muted Ochre Gold",
+      "description": "Minimalist luxury with cheerful golden-yellow marigold flowerheads creeping along warm dove-gray sprigs, with signature zoom callout inlay.",
+      "image": "/images/exact_sheet4_petals_print_1790997771702.jpg",
+      "badge": "The Petals Print",
+      "inStock": true,
       "features": [
         "Crisp, cool percale feel with no synthetic sheen",
         "High thread count tight weave prevents sagging",
         "Tailored 108x108 inch size prevents bed un-tucking",
         "Gentle warm gold highlights"
-      ],
-      "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_petals-print-marigold_1792388479",
-      "collection": "The Petals Print",
-      "name": "Nandini",
-      "description": "Minimalist luxury with cheerful golden-yellow marigold flowerheads creeping along warm dove-gray sprigs, with signature zoom callout inlay.",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390191/cotton_nest/bedsheets/sheet_petals-print-marigold_1792390191.jpg",
+      ]
+    },
+    {
+      "id": "shivaura-trellis-slate",
+      "name": "The Petals ",
+      "collection": "Shivaura Collection",
+      "size": "Super King",
+      "productType": "Bedsheet",
+      "brand": "Bombay Dyeing",
+      "price": 1220,
+      "originalPrice": 1220,
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
       "threadCount": "400 Thread Count",
-      "badge": "The Petals Print",
-      "originalPrice": 1220,
-      "fabric": "100% Luxury Percale Cotton",
-      "id": "petals-print-marigold",
-      "inStock": true,
-      "updatedAt": 1792390193016,
-      "colorTone": "Crisp White & Muted Ochre Gold",
-      "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "order": 7,
-      "price": 1220,
-      "stockQuantity": 10
-    },
-    {
-      "name": "Rosemary Royal Blue Rose",
-      "originalPrice": 1100,
-      "price": 1100,
-      "order": 8,
-      "collection": "Rosemary Collection",
-      "updatedAt": 1792390385441,
-      "colorTone": "Crisp White & Royal Blue",
-      "inStock": true,
-      "description": "Pristine white cotton canvas richly patterned with deep cobalt and royal blue blooming roses on leafy vines, paired with blue checkered gingham flanged pillow covers (100x108).",
-      "threadCount": "350 Thread Count",
-      "dimensions": "100 x 108 inches (254 x 274 cm)",
-      "badge": "Rosemary 100x108",
-      "pattern": "Cobalt Blue Rose Print",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390384/cotton_nest/bedsheets/sheet_rosemary-blue-rose-100x108_1792390384.jpg",
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "features": [
-        "Signature Rosemary 100x108 inch King proportion",
-        "Includes 2 matching blue gingham checkered pillow shams",
-        "Vibrant fade-resistant cobalt blue reactive print",
-        "100% breathable natural cotton for summer cooling"
-      ],
-      "fabric": "100% Pure Percale Cotton",
-      "id": "rosemary-blue-rose-100x108"
-    },
-    {
-      "collection": "Shivaura Collection",
-      "id": "shivaura-trellis-slate",
+      "fabric": "100% Premium Egyptian Combed Cotton",
       "pattern": "Chevron Trellis & Floral",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390066/cotton_nest/bedsheets/sheet_shivaura-trellis-slate_1792390066.jpg",
-      "name": "The Petals ",
+      "colorTone": "Champagne Gold & Slate Grey",
+      "description": "Refined geometric chevron trellis drawn in delicate non-shiny golden lines, harmonized with misty slate floral bouquets and Shivaura luxury hallmark.",
+      "image": "/images/exact_sheet5_shivaura_trellis_1790997781634.jpg",
+      "badge": "Shivaura Edition",
+      "inStock": true,
       "features": [
         "Subtle matte metallic golden linework",
         "Premium heavyweight pure cotton weave",
         "Contemporary geometric-floral balance",
         "Wrinkle-resistant natural finish"
-      ],
-      "badge": "Shivaura Edition",
-      "originalPrice": 1220,
-      "inStock": true,
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "threadCount": "400 Thread Count",
-      "description": "Refined geometric chevron trellis drawn in delicate non-shiny golden lines, harmonized with misty slate floral bouquets and Shivaura luxury hallmark.",
-      "dimensions": "108 x 108 inches (274 x 274 cm)",
-      "price": 1220,
-      "order": 9,
-      "updatedAt": 1792390066854,
-      "colorTone": "Champagne Gold & Slate Grey",
-      "fabric": "100% Premium Egyptian Combed Cotton"
-    }
-  ],
-  "orders": [
-    {
-      "createdAt": "2026-10-09T10:44:00.590Z",
-      "customerAddress": "Ghk",
-      "status": "pending",
-      "id": "CN-192076",
-      "customerEmail": "7838625915@cottonnest.orders",
-      "totalSavings": 600,
-      "items": [
-        {
-          "quantity": 1,
-          "productId": "gulabi-bagh-rose",
-          "price": 1899,
-          "productName": "Gulabi Bagh English Rose",
-          "dimensions": "108 x 108 inches (274 x 274 cm)",
-          "productImage": "/src/assets/images/exact_sheet1_pink_rose_1790997736396.jpg"
-        }
-      ],
-      "paymentMethod": "whatsapp",
-      "userId": "usr_phone_7838625915",
-      "customerName": "Cotton Nest Client",
-      "customerPhone": "7838625915",
-      "totalAmount": 1999
+      ]
     },
     {
-      "totalAmount": 1999,
-      "createdAt": "2026-10-09T10:44:00.058Z",
-      "customerPhone": "7838625915",
-      "userId": "usr_phone_7838625915",
-      "status": "pending",
-      "customerAddress": "Ghk",
-      "totalSavings": 600,
-      "id": "CN-445221",
-      "customerEmail": "7838625915@cottonnest.orders",
-      "customerName": "Cotton Nest Client",
-      "items": [
-        {
-          "dimensions": "108 x 108 inches (274 x 274 cm)",
-          "price": 1899,
-          "productImage": "/src/assets/images/exact_sheet1_pink_rose_1790997736396.jpg",
-          "productName": "Gulabi Bagh English Rose",
-          "quantity": 1,
-          "productId": "gulabi-bagh-rose"
-        }
-      ],
-      "paymentMethod": "whatsapp"
+      "id": "milky-white-poppy",
+      "name": "Milky White ",
+      "collection": "Inspired By Nature",
+      "size": "Queen",
+      "productType": "Bedsheet",
+      "brand": "Portico New York",
+      "price": 1200,
+      "originalPrice": 1200,
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
+      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
+      "threadCount": "300 Thread Count",
+      "fabric": "100% Pure Organic Cotton",
+      "pattern": "Poppy Meadow & Grid",
+      "colorTone": "Milky White, Burnt Orange & Sage Green",
+      "description": "Milky white structured micro-grid background highlighted with hand-sketched orange poppy flowers, flanked by sage green checkered pillow shams (108x108).",
+      "image": "/images/exact_sheet6_milky_white_poppy_1790997791650.jpg",
+      "badge": "Milky White 108x108",
+      "inStock": true,
+      "features": [
+        "Earthy botanical aesthetics for conscious homes",
+        "Authentic block-print inspired poppy stems",
+        "Coordinating sage checkered pillowcases included",
+        "Soft pre-washed hand feel"
+      ]
+    },
+    {
+      "id": "amber-orchid-medallion",
+      "name": "Heritage",
+      "collection": "108x108 Classic",
+      "size": "Double",
+      "productType": "Bedsheet",
+      "brand": "Trident",
+      "price": 1000,
+      "originalPrice": 1000,
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
+      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
+      "threadCount": "300 Thread Count",
+      "fabric": "100% Glace Finish Cotton",
+      "pattern": "Centerpiece Bouquet",
+      "colorTone": "Ivory, Warm Amber Gold & Ash Grey",
+      "description": "Original 108x108 pack with commanding artistic centerpiece bouquet of golden amber orchids and soft silver foliage, enclosed with trailing vine borders.",
+      "image": "/images/exact_sheet7_amber_orchid_1790997801705.jpg",
+      "badge": "108x108 Label Pack",
+      "inStock": true,
+      "features": [
+        "Symmetrical focal placement on king size beds",
+        "Includes 2 printed matching pillowcovers (45x70 cm)",
+        "Zero polyester, 100% breathable pure cotton",
+        "Easy wash and iron friendly"
+      ]
+    },
+    {
+      "id": "peacock-teal-paisley",
+      "name": "Batik",
+      "collection": "Artisanal Block",
+      "size": "King",
+      "productType": "Bedsheet",
+      "brand": "Cotton Nest",
+      "price": 1050,
+      "originalPrice": 1050,
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
+      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
+      "threadCount": "350 Thread Count",
+      "fabric": "100% Sanganeri Weave Cotton",
+      "pattern": "Royal Paisley Jaal",
+      "colorTone": "Peacock Blue & Natural Cream",
+      "description": "Deep regal peacock teal hand-block motif bedsheet framed with traditional intricate paisley daaman border and repeating floral bootis.",
+      "image": "/images/exact_sheet8_peacock_teal_1790997812944.jpg",
+      "badge": "Heritage Paisley",
+      "inStock": true,
+      "features": [
+        "Traditional Indian block print jaal border",
+        "Rich indigo-teal palette stays vibrant after wash",
+        "Heavyweight drape stays tucked on high mattresses",
+        "Breathable comfort for all four seasons"
+      ]
+    },
+    {
+      "id": "rosemary-blue-rose-100x108",
+      "name": "Rosemary Royal Blue Rose",
+      "collection": "Rosemary Collection",
+      "size": "Queen",
+      "productType": "Bedsheet",
+      "brand": "Raymond Home",
+      "price": 1100,
+      "originalPrice": 1100,
+      "dimensions": "100 x 108 inches (254 x 274 cm)",
+      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
+      "threadCount": "350 Thread Count",
+      "fabric": "100% Pure Percale Cotton",
+      "pattern": "Cobalt Blue Rose Print",
+      "colorTone": "Crisp White & Royal Blue",
+      "description": "Pristine white cotton canvas richly patterned with deep cobalt and royal blue blooming roses on leafy vines, paired with blue checkered gingham flanged pillow covers (100x108).",
+      "image": "/images/exact_sheet9_rosemary_blue_rose_1791027541188.jpg",
+      "badge": "Rosemary 100x108",
+      "inStock": true,
+      "features": [
+        "Signature Rosemary 100x108 inch King proportion",
+        "Includes 2 matching blue gingham checkered pillow shams",
+        "Vibrant fade-resistant cobalt blue reactive print",
+        "100% breathable natural cotton for summer cooling"
+      ]
+    },
+    {
+      "id": "jaipuri-cotton-dohar-blanket",
+      "name": "Jaipuri Artisanal Cotton Dohar Blanket",
+      "collection": "Heritage Dohar",
+      "size": "Double",
+      "productType": "Blanket",
+      "brand": "Cotton Nest",
+      "price": 1450,
+      "originalPrice": 1850,
+      "dimensions": "90 x 100 inches (228 x 254 cm)",
+      "pillowCovers": "2 Coordinating Shams (45 x 70 cm)",
+      "threadCount": "300 Thread Count",
+      "fabric": "Triple-Layer Pure Mulmul Cotton",
+      "pattern": "Traditional Hand-Block Floral",
+      "colorTone": "Ivory, Dusty Rose & Sage",
+      "description": "Ultra-soft 3-layer pure Indian cotton mulmul dohar blanket with light flannel middle layer for pleasant AC cooling and mild winter comfort.",
+      "image": "/images/exact_sheet2_sage_mint_rose_1790997747019.jpg",
+      "badge": "All-Season Dohar",
+      "inStock": true,
+      "features": [
+        "Triple layered breathable fine mulmul cotton",
+        "Lightweight temperature-regulating core",
+        "Gentle against sensitive skin, easy machine wash",
+        "Generous double bed tuck-in drape"
+      ]
+    },
+    {
+      "id": "cloud-soft-cotton-comforter",
+      "name": "Cloud-Soft All-Season Comforter",
+      "collection": "Comfort Atelier",
+      "size": "King",
+      "productType": "Comforter",
+      "brand": "Spaces",
+      "price": 2199,
+      "originalPrice": 2899,
+      "dimensions": "100 x 108 inches (254 x 274 cm)",
+      "pillowCovers": "2 Flanged Pillow Shams (45 x 70 cm)",
+      "threadCount": "350 Thread Count",
+      "fabric": "100% Cotton Outer Shell with Cloud-Fill",
+      "pattern": "Box-Stitched Reversible",
+      "colorTone": "Blush Pink & Misty Grey",
+      "description": "Reversible box-stitched all-weather luxury comforter with 100% natural cotton shell and hypoallergenic micro-down fill for blissful Indian bedroom nights.",
+      "image": "/images/exact_sheet1_pink_rose_1790997736396.jpg",
+      "badge": "Luxury Comforter",
+      "inStock": true,
+      "features": [
+        "Hypoallergenic 250 GSM micro-down filling",
+        "100% breathable percale cotton exterior shell",
+        "Diamond box quilting prevents fill shifting",
+        "Corner loops for duvet cover attachment"
+      ]
     }
   ],
+  "orders": [],
   "siteContent": {
     "company": {
       "name": "Cotton Nest",
+      "tagline": "Pure Cotton Comfort, Everyday Elegance",
       "phone": "+91 7838625915",
       "rawPhone": "917838625915",
-      "pincode": "122003",
-      "operatingHours": "Monday - Sunday · 10:00 AM - 8:30 PM IST",
-      "city": "Gurgaon, Haryana",
       "address": "House Number 2508, Ground Floor, Sector 46, Gurgaon, Haryana",
-      "tagline": "Pure Cotton Comfort, Everyday Elegance"
+      "city": "Gurgaon, Haryana",
+      "pincode": "122003",
+      "operatingHours": "Monday - Sunday · 10:00 AM - 8:30 PM IST"
+    },
+    "announcement": {
+      "enabled": true,
+      "text": "Experience 100% Pure Combed Cotton · Direct From Sector 46 Gurgaon Atelier",
+      "badge": "Gurgaon Atelier Exclusive"
     },
     "hero": {
       "kicker": "Handcrafted Pure Cotton Bedding · Gurgaon Atelier",
       "headline": "The touch of pure cotton, woven for serene mornings.",
+      "subheadline": "Welcome to Cotton Nest. Discover our curated collection of King size bedsheets — tailored from 100% natural long-staple cotton with breathable comfort, delicate florals, and subtle muted golden accents.",
       "ctaButtonText": "View Bedsheets Catalogue",
-      "secondaryButtonText": "Visit Gurgaon Studio",
-      "subheadline": "Welcome to Cotton Nest. Discover our curated collection of King size bedsheets — tailored from 100% natural long-staple cotton with breathable comfort, delicate florals, and subtle muted golden accents."
-    },
-    "announcement": {
-      "text": "Experience 100% Pure Combed Cotton · Direct From Sector 46 Gurgaon Atelier",
-      "enabled": true,
-      "badge": "Gurgaon Atelier Exclusive"
+      "secondaryButtonText": "Visit Gurgaon Studio"
     },
     "story": {
-      "pillar4Title": "Gurgaon Local Studio Reassurance",
+      "tagline": "The Cotton Nest Story",
+      "heading": "Honest pure cotton, tailored for Indian bedrooms.",
       "paragraph1": "At Cotton Nest, based in Sector 46 Gurgaon, we started with a simple belief: bedsheets should never be made with sweaty synthetic microfiber or shrunk down to stingy sizes that untuck the moment you turn in bed.",
       "paragraph2": "Every single bedsheet in our collection is cut to an expansive King size (108×108 / 100×108 inch), guaranteeing a generous tuck-in under even the thickest modern orthopaedic mattresses.",
-      "pillar4Desc": "Direct support, prompt exchange assistance, and open touch-and-feel visits in Sector 46.",
-      "heading": "Honest pure cotton, tailored for Indian bedrooms.",
-      "tagline": "The Cotton Nest Story",
-      "pillar3Desc": "Wash after domestic wash, florals and geometric linework retain their rich clarity.",
-      "pillar2Desc": "Expansive 108×108 inch proportion ensures mattress corners remain neatly tucked all night.",
-      "pillar2Title": "No Untucking Generous Drop",
       "pillar1Title": "100% Natural Breathable Cotton",
+      "pillar1Desc": "Zero polyester blends. Completely breathable and cool against the skin during Indian summers.",
+      "pillar2Title": "No Untucking Generous Drop",
+      "pillar2Desc": "Expansive 108×108 inch proportion ensures mattress corners remain neatly tucked all night.",
       "pillar3Title": "Color-Fast Reactive Inks",
-      "pillar1Desc": "Zero polyester blends. Completely breathable and cool against the skin during Indian summers."
+      "pillar3Desc": "Wash after domestic wash, florals and geometric linework retain their rich clarity.",
+      "pillar4Title": "Gurgaon Local Studio Reassurance",
+      "pillar4Desc": "Direct support, prompt exchange assistance, and open touch-and-feel visits in Sector 46."
     },
-    "updatedAt": 1791723485864
+    "termsAndConditions": "*Hey Cozy Souls! 💖*\nYou’re at *Cotton Nest – Feel the Softness* 🌸\nYour soft & stylish bedsheet hub. 🛍️\n\n🌸 *Please Note:* Slight colour variations may occur due to natural lighting/photography. Returns or exchanges are *not offered for such variations*. Wherever possible, we’ll provide the *original picture vs. catalogue picture* for reference.\n\n🪶 We request you to *read the product description carefully* before placing your order.\n\n✨ *EXCHANGE POLICY – MANUFACTURING DEFECTS*\n• Exchange is applicable *only for genuine manufacturing defects*.\n• Defect must be reported within *48 hours of delivery* with clear photos/videos.\n• Product must be *unused, unwashed & in original packaging*.\n• Exchange is subject to *inspection & approval by Cotton Nest*.\n• Minor print/fabric variations, colour differences, washing damage & normal wear are *not considered defects*.\n• Approved cases will be exchanged with the *same/equivalent product, subject to availability*.\n• If the exchange product is unavailable, *store credit for the eligible amount* will be provided, valid for *2 months from the date of issue*.\n• *No cash refunds* will be provided.\n\n🚚 *SHIPPING & DELIVERY*\n👉 Sector 46, Gurgaon: *Complimentary Delivery*\n👉 Rest of Gurgaon: *Self Pickup or actual delivery charges*\n👉 Across India: *₹100*\n\n💖 *Thank you for shopping with Cotton Nest!*\n*Feel the Softness. 🌸*"
   },
   "reviews": [
     {
@@ -381,7 +374,7 @@
       "comment": "I visited their Sector 46 atelier in Gurgaon before buying. Most brands claim King size but give 90x100 which pulls out of a 10-inch mattress. This bedsheet has a huge, generous tuck-in on all four sides. The rose block prints are subtle and soothing, not garish at all. Machine washed twice, zero shrinkage or color bleeding.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1792315833891,
+      "createdAt": 1793524758393,
       "helpfulCount": 14,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -400,7 +393,7 @@
       "comment": "The sage mint color is so calming. What impressed me the most is the zero-polyester natural feel. In Gurgaon summers you can immediately tell pure cotton from poly-cotton blends. This stays cool all night. The matching pillow shams with piped borders look very luxurious.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1792056633891,
+      "createdAt": 1793265558393,
       "helpfulCount": 9,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -419,7 +412,7 @@
       "comment": "Ordered via WhatsApp after founder shared unboxing video. Delivery was prompt. The fabric has that crisp, crisp luxury hotel bed feeling and softens up beautifully upon wash. Pillow covers have secure flap tucks so the pillows don't slide out.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1791797433891,
+      "createdAt": 1793006358393,
       "helpfulCount": 11,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -438,7 +431,7 @@
       "comment": "The contrast between the warm milky white poppy field and the sage green checkered pillow covers is perfection. It gives a cottagecore, artisanal Indian feel without being overwhelming. Delivered all the way to Bengaluru in pristine box packaging.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1791538233891,
+      "createdAt": 1792747158393,
       "helpfulCount": 8,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -457,7 +450,7 @@
       "comment": "This bedsheet has great weight to it. The chevron trellis pattern with subtle golden linework looks very modern. Slept on it for a week and it barely creased. Will definitely pick up 2 more sets for our guest rooms.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1791279033891,
+      "createdAt": 1792487958393,
       "helpfulCount": 16,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -476,7 +469,7 @@
       "comment": "I was looking for authentic Rajasthani block print style without scratchy starch or color bleed. Hand washed the first time with salt water as suggested - absolutely zero color bleeding! The indigo-teal shade is rich and majestic.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1791019833891,
+      "createdAt": 1792228758393,
       "helpfulCount": 7,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -495,7 +488,7 @@
       "comment": "Living right in Sector 46, I walked into their house atelier. The owner was extremely courteous and let me unfold the sheets to check the weave. The central floral motif lands right in the middle of our 6.5x6.5 bed. Incredible value at ₹1000.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1790760633891,
+      "createdAt": 1791969558393,
       "helpfulCount": 12,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -514,7 +507,7 @@
       "comment": "The blue rose print against crisp white gives such a fresh, clean look to the bedroom. The pillow shams with gingham checks are super stylish. 100% natural cotton that feels cool against the skin.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1790415033891,
+      "createdAt": 1791623958393,
       "helpfulCount": 6,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -533,7 +526,7 @@
       "comment": "Hailing from Jaipur, I am very picky about bedsheet fabric quality. Cotton Nest has nailed the combed cotton texture. The antique pink and soft apricot blossoms create such a tranquil atmosphere in the room.",
       "verifiedPurchase": true,
       "recommended": true,
-      "createdAt": 1790155833891,
+      "createdAt": 1791364758393,
       "helpfulCount": 10,
       "qualityAspects": {
         "fabricSoftness": 5,
@@ -547,8 +540,8 @@
     "name": "Diwali Fest",
     "badge": "Festive Exclusive",
     "tagline": "Exclusive Festive Savings - 100% Pure Combed Cotton King Bedsheets",
-    "description": "Celebrate the festive season with our handcrafted natural cotton bedsheets. Each set includes 1 King bedsheet (108″×108″) and 2 matching pillow covers (45×70 cm) with fast doorstep delivery.",
-    "bannerNotice": "✨ Special Festive Pricing Active · Free 2-Hour Delivery in Gurgaon",
+    "description": "Celebrate the season of joy with our handcrafted natural cotton bedsheets. Each festive set includes 1 King bedsheet (108″×108″) and 2 coordinating pillow covers (45×70 cm) at special celebratory prices.",
+    "bannerNotice": "✨ Festive Season Offer: Special Discounted Rates & Free Express Delivery in Gurgaon",
     "discountLabel": "Up to 35% OFF",
     "items": [
       {
@@ -582,7 +575,7 @@
         "customBadge": "Festive Classic"
       }
     ],
-    "updatedAt": 1792000000000
+    "updatedAt": 1793783958394
   },
   "coupons": [
     {
@@ -629,6 +622,28 @@
       "updatedAt": 1768000000000
     },
     {
+      "id": "coupon-gurgaon15",
+      "code": "GURGAON15",
+      "title": "15% Off Atelier Special",
+      "description": "Special 15% discount for Gurgaon residents and flagship atelier visitors on orders above ₹2,000.",
+      "discountType": "percentage",
+      "discountValue": 15,
+      "minOrderValue": 2000,
+      "maxDiscountAmount": 600,
+      "startDate": "2026-01-01",
+      "expiryDate": "2027-12-31",
+      "isActive": true,
+      "isAutomatic": false,
+      "maxUses": 100,
+      "usedCount": 0,
+      "oneUsePerCustomer": true,
+      "usedByCustomers": [],
+      "scope": "all",
+      "badgeText": "ATELIER EXCLUSIVE",
+      "createdAt": 1768000000000,
+      "updatedAt": 1768000000000
+    },
+    {
       "id": "coupon-auto-save5",
       "code": "PURECOTTON5",
       "title": "Automatic 5% Everyday Atelier Savings",
@@ -648,7 +663,32 @@
       "badgeText": "AUTO OFFER",
       "createdAt": 1768000000000,
       "updatedAt": 1768000000000
+    },
+    {
+      "id": "coupon-wishlist5",
+      "code": "WISHLIST5",
+      "title": "5% Wishlist Loyalty Reward",
+      "description": "Exclusive 5% discount for cherishing bedsheets in your wishlist for 3+ days.",
+      "discountType": "percentage",
+      "discountValue": 5,
+      "minOrderValue": 0,
+      "maxDiscountAmount": 400,
+      "startDate": "2026-01-01",
+      "expiryDate": "2028-12-31",
+      "isActive": true,
+      "isAutomatic": false,
+      "maxUses": 1000,
+      "usedCount": 0,
+      "oneUsePerCustomer": false,
+      "usedByCustomers": [],
+      "scope": "all",
+      "badgeText": "WISHLIST 3-DAY GIFT",
+      "createdAt": 1768000000000,
+      "updatedAt": 1768000000000
     }
   ],
-  "wishlists": []
+  "wishlists": [],
+  "loyaltyAccounts": {},
+  "loyaltyTransactions": [],
+  "updatedAt": 1793784166957
 }

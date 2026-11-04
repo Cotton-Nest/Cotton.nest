@@ -28,6 +28,7 @@ export {
   uploadToCloudinary,
   deleteFromCloudinary,
   isCloudinaryUrl,
+  isVideoMedia,
   checkCloudinaryConfig,
 } from './cloudinary';
 
@@ -1415,3 +1416,6 @@ export async function generateProductDescriptionApi(payload: AiDescriptionPayloa
   }
 }
 
+// ---------------- LOYALTY POINTS & REWARDS ---------------- //
+export * from './loyaltyApi';
+export * from '../data/loyalty';

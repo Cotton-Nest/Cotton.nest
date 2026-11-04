@@ -28,7 +28,27 @@ export interface BedsheetProduct {
   order?: number;
   updatedAt?: number;
   cloudinaryPublicId?: string;
+  size?: string;        // 'Single' | 'Double' | 'Queen' | 'King' | 'Super King' | custom size
+  productType?: string; // 'Bedsheet' | 'Blanket' | 'Comforter' | custom type
+  brand?: string;       // 'Cotton Nest' | 'Swayam' | 'Spaces' | etc. (Admin & Filter only, never shown on cards/details)
 }
+
+export const STANDARD_SIZES = ['Single', 'Double', 'Queen', 'King', 'Super King', 'Other'] as const;
+export type StandardSize = (typeof STANDARD_SIZES)[number];
+
+export const STANDARD_PRODUCT_TYPES = ['Bedsheet', 'Blanket', 'Comforter', 'Other'] as const;
+export type StandardProductType = (typeof STANDARD_PRODUCT_TYPES)[number];
+
+export const POPULAR_BRANDS = [
+  'Cotton Nest',
+  'Swayam',
+  'Spaces',
+  'Bombay Dyeing',
+  'Portico New York',
+  'Trident',
+  'Raymond Home',
+  'Bella Casa',
+] as const;
 
 export const COMPANY_DETAILS = {
   name: "Cotton Nest",
@@ -53,6 +73,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "gulabi-bagh-rose",
     name: "Nandini",
     collection: "Floral Heritage",
+    size: "King",
+    productType: "Bedsheet",
+    brand: "Cotton Nest",
     price: 1320,
     originalPrice: 1320,
     dimensions: "108 x 108 inches (274 x 274 cm)",
@@ -96,6 +119,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "mint-meadow-sage",
     name: "Nandini",
     collection: "Botanical Serenity",
+    size: "King",
+    productType: "Bedsheet",
+    brand: "Cotton Nest",
     price: 1360,
     originalPrice: 1360,
     dimensions: "108 x 108 inches (274 x 274 cm)",
@@ -133,6 +159,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "ivory-garland-wreath",
     name: "Nandini",
     collection: "Royal Heritage",
+    size: "King",
+    productType: "Bedsheet",
+    brand: "Swayam",
     price: 1320,
     originalPrice: 1320,
     dimensions: "108 x 108 inches (274 x 274 cm)",
@@ -156,6 +185,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "petals-print-marigold",
     name: "The Petals Print Golden Sprig",
     collection: "The Petals Print",
+    size: "King",
+    productType: "Bedsheet",
+    brand: "Spaces",
     price: 1220,
     originalPrice: 1220,
     dimensions: "108 x 108 inches (274 x 274 cm)",
@@ -179,6 +211,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "shivaura-trellis-slate",
     name: "The Petals ",
     collection: "Shivaura Collection",
+    size: "Super King",
+    productType: "Bedsheet",
+    brand: "Bombay Dyeing",
     price: 1220,
     originalPrice: 1220,
     dimensions: "108 x 108 inches (274 x 274 cm)",
@@ -202,6 +237,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "milky-white-poppy",
     name: "Milky White ",
     collection: "Inspired By Nature",
+    size: "Queen",
+    productType: "Bedsheet",
+    brand: "Portico New York",
     price: 1200,
     originalPrice: 1200,
     dimensions: "108 x 108 inches (274 x 274 cm)",
@@ -225,6 +263,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "amber-orchid-medallion",
     name: "Heritage",
     collection: "108x108 Classic",
+    size: "Double",
+    productType: "Bedsheet",
+    brand: "Trident",
     price: 1000,
     originalPrice: 1000,
     dimensions: "108 x 108 inches (274 x 274 cm)",
@@ -248,6 +289,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "peacock-teal-paisley",
     name: "Batik",
     collection: "Artisanal Block",
+    size: "King",
+    productType: "Bedsheet",
+    brand: "Cotton Nest",
     price: 1050,
     originalPrice: 1050,
     dimensions: "108 x 108 inches (274 x 274 cm)",
@@ -271,6 +315,9 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
     id: "rosemary-blue-rose-100x108",
     name: "Rosemary Royal Blue Rose",
     collection: "Rosemary Collection",
+    size: "Queen",
+    productType: "Bedsheet",
+    brand: "Raymond Home",
     price: 1100,
     originalPrice: 1100,
     dimensions: "100 x 108 inches (254 x 274 cm)",
@@ -288,6 +335,58 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
       "Includes 2 matching blue gingham checkered pillow shams",
       "Vibrant fade-resistant cobalt blue reactive print",
       "100% breathable natural cotton for summer cooling"
+    ]
+  },
+  {
+    id: "jaipuri-cotton-dohar-blanket",
+    name: "Jaipuri Artisanal Cotton Dohar Blanket",
+    collection: "Heritage Dohar",
+    size: "Double",
+    productType: "Blanket",
+    brand: "Cotton Nest",
+    price: 1450,
+    originalPrice: 1850,
+    dimensions: "90 x 100 inches (228 x 254 cm)",
+    pillowCovers: "2 Coordinating Shams (45 x 70 cm)",
+    threadCount: "300 Thread Count",
+    fabric: "Triple-Layer Pure Mulmul Cotton",
+    pattern: "Traditional Hand-Block Floral",
+    colorTone: "Ivory, Dusty Rose & Sage",
+    description: "Ultra-soft 3-layer pure Indian cotton mulmul dohar blanket with light flannel middle layer for pleasant AC cooling and mild winter comfort.",
+    image: "/images/exact_sheet2_sage_mint_rose_1790997747019.jpg",
+    badge: "All-Season Dohar",
+    inStock: true,
+    features: [
+      "Triple layered breathable fine mulmul cotton",
+      "Lightweight temperature-regulating core",
+      "Gentle against sensitive skin, easy machine wash",
+      "Generous double bed tuck-in drape"
+    ]
+  },
+  {
+    id: "cloud-soft-cotton-comforter",
+    name: "Cloud-Soft All-Season Comforter",
+    collection: "Comfort Atelier",
+    size: "King",
+    productType: "Comforter",
+    brand: "Spaces",
+    price: 2199,
+    originalPrice: 2899,
+    dimensions: "100 x 108 inches (254 x 274 cm)",
+    pillowCovers: "2 Flanged Pillow Shams (45 x 70 cm)",
+    threadCount: "350 Thread Count",
+    fabric: "100% Cotton Outer Shell with Cloud-Fill",
+    pattern: "Box-Stitched Reversible",
+    colorTone: "Blush Pink & Misty Grey",
+    description: "Reversible box-stitched all-weather luxury comforter with 100% natural cotton shell and hypoallergenic micro-down fill for blissful Indian bedroom nights.",
+    image: "/images/exact_sheet1_pink_rose_1790997736396.jpg",
+    badge: "Luxury Comforter",
+    inStock: true,
+    features: [
+      "Hypoallergenic 250 GSM micro-down filling",
+      "100% breathable percale cotton exterior shell",
+      "Diamond box quilting prevents fill shifting",
+      "Corner loops for duvet cover attachment"
     ]
   }
 ];

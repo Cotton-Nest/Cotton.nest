@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { X, Upload, RotateCcw, Check, Sparkles, Image as ImageIcon, Plus, Trash2, Cloud, Layers } from 'lucide-react';
+import { X, Upload, RotateCcw, Check, Sparkles, Image as ImageIcon, Plus, Trash2, Cloud, Layers, Play, Video } from 'lucide-react';
 import { BEDSHEETS_CATALOG, BedsheetProduct } from '../data/products';
 import {
   uploadImageApi,
@@ -9,7 +9,7 @@ import {
   saveUpdatedImagesStatsApi,
 } from '../services/api';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
-import { isCloudinaryUrl } from '../services/cloudinary';
+import { isCloudinaryUrl, isVideoMedia } from '../services/cloudinary';
 
 interface PhotoUploadModalProps {
   isOpen: boolean;
@@ -87,13 +87,18 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
     }
   };
 
-  // Add extra angle / gallery image to a specific bedsheet
+  // Add extra angle / gallery image or video to a specific bedsheet
   const handleAddGalleryImage = async (productId: string, file?: File) => {
     if (!file) return;
     setUploadingId(`gallery_${productId}`);
     setErrorMessage(null);
+    const isVideo = isVideoMedia(file);
     try {
-      setSuccessMessage('Adding extra angle photo to bedsheet gallery...');
+      setSuccessMessage(
+        isVideo
+          ? 'Uploading video angle to Cloudinary & saving in Firebase...'
+          : 'Adding extra angle photo to bedsheet gallery...'
+      );
       const target = displayProducts.find((p) => p.id === productId);
       const currentAdditional = target?.additionalImages || [];
       const newImageUrl = await addProductGalleryImageApi(productId, file, currentAdditional);
@@ -105,10 +110,14 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
         });
       }
 
-      setSuccessMessage('✓ New photo added to bedsheet gallery & saved in Firebase!');
+      setSuccessMessage(
+        isVideo
+          ? '✓ Video angle added to bedsheet gallery & saved in Firebase!'
+          : '✓ New photo added to bedsheet gallery & saved in Firebase!'
+      );
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err: any) {
-      console.error('Failed to add gallery image:', err);
+      console.error('Failed to add gallery image or video:', err);
       setErrorMessage(`Gallery upload error: ${err.message || 'Please try again.'}`);
       setTimeout(() => setErrorMessage(null), 5000);
     } finally {
@@ -492,31 +501,46 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                         <span>Gallery Angles ({additionalImages.length})</span>
                       </p>
                       <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-                        {additionalImages.map((extraUrl, extraIdx) => (
-                          <div
-                            key={extraIdx}
-                            className="relative w-11 h-11 rounded-lg overflow-hidden border border-[#EAE2D5] shrink-0 group/extra"
-                          >
-                            <img
-                              src={resolveBedsheetImage(extraUrl, product.id)}
-                              alt="Detail shot"
-                              className="w-full h-full object-cover"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveGalleryImage(product.id, extraUrl)}
-                              className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover/extra:opacity-100 transition-opacity cursor-pointer"
-                              title="Delete this angle photo"
+                        {additionalImages.map((extraUrl, extraIdx) => {
+                          const isVideo = isVideoMedia(extraUrl);
+                          return (
+                            <div
+                              key={extraIdx}
+                              className="relative w-11 h-11 rounded-lg overflow-hidden border border-[#EAE2D5] shrink-0 group/extra bg-zinc-900"
                             >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
+                              {isVideo ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900 text-white relative">
+                                  <video src={extraUrl} className="w-full h-full object-cover opacity-80 pointer-events-none" muted playsInline />
+                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                    <Play className="w-3 h-3 text-[#E6C687] fill-[#E6C687]" />
+                                  </div>
+                                  <span className="absolute bottom-0 inset-x-0 bg-black/90 text-[6px] text-[#E6C687] text-center font-bold tracking-tight">
+                                    VIDEO
+                                  </span>
+                                </div>
+                              ) : (
+                                <img
+                                  src={resolveBedsheetImage(extraUrl, product.id)}
+                                  alt="Detail shot"
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveGalleryImage(product.id, extraUrl)}
+                                className="absolute inset-0 bg-red-600/80 text-white flex items-center justify-center opacity-0 group-hover/extra:opacity-100 transition-opacity cursor-pointer z-10"
+                                title="Delete this angle"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
 
-                  {/* Card Action Buttons: Change Primary Photo + Add Extra Photo */}
+                  {/* Card Action Buttons: Change Primary Photo + Add Extra Photo/Video */}
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       <input
@@ -548,12 +572,12 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                       )}
                     </div>
 
-                    {/* Add extra angle / gallery image button */}
+                    {/* Add extra angle / gallery image or video button */}
                     <input
                       type="file"
                       ref={(el) => { galleryInputRefs.current[product.id] = el; }}
                       onChange={(e) => handleAddGalleryImage(product.id, e.target.files?.[0])}
-                      accept="image/*"
+                      accept="image/*,video/*"
                       className="hidden"
                     />
 
@@ -563,7 +587,7 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                       className="w-full py-1 px-2 bg-[#FAF7F2] hover:bg-white border border-dashed border-[#C29E57] text-[#8C2E46] text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
                       <Plus className="w-3 h-3 text-[#C29E57]" />
-                      <span>+ Add Extra Angle / Detail Photo</span>
+                      <span>+ Add Extra Angle (Photo or Video)</span>
                     </button>
                   </div>
                 </div>

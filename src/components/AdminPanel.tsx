@@ -3,7 +3,10 @@ import {
   BedsheetProduct,
   BedsheetVariant,
   COMPANY_DETAILS,
-  BEDSHEETS_CATALOG
+  BEDSHEETS_CATALOG,
+  STANDARD_SIZES,
+  STANDARD_PRODUCT_TYPES,
+  POPULAR_BRANDS
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from '../data/siteContent';
@@ -202,6 +205,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newProduct, setNewProduct] = useState<Partial<BedsheetProduct>>({
     name: '',
     collection: 'Signature Collection',
+    size: 'King',
+    productType: 'Bedsheet',
+    brand: 'Cotton Nest',
     price: 1899,
     originalPrice: 2499,
     dimensions: '108 x 108 inches (274 x 274 cm)',
@@ -223,6 +229,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       'Color-fast reactive dye print'
     ]
   });
+  const [newProductCustomSize, setNewProductCustomSize] = useState('');
+  const [newProductCustomType, setNewProductCustomType] = useState('');
   const newProductFileRef = useRef<HTMLInputElement>(null);
   const newProductVariantFileRef = useRef<HTMLInputElement>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
@@ -345,7 +353,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     try {
       const freshOrders = await getOrders();
       setEditableOrders(freshOrders);
-      onUpdateOrders(freshOrders);
       setOrdersLastSyncedAt(new Date());
       showToast(`Refreshed ${freshOrders.length} orders from database`);
     } catch (err) {
@@ -355,17 +362,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Active sync for orders: listen to Firestore and re-query on mount / tab switch
+  // Active sync for orders: listen to Firestore and update local editableOrders
   useEffect(() => {
-    handleRefreshOrders();
-
     const unsub = onSnapshot(collection(db, 'orders'), (snapshot) => {
       if (!snapshot.empty) {
         const liveOrders: Order[] = [];
         snapshot.forEach((d) => liveOrders.push({ ...(d.data() as Order), id: d.id }));
         liveOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         setEditableOrders(liveOrders);
-        onUpdateOrders(liveOrders);
         setOrdersLastSyncedAt(new Date());
       }
     });
@@ -860,10 +864,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     }
 
+    const finalSize = newProduct.size === 'Other' ? (newProductCustomSize.trim() || 'Custom Size') : (newProduct.size || 'King');
+    const finalProductType = newProduct.productType === 'Other' ? (newProductCustomType.trim() || 'Custom') : (newProduct.productType || 'Bedsheet');
+    const finalBrand = (newProduct.brand || 'Cotton Nest').trim() || 'Cotton Nest';
+
     const fullProduct: BedsheetProduct = {
       id: createdId,
       name: newProduct.name.trim(),
       collection: newProduct.collection || 'Signature Collection',
+      size: finalSize,
+      productType: finalProductType,
+      brand: finalBrand,
       price: Number(newProduct.price) || 1899,
       originalPrice: Number(newProduct.originalPrice) || 2499,
       dimensions: newProduct.dimensions || '108 x 108 inches (274 x 274 cm)',
@@ -2318,8 +2329,94 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </div>
                         </div>
 
+                        {/* Size, Type & Brand (Backend Only) */}
+                        <div className="grid grid-cols-3 gap-1.5 pt-1">
+                          {/* Size */}
+                          <div>
+                            <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-0.5">
+                              Size
+                            </label>
+                            <select
+                              value={STANDARD_SIZES.includes(product.size as any) ? product.size : 'Other'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'Other') {
+                                  handleProductFieldChange(product.id, 'size', 'Custom Size');
+                                } else {
+                                  handleProductFieldChange(product.id, 'size', val);
+                                }
+                              }}
+                              className="w-full px-2 py-1 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                            >
+                              {STANDARD_SIZES.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                            {(!STANDARD_SIZES.includes(product.size as any) || product.size === 'Other') && (
+                              <input
+                                type="text"
+                                value={product.size || ''}
+                                onChange={(e) => handleProductFieldChange(product.id, 'size', e.target.value)}
+                                placeholder="Custom size"
+                                className="w-full mt-1 px-1.5 py-0.5 bg-white border border-[#DEC89B] rounded text-[11px] text-[#2C2420]"
+                              />
+                            )}
+                          </div>
+
+                          {/* Product Type */}
+                          <div>
+                            <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-0.5">
+                              Type
+                            </label>
+                            <select
+                              value={STANDARD_PRODUCT_TYPES.includes(product.productType as any) ? product.productType : 'Other'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'Other') {
+                                  handleProductFieldChange(product.id, 'productType', 'Custom Type');
+                                } else {
+                                  handleProductFieldChange(product.id, 'productType', val);
+                                }
+                              }}
+                              className="w-full px-2 py-1 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                            >
+                              {STANDARD_PRODUCT_TYPES.map((t) => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                            {(!STANDARD_PRODUCT_TYPES.includes(product.productType as any) || product.productType === 'Other') && (
+                              <input
+                                type="text"
+                                value={product.productType || ''}
+                                onChange={(e) => handleProductFieldChange(product.id, 'productType', e.target.value)}
+                                placeholder="Custom type"
+                                className="w-full mt-1 px-1.5 py-0.5 bg-white border border-[#DEC89B] rounded text-[11px] text-[#2C2420]"
+                              />
+                            )}
+                          </div>
+
+                          {/* Brand (Backend Only) */}
+                          <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block">
+                                Brand
+                              </label>
+                              <span className="text-[8px] bg-amber-100 text-amber-800 px-1 rounded font-semibold" title="Brand is backend/filter only and never shown on customer product cards/details">
+                                Filter Only
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              value={product.brand || 'Cotton Nest'}
+                              onChange={(e) => handleProductFieldChange(product.id, 'brand', e.target.value)}
+                              placeholder="Brand"
+                              className="w-full px-2 py-1 bg-white border border-[#EAE2D5] rounded-lg text-xs font-medium text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                            />
+                          </div>
+                        </div>
+
                         <div className="flex items-center justify-between text-[11px] text-[#7A6458] pt-0.5">
-                          <span className="truncate">{product.dimensions}</span>
+                          <span className="truncate">{product.dimensions} · {product.size || 'King'}</span>
                           <button
                             type="button"
                             onClick={() => toggleSpecsPanel(product.id)}
@@ -3172,11 +3269,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </div>
 
                           {/* Order Total Footer */}
-                          <div className="pt-2 border-t border-[#EAE2D5] flex items-center justify-between text-xs">
-                            <span className="text-[#7A6458]">Total Order Amount:</span>
-                            <span className="text-base font-bold text-[#8C2E46] tabular-nums">
-                              ₹{order.totalAmount.toLocaleString('en-IN')}
-                            </span>
+                          <div className="pt-2 border-t border-[#EAE2D5] space-y-1 text-xs">
+                            {Boolean(order.pointsUsed && order.pointsUsed > 0) && (
+                              <div className="flex items-center justify-between text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                <span>✨ Points Redeemed ({order.pointsUsed} pts):</span>
+                                <span className="font-semibold">-₹{order.pointsDiscount || order.pointsUsed}</span>
+                              </div>
+                            )}
+                            {Boolean(order.pointsEarned && order.pointsEarned > 0) && (
+                              <div className="flex items-center justify-between text-emerald-800 text-[11px]">
+                                <span>🎁 Points Earned by Customer:</span>
+                                <span className="font-bold text-emerald-900">+{order.pointsEarned} pts (1 pt / ₹50)</span>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between">
+                              <span className="text-[#7A6458]">Total Order Amount:</span>
+                              <span className="text-base font-bold text-[#8C2E46] tabular-nums">
+                                ₹{order.totalAmount.toLocaleString('en-IN')}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
@@ -4226,6 +4337,101 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     onChange={(e) => setNewProduct({ ...newProduct, fabric: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420]"
                   />
+                </div>
+              </div>
+
+              {/* Product Size, Product Type & Brand (Backend Only) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#F4EFE6]/60 p-3.5 rounded-2xl border border-[#EAE2D5]">
+                {/* Size */}
+                <div>
+                  <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
+                    Size *
+                  </label>
+                  <select
+                    value={newProduct.size || 'King'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewProduct({ ...newProduct, size: val });
+                      if (val !== 'Other') {
+                        setNewProductCustomSize('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                  >
+                    {STANDARD_SIZES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  {newProduct.size === 'Other' && (
+                    <input
+                      type="text"
+                      placeholder="Enter custom size (e.g. 72x78 in)"
+                      value={newProductCustomSize}
+                      onChange={(e) => setNewProductCustomSize(e.target.value)}
+                      className="w-full mt-1.5 px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs text-[#2C2420] focus:outline-hidden"
+                    />
+                  )}
+                  <p className="text-[10px] text-[#8C7A70] mt-1">Single, Double, Queen, King, Super King, or custom</p>
+                </div>
+
+                {/* Product Type */}
+                <div>
+                  <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
+                    Product Type *
+                  </label>
+                  <select
+                    value={newProduct.productType || 'Bedsheet'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewProduct({ ...newProduct, productType: val });
+                      if (val !== 'Other') {
+                        setNewProductCustomType('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                  >
+                    {STANDARD_PRODUCT_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  {newProduct.productType === 'Other' && (
+                    <input
+                      type="text"
+                      placeholder="Enter custom type (e.g. Comforter, Blanket, Quilt)"
+                      value={newProductCustomType}
+                      onChange={(e) => setNewProductCustomType(e.target.value)}
+                      className="w-full mt-1.5 px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs text-[#2C2420] focus:outline-hidden"
+                    />
+                  )}
+                  <p className="text-[10px] text-[#8C7A70] mt-1">Bedsheet, Blanket, Comforter, or custom</p>
+                </div>
+
+                {/* Brand - Backend Only */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block">
+                      Brand (Backend Only) *
+                    </label>
+                    <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
+                      Filter Only
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    list="brand-suggestions-new"
+                    placeholder="e.g. Cotton Nest, Swayam, Spaces"
+                    value={newProduct.brand || 'Cotton Nest'}
+                    onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs font-medium text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                  />
+                  <datalist id="brand-suggestions-new">
+                    {POPULAR_BRANDS.map((b) => (
+                      <option key={b} value={b} />
+                    ))}
+                  </datalist>
+                  <p className="text-[10px] text-[#8C7A70] mt-1">
+                    Saved in DB for catalogue filtering only. Never shown on customer cards.
+                  </p>
                 </div>
               </div>
 

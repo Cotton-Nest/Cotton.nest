@@ -1,4 +1,4 @@
-import { ShoppingBag, Grid, Package, Sparkles, Heart } from 'lucide-react';
+import { ShoppingBag, Grid, Package, Sparkles, Heart, User } from 'lucide-react';
 import { SeasonalConfig } from '../data/seasonal';
 
 interface MobileBottomBarProps {
@@ -9,6 +9,7 @@ interface MobileBottomBarProps {
   seasonalConfig?: SeasonalConfig;
   wishlistCount?: number;
   openWishlist?: () => void;
+  onOpenAccount?: () => void;
 }
 
 export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
@@ -19,6 +20,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
   seasonalConfig,
   wishlistCount = 0,
   openWishlist,
+  onOpenAccount,
 }) => {
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-header,#FAF7F2)]/95 backdrop-blur-md border-t border-[var(--color-border,#EAE2D5)] px-2 py-2 flex items-center justify-around text-xs shadow-lg">
@@ -87,21 +89,16 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
         <span className="text-[10px]">My Orders</span>
       </button>
 
-      {/* Wishlist Button with Badge */}
-      {openWishlist && (
+      {/* Account Button */}
+      {onOpenAccount && (
         <button
-          onClick={openWishlist}
-          className="flex flex-col items-center gap-0.5 text-[var(--color-text,#2C2420)] hover:text-rose-600 relative cursor-pointer"
+          onClick={onOpenAccount}
+          className="flex flex-col items-center gap-0.5 text-[var(--color-text,#2C2420)] hover:text-[#8C2E46] relative cursor-pointer"
         >
           <div className="relative">
-            <Heart className={`w-5 h-5 ${wishlistCount > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
-            {wishlistCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center tabular-nums">
-                {wishlistCount}
-              </span>
-            )}
+            <User className="w-5 h-5 text-[#8C2E46]" />
           </div>
-          <span className="text-[10px]">Wishlist</span>
+          <span className="text-[10px] font-medium">Account</span>
         </button>
       )}
 

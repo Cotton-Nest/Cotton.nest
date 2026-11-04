@@ -16,15 +16,31 @@ export interface CloudinaryUploadResponse {
   width?: number;
   height?: number;
   format?: string;
+  resource_type?: 'image' | 'video' | string;
   provider: 'cloudinary';
 }
 
 /**
- * Checks whether an image URL is hosted on Cloudinary CDN
+ * Checks whether an image or video URL is hosted on Cloudinary CDN
  */
 export function isCloudinaryUrl(url?: string | null): boolean {
   if (!url || typeof url !== 'string') return false;
   return url.startsWith('https://res.cloudinary.com/') || url.startsWith('http://res.cloudinary.com/');
+}
+
+/**
+ * Detects whether a media URL or File represents a video
+ */
+export function isVideoMedia(urlOrFile?: string | File | null): boolean {
+  if (!urlOrFile) return false;
+  if (urlOrFile instanceof File) {
+    return urlOrFile.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|ogg|ogv)$/i.test(urlOrFile.name);
+  }
+  if (typeof urlOrFile === 'string') {
+    if (urlOrFile.startsWith('data:video/')) return true;
+    return /\.(mp4|webm|mov|m4v|ogg|ogv)($|\?)/i.test(urlOrFile) || urlOrFile.includes('/video/upload/');
+  }
+  return false;
 }
 
 /**
@@ -52,47 +68,63 @@ export async function checkCloudinaryConfig(): Promise<{ configured: boolean; cl
 }
 
 /**
- * Uploads an image (File or base64 data URL) to Cloudinary via signed direct upload.
+ * Uploads an image or video (File or base64 data URL) to Cloudinary via signed direct upload.
+ * Uses the exact same Cloudinary account, cloudName, API Key, and Secret for both photos and videos.
  *
- * Returns the permanent HTTPS Cloudinary image URL to store in Firestore.
+ * Returns the permanent HTTPS Cloudinary media URL to store in Firestore.
  */
 export async function uploadToCloudinary(
-  imageInput: File | string,
+  mediaInput: File | string,
   productId?: string
 ): Promise<CloudinaryUploadResponse> {
   // If already an HTTP/HTTPS URL, return immediately
-  if (typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'))) {
+  if (typeof mediaInput === 'string' && (mediaInput.startsWith('http://') || mediaInput.startsWith('https://'))) {
     return {
-      url: imageInput,
+      url: mediaInput,
       provider: 'cloudinary',
     };
   }
 
-  // 1. Gently compress image client-side to maximum 1600px / 0.85 quality so upload payload is fast & crisp
-  let dataUrl: string;
-  if (typeof imageInput === 'string' && imageInput.startsWith('data:image/')) {
-    dataUrl = imageInput;
-  } else {
-    dataUrl = await compressImage(imageInput, 1600, 1600, 0.85);
-  }
+  const isVideo = isVideoMedia(mediaInput);
+  const resourceType = isVideo ? 'video' : 'auto';
 
-  // Convert to Blob for proper binary multipart upload so Cloudinary does not treat it as a URL string
+  let dataUrl: string | undefined;
   let uploadBlob: Blob;
-  const fileName = productId ? `sheet_${productId.replace(/[^a-zA-Z0-9-_]/g, '_')}.jpg` : 'sheet.jpg';
-  try {
-    const fetchBlobRes = await fetch(dataUrl);
-    uploadBlob = await fetchBlobRes.blob();
-  } catch {
-    if (imageInput instanceof File) {
-      uploadBlob = imageInput;
+  const ext = isVideo ? 'mp4' : 'jpg';
+  const fileName = productId
+    ? `sheet_${productId.replace(/[^a-zA-Z0-9-_]/g, '_')}_${Date.now()}.${ext}`
+    : `sheet_${Date.now()}.${ext}`;
+
+  if (isVideo) {
+    if (mediaInput instanceof File) {
+      uploadBlob = mediaInput;
     } else {
-      uploadBlob = new Blob([dataUrl], { type: 'image/jpeg' });
+      const fetchBlobRes = await fetch(mediaInput);
+      uploadBlob = await fetchBlobRes.blob();
+    }
+  } else {
+    // Compress photo client-side to maximum 1600px / 0.85 quality so upload payload is fast & crisp
+    if (typeof mediaInput === 'string' && mediaInput.startsWith('data:image/')) {
+      dataUrl = mediaInput;
+    } else {
+      dataUrl = await compressImage(mediaInput, 1600, 1600, 0.85);
+    }
+
+    try {
+      const fetchBlobRes = await fetch(dataUrl);
+      uploadBlob = await fetchBlobRes.blob();
+    } catch {
+      if (mediaInput instanceof File) {
+        uploadBlob = mediaInput;
+      } else {
+        uploadBlob = new Blob([dataUrl], { type: 'image/jpeg' });
+      }
     }
   }
 
   let signErrorMsg = '';
 
-  // 2. Primary Method: Signed direct upload via /api/cloudinary-sign
+  // 1. Primary Method: Signed direct upload via /api/cloudinary-sign
   try {
     const queryParam = productId ? `?productId=${encodeURIComponent(productId)}` : '';
     const signRes = await fetch(`/api/cloudinary-sign${queryParam}`, {
@@ -114,13 +146,12 @@ export async function uploadToCloudinary(
         formData.append('public_id', signData.public_id);
       }
 
-      const cloudRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${signData.cloudName}/image/upload`,
-        {
-          method: 'POST',
-          body: formData,
-        }
-      );
+      // Cloudinary upload endpoint handles both image and video
+      const endpoint = `https://api.cloudinary.com/v1_1/${signData.cloudName}/${isVideo ? 'video' : 'auto'}/upload`;
+      const cloudRes = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+      });
 
       if (cloudRes.ok) {
         const cloudData = await cloudRes.json();
@@ -131,12 +162,13 @@ export async function uploadToCloudinary(
             width: cloudData.width,
             height: cloudData.height,
             format: cloudData.format,
+            resource_type: cloudData.resource_type || (isVideo ? 'video' : 'image'),
             provider: 'cloudinary',
           };
         }
       } else {
         const cloudErrData = await cloudRes.json().catch(() => null);
-        console.warn('Direct Cloudinary upload error:', cloudErrData);
+        console.warn('Direct Cloudinary media upload error:', cloudErrData);
         signErrorMsg = cloudErrData?.error?.message || `Cloudinary upload failed (HTTP ${cloudRes.status})`;
       }
     } else if (signData && !signData.configured) {
@@ -147,14 +179,26 @@ export async function uploadToCloudinary(
     signErrorMsg = signErr.message;
   }
 
-  // 3. Secondary Fallback: Server-side upload endpoint (/api/upload)
+  // 2. Secondary Fallback: Server-side upload endpoint (/api/upload)
   try {
+    let payload = dataUrl;
+    if (!payload) {
+      payload = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(uploadBlob);
+      });
+    }
+
     const uploadRes = await fetch('/api/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        image: dataUrl,
+        media: payload,
+        image: payload,
         productId: productId || 'sheet',
+        resource_type: resourceType,
       }),
     });
 
@@ -167,6 +211,7 @@ export async function uploadToCloudinary(
         width: uploadData.width,
         height: uploadData.height,
         format: uploadData.format,
+        resource_type: uploadData.resource_type || (isVideo ? 'video' : 'image'),
         provider: 'cloudinary',
       };
     } else if (uploadData?.error) {
@@ -177,7 +222,7 @@ export async function uploadToCloudinary(
   }
 
   // Throw clear, actionable error
-  const finalMsg = signErrorMsg || 'Cloudinary upload failed. Please ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables are set in your deployment settings.';
+  const finalMsg = signErrorMsg || 'Media upload failed. Please ensure Cloudinary credentials are set in your environment variables.';
   throw new Error(finalMsg);
 }
 

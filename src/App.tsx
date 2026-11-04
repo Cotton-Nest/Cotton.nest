@@ -24,6 +24,7 @@ import { LiveOrdersView } from './components/LiveOrdersView';
 import { TermsAndConditionsView } from './components/TermsAndConditionsView';
 import { SeasonalView } from './components/SeasonalView';
 import { AuthModal } from './components/AuthModal';
+import { AccountModal } from './components/AccountModal';
 import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { ProductCompareModal } from './components/ProductCompareModal';
 import { ProductCompareBar } from './components/ProductCompareBar';
@@ -37,6 +38,8 @@ import {
 } from './data/notifications';
 import { initPushNotifications, triggerLocalPushNotification } from './utils/pushNotifications';
 import { useAuth } from './context/AuthContext';
+import { useLoyalty } from './context/LoyaltyContext';
+import { LoyaltyRewardsModal } from './components/LoyaltyRewardsModal';
 import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT } from './data/siteContent';
@@ -125,6 +128,7 @@ export default function App() {
   });
 
   const { user, isOwner } = useAuth();
+  const { isLoyaltyModalOpen, closeLoyaltyModal } = useLoyalty();
   const [isOwnerAuthOpen, setIsOwnerAuthOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [whatsAppHelperData, setWhatsAppHelperData] = useState<WhatsAppHelperData | null>(null);
@@ -139,6 +143,7 @@ export default function App() {
   });
 
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [pendingWishlistProduct, setPendingWishlistProduct] = useState<{
     product: BedsheetProduct;
@@ -704,6 +709,9 @@ export default function App() {
             loadedProducts.push({
               ...data,
               id: docSnap.id,
+              size: data.size || 'King',
+              productType: data.productType || 'Bedsheet',
+              brand: data.brand || 'Cotton Nest',
               image: resolveBedsheetImage(data.image, docSnap.id, data.updatedAt),
             });
           });
@@ -1286,6 +1294,7 @@ export default function App() {
             comparedCount={comparedProductIds.length}
             wishlistCount={wishlistItems.length}
             onOpenWishlist={() => setIsWishlistOpen(true)}
+            onOpenAccount={() => setIsAccountModalOpen(true)}
           />
 
           {/* Main Content Area */}
@@ -1463,6 +1472,7 @@ export default function App() {
                 onNotifyStock={handleNotifyStock}
                 isWishlisted={isProductWishlisted}
                 onToggleWishlist={handleToggleWishlist}
+                reviews={reviews}
               />
             )}
 
@@ -1605,6 +1615,7 @@ export default function App() {
             seasonalConfig={seasonalConfig}
             wishlistCount={wishlistItems.length}
             openWishlist={() => setIsWishlistOpen(true)}
+            onOpenAccount={() => setIsAccountModalOpen(true)}
           />
 
           {/* Global Footer with discrete owner access */}
@@ -1706,6 +1717,40 @@ export default function App() {
         }}
         onConfirmed={handleCustomerProfileConfirmed}
         pendingProductName={pendingWishlistProduct?.product.name}
+      />
+
+      {/* Customer Loyalty Points & Rewards Modal */}
+      <LoyaltyRewardsModal
+        isOpen={isLoyaltyModalOpen}
+        onClose={closeLoyaltyModal}
+        onShopCatalogue={() => setActiveTab('catalogue')}
+        onOpenCart={() => setIsCartOpen(true)}
+      />
+
+      {/* All-in-One Customer Account Hub (Wishlist, Loyalty Points, Orders, Profile) */}
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        customerProfile={customerProfile}
+        onUpdateProfile={(updated) => setCustomerProfile(updated)}
+        wishlistItems={wishlistItems}
+        onRemoveWishlistItem={handleRemoveWishlistItem}
+        onMoveToCartFromWishlist={handleMoveToCartFromWishlist}
+        orders={orders}
+        onTrackOrderDirect={(orderId) => {
+          setIsAccountModalOpen(false);
+          setActiveTab('orders');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenCart={() => {
+          setIsAccountModalOpen(false);
+          setIsCartOpen(true);
+        }}
+        onShopCatalogue={() => {
+          setIsAccountModalOpen(false);
+          setActiveTab('catalogue');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       {/* Floating Smooth Scroll-to-Top Button */}

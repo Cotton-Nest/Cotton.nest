@@ -822,6 +822,18 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                               <span>-₹{currentSelectedOrder.totalSavings.toLocaleString('en-IN')}</span>
                             </div>
                           )}
+                          {Boolean(currentSelectedOrder.pointsUsed && currentSelectedOrder.pointsUsed > 0) && (
+                            <div className="flex justify-between text-amber-800 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              <span>Loyalty Points Redeemed ({currentSelectedOrder.pointsUsed} pts)</span>
+                              <span>-₹{currentSelectedOrder.pointsDiscount || currentSelectedOrder.pointsUsed}</span>
+                            </div>
+                          )}
+                          {Boolean(currentSelectedOrder.pointsEarned && currentSelectedOrder.pointsEarned > 0) && (
+                            <div className="flex justify-between text-amber-900 font-semibold text-[11px]">
+                              <span>Loyalty Points Earned</span>
+                              <span className="font-bold text-amber-950">+{currentSelectedOrder.pointsEarned} pts (1 pt / ₹50)</span>
+                            </div>
+                          )}
                           <div className="flex justify-between text-[#6B5D55]">
                             <span>Delivery (Gurgaon / NCR)</span>
                             <span className="text-emerald-700 font-semibold">FREE</span>

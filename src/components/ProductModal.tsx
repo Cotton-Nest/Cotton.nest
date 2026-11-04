@@ -1,10 +1,10 @@
 import React from 'react';
-import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell } from 'lucide-react';
+import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { updateSingleProduct, addProductGalleryImageApi, removeProductGalleryImageApi, getCouponsApi } from '../services/api';
-import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from '../services/cloudinary';
+import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl, isVideoMedia } from '../services/cloudinary';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
 import { CouponOffer } from '../data/coupons';
 import { ProductRecommendations } from './ProductRecommendations';
@@ -73,6 +73,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [showFullPolicy, setShowFullPolicy] = React.useState(false);
   const [activeCoupons, setActiveCoupons] = React.useState<CouponOffer[]>([]);
   const [copiedCouponCode, setCopiedCouponCode] = React.useState<string | null>(null);
+  const [showVideoUrlModal, setShowVideoUrlModal] = React.useState(false);
+  const [videoUrlInput, setVideoUrlInput] = React.useState('');
 
   React.useEffect(() => {
     getCouponsApi()
@@ -91,6 +93,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     setAdded(false);
     setIsEditing(initialEditMode);
     setSaveSuccessMessage(null);
+    setShowVideoUrlModal(false);
+    setVideoUrlInput('');
 
     if (product) {
       setEditName(product.name);
@@ -217,15 +221,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
   };
 
-  const handleAddAdditionalPhotoDirect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !product) return;
+  const handleAddAngleMedia = async (fileOrUrl: File | string) => {
+    if (!product) return;
 
     setIsSaving(true);
-    setSaveSuccessMessage('Uploading extra angle photo to Cloudinary & Firebase...');
+    const isVideo = isVideoMedia(fileOrUrl);
+    setSaveSuccessMessage(
+      isVideo
+        ? 'Uploading video angle to Cloudinary & saving in Firebase...'
+        : 'Uploading extra angle photo to Cloudinary & Firebase...'
+    );
     try {
       const currentAdditional = product.additionalImages || [];
-      const newUrl = await addProductGalleryImageApi(product.id, file, currentAdditional);
+      const newUrl = await addProductGalleryImageApi(product.id, fileOrUrl, currentAdditional);
       const updatedList = [...currentAdditional, newUrl];
       const updatedProduct: BedsheetProduct = {
         ...product,
@@ -236,10 +244,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         onUpdateProduct(updatedProduct);
       }
       setSelectedPreviewUrl(newUrl);
-      setSaveSuccessMessage('✓ Extra angle photo added & saved in Firebase!');
+      setSaveSuccessMessage(
+        isVideo
+          ? '✓ Video angle added & saved in Firebase!'
+          : '✓ Extra angle photo added & saved in Firebase!'
+      );
+      setShowVideoUrlModal(false);
+      setVideoUrlInput('');
       setTimeout(() => setSaveSuccessMessage(null), 3000);
     } catch (err: any) {
-      console.error('Failed to add angle photo:', err);
+      console.error('Failed to add angle media:', err);
       setSaveSuccessMessage(`Upload failed: ${err.message || 'Please try again.'}`);
       setTimeout(() => setSaveSuccessMessage(null), 4000);
     } finally {
@@ -248,6 +262,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         galleryFileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleAddAdditionalPhotoDirect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !product) return;
+    await handleAddAngleMedia(file);
   };
 
   const handleRemoveAdditionalPhotoDirect = async (urlToRemove: string) => {
@@ -355,25 +375,51 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           {/* Left Column: Big Product Photography & Features */}
           <div className="space-y-4">
             <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border border-[#EAE2D5] bg-[#F4EFE6]">
-              <img
-                src={displayImage}
-                alt={product.name}
-                referrerPolicy="no-referrer"
-                onError={handleImageFallback}
-                className="w-full h-full object-cover object-center"
-              />
+              {isVideoMedia(displayImage) ? (
+                <div className="w-full h-full relative bg-black flex items-center justify-center">
+                  <video
+                    key={displayImage}
+                    src={displayImage}
+                    controls
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-full object-contain bg-black"
+                  />
+                  <span className="absolute top-3 left-3 bg-[#8C2E46]/95 text-white backdrop-blur-sm px-2.5 py-1 rounded-md text-[11px] font-bold flex items-center gap-1.5 border border-[#E6C687]/40 shadow-xs pointer-events-none">
+                    <Film className="w-3.5 h-3.5 text-[#E6C687]" />
+                    <span>Product Video Reel</span>
+                  </span>
+                </div>
+              ) : (
+                <img
+                  src={displayImage}
+                  alt={product.name}
+                  referrerPolicy="no-referrer"
+                  onError={handleImageFallback}
+                  className="w-full h-full object-cover object-center"
+                />
+              )}
               {product.badge && (
                 <span className="absolute top-3 left-3 bg-[#FAF7F2]/95 backdrop-blur-sm px-3 py-1 rounded-md text-xs font-semibold text-[#8C2E46] border border-[#FAD1DC]">
                   {product.badge}
                 </span>
               )}
 
-              {/* Custom Photo Stored Badge */}
-              {(isCloudinaryUrl(displayImage) || !!customImage || (typeof product.image === 'string' && !product.image.includes('exact_sheet') && !product.image.startsWith('/images/exact_'))) && (
-                <span className="absolute top-3 right-3 bg-emerald-800/90 text-white backdrop-blur-xs px-2.5 py-1 rounded-md text-[10px] font-bold border border-emerald-500/40 shadow-xs flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-300" />
-                  <span>Custom Atelier Photo</span>
+              {/* Custom Photo / Video Stored Badge */}
+              {isVideoMedia(displayImage) ? (
+                <span className="absolute top-3 right-3 bg-purple-900/90 text-white backdrop-blur-xs px-2.5 py-1 rounded-md text-[10px] font-bold border border-purple-400/40 shadow-xs flex items-center gap-1">
+                  <Play className="w-3 h-3 text-[#E6C687] fill-[#E6C687]" />
+                  <span>Cloudinary Video</span>
                 </span>
+              ) : (
+                (isCloudinaryUrl(displayImage) || !!customImage || (typeof product.image === 'string' && !product.image.includes('exact_sheet') && !product.image.startsWith('/images/exact_'))) && (
+                  <span className="absolute top-3 right-3 bg-emerald-800/90 text-white backdrop-blur-xs px-2.5 py-1 rounded-md text-[10px] font-bold border border-emerald-500/40 shadow-xs flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-300" />
+                    <span>Custom Atelier Photo</span>
+                  </span>
+                )
               )}
 
               {/* Replace image button inside modal - only visible to store owners */}
@@ -414,12 +460,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               )}
             </div>
 
-            {/* Multi-Photo Gallery Thumbnail Row & Add Angle Button */}
+            {/* Multi-Photo & Video Gallery Thumbnail Row & Add Angle Button */}
             <div className="p-3 bg-white rounded-2xl border border-[#EAE2D5] space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A6458] flex items-center gap-1.5">
                   <ImageIcon className="w-3.5 h-3.5 text-[#C29E57]" />
-                  <span>Product Photos &amp; Angles</span>
+                  <span>Photos &amp; Video Angles</span>
                 </span>
                 {isOwnerMode && (
                   <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -450,26 +496,39 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </span>
                 </button>
 
-                {/* 2. Additional Gallery Angle Photos */}
+                {/* 2. Additional Gallery Angle Photos & Videos */}
                 {(product.additionalImages || []).map((imgUrl, idx) => {
                   const isSelected = selectedPreviewUrl === imgUrl;
+                  const isVideo = isVideoMedia(imgUrl);
                   return (
                     <div key={idx} className="relative w-14 h-14 shrink-0 group/thumb">
                       <button
                         type="button"
                         onClick={() => setSelectedPreviewUrl(imgUrl)}
-                        className={`w-full h-full rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                        className={`w-full h-full rounded-xl overflow-hidden border-2 transition-all cursor-pointer relative bg-zinc-900 ${
                           isSelected
                             ? 'border-[#8C2E46] ring-2 ring-[#8C2E46]/20'
-                            : 'border-[#EAE2D5] opacity-70 hover:opacity-100'
+                            : 'border-[#EAE2D5] opacity-80 hover:opacity-100'
                         }`}
-                        title={`Angle #${idx + 1}`}
+                        title={isVideo ? `Video Angle #${idx + 1}` : `Photo Angle #${idx + 1}`}
                       >
-                        <img
-                          src={resolveBedsheetImage(imgUrl, product.id)}
-                          alt={`Angle ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
+                        {isVideo ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900 text-white relative">
+                            <video src={imgUrl} className="w-full h-full object-cover opacity-80 pointer-events-none" muted playsInline />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <Play className="w-4 h-4 text-[#E6C687] fill-[#E6C687]" />
+                            </div>
+                            <span className="absolute bottom-0 inset-x-0 bg-black/90 text-[7px] text-[#E6C687] text-center font-bold tracking-tight">
+                              VIDEO
+                            </span>
+                          </div>
+                        ) : (
+                          <img
+                            src={resolveBedsheetImage(imgUrl, product.id)}
+                            alt={`Angle ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </button>
 
                       {isOwnerMode && (
@@ -480,7 +539,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                             handleRemoveAdditionalPhotoDirect(imgUrl);
                           }}
                           className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity shadow-xs cursor-pointer z-10"
-                          title="Delete this photo angle"
+                          title="Delete this angle"
                         >
                           <Trash2 className="w-2.5 h-2.5" />
                         </button>
@@ -489,14 +548,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   );
                 })}
 
-                {/* 3. Owner Action: Add Extra Angle Photo Button */}
+                {/* 3. Owner Action: Add Extra Angle Photo or Video Button */}
                 {isOwnerMode && (
-                  <>
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <input
                       type="file"
                       ref={galleryFileInputRef}
                       onChange={handleAddAdditionalPhotoDirect}
-                      accept="image/*"
+                      accept="image/*,video/*"
                       className="hidden"
                     />
                     <button
@@ -504,14 +563,68 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       disabled={isSaving}
                       onClick={() => galleryFileInputRef.current?.click()}
                       className="w-14 h-14 rounded-xl border-2 border-dashed border-[#C29E57] bg-[#FAF7F2] hover:bg-white text-[#8C2E46] flex flex-col items-center justify-center gap-0.5 shrink-0 transition-colors cursor-pointer disabled:opacity-50"
-                      title="Add extra angle or detail photo"
+                      title="Upload photo or video angle (MP4, WebM, MOV, JPG, PNG)"
                     >
                       <Plus className="w-4 h-4 text-[#C29E57]" />
                       <span className="text-[9px] font-bold">+ Angle</span>
                     </button>
-                  </>
+
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={() => setShowVideoUrlModal(!showVideoUrlModal)}
+                      className="h-14 px-2 rounded-xl border border-[#DEC89B] bg-[#FAF7F2] hover:bg-white text-[#7A6458] hover:text-[#8C2E46] flex flex-col items-center justify-center gap-0.5 shrink-0 transition-colors cursor-pointer text-[9px] font-semibold"
+                      title="Add video or media by URL"
+                    >
+                      <Video className="w-3.5 h-3.5 text-[#8C2E46]" />
+                      <span>URL</span>
+                    </button>
+                  </div>
                 )}
               </div>
+
+              {/* Inline URL add panel */}
+              {isOwnerMode && showVideoUrlModal && (
+                <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#DEC89B] space-y-2 mt-2 animate-in fade-in">
+                  <div className="flex items-center justify-between text-xs font-semibold text-[#2C2420]">
+                    <span className="flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-[#8C2E46]" />
+                      <span>Add Angle via Video / Image Link</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoUrlModal(false)}
+                      className="text-[#7A6458] hover:text-[#2C2420]"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      placeholder="Paste MP4, WebM, or Cloudinary video link..."
+                      value={videoUrlInput}
+                      onChange={(e) => setVideoUrlInput(e.target.value)}
+                      className="flex-1 px-3 py-1.5 bg-white border border-[#DEC89B] rounded-lg text-xs text-[#2C2420] focus:outline-hidden focus:ring-1 focus:ring-[#8C2E46]"
+                    />
+                    <button
+                      type="button"
+                      disabled={!videoUrlInput.trim() || isSaving}
+                      onClick={() => {
+                        if (videoUrlInput.trim()) {
+                          handleAddAngleMedia(videoUrlInput.trim());
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#A33452] text-white text-xs font-semibold rounded-lg disabled:opacity-50 cursor-pointer"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-[#7A6458]">
+                    Supports Cloudinary video URLs, direct .mp4, .webm, or image links. Saved directly to Firebase.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Micro highlights */}
