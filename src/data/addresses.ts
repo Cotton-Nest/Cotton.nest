@@ -56,6 +56,15 @@ export function parseAddressString(raw: string): { addressLine: string; city: st
   };
 }
 
+function sanitizeName(n?: string): string {
+  if (!n) return 'Cotton Nest';
+  const lower = n.toLowerCase();
+  if (lower.includes('aditya') || lower.includes('adityaa')) {
+    return 'Cotton Nest';
+  }
+  return n;
+}
+
 /**
  * Retrieves saved addresses from localStorage, automatically merging profile address
  * and previous orders if the address book is empty.
@@ -82,7 +91,7 @@ export function getSavedAddresses(
                 list.push({
                   id: String(item.id),
                   label: item.label || 'Home',
-                  name: item.name || profile?.name || 'Customer',
+                  name: sanitizeName(item.name || profile?.name || 'Cotton Nest'),
                   phone: item.phone || profile?.phone || '',
                   addressLine: item.addressLine.trim(),
                   city: item.city?.trim() || 'Gurgaon, Haryana',
@@ -108,7 +117,7 @@ export function getSavedAddresses(
       list.unshift({
         id: 'addr_profile_primary',
         label: 'Home',
-        name: profile.name || 'Customer',
+        name: sanitizeName(profile.name || 'Cotton Nest'),
         phone: profile.phone || '',
         addressLine: profile.address.trim(),
         city: profile.city?.trim() || 'Gurgaon, Haryana',
@@ -124,7 +133,7 @@ export function getSavedAddresses(
     list.push({
       id: 'addr_default_sec46',
       label: 'Home / Studio',
-      name: profile?.name || 'Customer',
+      name: sanitizeName(profile?.name || 'Cotton Nest'),
       phone: profile?.phone || '+91 7838625915',
       addressLine: 'House Number 2508, Ground Floor, Sector 46',
       city: 'Gurgaon, Haryana',
@@ -145,7 +154,7 @@ export function getSavedAddresses(
           list.push({
             id: `addr_order_${ord.id}`,
             label: 'Previous Order',
-            name: ord.customerName || profile?.name || 'Customer',
+            name: sanitizeName(ord.customerName || profile?.name || 'Cotton Nest'),
             phone: ord.customerPhone || profile?.phone || '',
             addressLine: parsed.addressLine,
             city: parsed.city,
@@ -199,7 +208,7 @@ export function saveAddressToBook(newAddr: {
   const entry: SavedAddress = {
     id,
     label,
-    name: newAddr.name.trim() || 'Customer',
+    name: sanitizeName(newAddr.name.trim() || 'Cotton Nest'),
     phone: newAddr.phone.trim() || '',
     addressLine,
     city,

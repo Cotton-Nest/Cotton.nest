@@ -55,6 +55,18 @@ const STORAGE_KEY = 'cotton_nest_user_session';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function sanitizeProfileName(name?: string, email?: string): string {
+  if (email && isOwnerEmail(email)) {
+    return 'Cotton Nest';
+  }
+  if (!name) return 'Valued Customer';
+  const lower = name.toLowerCase();
+  if (lower.includes('aditya') || lower.includes('adityaa')) {
+    return 'Cotton Nest';
+  }
+  return name;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -62,7 +74,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.email && isOwnerEmail(parsed.email)) {
+          parsed.name = 'Cotton Nest';
+        }
+        return parsed;
       }
     } catch {
       // ignore
@@ -87,10 +103,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (fbUser) {
         const email = fbUser.email?.toLowerCase() || '';
         const isOwner = isOwnerEmail(email);
-        const defaultName =
+        const rawDefaultName =
           fbUser.displayName ||
           email.split('@')[0] ||
-          (isOwner ? 'Cotton Nest Admin' : 'Valued Customer');
+          (isOwner ? 'Cotton Nest' : 'Valued Customer');
+        const defaultName = sanitizeProfileName(rawDefaultName, email);
         const avatar =
           fbUser.photoURL ||
           `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(defaultName)}&backgroundColor=b83f60,c29e57,2c2420&textColor=ffffff`;
@@ -239,7 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Google Identity Services (GIS) credential sign-in
+    // Google Identity Services (GIS) credential sign-in
   const loginWithGoogleCredential = async (credentialJwt: string): Promise<FirebaseUser | null> => {
     setIsLoading(true);
     setAuthError(null);
@@ -249,8 +266,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let fallbackProfile: UserProfile | null = null;
     if (payload && payload.email) {
       const email = payload.email.toLowerCase();
-      const isOwner = email === OWNER_EMAIL.toLowerCase();
-      const defaultName = payload.name || email.split('@')[0];
+      const isOwner = isOwnerEmail(email);
+      const rawDefaultName = payload.name || email.split('@')[0];
+      const defaultName = sanitizeProfileName(rawDefaultName, email);
       const avatar = payload.picture || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(defaultName)}&backgroundColor=b83f60,c29e57,2c2420&textColor=ffffff`;
 
       fallbackProfile = {
@@ -295,8 +313,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     setAuthError(null);
     const targetEmail = (email || OWNER_EMAIL).trim().toLowerCase();
-    const isOwner = targetEmail === OWNER_EMAIL.toLowerCase();
-    const defaultName = name || (isOwner ? 'Cotton Nest Admin' : targetEmail.split('@')[0]);
+    const isOwner = isOwnerEmail(targetEmail);
+    const rawDefaultName = name || (isOwner ? 'Cotton Nest' : targetEmail.split('@')[0]);
+    const defaultName = sanitizeProfileName(rawDefaultName, targetEmail);
     const userAvatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(defaultName)}&backgroundColor=b83f60,c29e57,2c2420&textColor=ffffff`;
 
     const profile: UserProfile = {
@@ -321,7 +340,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithPhone = (phone: string, name: string) => {
     setIsLoading(true);
     const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const cleanName = name.trim() || 'Valued Customer';
+    const cleanName = sanitizeProfileName(name.trim() || 'Valued Customer');
     const profile: UserProfile = {
       id: `usr_phone_${cleanPhone}`,
       name: cleanName,
@@ -341,8 +360,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithEmail = (email: string, name: string) => {
     setIsLoading(true);
     const cleanEmail = email.trim().toLowerCase();
-    const isOwner = cleanEmail === OWNER_EMAIL.toLowerCase();
-    const cleanName = name.trim() || cleanEmail.split('@')[0];
+    const isOwner = isOwnerEmail(cleanEmail);
+    const rawCleanName = name.trim() || cleanEmail.split('@')[0];
+    const cleanName = sanitizeProfileName(rawCleanName, cleanEmail);
     const profile: UserProfile = {
       id: `usr_email_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
       name: cleanName,
