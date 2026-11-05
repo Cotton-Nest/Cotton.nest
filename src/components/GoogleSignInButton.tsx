@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useAuth, GOOGLE_GIS_CLIENT_ID } from '../context/AuthContext';
+import { useAuth, CUSTOM_GIS_CLIENT_ID } from '../context/AuthContext';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface GoogleSignInButtonProps {
@@ -33,10 +33,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     let active = true;
     ensureGisSdkReady()
       .then((ready) => {
-        if (!active || !ready || !GOOGLE_GIS_CLIENT_ID || !window.google?.accounts?.id) return;
+        if (!active || !ready || !CUSTOM_GIS_CLIENT_ID || !window.google?.accounts?.id) return;
         try {
           window.google.accounts.id.initialize({
-            client_id: GOOGLE_GIS_CLIENT_ID,
+            client_id: CUSTOM_GIS_CLIENT_ID,
             callback: async (response) => {
               if (response?.credential) {
                 setLocalLoading(true);

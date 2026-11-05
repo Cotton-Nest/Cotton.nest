@@ -14,7 +14,7 @@ import {
   Loader2,
   Inbox,
 } from 'lucide-react';
-import { useAuth, GOOGLE_GIS_CLIENT_ID } from '../context/AuthContext';
+import { useAuth, CUSTOM_GIS_CLIENT_ID } from '../context/AuthContext';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { sendEmailOtpApi, verifyEmailOtpApi } from '../services/api';
 
@@ -83,10 +83,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     ensureGisSdkReady()
       .then((ready) => {
-        if (ready && GOOGLE_GIS_CLIENT_ID && window.google?.accounts?.id) {
+        if (ready && CUSTOM_GIS_CLIENT_ID && window.google?.accounts?.id) {
           try {
             window.google.accounts.id.initialize({
-              client_id: GOOGLE_GIS_CLIENT_ID,
+              client_id: CUSTOM_GIS_CLIENT_ID,
               callback: async (response) => {
                 if (response?.credential) {
                   await loginWithGoogleCredential(response.credential);

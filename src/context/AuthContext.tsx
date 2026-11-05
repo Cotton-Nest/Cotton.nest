@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth } from '../firebase';
+import {
+  primaryAuth,
+  previewAuth,
+  resolveAuthForCurrentDomain,
+  getBestSyncAuthInstance,
+  GOOGLE_AUTH_FIREBASE_CONFIG,
+} from '../firebase';
 import {
   signInWithPopup,
   signInWithCredential,
@@ -61,10 +67,15 @@ declare global {
   }
 }
 
+const rawEnvClientId =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID) || '';
+
+// Only use a custom GIS Client ID if it was explicitly set and is not the internal Firebase relay client ID
+export const CUSTOM_GIS_CLIENT_ID: string =
+  rawEnvClientId && rawEnvClientId !== (firebaseConfig as any).oAuthClientId ? rawEnvClientId : '';
+
 export const GOOGLE_GIS_CLIENT_ID: string =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID) ||
-  (firebaseConfig as any).oAuthClientId ||
-  '';
+  CUSTOM_GIS_CLIENT_ID || (firebaseConfig as any).oAuthClientId || '';
 
 export const OWNER_EMAILS = [
   'adityaa.451485@gmail.com',
@@ -140,13 +151,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && parsed.email) {
-          // Never restore an unverified synthetic google session
-          if (parsed.authProvider === 'google' && String(parsed.id || '').startsWith('usr_google_') && !parsed.otpVerified) {
+          if (
+            parsed.authProvider === 'google' &&
+            String(parsed.id || '').startsWith('usr_google_') &&
+            !parsed.otpVerified
+          ) {
             localStorage.removeItem(STORAGE_KEY);
             return null;
           }
           if (isOwnerEmail(parsed.email)) {
-            const activeFbEmail = auth.currentUser?.email?.trim().toLowerCase();
+            const activeFbEmail =
+              (previewAuth.currentUser?.email || primaryAuth.currentUser?.email || '')
+                .trim()
+                .toLowerCase();
             if (activeFbEmail !== parsed.email.trim().toLowerCase() && !parsed.otpVerified) {
               localStorage.removeItem(STORAGE_KEY);
               return null;
@@ -164,8 +181,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // OTP-Verified Google/Gmail Modal State (used only if browser/domain blocks the Google OAuth popup)
+  // OTP-Verified Google/Gmail Modal State (used if browser/domain blocks the Google OAuth popup)
   const [isOtpModalOpen, setIsOtpModalOpen] = useState<boolean>(false);
+  const [unauthorizedHostInfo, setUnauthorizedHostInfo] = useState<{
+    hostname: string;
+    projectId: string;
+    consoleUrl: string;
+  } | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState<boolean>(false);
   const [otpEmail, setOtpEmail] = useState<string>('');
   const [otpName, setOtpName] = useState<string>('');
   const [otpSent, setOtpSent] = useState<boolean>(false);
@@ -177,6 +200,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const otpResolverRef = React.useRef<((user: FirebaseUser | null) => void) | null>(null);
 
   const clearAuthError = () => setAuthError(null);
+
+  // Pre-resolve which Firebase Auth project has the current hostname authorized
+  useEffect(() => {
+    resolveAuthForCurrentDomain().catch(() => {});
+  }, []);
 
   // Ensure Google Identity Services (GIS) SDK script is loaded & initialized without FedCM iframe errors
   const ensureGisSdkReady = React.useCallback((): Promise<boolean> => {
@@ -191,10 +219,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           resolve(false);
           return;
         }
-        if (GOOGLE_GIS_CLIENT_ID && window.google.accounts.id) {
+        if (CUSTOM_GIS_CLIENT_ID && window.google.accounts.id) {
           try {
             window.google.accounts.id.initialize({
-              client_id: GOOGLE_GIS_CLIENT_ID,
+              client_id: CUSTOM_GIS_CLIENT_ID,
               callback: (response) => {
                 if (response?.credential) {
                   loginWithGoogleCredential(response.credential).catch(() => {});
@@ -203,7 +231,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               auto_select: false,
               cancel_on_tap_outside: true,
               ux_mode: 'popup',
-              // Disable FedCM so it never throws NotAllowedError in cross-origin preview iframes
               use_fedcm_for_prompt: false,
               use_fedcm_for_button: false,
             });
@@ -251,29 +278,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ensureGisSdkReady().catch(() => {});
   }, [ensureGisSdkReady]);
 
-  // Sync with real Firebase Auth state
+  // Sync with real Firebase Auth state across both previewAuth and primaryAuth
   useEffect(() => {
     const safetyTimer = setTimeout(() => {
       setIsLoading(false);
     }, 1000);
 
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+    const handleFbUser = (fbUser: FirebaseUser | null) => {
       clearTimeout(safetyTimer);
-      setFirebaseUser(fbUser);
-      if (fbUser) {
-        const email = fbUser.email?.toLowerCase() || '';
+      const activeUser = fbUser || previewAuth.currentUser || primaryAuth.currentUser;
+      setFirebaseUser(activeUser);
+
+      if (activeUser) {
+        const email = activeUser.email?.toLowerCase() || '';
         const isOwner = isOwnerEmail(email);
         const rawDefaultName =
-          fbUser.displayName ||
+          activeUser.displayName ||
           email.split('@')[0] ||
           (isOwner ? 'Cotton Nest' : 'Valued Customer');
         const defaultName = sanitizeProfileName(rawDefaultName, email);
         const avatar =
-          fbUser.photoURL ||
+          activeUser.photoURL ||
           `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(defaultName)}&backgroundColor=b83f60,c29e57,2c2420&textColor=ffffff`;
 
         const profile: UserProfile = {
-          id: fbUser.uid,
+          id: activeUser.uid,
           name: defaultName,
           email: email,
           avatar: avatar,
@@ -306,11 +335,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       setIsLoading(false);
-    });
+    };
+
+    const unsubPreview = onAuthStateChanged(previewAuth, handleFbUser);
+    const unsubPrimary = onAuthStateChanged(primaryAuth, handleFbUser);
 
     return () => {
       clearTimeout(safetyTimer);
-      unsubscribe();
+      unsubPreview();
+      unsubPrimary();
     };
   }, []);
 
@@ -332,7 +365,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const openGmailOtpVerificationModal = (): Promise<FirebaseUser | null> => {
+  const openGmailOtpVerificationModal = (unauthDomain?: {
+    hostname: string;
+    projectId: string;
+    consoleUrl: string;
+  }): Promise<FirebaseUser | null> => {
+    setUnauthorizedHostInfo(unauthDomain || null);
+    setCopiedDomain(false);
     setOtpEmail('');
     setOtpName('');
     setOtpSent(false);
@@ -387,7 +426,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const credential = GoogleAuthProvider.credential(null, accessToken);
-      const result = await signInWithCredential(auth, credential);
+      const targetAuth = getBestSyncAuthInstance();
+      const result = await signInWithCredential(targetAuth, credential);
       setIsLoading(false);
       return result.user;
     } catch (err: any) {
@@ -410,80 +450,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Trigger Google Account Chooser popup (uses raw GIS initTokenClient if custom VITE_GOOGLE_CLIENT_ID is set,
-  // otherwise uses the provisioned Firebase OAuth relay so the popup stays open and never gets Error 400: origin_mismatch)
+  // Trigger Google Account Chooser popup synchronously on user click
   const loginWithGoogleGis = (): Promise<FirebaseUser | null> => {
     setIsLoading(true);
     setAuthError(null);
-
-    const hasCustomGisClient =
-      typeof import.meta !== 'undefined' && Boolean((import.meta as any).env?.VITE_GOOGLE_CLIENT_ID);
-
-    if (
-      hasCustomGisClient &&
-      typeof window !== 'undefined' &&
-      window.google?.accounts?.oauth2 &&
-      GOOGLE_GIS_CLIENT_ID
-    ) {
-      return new Promise<FirebaseUser | null>((resolve) => {
-        try {
-          const tokenClient = window.google!.accounts!.oauth2!.initTokenClient({
-            client_id: GOOGLE_GIS_CLIENT_ID,
-            scope: 'openid email profile',
-            prompt: 'select_account',
-            callback: async (tokenResponse) => {
-              if (tokenResponse?.error || !tokenResponse?.access_token) {
-                if (tokenResponse?.error === 'access_denied') {
-                  setIsLoading(false);
-                  resolve(null);
-                  return;
-                }
-                const otpUser = await openGmailOtpVerificationModal();
-                resolve(otpUser);
-                return;
-              }
-              try {
-                const signedInUser = await loginWithGoogleAccessToken(tokenResponse.access_token);
-                resolve(signedInUser);
-              } catch {
-                const otpUser = await openGmailOtpVerificationModal();
-                resolve(otpUser);
-              }
-            },
-            error_callback: async (err) => {
-              if (err?.type === 'popup_closed') {
-                setIsLoading(false);
-                resolve(null);
-                return;
-              }
-              const otpUser = await openGmailOtpVerificationModal();
-              resolve(otpUser);
-            },
-          });
-
-          tokenClient.requestAccessToken({ prompt: 'select_account' });
-        } catch {
-          openGmailOtpVerificationModal().then(resolve);
-        }
-      });
-    }
 
     const provider = new GoogleAuthProvider();
     provider.addScope('email');
     provider.addScope('profile');
     provider.setCustomParameters({ prompt: 'select_account' });
 
-    return signInWithPopup(auth, provider)
+    const targetAuth = getBestSyncAuthInstance();
+
+    return signInWithPopup(targetAuth, provider)
       .then((result) => {
+        setUnauthorizedHostInfo(null);
         setIsLoading(false);
         return result.user;
       })
-      .catch((err: any) => {
+      .catch(async (err: any) => {
         console.warn('Google Sign-In popup notice:', err);
         if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
           setIsLoading(false);
           return null;
         }
+
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+        if (err?.code === 'auth/unauthorized-domain' && currentHost) {
+          // Refresh domain check in case the user just added the domain to one of the two Firebase projects
+          const refreshed = await resolveAuthForCurrentDomain(true);
+          if (refreshed.isAuthorized) {
+            setAuthError(
+              `Domain ${currentHost} is now authorized! Please click "Sign in with Google" once more to open the popup.`
+            );
+            setIsLoading(false);
+            return null;
+          }
+
+          return openGmailOtpVerificationModal({
+            hostname: currentHost,
+            projectId: GOOGLE_AUTH_FIREBASE_CONFIG.projectId,
+            consoleUrl: `https://console.firebase.google.com/project/${GOOGLE_AUTH_FIREBASE_CONFIG.projectId}/authentication/settings`,
+          });
+        }
+
         return openGmailOtpVerificationModal();
       });
   };
@@ -521,7 +531,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const credential = GoogleAuthProvider.credential(credentialJwt);
-      const result = await signInWithCredential(auth, credential);
+      const targetAuth = getBestSyncAuthInstance();
+      const result = await signInWithCredential(targetAuth, credential);
       return result.user;
     } catch (err: any) {
       console.warn('Google credential sign-in notice:', err);
@@ -687,7 +698,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.google?.accounts?.id?.disableAutoSelect();
     } catch {}
     try {
-      await firebaseSignOut(auth);
+      await firebaseSignOut(previewAuth);
+    } catch {}
+    try {
+      await firebaseSignOut(primaryAuth);
     } catch {}
     setUser(null);
     setFirebaseUser(null);
@@ -703,8 +717,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isOwner = Boolean(
     isOwnerEmail(user?.email) ||
-    isOwnerEmail(firebaseUser?.email) ||
-    user?.isOwner
+      isOwnerEmail(firebaseUser?.email) ||
+      user?.isOwner
   );
 
   return (
@@ -731,12 +745,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     >
       {children}
 
-      {/* Google / Gmail 6-Digit OTP Verification Modal (shown if popup is blocked on current host) */}
+      {/* Google / Gmail Verification & Domain Authorization Modal */}
       {isOtpModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="fixed inset-0" onClick={handleCloseOtpModal} />
 
-          <div className="relative bg-white w-full max-w-sm rounded-3xl border border-[#EAE2D5] shadow-2xl z-10 overflow-hidden text-[#1F1F1F]">
+          <div className="relative bg-white w-full max-w-md rounded-3xl border border-[#EAE2D5] shadow-2xl z-10 overflow-hidden text-[#1F1F1F] max-h-[90vh] overflow-y-auto">
             <div className="px-6 pt-5 pb-4 border-b border-stone-200/80 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -745,7 +759,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
-                <span className="text-xs font-medium text-stone-600">Google / Gmail Verification</span>
+                <span className="text-xs font-medium text-stone-600">Google / Gmail Sign-In</span>
               </div>
               <button
                 type="button"
@@ -758,14 +772,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             </div>
 
             <div className="p-6 space-y-4">
+              {unauthorizedHostInfo && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-2.5">
+                  <div className="font-semibold text-amber-900">
+                    Why the Google Popup Closed on <span className="font-mono">{unauthorizedHostInfo.hostname}</span>
+                  </div>
+                  <p className="text-[11.5px] text-amber-800 leading-relaxed">
+                    Firebase blocks the Google OAuth popup until your Vercel domain is added to{' '}
+                    <strong>Authorized domains</strong> in Firebase Console (takes 10 seconds, no Vercel redeploy needed):
+                  </p>
+                  <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-xl border border-amber-300">
+                    <code className="text-[11px] font-mono text-stone-800 flex-1 truncate">
+                      {unauthorizedHostInfo.hostname}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(unauthorizedHostInfo.hostname).catch(() => {});
+                        setCopiedDomain(true);
+                        setTimeout(() => setCopiedDomain(false), 2000);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold text-[11px] cursor-pointer shrink-0"
+                    >
+                      {copiedDomain ? 'Copied!' : 'Copy Domain'}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    <a
+                      href={unauthorizedHostInfo.consoleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#0B57D0] hover:bg-[#0842A0] text-white font-semibold text-[11px] shadow-2xs"
+                    >
+                      <span>1. Open Firebase Authorized Domains ↗</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await resolveAuthForCurrentDomain(true);
+                        const prevResolver = otpResolverRef.current;
+                        loginWithGoogleGis().then((u) => {
+                          if (u) {
+                            setIsOtpModalOpen(false);
+                            if (prevResolver) prevResolver(u);
+                          }
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 font-semibold text-[11px] cursor-pointer"
+                    >
+                      <span>2. Retry Google Popup</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="text-center space-y-1">
                 <h3 className="text-xl font-semibold text-[#1F1F1F]">
-                  {otpSent ? 'Enter Verification Code' : 'Sign in with Google'}
+                  {otpSent ? 'Enter Verification Code' : 'Sign in with Google / Gmail'}
                 </h3>
                 <p className="text-xs text-stone-600">
                   {otpSent
                     ? `Enter the 6-digit OTP sent to ${otpEmail}`
-                    : 'Verify your Google / Gmail account with a 6-digit OTP code'}
+                    : 'Verify your Google / Gmail account immediately with a 6-digit OTP code'}
                 </p>
               </div>
 
@@ -777,32 +845,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
               {!otpSent ? (
                 <form onSubmit={handleSendModalOtp} className="space-y-3.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const prevResolver = otpResolverRef.current;
-                      loginWithGoogleGis().then((u) => {
-                        setIsOtpModalOpen(false);
-                        if (prevResolver) {
-                          prevResolver(u);
-                        }
-                      });
-                    }}
-                    className="w-full py-2.5 px-4 bg-[#FAF7F2] hover:bg-[#F4EFE6] text-[#1F1F1F] font-semibold border border-[#DEC89B] rounded-xl text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                  >
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                    </svg>
-                    <span>Choose Google Account (GIS Popup)</span>
-                  </button>
-                  <div className="relative flex py-0.5 items-center">
-                    <div className="grow border-t border-stone-200"></div>
-                    <span className="shrink mx-2 text-[10px] text-stone-400 uppercase font-semibold">Or verify via 6-digit OTP</span>
-                    <div className="grow border-t border-stone-200"></div>
-                  </div>
+                  {!unauthorizedHostInfo && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const prevResolver = otpResolverRef.current;
+                          loginWithGoogleGis().then((u) => {
+                            if (u) {
+                              setIsOtpModalOpen(false);
+                              if (prevResolver) {
+                                prevResolver(u);
+                              }
+                            }
+                          });
+                        }}
+                        className="w-full py-2.5 px-4 bg-[#FAF7F2] hover:bg-[#F4EFE6] text-[#1F1F1F] font-semibold border border-[#DEC89B] rounded-xl text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                        <span>Choose Google Account (GIS Popup)</span>
+                      </button>
+                      <div className="relative flex py-0.5 items-center">
+                        <div className="grow border-t border-stone-200"></div>
+                        <span className="shrink mx-2 text-[10px] text-stone-400 uppercase font-semibold">
+                          Or verify via 6-digit OTP
+                        </span>
+                        <div className="grow border-t border-stone-200"></div>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <label className="block text-xs font-medium text-stone-700 mb-1">
                       Google / Gmail Address *

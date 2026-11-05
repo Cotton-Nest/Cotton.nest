@@ -1,23 +1,120 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Primary app for Firestore database (preserves all original store data in river-fusion-rz0s9 / ai-studio-remixcottonnestl-79807e95-0ce0-4626-9bba-b37acdbe97c1)
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const primaryAuth = getAuth(app);
 
-// Dedicated Auth app used ONLY for Google Sign-In on this applet's preview/shared domains
-const googleAuthApp = initializeApp(
-  {
-    projectId: 'gen-lang-client-0838797128',
-    appId: '1:75793127604:web:533d29cda660c07d7f1fe1',
-    apiKey: 'AIzaSyA_vG4vMDXTrit6StLthavVuuGucEzVzX8',
-    authDomain: 'gen-lang-client-0838797128.firebaseapp.com',
-  },
-  'google-signin-only'
-);
-export const auth = getAuth(googleAuthApp);
+// Dedicated Auth app provisioned for Google Sign-In on AI Studio preview/shared domains and custom domains added to gen-lang-client-0838797128
+export const GOOGLE_AUTH_FIREBASE_CONFIG = {
+  projectId: 'gen-lang-client-0838797128',
+  appId: '1:75793127604:web:533d29cda660c07d7f1fe1',
+  apiKey: 'AIzaSyA_vG4vMDXTrit6StLthavVuuGucEzVzX8',
+  authDomain: 'gen-lang-client-0838797128.firebaseapp.com',
+};
+
+const googleAuthApp = initializeApp(GOOGLE_AUTH_FIREBASE_CONFIG, 'google-signin-only');
+export const previewAuth = getAuth(googleAuthApp);
+
+// Default export auth points to previewAuth (gen-lang-client-0838797128), while AuthContext dynamically selects whichever project has the current hostname authorized
+export const auth: Auth = previewAuth;
+
+function isHostMatchingAuthorizedList(hostname: string, domains: string[]): boolean {
+  const cleanHost = hostname.trim().toLowerCase();
+  if (!cleanHost) return false;
+  return domains.some((d) => d.trim().toLowerCase() === cleanHost);
+}
+
+export interface DomainAuthResolution {
+  authInstance: Auth;
+  projectId: string;
+  isAuthorized: boolean;
+  hostname: string;
+}
+
+let cachedResolution: DomainAuthResolution | null = null;
+
+/**
+ * Checks Firebase Identity Toolkit project config for both provisioned projects
+ * so that whichever Firebase project (gen-lang-client-0838797128 or river-fusion-rz0s9)
+ * has the current hostname (e.g. *.run.app or *.vercel.app) in its Authorized Domains
+ * is automatically used for signInWithPopup.
+ */
+export async function resolveAuthForCurrentDomain(forceRefresh = false): Promise<DomainAuthResolution> {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  if (!hostname) {
+    return {
+      authInstance: previewAuth,
+      projectId: GOOGLE_AUTH_FIREBASE_CONFIG.projectId,
+      isAuthorized: true,
+      hostname: '',
+    };
+  }
+
+  if (cachedResolution && !forceRefresh && cachedResolution.hostname === hostname && cachedResolution.isAuthorized) {
+    return cachedResolution;
+  }
+
+  try {
+    const [previewRes, primaryRes] = await Promise.all([
+      fetch(`https://identitytoolkit.googleapis.com/v1/projects?key=${GOOGLE_AUTH_FIREBASE_CONFIG.apiKey}`).then((r) =>
+        r.ok ? r.json() : null
+      ).catch(() => null),
+      fetch(`https://identitytoolkit.googleapis.com/v1/projects?key=${firebaseConfig.apiKey}`).then((r) =>
+        r.ok ? r.json() : null
+      ).catch(() => null),
+    ]);
+
+    const previewDomains: string[] = Array.isArray(previewRes?.authorizedDomains) ? previewRes.authorizedDomains : [];
+    const primaryDomains: string[] = Array.isArray(primaryRes?.authorizedDomains) ? primaryRes.authorizedDomains : [];
+
+    if (isHostMatchingAuthorizedList(hostname, previewDomains)) {
+      cachedResolution = {
+        authInstance: previewAuth,
+        projectId: GOOGLE_AUTH_FIREBASE_CONFIG.projectId,
+        isAuthorized: true,
+        hostname,
+      };
+      return cachedResolution;
+    }
+
+    if (isHostMatchingAuthorizedList(hostname, primaryDomains)) {
+      cachedResolution = {
+        authInstance: primaryAuth,
+        projectId: firebaseConfig.projectId,
+        isAuthorized: true,
+        hostname,
+      };
+      return cachedResolution;
+    }
+
+    // If neither project has the current domain (e.g. a new .vercel.app deployment) in authorizedDomains yet
+    cachedResolution = {
+      authInstance: previewAuth,
+      projectId: GOOGLE_AUTH_FIREBASE_CONFIG.projectId,
+      isAuthorized: false,
+      hostname,
+    };
+    return cachedResolution;
+  } catch {
+    return {
+      authInstance: previewAuth,
+      projectId: GOOGLE_AUTH_FIREBASE_CONFIG.projectId,
+      isAuthorized: true,
+      hostname,
+    };
+  }
+}
+
+export function getBestSyncAuthInstance(): Auth {
+  if (cachedResolution) {
+    return cachedResolution.authInstance;
+  }
+  return previewAuth;
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -46,21 +143,23 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const activeUser = previewAuth.currentUser || primaryAuth.currentUser;
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
+      userId: activeUser?.uid,
+      email: activeUser?.email,
+      emailVerified: activeUser?.emailVerified,
+      isAnonymous: activeUser?.isAnonymous,
+      tenantId: activeUser?.tenantId,
+      providerInfo:
+        activeUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
     },
     operationType,
-    path
+    path,
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
