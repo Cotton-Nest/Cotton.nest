@@ -3,9 +3,21 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
+// Primary app for Firestore database (preserves all original store data in river-fusion-rz0s9 / ai-studio-remixcottonnestl-79807e95-0ce0-4626-9bba-b37acdbe97c1)
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
+
+// Dedicated Auth app used ONLY for Google Sign-In on this applet's preview/shared domains
+const googleAuthApp = initializeApp(
+  {
+    projectId: 'gen-lang-client-0838797128',
+    appId: '1:75793127604:web:533d29cda660c07d7f1fe1',
+    apiKey: 'AIzaSyA_vG4vMDXTrit6StLthavVuuGucEzVzX8',
+    authDomain: 'gen-lang-client-0838797128.firebaseapp.com',
+  },
+  'google-signin-only'
+);
+export const auth = getAuth(googleAuthApp);
 
 export enum OperationType {
   CREATE = 'create',

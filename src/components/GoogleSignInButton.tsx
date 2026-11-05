@@ -16,6 +16,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   customText,
 }) => {
   const {
+    ensureGisSdkReady,
     loginWithGoogle,
     loginWithGoogleGis,
     loginWithGoogleCredential,
@@ -27,43 +28,44 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const [localError, setLocalError] = useState<string | null>(null);
   const gisButtonRef = useRef<HTMLDivElement | null>(null);
 
-  // Initialize official Google Identity Services (GIS) SDK button if available (with FedCM disabled for iframe safety)
+  // Initialize official Google Identity Services (GIS) SDK (with FedCM disabled for iframe safety)
   useEffect(() => {
-    if (variant === 'navbar' || variant === 'compact') return;
-    if (!GOOGLE_GIS_CLIENT_ID || !gisButtonRef.current) return;
-
-    const tryRenderGisButton = () => {
-      if (!window.google?.accounts?.id || !gisButtonRef.current) return false;
-      try {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_GIS_CLIENT_ID,
-          callback: async (response) => {
-            if (response?.credential) {
-              setLocalLoading(true);
-              try {
-                await loginWithGoogleCredential(response.credential);
-                if (onSuccess) onSuccess();
-              } catch (err: any) {
-                setLocalError(err?.message || 'Google Identity Services sign-in failed.');
-              } finally {
-                setLocalLoading(false);
+    let active = true;
+    ensureGisSdkReady()
+      .then((ready) => {
+        if (!active || !ready || !GOOGLE_GIS_CLIENT_ID || !window.google?.accounts?.id) return;
+        try {
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_GIS_CLIENT_ID,
+            callback: async (response) => {
+              if (response?.credential) {
+                setLocalLoading(true);
+                try {
+                  await loginWithGoogleCredential(response.credential);
+                  if (onSuccess) onSuccess();
+                } catch (err: any) {
+                  setLocalError(err?.message || 'Google Identity Services sign-in failed.');
+                } finally {
+                  setLocalLoading(false);
+                }
               }
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          ux_mode: 'popup',
-          use_fedcm_for_prompt: false,
-          use_fedcm_for_button: false,
-        });
-        return true;
-      } catch {
-        return false;
-      }
-    };
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true,
+            ux_mode: 'popup',
+            use_fedcm_for_prompt: false,
+            use_fedcm_for_button: false,
+          });
+        } catch {
+          // ignore
+        }
+      })
+      .catch(() => {});
 
-    tryRenderGisButton();
-  }, [variant, loginWithGoogleCredential, onSuccess]);
+    return () => {
+      active = false;
+    };
+  }, [ensureGisSdkReady, loginWithGoogleCredential, onSuccess]);
 
   const handleClick = async () => {
     setLocalLoading(true);
@@ -121,7 +123,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
             </svg>
           )}
-          <span>{activeLoading ? 'Connecting...' : (customText || 'Sign In')}</span>
+          <span>{activeLoading ? 'Connecting...' : (customText || 'Sign in with Google')}</span>
         </button>
 
         {activeError && (
@@ -171,10 +173,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
           </svg>
         )}
-        <span>{activeLoading ? 'Connecting with Google...' : (customText || 'Continue with Google')}</span>
+        <span>{activeLoading ? 'Connecting with Google...' : (customText || 'Sign in with Google')}</span>
       </button>
 
-      {/* Secondary direct Google Identity Services (GIS) SDK Account Chooser option */}
+      {/* Direct Google Identity Services (GIS) Account Chooser option — always visible */}
       <div className="flex items-center justify-center">
         <button
           type="button"

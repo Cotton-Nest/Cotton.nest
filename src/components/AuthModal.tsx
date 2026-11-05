@@ -14,7 +14,7 @@ import {
   Loader2,
   Inbox,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, GOOGLE_GIS_CLIENT_ID } from '../context/AuthContext';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { sendEmailOtpApi, verifyEmailOtpApi } from '../services/api';
 
@@ -33,7 +33,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onTrackOrderDirect,
   reason,
 }) => {
-  const { loginWithEmail } = useAuth();
+  const { loginWithEmail, loginWithGoogleCredential, ensureGisSdkReady } = useAuth();
   const [tab, setTab] = useState<'signin' | 'track'>('signin');
 
   // Gmail / Email OTP State
@@ -72,14 +72,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     return () => clearInterval(interval);
   }, [cooldown]);
 
-  // Reset transient error when switching modal state
+  // Initialize Google Identity Services (GIS) SDK when AuthModal opens and reset transient state when closed
   useEffect(() => {
     if (!isOpen) {
       setOtpError(null);
       setIsSending(false);
       setIsVerifying(false);
+      return;
     }
-  }, [isOpen]);
+
+    ensureGisSdkReady()
+      .then((ready) => {
+        if (ready && GOOGLE_GIS_CLIENT_ID && window.google?.accounts?.id) {
+          try {
+            window.google.accounts.id.initialize({
+              client_id: GOOGLE_GIS_CLIENT_ID,
+              callback: async (response) => {
+                if (response?.credential) {
+                  await loginWithGoogleCredential(response.credential);
+                  onClose();
+                }
+              },
+              auto_select: false,
+              cancel_on_tap_outside: true,
+              ux_mode: 'popup',
+              use_fedcm_for_prompt: false,
+              use_fedcm_for_button: false,
+            });
+          } catch {
+            // ignore
+          }
+        }
+      })
+      .catch(() => {});
+  }, [isOpen, ensureGisSdkReady, loginWithGoogleCredential, onClose]);
 
   if (!isOpen) return null;
 
@@ -268,15 +294,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {tab === 'signin' ? (
           <div className="space-y-4">
             
-            {/* Primary Google Login Button directly connected to real Google Sign-In API */}
+            {/* Primary Google Login Button connected to Google Identity Services (GIS) & Firebase OAuth */}
             <div className="space-y-2">
               <GoogleSignInButton
                 onSuccess={onClose}
                 variant="standard"
-                customText="Continue with Google"
+                customText="Sign in with Google"
               />
               <p className="text-[11px] text-[#7A6458] text-center">
-                Uses official Google OAuth 2.0 authentication.
+                Powered by Google Identity Services (GIS) &amp; Google OAuth 2.0.
               </p>
             </div>
 
