@@ -651,6 +651,66 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           </div>
         </div>
 
+        {/* 1.5 Size Filter Bar (King, Queen, Single) */}
+        <div className="mb-3">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar text-xs">
+            {/* All Sizes Option */}
+            <button
+              type="button"
+              onClick={() => setSelectedSizes([])}
+              className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap font-semibold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 shadow-2xs ${
+                selectedSizes.length === 0
+                  ? 'bg-[#2C2420] text-white border-[#2C2420] shadow-xs'
+                  : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B] hover:border-[#2C2420]'
+              }`}
+            >
+              <Box className={`w-3.5 h-3.5 ${selectedSizes.length === 0 ? 'text-white' : 'text-[#2C2420]'}`} />
+              <span>All Sizes</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  selectedSizes.length === 0 ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
+                }`}
+              >
+                {products.length}
+              </span>
+            </button>
+
+            {/* King, Queen, Single Size Pills */}
+            {['King', 'Queen', 'Single'].map((sz) => {
+              const isSelected = selectedSizes.includes(sz);
+              const count = getCountForFilter('size', sz);
+              return (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={() => {
+                    if (isSelected && selectedSizes.length === 1) {
+                      setSelectedSizes([]);
+                    } else {
+                      setSelectedSizes([sz]);
+                    }
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap font-semibold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 shadow-2xs ${
+                    isSelected
+                      ? 'bg-[#2C2420] text-white border-[#2C2420] shadow-xs'
+                      : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B] hover:border-[#2C2420]'
+                  }`}
+                >
+                  <Box className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#8C2E46]'}`} />
+                  <span>{sz} Size</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* 2. Secondary Refine & Quick Filters Bar */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar mb-3 text-xs">
           {/* Main All Filters Trigger */}
