@@ -4,7 +4,6 @@ import {
   Sparkles,
   Filter,
   SlidersHorizontal,
-  MapPin,
   MessageCircle,
   X,
   Tag,
@@ -23,7 +22,13 @@ import {
   Sliders,
   Square,
   Grid2X2,
-  List
+  List,
+  BedDouble,
+  Snowflake,
+  Feather,
+  Flame,
+  ShieldCheck,
+  LayoutGrid
 } from 'lucide-react';
 import {
   BedsheetProduct,
@@ -462,6 +467,43 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     }).length;
   };
 
+  const getCategoryIcon = (catType: string) => {
+    const norm = normalizeProductCategory(catType).toLowerCase();
+    if (norm.includes('winter') || norm.includes('flannel') || norm.includes('warm') || norm.includes('fleece')) {
+      return Snowflake;
+    }
+    if (norm.includes('dohar') || norm.includes('ac')) {
+      return Feather;
+    }
+    if (norm.includes('quilt') || norm.includes('razai') || norm.includes('jaipuri')) {
+      return Flame;
+    }
+    if (norm.includes('cover') || norm.includes('protector')) {
+      return ShieldCheck;
+    }
+    if (norm.includes('blanket') || norm.includes('throw')) {
+      return Layers;
+    }
+    if (norm.includes('comforter') || norm.includes('duvet')) {
+      return Sparkles;
+    }
+    if (norm.includes('bedsheet') || norm.includes('sheet') || norm.includes('linen')) {
+      return BedDouble;
+    }
+    return Tag;
+  };
+
+  const getCategoryDisplayLabel = (catType: string) => {
+    if (catType === 'Winter Bedsheet') return 'Winter Bedsheets';
+    if (catType === 'Bedsheet') return 'Bedsheets';
+    if (catType === 'Bed Cover') return 'Bed Covers';
+    if (catType === 'Quilt') return 'Quilts';
+    if (catType === 'Dohar') return 'Dohars';
+    if (catType === 'Blanket') return 'Blankets';
+    if (catType === 'Comforter') return 'Comforters';
+    return catType;
+  };
+
   const parsedQuery = parseSearchQuery(searchQuery);
 
   return (
@@ -471,24 +513,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
 
-        {/* 1. Atelier Delivery Location Bar (Styled after Screenshot 2 header location bar) */}
-        <div className="flex items-center justify-between text-xs py-2 px-3 mb-3 bg-white/80 rounded-xl border border-[#EAE2D5] shadow-2xs">
-          <div className="flex items-center gap-1.5 truncate">
-            <MapPin className="w-3.5 h-3.5 text-[#B83F60] shrink-0" />
-            <span className="font-semibold text-[#2C2420] truncate">
-              Aditya Grover - House number 2508 Ground floor
-            </span>
-            <span className="text-[#8C7A70] hidden sm:inline">· Sector 46, Gurgaon</span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Express Delivery
-            </span>
-          </div>
-        </div>
-
-        {/* 2. Top Header Title & Search Row */}
+        {/* Top Header Title & Search Row */}
         <div className="mb-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -561,8 +586,73 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           </div>
         </div>
 
-        {/* 3. Heading Filters Tabs Row (Myntra-style heading category filters: All Filters, Size, Categories, Brand, Price, Color, Pattern) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar mb-3 text-xs">
+        {/* 1. Category Navigation with Distinct Icons */}
+        <div className="mb-3">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar text-xs">
+            {/* All Categories Option */}
+            <button
+              type="button"
+              onClick={() => setSelectedProductTypes([])}
+              className={`px-3.5 py-2 rounded-xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer border shrink-0 shadow-2xs ${
+                selectedProductTypes.length === 0
+                  ? 'bg-[#8C2E46] text-white border-[#8C2E46] shadow-xs'
+                  : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B] hover:border-[#8C2E46]'
+              }`}
+            >
+              <LayoutGrid className={`w-4 h-4 ${selectedProductTypes.length === 0 ? 'text-white' : 'text-[#8C2E46]'}`} />
+              <span>All Categories</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  selectedProductTypes.length === 0 ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
+                }`}
+              >
+                {products.length}
+              </span>
+            </button>
+
+            {/* Individual Category Pills with Icons & Counts */}
+            {availableFilterData.types.map((catType) => {
+              const isSelected = selectedProductTypes.some(
+                (s) => normalizeProductCategory(s).toLowerCase() === normalizeProductCategory(catType).toLowerCase()
+              );
+              const count = getCountForFilter('productType', catType);
+              const CategoryIcon = getCategoryIcon(catType);
+              const displayLabel = getCategoryDisplayLabel(catType);
+
+              return (
+                <button
+                  key={catType}
+                  type="button"
+                  onClick={() => {
+                    if (isSelected && selectedProductTypes.length === 1) {
+                      setSelectedProductTypes([]);
+                    } else {
+                      setSelectedProductTypes([catType]);
+                    }
+                  }}
+                  className={`px-3.5 py-2 rounded-xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer border shrink-0 shadow-2xs ${
+                    isSelected
+                      ? 'bg-[#8C2E46] text-white border-[#8C2E46] shadow-xs'
+                      : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B] hover:border-[#8C2E46]'
+                  }`}
+                >
+                  <CategoryIcon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-[#8C2E46]'}`} />
+                  <span>{displayLabel}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 2. Secondary Refine & Quick Filters Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar mb-3 text-xs">
           {/* Main All Filters Trigger */}
           <button
             type="button"
@@ -585,14 +675,12 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             )}
           </button>
 
-          {/* Heading Category Filter Tabs */}
+          {/* Quick Attribute Filter Triggers (Size, Price, Color, Brand) */}
           {[
             { id: 'size' as FilterCategoryTab, label: 'Size', count: selectedSizes.length },
-            { id: 'productType' as FilterCategoryTab, label: 'Categories', count: selectedProductTypes.length },
-            { id: 'brand' as FilterCategoryTab, label: 'Brand', count: selectedBrands.length },
             { id: 'price' as FilterCategoryTab, label: 'Price', count: (selectedPricePreset !== 'all' || customMinPrice || customMaxPrice) ? 1 : 0 },
             { id: 'color' as FilterCategoryTab, label: 'Color', count: selectedColors.length },
-            { id: 'pattern' as FilterCategoryTab, label: 'Pattern', count: selectedPatterns.length },
+            { id: 'brand' as FilterCategoryTab, label: 'Brand', count: selectedBrands.length },
           ].map((tab) => {
             const hasSelection = tab.count > 0;
             return (
@@ -620,62 +708,10 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               </button>
             );
           })}
-        </div>
 
-        {/* 3B. Dedicated Category Filter Bar (Bedsheet, Winter Bedsheets, Dohar, Bed Cover, Quilt, Blanket, Comforter & Admin Custom Types) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar mb-2.5 text-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8C7A70] shrink-0 flex items-center gap-1 pr-1">
-            <Layers className="w-3.5 h-3.5 text-[#C29E57]" />
-            <span>Category:</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => setSelectedProductTypes([])}
-            className={`px-3 py-1.5 rounded-xl whitespace-nowrap font-semibold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
-              selectedProductTypes.length === 0
-                ? 'bg-[#2C2420] text-white border-[#2C2420] shadow-2xs'
-                : 'bg-white hover:bg-[#FAF7F2] text-[#6B5D55] border-[#EAE2D5]'
-            }`}
-          >
-            <span>All Categories ({products.length})</span>
-          </button>
-          {availableFilterData.types.map((catType) => {
-            const isSelected = selectedProductTypes.some(
-              (s) => normalizeProductCategory(s).toLowerCase() === normalizeProductCategory(catType).toLowerCase()
-            );
-            const count = getCountForFilter('productType', catType);
-            const displayLabel =
-              catType === 'Winter Bedsheet'
-                ? 'Winter Bedsheets'
-                : catType === 'Bedsheet'
-                ? 'Bedsheets'
-                : catType;
-            return (
-              <button
-                key={catType}
-                type="button"
-                onClick={() => toggleProductType(catType)}
-                className={`px-3 py-1.5 rounded-xl whitespace-nowrap font-semibold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
-                  isSelected
-                    ? 'bg-[#8C2E46] text-white border-[#8C2E46] shadow-2xs'
-                    : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B]'
-                }`}
-              >
-                <span>{displayLabel}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+          <div className="h-4 w-px bg-[#DEC89B]/50 shrink-0 mx-0.5" />
 
-        {/* 4. Myntra-style Quick Filter Chips Carousel (Matching Screenshot 2) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar mb-4 text-xs">
+          {/* Quick Refinement Chips */}
           {quickFilterDefs.map((chip) => {
             const isSelected = selectedQuickFilters.includes(chip.id);
             const IconComponent = chip.icon;

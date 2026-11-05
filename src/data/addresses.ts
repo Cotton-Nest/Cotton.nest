@@ -151,7 +151,7 @@ export function getSavedAddresses(
             city: parsed.city,
             pincode: parsed.pincode,
             isDefault: false,
-            createdAt: ord.createdAt || Date.now(),
+            createdAt: typeof ord.createdAt === 'number' ? ord.createdAt : Date.now(),
           });
         }
       }
@@ -184,8 +184,7 @@ export function saveAddressToBook(newAddr: {
   const pincode = newAddr.pincode?.trim() || '122003';
   const isDefault = Boolean(newAddr.isDefault);
 
-  // If marked default, unset default on other addresses
-  const updatedList = current.map((item) => ({
+  const updatedList: SavedAddress[] = current.map((item) => ({
     ...item,
     isDefault: isDefault ? false : item.isDefault,
   }));
