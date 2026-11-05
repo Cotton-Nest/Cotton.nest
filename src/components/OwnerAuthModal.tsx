@@ -5,7 +5,7 @@ import { useAuth, OWNER_EMAIL, isOwnerEmail } from '../context/AuthContext';
 interface OwnerAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuthenticate: () => void;
+  onAuthenticate: (openAdmin?: boolean) => void;
 }
 
 // Default Owner PIN is 2508 (matching House 2508, Sector 46 Gurgaon) or 1234
@@ -31,7 +31,8 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
     if (pin === savedPin || pin === '1234' || pin === 'admin' || pin === '2508') {
       setError(false);
       setPin('');
-      onAuthenticate();
+      // Entering PIN directly from phone/laptop opens the Admin panel as per previous method
+      onAuthenticate(true);
       onClose();
     } else {
       setError(true);
@@ -43,16 +44,16 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
     setGoogleAuthError(null);
     try {
       const fbUser = await loginWithGoogle();
-      const signedInEmail = fbUser?.email?.toLowerCase();
+      const signedInEmail = fbUser?.email?.toLowerCase() || user?.email?.toLowerCase();
 
       if (isOwnerEmail(signedInEmail)) {
-        // Authenticated as owner!
-        onAuthenticate();
+        // Authenticated as owner via Google: unlock owner mode but do NOT auto-open admin panel!
+        onAuthenticate(false);
         onClose();
       } else {
         // Signed in with a different Google account
         setGoogleAuthError(
-          `Signed in as ${fbUser?.email || 'user'}. Owner controls require an authorized store administrator Google account, or you can enter your Owner Security PIN below.`
+          `Signed in as ${fbUser?.email || user?.email || 'user'}. Owner controls require an authorized store administrator Google account, or you can enter your Owner Security PIN below.`
         );
       }
     } catch (err: any) {

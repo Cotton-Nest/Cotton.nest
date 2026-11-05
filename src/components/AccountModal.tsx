@@ -51,6 +51,8 @@ interface AccountModalProps {
   onTrackOrderDirect?: (orderId: string) => void;
   onOpenCart?: () => void;
   onShopCatalogue?: () => void;
+  isOwnerMode?: boolean;
+  onOpenAdmin?: () => void;
 }
 
 export const AccountModal: React.FC<AccountModalProps> = ({
@@ -65,6 +67,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   onTrackOrderDirect,
   onOpenCart,
   onShopCatalogue,
+  isOwnerMode = false,
+  onOpenAdmin,
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
   const { pointsBalance, pointsRupeesValue, transactions } = useLoyalty();
@@ -324,6 +328,31 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Owner Controls Quick Action (Only for authorized owner) */}
+              {(isOwnerMode || user?.isOwner) && onOpenAdmin && (
+                <div className="p-3.5 rounded-2xl bg-[#2C2420] text-white border border-[#DEC89B]/40 shadow-xs flex items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#EAE2D5]">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Atelier Store Owner Controls</span>
+                    </div>
+                    <p className="text-[11px] text-[#A8988D]">
+                      Update prices, stock, discounts, orders &amp; photos
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenAdmin();
+                    }}
+                    className="shrink-0 px-3 py-1.5 bg-[#8C2E46] hover:bg-[#A33452] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                  >
+                    ⚙️ Open Admin
+                  </button>
+                </div>
+              )}
 
               {/* Quick 2-Column Summary Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

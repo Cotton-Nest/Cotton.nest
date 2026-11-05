@@ -233,10 +233,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch {}
         }
 
-        // Seamlessly activate verified owner session so user is never blocked
-        loginWithGoogleDirect(OWNER_EMAIL, 'Cotton Nest Admin');
-        setAuthError(null);
-        return null;
+        const friendlyMessage =
+          'Google popup is not permitted on this domain preview. Please use Google One-Tap or enter your Gmail address below to continue.';
+        setAuthError(friendlyMessage);
+        throw new Error(friendlyMessage);
       }
 
       let friendlyMessage = 'Google sign-in could not be completed.';
@@ -308,11 +308,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Direct verified Google sign-in fallback (e.g. for store owner or customers on unwhitelisted domains)
+  // Direct verified Google sign-in fallback (e.g. for customers or store owner on unwhitelisted domains)
   const loginWithGoogleDirect = (email?: string, name?: string, avatar?: string): UserProfile => {
     setIsLoading(true);
     setAuthError(null);
-    const targetEmail = (email || OWNER_EMAIL).trim().toLowerCase();
+    const targetEmail = (email || '').trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      const err = 'Please enter a valid Gmail address to sign in.';
+      setAuthError(err);
+      setIsLoading(false);
+      throw new Error(err);
+    }
     const isOwner = isOwnerEmail(targetEmail);
     const rawDefaultName = name || (isOwner ? 'Cotton Nest' : targetEmail.split('@')[0]);
     const defaultName = sanitizeProfileName(rawDefaultName, targetEmail);

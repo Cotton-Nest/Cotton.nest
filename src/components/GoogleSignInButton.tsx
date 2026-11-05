@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useAuth, OWNER_EMAIL } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { LogIn, AlertCircle, RefreshCw, Sparkles, Check, Mail } from 'lucide-react';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -36,20 +36,18 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     }
   };
 
-  const handleInstantOwnerLogin = () => {
-    loginWithGoogleDirect(OWNER_EMAIL, 'Cotton Nest Admin');
-    setLocalError(null);
-    clearAuthError();
-    if (onSuccess) onSuccess();
-  };
-
   const handleDirectEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!directEmailInput || !directEmailInput.includes('@')) return;
-    loginWithGoogleDirect(directEmailInput);
-    setLocalError(null);
-    clearAuthError();
-    if (onSuccess) onSuccess();
+    const clean = directEmailInput.trim().toLowerCase();
+    if (!clean || !clean.includes('@')) return;
+    try {
+      loginWithGoogleDirect(clean);
+      setLocalError(null);
+      clearAuthError();
+      if (onSuccess) onSuccess();
+    } catch (err: any) {
+      setLocalError(err.message || 'Please enter a valid Gmail address.');
+    }
   };
 
   const activeLoading = isLoading || localLoading;

@@ -1164,9 +1164,11 @@ export default function App() {
   };
 
   // Owner Authentication Handlers
-  const handleOwnerAuthenticate = () => {
+  const handleOwnerAuthenticate = (openAdmin: boolean = false) => {
     setIsOwnerPinUnlocked(true);
-    setIsAdminOpen(true);
+    if (openAdmin) {
+      setIsAdminOpen(true);
+    }
     try {
       localStorage.setItem('cotton_nest_owner_mode', 'true');
     } catch {
@@ -2007,6 +2009,11 @@ export default function App() {
           setIsAccountModalOpen(false);
           setActiveTab('catalogue');
           window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        isOwnerMode={isOwnerMode}
+        onOpenAdmin={() => {
+          setIsAccountModalOpen(false);
+          setIsAdminOpen(true);
         }}
       />
 
