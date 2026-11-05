@@ -1549,6 +1549,13 @@ export interface SendEmailOtpResult {
   success: boolean;
   message?: string;
   error?: string;
+  authErrorDetails?: {
+    senderEmail: string;
+    fullSenderEmail: string;
+    passLength: number;
+    is16Chars: boolean;
+    helpUrl: string;
+  };
   cooldownSeconds?: number;
   status: number;
 }
@@ -1572,6 +1579,7 @@ export async function sendEmailOtpApi(email: string): Promise<SendEmailOtpResult
       success: res.ok && data.success !== false,
       message: data.message,
       error: data.error,
+      authErrorDetails: data.authErrorDetails,
       cooldownSeconds: data.cooldownSeconds,
       status: res.status,
     };

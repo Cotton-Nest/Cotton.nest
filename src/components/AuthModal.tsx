@@ -42,6 +42,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [otpSent, setOtpSent] = useState(false);
   const [enteredOtp, setEnteredOtp] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
+  const [authErrorDetails, setAuthErrorDetails] = useState<{
+    senderEmail: string;
+    fullSenderEmail: string;
+    passLength: number;
+    is16Chars: boolean;
+    helpUrl: string;
+  } | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -79,6 +86,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setIsSending(true);
     setOtpError(null);
+    setAuthErrorDetails(null);
 
     try {
       const res = await sendEmailOtpApi(cleanEmail);
@@ -86,8 +94,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setOtpSent(true);
         setCooldown(res.cooldownSeconds || 60);
         setEnteredOtp('');
+        setAuthErrorDetails(null);
       } else {
         setOtpError(res.error || 'Failed to deliver OTP email. Please verify your address and try again.');
+        if (res.authErrorDetails) {
+          setAuthErrorDetails(res.authErrorDetails);
+        }
       }
     } catch (err: any) {
       setOtpError(err?.message || 'Network error while contacting the verification service.');
@@ -103,13 +115,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setIsSending(true);
     setOtpError(null);
+    setAuthErrorDetails(null);
 
     try {
       const res = await sendEmailOtpApi(cleanEmail);
       if (res.success) {
         setCooldown(res.cooldownSeconds || 60);
+        setAuthErrorDetails(null);
       } else {
         setOtpError(res.error || 'Failed to resend verification code. Please try again.');
+        if (res.authErrorDetails) {
+          setAuthErrorDetails(res.authErrorDetails);
+        }
       }
     } catch (err: any) {
       setOtpError(err?.message || 'Failed to resend verification code.');
@@ -257,9 +274,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
 
                 {otpError && (
-                  <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>{otpError}</span>
+                  <div className="p-3 bg-red-50 text-red-800 text-xs rounded-xl border border-red-200 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                      <div className="space-y-1.5 text-[11.5px] leading-relaxed flex-1">
+                        <p className="font-semibold text-red-900">{otpError}</p>
+                        {authErrorDetails && (
+                          <div className="pt-2 border-t border-red-200/80 space-y-1.5 text-[11px] text-red-800">
+                            <p>
+                              <strong>Configured sender:</strong> <span className="font-mono bg-red-100/60 px-1 py-0.5 rounded">{authErrorDetails.senderEmail}</span>
+                            </p>
+                            <p className="text-red-700">
+                              Google requires a <strong>16-character App Password</strong> generated on that specific Google account. Standard Gmail passwords are not supported for SMTP.
+                            </p>
+                            <div className="pt-1">
+                              <a
+                                href={authErrorDetails.helpUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 font-semibold text-[#8C2E46] hover:underline bg-white px-2.5 py-1 rounded-lg border border-red-200 shadow-2xs"
+                              >
+                                <span>Generate Google App Password ↗</span>
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 

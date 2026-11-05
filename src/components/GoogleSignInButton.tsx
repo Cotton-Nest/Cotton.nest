@@ -21,34 +21,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const [localError, setLocalError] = useState<string | null>(null);
   const [showDirectEmail, setShowDirectEmail] = useState(false);
   const [directEmailInput, setDirectEmailInput] = useState('');
-  const googleBtnContainerRef = useRef<HTMLDivElement>(null);
-
-  // Initialize official Google Identity Services button if available
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const setupGsiButton = () => {
-      const google = (window as any).google;
-      if (google?.accounts?.id && googleBtnContainerRef.current && firebaseConfig?.oAuthClientId) {
-        try {
-          googleBtnContainerRef.current.innerHTML = '';
-          google.accounts.id.renderButton(googleBtnContainerRef.current, {
-            theme: 'outline',
-            size: variant === 'navbar' || variant === 'compact' ? 'medium' : 'large',
-            width: variant === 'navbar' || variant === 'compact' ? 140 : 320,
-            text: 'continue_with',
-            shape: 'rectangular',
-          });
-        } catch (e) {
-          console.warn('Google Identity button rendering notice:', e);
-        }
-      }
-    };
-
-    setupGsiButton();
-    const timer = setTimeout(setupGsiButton, 1000);
-    return () => clearTimeout(timer);
-  }, [variant]);
 
   const handleClick = async () => {
     setLocalLoading(true);
@@ -137,9 +109,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   // Standard & Large button
   return (
     <div className="w-full space-y-2.5">
-      {/* Native Google One-Tap / GSI Button Hook */}
-      <div ref={googleBtnContainerRef} className="empty:hidden flex justify-center mb-1" />
-
       {/* Main Standard Google Sign-In Button */}
       <button
         type="button"

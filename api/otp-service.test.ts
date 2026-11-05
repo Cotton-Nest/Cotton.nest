@@ -53,6 +53,13 @@ test('getGmailConfig strips whitespace from app password and handles missing env
     assert.notEqual(config, null);
     assert.equal(config?.user, 'cottonnest.atelier@gmail.com');
     assert.equal(config?.pass, 'abcdefghijklmnop');
+
+    // Test hyphenated password stripping (e.g. abcd-efgh-ijkl-mnop)
+    process.env.GMAIL_APP_PASSWORD = 'abcd-efgh-ijkl-mnop';
+    const configHyphens = getGmailConfig();
+    assert.equal(configHyphens?.pass, 'abcdefghijklmnop');
+    assert.equal(configHyphens?.rawPassLength, 16);
+    assert.equal(configHyphens?.isLikelyAppPassword, true);
   } finally {
     if (origUser) process.env.GMAIL_USER = origUser;
     else delete process.env.GMAIL_USER;

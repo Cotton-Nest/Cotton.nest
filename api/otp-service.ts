@@ -61,44 +61,96 @@ function persistCache(): void {
   } catch {}
 }
 
+export interface AuthErrorDetails {
+  senderEmail: string;
+  fullSenderEmail: string;
+  passLength: number;
+  is16Chars: boolean;
+  helpUrl: string;
+}
+
 function cleanEnvVal(val?: string | null): string {
   if (!val || typeof val !== 'string') return '';
-  return val.trim().replace(/^["']|["']$/g, '').trim();
+  return val.trim().replace(/^["'`]|["'`]$/g, '').trim();
+}
+
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return email;
+  if (local.length <= 4) return `${local[0]}***@${domain}`;
+  return `${local.slice(0, 2)}***${local.slice(-2)}@${domain}`;
 }
 
 /**
  * Gets and validates the Gmail SMTP configuration from environment variables.
  */
-export function getGmailConfig(): { user: string; pass: string } | null {
-  const user = cleanEnvVal(process.env.GMAIL_USER);
-  // Google App Passwords are 16 characters often presented as 'xxxx xxxx xxxx xxxx'.
-  // Strip all whitespace to ensure correct authentication.
-  const pass = cleanEnvVal(process.env.GMAIL_APP_PASSWORD).replace(/\s+/g, '');
+export function getGmailConfig(): {
+  user: string;
+  pass: string;
+  rawPassLength: number;
+  isLikelyAppPassword: boolean;
+} | null {
+  let user = cleanEnvVal(process.env.GMAIL_USER);
+  if (!user) return null;
+  if (!user.includes('@')) {
+    user = `${user}@gmail.com`;
+  }
+  user = user.toLowerCase();
 
-  if (!user || !pass) {
+  const rawPass = cleanEnvVal(process.env.GMAIL_APP_PASSWORD);
+  // Google App Passwords are 16 letters (e.g. 'abcd efgh ijkl mnop' or 'abcd-efgh-ijkl-mnop').
+  // Remove all whitespace, hyphens, and quotes:
+  const pass = rawPass.replace(/[\s-]+/g, '').replace(/["'`]/g, '');
+
+  if (!pass) {
     return null;
   }
-  return { user, pass };
+  return {
+    user,
+    pass,
+    rawPassLength: pass.length,
+    isLikelyAppPassword: pass.length === 16 && /^[a-zA-Z]+$/.test(pass),
+  };
 }
 
 /**
- * Creates a Nodemailer transporter for Gmail SMTP on port 465 (SSL).
+ * Creates a Nodemailer transporter for Gmail SMTP with SSL (465) or STARTTLS (587).
  */
-export function createGmailTransporter(config: { user: string; pass: string }) {
+export function createGmailTransporter(config: { user: string; pass: string }, port = 465) {
+  if (port === 587) {
+    return nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // STARTTLS
+      requireTLS: true,
+      auth: {
+        user: config.user,
+        pass: config.pass,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 12000,
+      socketTimeout: 20000,
+    });
+  }
+
+  // Default: Direct SSL port 465
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
-    secure: true, // Port 465 SSL
+    secure: true,
     auth: {
       user: config.user,
       pass: config.pass,
     },
     tls: {
-      rejectUnauthorized: true,
+      rejectUnauthorized: false,
     },
-    connectionTimeout: 12000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    connectionTimeout: 15000,
+    greetingTimeout: 12000,
+    socketTimeout: 20000,
   });
 }
 
@@ -209,6 +261,7 @@ export async function sendOtpEmail(email: string): Promise<{
   message?: string;
   cooldownSeconds?: number;
   error?: string;
+  authErrorDetails?: AuthErrorDetails;
   status: number;
 }> {
   const cleanEmail = normalizeEmail(email);
@@ -275,10 +328,8 @@ export async function sendOtpEmail(email: string): Promise<{
   const salt = crypto.randomBytes(16).toString('hex');
   const hashedOtp = crypto.createHash('sha256').update(rawOtp + salt).digest('hex');
 
-  // 5. Send via Gmail SMTP
+  // 5. Send via Gmail SMTP with dual-port fallback (Port 465 SSL primary, Port 587 STARTTLS fallback)
   try {
-    const transporter = createGmailTransporter(config);
-
     const mailOptions = {
       from: `"Cotton Nest" <${config.user}>`,
       to: cleanEmail,
@@ -287,7 +338,32 @@ export async function sendOtpEmail(email: string): Promise<{
       html: buildCottonNestOtpHtml(rawOtp),
     };
 
-    await transporter.sendMail(mailOptions);
+    let sendError: any = null;
+    try {
+      const transporter465 = createGmailTransporter(config, 465);
+      await transporter465.sendMail(mailOptions);
+    } catch (primaryErr: any) {
+      sendError = primaryErr;
+      // If network/connection error on port 465, retry on port 587 STARTTLS
+      if (
+        primaryErr.code === 'ECONNREFUSED' ||
+        primaryErr.code === 'ETIMEDOUT' ||
+        primaryErr.code === 'ESOCKETTIMEDOUT' ||
+        primaryErr.code === 'ENOTFOUND'
+      ) {
+        try {
+          const transporter587 = createGmailTransporter(config, 587);
+          await transporter587.sendMail(mailOptions);
+          sendError = null;
+        } catch (fallbackErr: any) {
+          sendError = fallbackErr;
+        }
+      }
+    }
+
+    if (sendError) {
+      throw sendError;
+    }
 
     // 6. Save hashed OTP in store only after successful dispatch
     otpMemoryCache.set(cleanEmail, {
@@ -309,10 +385,30 @@ export async function sendOtpEmail(email: string): Promise<{
   } catch (err: any) {
     console.error('Failed to send OTP via Gmail SMTP:', err.message || err);
 
-    let clientMessage = 'Failed to deliver OTP email. Please verify your address and try again.';
+    const isAuthError =
+      err.code === 'EAUTH' ||
+      err.responseCode === 535 ||
+      String(err.message || '').includes('535') ||
+      String(err.message || '').includes('Username and Password not accepted');
 
-    if (err.code === 'EAUTH' || err.responseCode === 535) {
-      clientMessage = 'Gmail SMTP authentication failed. Please verify that your GMAIL_USER and Gmail App Password are correct.';
+    let clientMessage = 'Failed to deliver OTP email. Please verify your address and try again.';
+    let authErrorDetails: AuthErrorDetails | undefined = undefined;
+
+    if (isAuthError) {
+      const masked = maskEmail(config.user);
+      authErrorDetails = {
+        senderEmail: masked,
+        fullSenderEmail: config.user,
+        passLength: config.pass.length,
+        is16Chars: config.pass.length === 16,
+        helpUrl: 'https://myaccount.google.com/apppasswords',
+      };
+
+      if (config.pass.length !== 16) {
+        clientMessage = `Gmail SMTP login failed for sender ${masked}. The configured App Password is ${config.pass.length} characters long, but Google App Passwords must be exactly 16 letters (from myaccount.google.com/apppasswords). Personal account passwords cannot be used for SMTP.`;
+      } else {
+        clientMessage = `Gmail SMTP authentication failed for sender ${masked}. Google rejected the 16-character App Password. Please check: 1) The App Password was generated specifically under ${masked}. 2) 2-Step Verification is active on that Google account.`;
+      }
     } else if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT') {
       clientMessage = 'Connection to Gmail SMTP timed out. Please check network connection and try again.';
     } else if (err.code === 'ECONNREFUSED') {
@@ -322,7 +418,8 @@ export async function sendOtpEmail(email: string): Promise<{
     return {
       success: false,
       error: clientMessage,
-      status: 500,
+      authErrorDetails,
+      status: isAuthError ? 401 : 500,
     };
   }
 }
