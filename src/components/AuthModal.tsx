@@ -41,6 +41,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [name, setName] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [enteredOtp, setEnteredOtp] = useState('');
+  const [verificationToken, setVerificationToken] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('cotton_nest_otp_token') || null;
+    } catch {
+      return null;
+    }
+  });
   const [otpError, setOtpError] = useState<string | null>(null);
   const [authErrorDetails, setAuthErrorDetails] = useState<{
     senderEmail: string;
@@ -95,6 +102,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setCooldown(res.cooldownSeconds || 60);
         setEnteredOtp('');
         setAuthErrorDetails(null);
+        if (res.verificationToken) {
+          setVerificationToken(res.verificationToken);
+          try {
+            sessionStorage.setItem('cotton_nest_otp_token', res.verificationToken);
+          } catch {}
+        }
       } else {
         setOtpError(res.error || 'Failed to deliver OTP email. Please verify your address and try again.');
         if (res.authErrorDetails) {
@@ -122,6 +135,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (res.success) {
         setCooldown(res.cooldownSeconds || 60);
         setAuthErrorDetails(null);
+        if (res.verificationToken) {
+          setVerificationToken(res.verificationToken);
+          try {
+            sessionStorage.setItem('cotton_nest_otp_token', res.verificationToken);
+          } catch {}
+        }
       } else {
         setOtpError(res.error || 'Failed to resend verification code. Please try again.');
         if (res.authErrorDetails) {
@@ -147,12 +166,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setOtpError(null);
 
     try {
-      const res = await verifyEmailOtpApi(email.trim().toLowerCase(), cleanCode);
+      const res = await verifyEmailOtpApi(
+        email.trim().toLowerCase(),
+        cleanCode,
+        verificationToken || undefined
+      );
       if (res.success) {
         loginWithEmail(email.trim().toLowerCase(), name.trim() || email.split('@')[0]);
         setOtpSent(false);
         setEnteredOtp('');
         setOtpError(null);
+        setVerificationToken(null);
+        try {
+          sessionStorage.removeItem('cotton_nest_otp_token');
+        } catch {}
         onClose();
       } else {
         setOtpError(res.error || 'Invalid verification code. Please check your email and try again.');
@@ -428,6 +455,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       setOtpSent(false);
                       setEnteredOtp('');
                       setOtpError(null);
+                      setVerificationToken(null);
+                      try {
+                        sessionStorage.removeItem('cotton_nest_otp_token');
+                      } catch {}
                     }}
                     disabled={isVerifying}
                     className="w-1/3 py-2.5 bg-white hover:bg-[#FAF7F2] text-[#7A6458] border border-[#DEC89B] rounded-xl font-semibold text-xs transition-colors cursor-pointer disabled:opacity-60"
@@ -468,7 +499,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   className="text-xs text-[#8C2E46] hover:text-[#742438] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
                 >
                   <Lock className="w-3.5 h-3.5" />
-                  <span>Store Owner? Enter PIN (2508) or Admin Access</span>
+                  <span>Store Owner Admin Access</span>
                 </button>
               </div>
             )}

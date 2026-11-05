@@ -1370,8 +1370,14 @@ async function startServer() {
 
   app.post('/api/auth/verify-otp', async (req, res) => {
     try {
-      const { email, otp } = req.body || {};
-      const result = await verifyOtp(email, otp);
+      const { email, otp, verificationToken, token } = req.body || {};
+      const tokenToVerify = typeof verificationToken === 'string' && verificationToken.trim()
+        ? verificationToken.trim()
+        : typeof token === 'string' && token.trim()
+        ? token.trim()
+        : undefined;
+
+      const result = await verifyOtp(email, otp, tokenToVerify);
       res.status(result.status).json(result);
     } catch (err: any) {
       console.error('Server error on /api/auth/verify-otp:', err);

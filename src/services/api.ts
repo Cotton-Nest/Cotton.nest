@@ -1548,6 +1548,7 @@ export async function generateProductDescriptionApi(payload: AiDescriptionPayloa
 export interface SendEmailOtpResult {
   success: boolean;
   message?: string;
+  verificationToken?: string;
   error?: string;
   authErrorDetails?: {
     senderEmail: string;
@@ -1578,6 +1579,7 @@ export async function sendEmailOtpApi(email: string): Promise<SendEmailOtpResult
     return {
       success: res.ok && data.success !== false,
       message: data.message,
+      verificationToken: data.verificationToken,
       error: data.error,
       authErrorDetails: data.authErrorDetails,
       cooldownSeconds: data.cooldownSeconds,
@@ -1592,12 +1594,20 @@ export async function sendEmailOtpApi(email: string): Promise<SendEmailOtpResult
   }
 }
 
-export async function verifyEmailOtpApi(email: string, otp: string): Promise<VerifyEmailOtpResult> {
+export async function verifyEmailOtpApi(
+  email: string,
+  otp: string,
+  verificationToken?: string
+): Promise<VerifyEmailOtpResult> {
   try {
     const res = await fetch('/api/auth/verify-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim() }),
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+        verificationToken,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     return {

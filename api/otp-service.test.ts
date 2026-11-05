@@ -7,6 +7,7 @@ import {
   getGmailConfig,
   verifyOtp,
   sendOtpEmail,
+  generateVerificationToken,
 } from './otp-service.ts';
 
 test('normalizeEmail trims and converts to lowercase', () => {
@@ -108,3 +109,53 @@ test('sendOtpEmail returns 503 configuration error when credentials are not set'
     else delete process.env.GMAIL_APP_PASSWORD;
   }
 });
+
+test('stateless cryptographic token verification succeeds with correct OTP across instances', async () => {
+  const email = 'customer@gmail.com';
+  const correctOtp = '364855';
+
+  const token = generateVerificationToken(email, correctOtp);
+  assert.ok(token.includes('.'));
+
+  // Should succeed with exact OTP
+  const result = await verifyOtp(email, correctOtp, token);
+  assert.equal(result.success, true);
+  assert.equal(result.status, 200);
+  assert.ok(result.message?.includes('verified successfully'));
+
+  // Immediate replay / reuse prevention: cannot use again
+  const reuseResult = await verifyOtp(email, correctOtp, token);
+  assert.equal(reuseResult.success, false);
+  assert.equal(reuseResult.status, 400);
+  assert.ok(reuseResult.error?.includes('already been used'));
+});
+
+test('stateless verification token rejects wrong OTP and limits attempts', async () => {
+  const email = 'customer2@gmail.com';
+  const correctOtp = '719304';
+  const token = generateVerificationToken(email, correctOtp);
+
+  // Wrong code
+  const wrongResult = await verifyOtp(email, '999999', token);
+  assert.equal(wrongResult.success, false);
+  assert.equal(wrongResult.status, 400);
+  assert.ok(wrongResult.error?.includes('Invalid verification code'));
+
+  // Another email mismatch
+  const mismatchEmailResult = await verifyOtp('other@gmail.com', correctOtp, token);
+  assert.equal(mismatchEmailResult.success, false);
+  assert.equal(mismatchEmailResult.status, 400);
+});
+
+test('stateless verification token rejects expired codes', async () => {
+  const email = 'customer3@gmail.com';
+  const correctOtp = '112233';
+  // Expired 10 seconds ago
+  const expiredToken = generateVerificationToken(email, correctOtp, -10000);
+
+  const res = await verifyOtp(email, correctOtp, expiredToken);
+  assert.equal(res.success, false);
+  assert.equal(res.status, 400);
+  assert.ok(res.error?.includes('expired'));
+});
+

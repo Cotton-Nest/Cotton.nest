@@ -52,7 +52,7 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
       } else {
         // Signed in with a different Google account
         setGoogleAuthError(
-          `Signed in as ${fbUser?.email || 'user'}. Owner controls require ${OWNER_EMAIL}, or you can use the Owner PIN (2508) below.`
+          `Signed in as ${fbUser?.email || 'user'}. Owner controls require an authorized store administrator Google account, or you can enter your Owner Security PIN below.`
         );
       }
     } catch (err: any) {
@@ -108,7 +108,7 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
             <span>
               {isSigningInGoogle
                 ? 'Connecting to Google...'
-                : 'Sign in with Google (adityaa.22082011@gmail.com)'}
+                : 'Sign In with Google as Owner'}
             </span>
           </button>
 
@@ -145,7 +145,7 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
                   setPin(e.target.value);
                   if (error) setError(false);
                 }}
-                placeholder="Enter 4-digit PIN"
+                placeholder="••••••••"
                 className={`w-full pl-9 pr-4 py-2.5 bg-white border rounded-xl text-sm font-semibold tracking-widest text-[#2C2420] focus:outline-hidden ${
                   error
                     ? 'border-red-500 focus:border-red-600 bg-red-50/20'
@@ -161,11 +161,9 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
             )}
           </div>
 
-          <div className="bg-[#F4EFE6]/60 p-2.5 rounded-xl border border-[#EAE2D5] text-[11px] text-[#7A6458]">
-            <p className="font-medium text-[#2C2420]">Default Owner PIN:</p>
-            <p className="text-[#8C7A70] mt-0.5">
-              Use <strong>2508</strong> (Sector 46 House No.) or <strong>1234</strong>
-            </p>
+          <div className="bg-[#F4EFE6]/60 p-2.5 rounded-xl border border-[#EAE2D5] text-[11px] text-[#7A6458] flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-[#8C2E46] shrink-0" />
+            <span>Enter your confidential Owner Security PIN to unlock the store management console.</span>
           </div>
 
           <button

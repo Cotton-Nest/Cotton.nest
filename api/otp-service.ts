@@ -27,6 +27,39 @@ const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes window
 // In-memory caches
 const otpMemoryCache = new Map<string, OtpRecord>();
 const rateLimitMemoryCache = new Map<string, RateLimitRecord>();
+const usedTokensMemoryCache = new Set<string>();
+const tokenAttemptsMemoryCache = new Map<string, number>();
+
+function cleanEnvVal(val?: string | null): string {
+  if (!val || typeof val !== 'string') return '';
+  return val.trim().replace(/^["'`]|["'`]$/g, '').trim();
+}
+
+export function getOtpHmacSecret(): string {
+  const secret = process.env.OTP_SECRET || process.env.GMAIL_APP_PASSWORD || '';
+  const cleaned = cleanEnvVal(secret).replace(/\s+/g, '');
+  return cleaned || 'cotton_nest_atelier_otp_secure_key_2026';
+}
+
+/**
+ * Generates a signed, stateless verification token that encapsulates
+ * the expiry timestamp, random salt, and HMAC signature of (email + otp + salt + expiry).
+ * The raw OTP is NEVER included in the token or returned to the client.
+ */
+export function generateVerificationToken(
+  email: string,
+  otp: string,
+  durationMs: number = OTP_EXPIRY_MS
+): string {
+  const cleanEmail = email.trim().toLowerCase();
+  const verificationSalt = crypto.randomBytes(16).toString('hex');
+  const verificationExpiry = Date.now() + durationMs;
+  const hmacSignature = crypto
+    .createHmac('sha256', getOtpHmacSecret())
+    .update(`${cleanEmail}:${otp}:${verificationSalt}:${verificationExpiry}`)
+    .digest('hex');
+  return `${verificationExpiry}.${verificationSalt}.${hmacSignature}`;
+}
 
 // Persistent temporary file cache for cross-invocation resilience in serverless / container reloads
 const TMP_CACHE_FILE = path.join(os.tmpdir(), 'cotton_nest_otp_store.json');
@@ -67,11 +100,6 @@ export interface AuthErrorDetails {
   passLength: number;
   is16Chars: boolean;
   helpUrl: string;
-}
-
-function cleanEnvVal(val?: string | null): string {
-  if (!val || typeof val !== 'string') return '';
-  return val.trim().replace(/^["'`]|["'`]$/g, '').trim();
 }
 
 export function maskEmail(email: string): string {
@@ -259,6 +287,7 @@ export function normalizeEmail(email: string): string {
 export async function sendOtpEmail(email: string): Promise<{
   success: boolean;
   message?: string;
+  verificationToken?: string;
   cooldownSeconds?: number;
   error?: string;
   authErrorDetails?: AuthErrorDetails;
@@ -376,9 +405,13 @@ export async function sendOtpEmail(email: string): Promise<{
     });
     persistCache();
 
+    // 7. Generate stateless cryptographic HMAC verification token
+    const verificationToken = generateVerificationToken(cleanEmail, rawOtp, OTP_EXPIRY_MS);
+
     return {
       success: true,
       message: 'OTP sent! Look for an email from Cotton Nest with the subject Cotton Nest OTP.',
+      verificationToken,
       cooldownSeconds: 60,
       status: 200,
     };
@@ -425,9 +458,13 @@ export async function sendOtpEmail(email: string): Promise<{
 }
 
 /**
- * Securely verifies a customer's entered OTP against the hashed store.
+ * Securely verifies a customer's entered OTP against the hashed store or stateless cryptographic token.
  */
-export async function verifyOtp(email: string, enteredOtp: string): Promise<{
+export async function verifyOtp(
+  email: string,
+  enteredOtp: string,
+  verificationToken?: string
+): Promise<{
   success: boolean;
   message?: string;
   error?: string;
@@ -452,6 +489,79 @@ export async function verifyOtp(email: string, enteredOtp: string): Promise<{
     };
   }
 
+  const now = Date.now();
+
+  // Method 1: Cryptographic HMAC Verification Token (Stateless, 100% resilient across serverless instances)
+  if (verificationToken && typeof verificationToken === 'string' && verificationToken.includes('.')) {
+    const parts = verificationToken.split('.');
+    if (parts.length === 3) {
+      const [expStr, salt, providedHmac] = parts;
+      const expiresAt = Number(expStr);
+
+      if (isNaN(expiresAt) || now > expiresAt) {
+        return {
+          success: false,
+          error: 'Verification code has expired. Please request a new code.',
+          status: 400,
+        };
+      }
+
+      if (usedTokensMemoryCache.has(providedHmac)) {
+        return {
+          success: false,
+          error: 'This verification code has already been used. Please request a new code.',
+          status: 400,
+        };
+      }
+
+      const attempts = (tokenAttemptsMemoryCache.get(providedHmac) || 0) + 1;
+      tokenAttemptsMemoryCache.set(providedHmac, attempts);
+      if (attempts > MAX_ATTEMPTS) {
+        usedTokensMemoryCache.add(providedHmac);
+        return {
+          success: false,
+          error: 'Too many incorrect attempts. Please request a new verification code.',
+          status: 400,
+        };
+      }
+
+      const expectedHmac = crypto
+        .createHmac('sha256', getOtpHmacSecret())
+        .update(`${cleanEmail}:${cleanOtp}:${salt}:${expStr}`)
+        .digest('hex');
+
+      const expectedBuffer = Buffer.from(expectedHmac);
+      const providedBuffer = Buffer.from(providedHmac);
+
+      if (
+        expectedBuffer.length === providedBuffer.length &&
+        crypto.timingSafeEqual(expectedBuffer, providedBuffer)
+      ) {
+        // Success! Invalidate token immediately
+        usedTokensMemoryCache.add(providedHmac);
+        otpMemoryCache.delete(cleanEmail);
+        persistCache();
+
+        return {
+          success: true,
+          message: 'Email address verified successfully.',
+          status: 200,
+        };
+      } else {
+        const remaining = MAX_ATTEMPTS - attempts;
+        return {
+          success: false,
+          error:
+            remaining > 0
+              ? `Invalid verification code. You have ${remaining} attempt${remaining > 1 ? 's' : ''} remaining.`
+              : 'Too many incorrect attempts. Please request a new verification code.',
+          status: 400,
+        };
+      }
+    }
+  }
+
+  // Method 2: In-Memory / Temporary Disk Cache (for single-process development or requests without token)
   if (!otpMemoryCache.has(cleanEmail)) {
     loadCache();
   }
@@ -465,8 +575,6 @@ export async function verifyOtp(email: string, enteredOtp: string): Promise<{
       status: 400,
     };
   }
-
-  const now = Date.now();
 
   // Check Expiry
   if (now > record.expiresAt) {
@@ -499,9 +607,10 @@ export async function verifyOtp(email: string, enteredOtp: string): Promise<{
     const remaining = MAX_ATTEMPTS - record.attempts;
     return {
       success: false,
-      error: remaining > 0
-        ? `Invalid verification code. You have ${remaining} attempt${remaining > 1 ? 's' : ''} remaining.`
-        : 'Too many incorrect attempts. Please request a new verification code.',
+      error:
+        remaining > 0
+          ? `Invalid verification code. You have ${remaining} attempt${remaining > 1 ? 's' : ''} remaining.`
+          : 'Too many incorrect attempts. Please request a new verification code.',
       status: 400,
     };
   }

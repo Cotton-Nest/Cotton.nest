@@ -21,7 +21,7 @@ export default async function handler(req: any, res: any) {
       } catch {}
     }
 
-    const { email, otp } = body || {};
+    const { email, otp, verificationToken, token } = body || {};
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ success: false, error: 'Email address is required.' });
     }
@@ -29,7 +29,13 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'Verification code is required.' });
     }
 
-    const result = await verifyOtp(email, otp);
+    const tokenToVerify = typeof verificationToken === 'string' && verificationToken.trim()
+      ? verificationToken.trim()
+      : typeof token === 'string' && token.trim()
+      ? token.trim()
+      : undefined;
+
+    const result = await verifyOtp(email, otp, tokenToVerify);
     return res.status(result.status).json(result);
   } catch (err: any) {
     console.error('API verify-otp error:', err);
