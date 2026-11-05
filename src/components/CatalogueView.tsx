@@ -302,7 +302,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             const cleanS = String(s || '').toLowerCase();
             const d = dims.toLowerCase();
             const sz = itemSize.toLowerCase();
-            if (cleanS.includes('xl') || cleanS.includes('110')) return d.includes('108') && d.includes('110');
+            if (cleanS.includes('xl') || cleanS.includes('120')) return d.includes('120') || sz.includes('xl');
             if (cleanS.includes('108')) return d.includes('108') && !d.includes('110');
             if (cleanS.includes('90') && cleanS.includes('108')) return d.includes('90') && d.includes('108');
             if (cleanS.includes('90') && cleanS.includes('100')) return d.includes('90') && d.includes('100');
@@ -456,7 +456,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
       if (type === 'size') {
         const s = String(p.size || '').toLowerCase();
         const dims = String(p.dimensions || '').toLowerCase();
-        if (cleanVal.includes('xl') || cleanVal.includes('110')) return dims.includes('108') && dims.includes('110');
+        if (cleanVal.includes('xl') || cleanVal.includes('120')) return dims.includes('120') || s.includes('xl');
         if (cleanVal.includes('108')) return dims.includes('108') && !dims.includes('110');
         if (cleanVal.includes('90') && cleanVal.includes('108')) return dims.includes('90') && dims.includes('108');
         if (cleanVal.includes('90') && cleanVal.includes('100')) return dims.includes('90') && dims.includes('100');
@@ -1134,7 +1134,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                     </p>
                     {[
                       { label: 'King Size (108 × 108)', spec: 'Mattress: 72 × 78' },
-                      { label: 'King Size XL (108 × 110)', spec: 'Mattress: 72 × 78' },
+                      { label: 'King Size XL (120 × 120)', spec: 'Mattress: 72 × 78' },
                       { label: 'Queen Size (90 × 100)', spec: 'Mattress: 60 × 78' },
                       { label: 'Queen Size XL (90 × 108)', spec: 'Mattress: 60 × 78' },
                       { label: 'Double Size (90 × 100)', spec: 'Mattress: 54 × 75' },

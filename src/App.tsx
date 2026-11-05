@@ -1794,6 +1794,7 @@ export default function App() {
             shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
             customerProfile={customerProfile}
             orders={orders}
+            onOpenAuthModal={() => setIsAuthModalOpen(true)}
             onViewLiveOrders={() => {
               setIsCartOpen(false);
               setActiveTab('orders');

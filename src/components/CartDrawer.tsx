@@ -30,6 +30,7 @@ interface CartDrawerProps {
   shippingFee?: number;
   customerProfile?: CustomerProfile | null;
   orders?: Order[];
+  onOpenAuthModal?: () => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -44,6 +45,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   shippingFee = 29,
   customerProfile,
   orders = [],
+  onOpenAuthModal,
 }) => {
   const { user } = useAuth();
   const { pointsBalance, earnPoints, redeemPoints, refreshLoyalty, openLoyaltyModal } = useLoyalty();
@@ -80,11 +82,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() =>
     getSavedAddresses(customerProfile, orders)
   );
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(() => {
-    const list = getSavedAddresses(customerProfile, orders);
-    const def = list.find((a) => a.isDefault);
-    return def ? def.id : list.length > 0 ? list[0].id : null;
-  });
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
   const [saveToAddressBook, setSaveToAddressBook] = useState<boolean>(true);
   const [newAddressLabel, setNewAddressLabel] = useState<'Home' | 'Work' | 'Other'>('Home');
@@ -140,22 +138,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     setFormError(null);
   };
 
-  // Auto-fill and sync saved addresses on open or profile/orders update
+  // Sync saved addresses on open without auto-prefilling previous address
   useEffect(() => {
     if (isOpen) {
       const addrs = getSavedAddresses(customerProfile, orders);
       setSavedAddresses(addrs);
-      if (addrs.length > 0) {
-        const active = addrs.find((a) => a.id === selectedAddressId) || addrs.find((a) => a.isDefault) || addrs[0];
-        if (active && !isAddingNewAddress) {
-          setSelectedAddressId(active.id);
-          const full = formatFullAddress(active);
-          if (!customerAddress) setCustomerAddress(full);
-          if (!customerName && active.name) setCustomerName(active.name);
-          if (!customerPhone && active.phone) setCustomerPhone(active.phone);
-        }
-      } else {
+      setSelectedAddressId(null);
+      setCustomerAddress('');
+      if (addrs.length === 0) {
         setIsAddingNewAddress(true);
+      } else {
+        setIsAddingNewAddress(false);
       }
     }
   }, [isOpen, customerProfile, orders]);
@@ -403,8 +396,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const handlePlaceWhatsAppOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      setFormError('Mandatory login required. Please log in before placing your order.');
+      onOpenAuthModal?.();
+      return;
+    }
     if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) {
-      setFormError('Please enter your Name, WhatsApp Mobile Number, and Delivery Address.');
+      setFormError('Please enter your Name, WhatsApp Mobile Number, and choose a Delivery Address.');
       return;
     }
     setFormError(null);
@@ -877,6 +875,25 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </p>
               </div>
 
+              {!user && (
+                <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold text-amber-950">
+                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>Mandatory Login Required</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Please sign in or create an account before placing your order.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAuthModal?.()}
+                    className="w-full py-2 bg-[#8C2E46] text-white rounded-xl text-xs font-semibold hover:bg-[#722338] transition-colors cursor-pointer shadow-xs"
+                  >
+                    Log In / Sign Up Now
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-[#2C2420] mb-1">
@@ -969,6 +986,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   {/* List of Saved Addresses to Select From */}
                   {!isAddingNewAddress && savedAddresses.length > 0 && (
                     <div className="space-y-2">
+                      {!customerAddress && (
+                        <div className="p-2.5 bg-amber-50/80 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Please select a saved address below:</span>
+                        </div>
+                      )}
                       <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
                         {savedAddresses.map((addr) => {
                           const isSelected = selectedAddressId === addr.id;
