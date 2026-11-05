@@ -189,37 +189,42 @@ export function saveAddressToBook(newAddr: {
     isDefault: isDefault ? false : item.isDefault,
   }));
 
-  const existingIdx = updatedList.findIndex(
-    (a) => a.id === id || a.addressLine.toLowerCase().trim() === addressLine.toLowerCase()
+  // Ensure strict uniqueness: remove any existing address with the same normalized addressLine or id
+  const filteredList = updatedList.filter(
+    (item) =>
+      item.id !== id &&
+      item.addressLine.toLowerCase().trim() !== addressLine.toLowerCase()
   );
 
   const entry: SavedAddress = {
-    id: existingIdx >= 0 ? updatedList[existingIdx].id : id,
+    id,
     label,
     name: newAddr.name.trim() || 'Customer',
     phone: newAddr.phone.trim() || '',
     addressLine,
     city,
     pincode,
-    isDefault: isDefault || (existingIdx === -1 && updatedList.length === 0),
+    isDefault: isDefault || filteredList.length === 0,
     createdAt: Date.now(),
   };
 
-  if (existingIdx >= 0) {
-    updatedList[existingIdx] = entry;
-  } else {
-    updatedList.unshift(entry);
+  if (isDefault) {
+    filteredList.forEach((item) => {
+      item.isDefault = false;
+    });
   }
+
+  filteredList.unshift(entry);
 
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, JSON.stringify(updatedList));
+      localStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, JSON.stringify(filteredList));
     }
   } catch (err) {
     console.warn('Error saving address to localStorage:', err);
   }
 
-  return updatedList;
+  return filteredList;
 }
 
 /**
