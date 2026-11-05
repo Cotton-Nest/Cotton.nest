@@ -110,6 +110,11 @@ Your soft & stylish bedsheet hub. 🛍️
 👉 Rest of Gurgaon: *Self Pickup or actual delivery charges*
 👉 Across India: *₹29*
 
+🎁 *LOYALTY REWARDS & POINTS TERMS*
+• Earn *1 loyalty point for every ₹50 spent* on pure cotton bedsheets and bedding.
+• Loyalty points are *credited to your account once your order is successfully delivered* (not upon initial order placement).
+• Points are *valid for 6 months from the date of credit* and can be redeemed instantly at checkout (1 point = ₹1 discount).
+
 💖 *Thank you for shopping with Cotton Nest!*
 *Feel the Softness. 🌸*`,
 };

@@ -142,10 +142,10 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                   <div className="p-3 bg-white rounded-xl border border-[#EAE2D5] space-y-1">
                     <div className="flex items-center gap-1.5 font-bold text-[#2C2420]">
                       <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-extrabold">1</span>
-                      <span>Shop Authentic Bedding</span>
+                      <span>Earn Upon Delivery</span>
                     </div>
                     <p className="text-[11px] text-[#7A6458]">
-                      Place an order on the website or via WhatsApp. Points are credited immediately upon order placement.
+                      Points are credited to your wallet once your order is delivered. Points remain valid for 6 months from the date of credit.
                     </p>
                   </div>
 
