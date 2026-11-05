@@ -339,7 +339,7 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
 
   messageLines.push(``);
   messageLines.push(
-    `Hello Cotton Nest! I have placed this order on your website with offer code ${payload.couponCode || 'direct'}, please share the QR code on this number to complete the payment`
+    `Please confirm the availability of this bedsheet and share the QR code to complete the payment`
   );
 
   const fullMessage = messageLines.join('\n');
