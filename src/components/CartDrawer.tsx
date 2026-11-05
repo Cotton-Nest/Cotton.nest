@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'motion/react';
 import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award, Plus, Home, Briefcase, Bookmark, CheckSquare, Square } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
@@ -11,6 +12,94 @@ import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, formatFullAddress } from '../data/addresses';
 import { CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
+
+interface SwipeableCartItemProps {
+  onRemove: () => void;
+  children: React.ReactNode;
+}
+
+const SwipeableCartItem: React.FC<SwipeableCartItemProps> = ({ onRemove, children }) => {
+  const [isSnapOpen, setIsSnapOpen] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const x = useMotionValue(0);
+  const iconScale = useTransform(x, [-120, -50, 0], [1.2, 1, 0.75]);
+  const bgOpacity = useTransform(x, [-90, -15, 0], [1, 0.9, 0]);
+
+  const triggerRemove = () => {
+    if (isRemoving) return;
+    setIsRemoving(true);
+    setTimeout(() => {
+      onRemove();
+    }, 180);
+  };
+
+  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const offsetX = info.offset.x;
+    const velocityX = info.velocity.x;
+
+    // Full swipe left or fast flick left -> remove item immediately
+    if (offsetX < -115 || (offsetX < -55 && velocityX < -450)) {
+      triggerRemove();
+      return;
+    }
+
+    // Partial swipe left -> snap open to reveal the Remove button
+    if (offsetX < -45 && !isSnapOpen) {
+      setIsSnapOpen(true);
+    } else if (offsetX > 25 && isSnapOpen) {
+      setIsSnapOpen(false);
+    } else if (offsetX >= -45 && !isSnapOpen) {
+      setIsSnapOpen(false);
+    }
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={isRemoving ? { opacity: 0, x: -320, height: 0, marginBottom: 0 } : { opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -300, transition: { duration: 0.2 } }}
+      transition={{ duration: 0.2 }}
+      className="relative overflow-hidden rounded-2xl select-none"
+    >
+      {/* Background Destructive Action Track */}
+      <motion.div
+        style={{ opacity: bgOpacity }}
+        className="absolute inset-0 bg-gradient-to-l from-rose-600 to-[#8C2E46] rounded-2xl flex items-center justify-end pr-4"
+      >
+        <button
+          type="button"
+          onClick={triggerRemove}
+          className="flex flex-col items-center justify-center text-white font-semibold text-[11px] gap-1 px-2 py-1.5 cursor-pointer"
+          aria-label="Confirm remove item"
+        >
+          <motion.div style={{ scale: iconScale }}>
+            <Trash2 className="w-4 h-4 text-white" />
+          </motion.div>
+          <span>Remove</span>
+        </button>
+      </motion.div>
+
+      {/* Foreground Draggable Item Card */}
+      <motion.div
+        style={{ x }}
+        drag="x"
+        dragDirectionLock
+        dragConstraints={{ left: -110, right: 0 }}
+        dragElastic={{ left: 0.45, right: 0.05 }}
+        animate={{ x: isRemoving ? -340 : isSnapOpen ? -84 : 0 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+        onDragEnd={handleDragEnd}
+        onClick={() => {
+          if (isSnapOpen) setIsSnapOpen(false);
+        }}
+        className="relative z-10 touch-pan-y"
+      >
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+};
 
 export interface CartItem {
   product: BedsheetProduct;
@@ -588,6 +677,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between px-1 text-[11px] text-[#8C7A70]">
+                    <span>{items.length} {items.length === 1 ? 'item' : 'items'} in bag</span>
+                    <span className="flex items-center gap-1 text-[10px] italic">
+                      ← Swipe item left to remove
+                    </span>
+                  </div>
+                  <AnimatePresence initial={false}>
                   {(items || []).map((item, idx) => {
                     const isMetadataValid = isCompleteProduct(item?.product);
 
@@ -602,39 +698,41 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           : null;
 
                       return (
-                        <div
+                        <SwipeableCartItem
                           key={`unavailable-item-${fallbackId || idx}`}
-                          className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-amber-200/90 text-[#2C2420] shadow-xs flex items-center justify-between gap-3 animate-in fade-in"
+                          onRemove={() => onRemoveItem(fallbackId)}
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-amber-100/90 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0">
-                              <AlertCircle className="w-5 h-5 text-amber-700" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
-                                  Notice
-                                </span>
-                                <h3 className="font-serif-luxury font-bold text-xs text-[#2C2420] truncate">
-                                  Item Unavailable
-                                </h3>
+                          <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-amber-200/90 text-[#2C2420] shadow-xs flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-amber-100/90 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0">
+                                <AlertCircle className="w-5 h-5 text-amber-700" />
                               </div>
-                              <p className="text-[11px] text-[#7A6458] mt-0.5 leading-tight truncate">
-                                {partialName ? `${partialName} (Metadata Incomplete)` : 'Product metadata is missing or incomplete.'}
-                              </p>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                                    Notice
+                                  </span>
+                                  <h3 className="font-serif-luxury font-bold text-xs text-[#2C2420] truncate">
+                                    Item Unavailable
+                                  </h3>
+                                </div>
+                                <p className="text-[11px] text-[#7A6458] mt-0.5 leading-tight truncate">
+                                  {partialName ? `${partialName} (Metadata Incomplete)` : 'Product metadata is missing or incomplete.'}
+                                </p>
+                              </div>
                             </div>
-                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => onRemoveItem(fallbackId)}
-                            className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 hover:bg-rose-50 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1"
-                            title="Remove unavailable item from bag"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Remove</span>
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => onRemoveItem(fallbackId)}
+                              className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 hover:bg-rose-50 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                              title="Remove unavailable item from bag"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          </div>
+                        </SwipeableCartItem>
                       );
                     }
 
@@ -668,107 +766,111 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     
                     const rawQty = typeof item?.quantity === 'number' ? item.quantity : Number(item?.quantity);
                     const qty = !isNaN(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
-                    const itemKey = `${prodId || 'item'}-${variant?.id || 'base'}-${idx}`;
+                    const itemKey = `${prodId || 'item'}-${variant?.id || 'base'}`;
 
                     return (
-                      <div
+                      <SwipeableCartItem
                         key={itemKey}
-                        className="flex gap-3 p-3 bg-white rounded-2xl border border-[#EAE2D5] shadow-xs"
+                        onRemove={() => prodId && onRemoveItem(prodId)}
                       >
-                        <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5] flex items-center justify-center relative">
-                          {displayImg ? (
-                            isVideoMedia(displayImg) ? (
-                              <video
-                                src={displayImg}
-                                muted
-                                loop
-                                playsInline
-                                autoPlay
-                                className="w-full h-full object-cover object-center"
-                              />
-                            ) : (
-                              <img
-                                src={displayImg}
-                                alt={prodName}
-                                onError={handleImageFallback}
-                                className="w-full h-full object-cover object-center"
-                              />
-                            )
-                          ) : (
-                            <div className="flex flex-col items-center justify-center text-[#8C7A70] p-1 text-center">
-                              <Package className="w-6 h-6 opacity-40 mb-0.5" />
-                              <span className="text-[9px] uppercase tracking-wider">No Photo</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex-1 flex flex-col justify-between">
-                          <div>
-                            <div className="flex items-start justify-between gap-1">
-                              <h3 className="font-serif-luxury text-sm font-bold text-[#2C2420] leading-snug">
-                                {prodName}
-                              </h3>
-                              <button
-                                onClick={() => prodId && onRemoveItem(prodId)}
-                                className="text-[#8C7A70] hover:text-red-600 p-0.5 cursor-pointer"
-                                title="Remove item"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-
-                            {variantName ? (
-                              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-[#8C2E46]">
-                                {variantColorHex ? (
-                                  <span
-                                    className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block shrink-0"
-                                    style={{ backgroundColor: variantColorHex }}
-                                  />
-                                ) : null}
-                                <span className="truncate">Color: {variantName}</span>
-                              </div>
-                            ) : null}
-
-                            <p className="text-[11px] text-[#7A6458] mt-0.5 truncate">
-                              {prodDimensions}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-2">
-                            <div className="flex items-center border border-[#EAE2D5] rounded-lg bg-[#FAF7F2]">
-                              <button
-                                type="button"
-                                onClick={() => prodId && onUpdateQuantity(prodId, Math.max(1, qty - 1))}
-                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
-                                aria-label="Decrease quantity"
-                              >
-                                -
-                              </button>
-                              <span className="px-2 text-xs font-semibold text-[#2C2420] tabular-nums">
-                                {qty}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => prodId && onUpdateQuantity(prodId, qty + 1)}
-                                className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
-                                aria-label="Increase quantity"
-                              >
-                                +
-                              </button>
-                            </div>
-
-                            <span className="text-sm font-bold text-[#2C2420] tabular-nums">
-                              {typeof itemPrice === 'number' && !isNaN(itemPrice) && itemPrice >= 0 ? (
-                                `₹${(itemPrice * qty).toLocaleString('en-IN')}`
+                        <div className="flex gap-3 p-3 bg-white rounded-2xl border border-[#EAE2D5] shadow-xs">
+                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5] flex items-center justify-center relative">
+                            {displayImg ? (
+                              isVideoMedia(displayImg) ? (
+                                <video
+                                  src={displayImg}
+                                  muted
+                                  loop
+                                  playsInline
+                                  autoPlay
+                                  className="w-full h-full object-cover object-center"
+                                />
                               ) : (
-                                <span className="text-xs text-amber-700 italic">Price Unavailable</span>
-                              )}
-                            </span>
+                                <img
+                                  src={displayImg}
+                                  alt={prodName}
+                                  onError={handleImageFallback}
+                                  draggable={false}
+                                  className="w-full h-full object-cover object-center"
+                                />
+                              )
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-[#8C7A70] p-1 text-center">
+                                <Package className="w-6 h-6 opacity-40 mb-0.5" />
+                                <span className="text-[9px] uppercase tracking-wider">No Photo</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-start justify-between gap-1">
+                                <h3 className="font-serif-luxury text-sm font-bold text-[#2C2420] leading-snug">
+                                  {prodName}
+                                </h3>
+                                <button
+                                  onClick={() => prodId && onRemoveItem(prodId)}
+                                  className="text-[#8C7A70] hover:text-red-600 p-0.5 cursor-pointer"
+                                  title="Remove item"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              {variantName ? (
+                                <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-[#8C2E46]">
+                                  {variantColorHex ? (
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block shrink-0"
+                                      style={{ backgroundColor: variantColorHex }}
+                                    />
+                                  ) : null}
+                                  <span className="truncate">Color: {variantName}</span>
+                                </div>
+                              ) : null}
+
+                              <p className="text-[11px] text-[#7A6458] mt-0.5 truncate">
+                                {prodDimensions}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2">
+                              <div className="flex items-center border border-[#EAE2D5] rounded-lg bg-[#FAF7F2]">
+                                <button
+                                  type="button"
+                                  onClick={() => prodId && onUpdateQuantity(prodId, Math.max(1, qty - 1))}
+                                  className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
+                                  aria-label="Decrease quantity"
+                                >
+                                  -
+                                </button>
+                                <span className="px-2 text-xs font-semibold text-[#2C2420] tabular-nums">
+                                  {qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => prodId && onUpdateQuantity(prodId, qty + 1)}
+                                  className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
+                                  aria-label="Increase quantity"
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              <span className="text-sm font-bold text-[#2C2420] tabular-nums">
+                                {typeof itemPrice === 'number' && !isNaN(itemPrice) && itemPrice >= 0 ? (
+                                  `₹${(itemPrice * qty).toLocaleString('en-IN')}`
+                                ) : (
+                                  <span className="text-xs text-amber-700 italic">Price Unavailable</span>
+                                )}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </SwipeableCartItem>
                     );
                   })}
+                  </AnimatePresence>
                 </div>
               )}
 
