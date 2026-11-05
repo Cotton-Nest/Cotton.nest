@@ -116,14 +116,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleInstantOwnerLogin}
-              className="w-full py-1.5 px-2 bg-[#70252D] hover:bg-[#5b1e24] text-white text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer"
-            >
-              <Sparkles className="w-3 h-3 text-amber-300" />
-              <span>Instant Sign-In (Owner)</span>
-            </button>
+
 
             <button
               type="button"
@@ -182,15 +175,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
             </div>
           </div>
 
-          {/* 1-Click Owner Sign-In */}
-          <button
-            type="button"
-            onClick={handleInstantOwnerLogin}
-            className="w-full py-2.5 px-3 bg-[#70252D] hover:bg-[#5b1e24] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Continue as Cotton Nest Admin ({OWNER_EMAIL})</span>
-          </button>
+
 
           {/* Direct Google Email Input */}
           {showDirectEmail ? (
