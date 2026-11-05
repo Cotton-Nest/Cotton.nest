@@ -484,6 +484,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       pointsDiscount: effectivePointsDiscount,
     });
 
+    onClearCart();
     setCheckoutStep('success');
   };
 
