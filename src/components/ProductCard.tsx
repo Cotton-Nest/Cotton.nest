@@ -414,10 +414,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             type="button"
             onClick={handleWhatsAppEnquiry}
             className="py-2.5 px-2.5 text-xs font-medium text-[#2C2420] bg-[#FAF7F2] hover:bg-[#F4EFE6] border border-[#DEC89B] rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            title="Inquire directly on WhatsApp"
+            title="Enquire on WhatsApp"
           >
             <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span className="truncate">{isOutOfStock ? 'Join Waitlist' : 'WhatsApp'}</span>
+            <span className="truncate">{isOutOfStock ? 'Join Waitlist' : 'Enquire on WhatsApp'}</span>
           </button>
         </div>
 

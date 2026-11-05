@@ -1226,7 +1226,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     className="w-full py-3.5 px-4 bg-[#FAF7F2] hover:bg-[#F4EFE6] text-[#2C2420] border border-[#DEC89B] rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
                   >
                     <MessageCircle className="w-4 h-4 text-emerald-600" />
-                    <span>{isOutOfStock ? 'Waitlist on WhatsApp' : 'Order on WhatsApp'}</span>
+                    <span>{isOutOfStock ? 'Waitlist on WhatsApp' : 'Enquire on WhatsApp'}</span>
                   </button>
                 </div>
 

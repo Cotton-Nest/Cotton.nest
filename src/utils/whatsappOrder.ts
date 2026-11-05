@@ -211,15 +211,15 @@ export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayloa
   const size = payload.dimensions || '108 x 108 inches (274 x 274 cm)';
 
   const messageLines = [
-    `COTTON NEST - BEDSHEET ORDER 🪷`,
-    `Hi Cotton Nest! I would like to order:`,
+    `COTTON NEST - BEDSHEET ENQUIRY 🪷`,
+    `Hi Cotton Nest! I would like to enquire about:`,
     `✨ Bedsheet: ${payload.productName}`,
     `🏷️ Product SKU: #${sku}`,
     `📏 Size: ${size}`,
     qtyLine,
-    `💰 Total Price: ₹${totalAmount.toLocaleString('en-IN')}`,
+    `💰 Price: ₹${totalAmount.toLocaleString('en-IN')}`,
     ``,
-    `I am interested in buying this bedsheet, Please confirm stock availability and payment mode.`,
+    `I am interested in this bedsheet. Please confirm stock availability and details.`,
   ];
 
   const fullMessage = messageLines.join('\n');
