@@ -300,12 +300,22 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         if (selectedSizes.length > 0) {
           const matchesSize = selectedSizes.some((s) => {
             const cleanS = String(s || '').toLowerCase();
-            return (
-              itemSize.toLowerCase().includes(cleanS) ||
-              (cleanS === 'king' && (dims.includes('108') || dims.toLowerCase().includes('king'))) ||
-              (cleanS === 'queen' && (dims.includes('100') || dims.toLowerCase().includes('queen'))) ||
-              (cleanS === 'double' && (dims.includes('90') || dims.toLowerCase().includes('double')))
-            );
+            const d = dims.toLowerCase();
+            const sz = itemSize.toLowerCase();
+            if (cleanS.includes('xl') || cleanS.includes('110')) return d.includes('108') && d.includes('110');
+            if (cleanS.includes('108')) return d.includes('108') && !d.includes('110');
+            if (cleanS.includes('90') && cleanS.includes('108')) return d.includes('90') && d.includes('108');
+            if (cleanS.includes('90') && cleanS.includes('100')) return d.includes('90') && d.includes('100');
+            if (cleanS.includes('60') && cleanS.includes('100')) return d.includes('60') && d.includes('100');
+            if (cleanS.includes('60') && cleanS.includes('90')) return d.includes('60') && d.includes('90');
+            if (cleanS.includes('40')) return d.includes('40') && d.includes('60');
+            if (cleanS.includes('king')) return sz.includes('king') || d.includes('108');
+            if (cleanS.includes('queen')) return sz.includes('queen') || d.includes('90');
+            if (cleanS.includes('double')) return sz.includes('double') || d.includes('90');
+            if (cleanS.includes('single')) return sz.includes('single') || d.includes('60');
+            if (cleanS.includes('diwan')) return sz.includes('diwan') || d.includes('60');
+            if (cleanS.includes('baby')) return sz.includes('baby') || d.includes('40');
+            return sz.includes(cleanS) || d.includes(cleanS);
           });
           if (!matchesSize) return false;
         }
@@ -444,8 +454,22 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     return (products || []).filter((p) => {
       if (!p) return false;
       if (type === 'size') {
-        const s = String(p.size || 'King').toLowerCase();
-        return s.includes(cleanVal);
+        const s = String(p.size || '').toLowerCase();
+        const dims = String(p.dimensions || '').toLowerCase();
+        if (cleanVal.includes('xl') || cleanVal.includes('110')) return dims.includes('108') && dims.includes('110');
+        if (cleanVal.includes('108')) return dims.includes('108') && !dims.includes('110');
+        if (cleanVal.includes('90') && cleanVal.includes('108')) return dims.includes('90') && dims.includes('108');
+        if (cleanVal.includes('90') && cleanVal.includes('100')) return dims.includes('90') && dims.includes('100');
+        if (cleanVal.includes('60') && cleanVal.includes('100')) return dims.includes('60') && dims.includes('100');
+        if (cleanVal.includes('60') && cleanVal.includes('90')) return dims.includes('60') && dims.includes('90');
+        if (cleanVal.includes('40')) return dims.includes('40') && dims.includes('60');
+        if (cleanVal.includes('king')) return s.includes('king') || dims.includes('108');
+        if (cleanVal.includes('queen')) return s.includes('queen') || dims.includes('90');
+        if (cleanVal.includes('double')) return s.includes('double') || dims.includes('90');
+        if (cleanVal.includes('single')) return s.includes('single') || dims.includes('60');
+        if (cleanVal.includes('diwan')) return s.includes('diwan') || dims.includes('60');
+        if (cleanVal.includes('baby')) return s.includes('baby') || dims.includes('40');
+        return s.includes(cleanVal) || dims.includes(cleanVal);
       }
       if (type === 'productType') {
         return doesProductMatchCategory(p, value);
@@ -651,65 +675,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           </div>
         </div>
 
-        {/* 1.5 Size Filter Bar (King, Queen, Single) */}
-        <div className="mb-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar text-xs">
-            {/* All Sizes Option */}
-            <button
-              type="button"
-              onClick={() => setSelectedSizes([])}
-              className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap font-semibold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 shadow-2xs ${
-                selectedSizes.length === 0
-                  ? 'bg-[#2C2420] text-white border-[#2C2420] shadow-xs'
-                  : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B] hover:border-[#2C2420]'
-              }`}
-            >
-              <Box className={`w-3.5 h-3.5 ${selectedSizes.length === 0 ? 'text-white' : 'text-[#2C2420]'}`} />
-              <span>All Sizes</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  selectedSizes.length === 0 ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
-                }`}
-              >
-                {products.length}
-              </span>
-            </button>
 
-            {/* King, Queen, Single Size Pills */}
-            {['King', 'Queen', 'Single'].map((sz) => {
-              const isSelected = selectedSizes.includes(sz);
-              const count = getCountForFilter('size', sz);
-              return (
-                <button
-                  key={sz}
-                  type="button"
-                  onClick={() => {
-                    if (isSelected && selectedSizes.length === 1) {
-                      setSelectedSizes([]);
-                    } else {
-                      setSelectedSizes([sz]);
-                    }
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap font-semibold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 shadow-2xs ${
-                    isSelected
-                      ? 'bg-[#2C2420] text-white border-[#2C2420] shadow-xs'
-                      : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B] hover:border-[#2C2420]'
-                  }`}
-                >
-                  <Box className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#8C2E46]'}`} />
-                  <span>{sz} Size</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         {/* 2. Secondary Refine & Quick Filters Bar */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar mb-3 text-xs">
@@ -1164,16 +1130,27 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 {activeFilterTab === 'size' && (
                   <div className="space-y-1">
                     <p className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider mb-2">
-                      Select Size (Single, Double, Queen, King, Super King)
+                      Select Bedsheet Size &amp; Mattress
                     </p>
-                    {availableFilterData.sizes.map((s) => {
-                      const isChecked = selectedSizes.includes(s);
-                      const count = getCountForFilter('size', s);
+                    {[
+                      { label: 'King Size (108 × 108)', spec: 'Mattress: 72 × 78' },
+                      { label: 'King Size XL (108 × 110)', spec: 'Mattress: 72 × 78' },
+                      { label: 'Queen Size (90 × 100)', spec: 'Mattress: 60 × 78' },
+                      { label: 'Queen Size XL (90 × 108)', spec: 'Mattress: 60 × 78' },
+                      { label: 'Double Size (90 × 100)', spec: 'Mattress: 54 × 75' },
+                      { label: 'Single Size (60 × 90)', spec: 'Mattress: 36 × 75' },
+                      { label: 'Single XL (60 × 100)', spec: 'Mattress: 36 × 78' },
+                      { label: 'Diwan Size (60 × 90)', spec: 'Mattress: Diwan' },
+                      { label: 'Diwan XL (60 × 100)', spec: 'Mattress: Large Diwan' },
+                      { label: 'Baby Cot (40 × 60)', spec: 'Mattress: Baby cot' },
+                    ].map((item) => {
+                      const isChecked = selectedSizes.includes(item.label);
+                      const count = getCountForFilter('size', item.label);
                       return (
                         <button
-                          key={s}
+                          key={item.label}
                           type="button"
-                          onClick={() => toggleSize(s)}
+                          onClick={() => toggleSize(item.label)}
                           className="w-full py-3 px-2 flex items-center justify-between text-left hover:bg-[#FAF7F2] rounded-xl transition-colors cursor-pointer group"
                         >
                           <div className="flex items-center gap-3">
@@ -1182,9 +1159,14 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                             }`}>
                               {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                             </div>
-                            <span className={`text-xs ${isChecked ? 'font-bold text-[#2C2420]' : 'text-[#6B5D55]'}`}>
-                              {s}
-                            </span>
+                            <div>
+                              <span className={`text-xs block ${isChecked ? 'font-bold text-[#2C2420]' : 'text-[#6B5D55]'}`}>
+                                {item.label}
+                              </span>
+                              <span className="text-[10px] text-[#8C7A70] block">
+                                {item.spec}
+                              </span>
+                            </div>
                           </div>
                           <span className="text-[11px] text-[#8C7A70] tabular-nums font-medium">
                             ({count})
