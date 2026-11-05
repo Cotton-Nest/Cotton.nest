@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
-import { X, Lock, Mail, CheckCircle2, ArrowRight, ShieldCheck, Search, Sparkles, AlertCircle, RefreshCw, Send } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Lock,
+  Mail,
+  CheckCircle2,
+  ArrowRight,
+  ShieldCheck,
+  Search,
+  Sparkles,
+  AlertCircle,
+  RefreshCw,
+  Send,
+  Loader2,
+  Inbox,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GoogleSignInButton } from './GoogleSignInButton';
+import { sendEmailOtpApi, verifyEmailOtpApi } from '../services/api';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -18,59 +33,118 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onTrackOrderDirect,
   reason,
 }) => {
-  const { loginWithEmail, user, isAuthenticated } = useAuth();
+  const { loginWithEmail } = useAuth();
   const [tab, setTab] = useState<'signin' | 'track'>('signin');
 
   // Gmail / Email OTP State
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [enteredOtp, setEnteredOtp] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   // Direct track order state
   const [trackOrderId, setTrackOrderId] = useState('');
 
+  // Handle Resend Cooldown Countdown
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
+
+  // Reset transient error when switching modal state
+  useEffect(() => {
+    if (!isOpen) {
+      setOtpError(null);
+      setIsSending(false);
+      setIsVerifying(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  const handleSendGmailOtp = (e: React.FormEvent) => {
+  const handleSendGmailOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       setOtpError('Please enter a valid Gmail / Email address.');
       return;
     }
-    const code = String(Math.floor(1000 + Math.random() * 9000));
-    setGeneratedOtp(code);
-    setOtpSent(true);
+
+    setIsSending(true);
     setOtpError(null);
+
+    try {
+      const res = await sendEmailOtpApi(cleanEmail);
+      if (res.success) {
+        setOtpSent(true);
+        setCooldown(res.cooldownSeconds || 60);
+        setEnteredOtp('');
+      } else {
+        setOtpError(res.error || 'Failed to deliver OTP email. Please verify your address and try again.');
+      }
+    } catch (err: any) {
+      setOtpError(err?.message || 'Network error while contacting the verification service.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleResendOtp = async () => {
+    if (cooldown > 0 || isSending) return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    setIsSending(true);
+    setOtpError(null);
+
+    try {
+      const res = await sendEmailOtpApi(cleanEmail);
+      if (res.success) {
+        setCooldown(res.cooldownSeconds || 60);
+      } else {
+        setOtpError(res.error || 'Failed to resend verification code. Please try again.');
+      }
+    } catch (err: any) {
+      setOtpError(err?.message || 'Failed to resend verification code.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!enteredOtp || enteredOtp.trim().length !== 4) {
-      setOtpError('Please enter the 4-digit OTP code.');
-      return;
-    }
-    // Verify OTP against generated code (or accept in demo mode)
-    if (enteredOtp.trim() !== generatedOtp && enteredOtp.trim() !== '1234') {
-      setOtpError('Invalid OTP code. Please check your Gmail or use code: ' + generatedOtp);
+    const cleanCode = enteredOtp.trim();
+    if (!cleanCode || cleanCode.length !== 6 || !/^\d{6}$/.test(cleanCode)) {
+      setOtpError('Please enter the 6-digit verification code.');
       return;
     }
 
-    loginWithEmail(email.trim().toLowerCase(), name.trim() || email.split('@')[0]);
-    setOtpSent(false);
-    setEnteredOtp('');
-    setGeneratedOtp('');
+    setIsVerifying(true);
     setOtpError(null);
-    onClose();
-  };
 
-  const handleResendOtp = () => {
-    const code = String(Math.floor(1000 + Math.random() * 9000));
-    setGeneratedOtp(code);
-    setOtpError(null);
+    try {
+      const res = await verifyEmailOtpApi(email.trim().toLowerCase(), cleanCode);
+      if (res.success) {
+        loginWithEmail(email.trim().toLowerCase(), name.trim() || email.split('@')[0]);
+        setOtpSent(false);
+        setEnteredOtp('');
+        setOtpError(null);
+        onClose();
+      } else {
+        setOtpError(res.error || 'Invalid verification code. Please check your email and try again.');
+      }
+    } catch (err: any) {
+      setOtpError(err?.message || 'Verification failed. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleDirectTrack = (e: React.FormEvent) => {
@@ -92,6 +166,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 text-[#7A6458] hover:text-[#2C2420] rounded-full bg-white/80 border border-[#EAE2D5] transition-colors cursor-pointer"
+          aria-label="Close"
         >
           <X className="w-4 h-4" />
         </button>
@@ -171,11 +246,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {/* Gmail OTP Sign-In Form */}
             {!otpSent ? (
               <form onSubmit={handleSendGmailOtp} className="space-y-3">
+                {/* Pre-Send Customer Message */}
+                <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#DEC89B] text-xs text-[#4A3B32] space-y-1">
+                  <div className="flex items-start gap-2">
+                    <Inbox className="w-4 h-4 text-[#8C2E46] shrink-0 mt-0.5" />
+                    <p className="text-[11.5px] leading-relaxed">
+                      Your verification code will be sent by email from <strong>Cotton Nest</strong> with the subject <strong>Cotton Nest OTP</strong>. Please check your inbox and spam folder.
+                    </p>
+                  </div>
+                </div>
+
                 {otpError && (
-                  <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
-                    {otpError}
+                  <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{otpError}</span>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-xs font-medium text-[#2C2420] mb-1">
                     Gmail / Email Address *
@@ -187,7 +274,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="yourname@gmail.com"
-                      className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-[#DEC89B] bg-white text-sm text-[#2C2420] placeholder-[#A89890] focus:outline-hidden focus:ring-1 focus:ring-[#C29E57]"
+                      disabled={isSending}
+                      className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-[#DEC89B] bg-white text-sm text-[#2C2420] placeholder-[#A89890] focus:outline-hidden focus:ring-1 focus:ring-[#C29E57] disabled:opacity-60"
                       required
                     />
                   </div>
@@ -202,56 +290,93 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Pooja Sharma"
-                    className="w-full px-3 py-2 rounded-xl border border-[#DEC89B] bg-white text-sm text-[#2C2420] placeholder-[#A89890] focus:outline-hidden focus:ring-1 focus:ring-[#C29E57]"
+                    disabled={isSending}
+                    className="w-full px-3 py-2 rounded-xl border border-[#DEC89B] bg-white text-sm text-[#2C2420] placeholder-[#A89890] focus:outline-hidden focus:ring-1 focus:ring-[#C29E57] disabled:opacity-60"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3 bg-[#8C2E46] hover:bg-[#722338] text-white rounded-xl font-semibold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                  disabled={isSending}
+                  className="w-full py-3 bg-[#8C2E46] hover:bg-[#722338] text-white rounded-xl font-semibold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Send OTP to Gmail</span>
+                  {isSending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending Verification Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Send OTP to Gmail</span>
+                    </>
+                  )}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-3">
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1">
-                  <p className="font-semibold">Gmail OTP Code Sent</p>
-                  <p className="text-[11px] text-amber-800">
-                    We sent a 4-digit code to <strong>{email}</strong>. (Demo OTP Code: <strong className="font-bold underline">{generatedOtp}</strong>)
-                  </p>
+                {/* Post-Send Customer Message */}
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 space-y-1">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-emerald-800">
+                        OTP sent! Look for an email from Cotton Nest with the subject Cotton Nest OTP.
+                      </p>
+                      <p className="text-[11px] text-emerald-700 mt-1">
+                        Dispatched to <strong>{email}</strong>. Check your inbox & spam folder. Code expires in 5 minutes.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {otpError && (
-                  <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
-                    {otpError}
+                  <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{otpError}</span>
                   </div>
                 )}
 
                 <div>
                   <label className="block text-xs font-medium text-[#2C2420] mb-1">
-                    Enter 4-Digit Gmail OTP *
+                    Enter 6-Digit Verification Code *
                   </label>
                   <input
                     type="text"
-                    maxLength={4}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
                     value={enteredOtp}
-                    onChange={(e) => setEnteredOtp(e.target.value)}
-                    placeholder="e.g. 4829"
-                    className="w-full px-4 py-2.5 rounded-xl border border-[#DEC89B] bg-white text-center tracking-widest text-lg font-bold text-[#2C2420] placeholder-[#A89890] focus:outline-hidden focus:ring-1 focus:ring-[#C29E57]"
+                    onChange={(e) => setEnteredOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="• • • • • •"
+                    disabled={isVerifying}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[#DEC89B] bg-white text-center tracking-widest text-xl font-bold text-[#8C2E46] placeholder-[#A89890] focus:outline-hidden focus:ring-1 focus:ring-[#C29E57] disabled:opacity-60"
                     required
+                    autoFocus
                   />
                 </div>
 
                 <div className="flex items-center justify-between text-[11px] px-1 text-[#7A6458]">
-                  <span>Didn&apos;t receive code?</span>
+                  <span>Didn&apos;t receive the code?</span>
                   <button
                     type="button"
                     onClick={handleResendOtp}
-                    className="font-semibold text-[#8C2E46] hover:underline cursor-pointer"
+                    disabled={cooldown > 0 || isSending}
+                    className="font-semibold text-[#8C2E46] hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                   >
-                    Resend OTP
+                    {isSending ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Sending...</span>
+                      </>
+                    ) : cooldown > 0 ? (
+                      <span>Resend OTP in {cooldown}s</span>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Resend OTP</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -263,22 +388,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       setEnteredOtp('');
                       setOtpError(null);
                     }}
-                    className="w-1/3 py-2.5 bg-white hover:bg-[#FAF7F2] text-[#7A6458] border border-[#DEC89B] rounded-xl font-semibold text-xs transition-colors cursor-pointer"
+                    disabled={isVerifying}
+                    className="w-1/3 py-2.5 bg-white hover:bg-[#FAF7F2] text-[#7A6458] border border-[#DEC89B] rounded-xl font-semibold text-xs transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    Back
+                    Change Email
                   </button>
                   <button
                     type="submit"
-                    className="w-2/3 py-2.5 bg-[#8C2E46] hover:bg-[#722338] text-white rounded-xl font-semibold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    disabled={isVerifying || enteredOtp.trim().length !== 6}
+                    className="w-2/3 py-2.5 bg-[#8C2E46] hover:bg-[#722338] text-white rounded-xl font-semibold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-60"
                   >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Verify & Sign In</span>
+                    {isVerifying ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Verifying Code...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Verify & Sign In</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
             )}
 
-            <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2 text-[11px] text-emerald-800">
+            <div className="p-2.5 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] flex items-center gap-2 text-[11px] text-[#7A6458]">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>Your cart items, wishlist, and saved addresses are securely preserved.</span>
             </div>

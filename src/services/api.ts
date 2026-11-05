@@ -1543,6 +1543,70 @@ export async function generateProductDescriptionApi(payload: AiDescriptionPayloa
   }
 }
 
+// ---------------- GMAIL SMTP EMAIL OTP VERIFICATION API ---------------- //
+
+export interface SendEmailOtpResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  cooldownSeconds?: number;
+  status: number;
+}
+
+export interface VerifyEmailOtpResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  status: number;
+}
+
+export async function sendEmailOtpApi(email: string): Promise<SendEmailOtpResult> {
+  try {
+    const res = await fetch('/api/auth/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return {
+      success: res.ok && data.success !== false,
+      message: data.message,
+      error: data.error,
+      cooldownSeconds: data.cooldownSeconds,
+      status: res.status,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: 'Unable to reach the email verification server. Please check your network and try again.',
+      status: 0,
+    };
+  }
+}
+
+export async function verifyEmailOtpApi(email: string, otp: string): Promise<VerifyEmailOtpResult> {
+  try {
+    const res = await fetch('/api/auth/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return {
+      success: res.ok && data.success !== false,
+      message: data.message,
+      error: data.error,
+      status: res.status,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: 'Unable to verify code with server. Please check your network and try again.',
+      status: 0,
+    };
+  }
+}
+
 // ---------------- LOYALTY POINTS & REWARDS ---------------- //
 export * from './loyaltyApi';
 export * from '../data/loyalty';

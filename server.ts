@@ -13,6 +13,7 @@ import { INITIAL_COUPONS, CouponOffer } from './src/data/coupons.ts';
 import { WishlistItem } from './src/data/wishlist.ts';
 import { LoyaltyAccount, LoyaltyTransaction, calculateEarnedPoints, calculatePointsDiscount, sanitizeLoyaltyKey } from './src/data/loyalty.ts';
 import { generateProductDescription } from './api/ai-description.ts';
+import { sendOtpEmail, verifyOtp } from './api/otp-service.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1348,6 +1349,35 @@ async function startServer() {
       res.status(500).json({
         success: false,
         error: err.message || 'Failed to generate product description.',
+      });
+    }
+  });
+
+  // Real Gmail SMTP-based Email OTP Verification Endpoints
+  app.post('/api/auth/send-otp', async (req, res) => {
+    try {
+      const { email } = req.body || {};
+      const result = await sendOtpEmail(email);
+      res.status(result.status).json(result);
+    } catch (err: any) {
+      console.error('Server error on /api/auth/send-otp:', err);
+      res.status(500).json({
+        success: false,
+        error: 'An unexpected error occurred while sending the verification code.',
+      });
+    }
+  });
+
+  app.post('/api/auth/verify-otp', async (req, res) => {
+    try {
+      const { email, otp } = req.body || {};
+      const result = await verifyOtp(email, otp);
+      res.status(result.status).json(result);
+    } catch (err: any) {
+      console.error('Server error on /api/auth/verify-otp:', err);
+      res.status(500).json({
+        success: false,
+        error: 'An unexpected error occurred while verifying the code.',
       });
     }
   });
