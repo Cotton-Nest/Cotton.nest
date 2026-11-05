@@ -658,10 +658,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             className="relative w-full max-w-md bg-[var(--color-surface,#FFFFFF)] h-full shadow-2xl flex flex-col z-10 border-l border-[var(--color-border,#EAE2D5)] text-[var(--color-text,#2C2420)] will-change-transform"
           >
             {/* Drawer Header */}
-            <div className="p-4 sm:p-5 border-b border-[#EAE2D5] flex items-center justify-between bg-white">
+            <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-b border-[#EAE2D5] flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-[#8C2E46]" />
-                <h2 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-[#8C2E46]" />
+                <h2 className="font-serif-luxury text-base sm:text-lg font-bold text-[#2C2420]">
                   {checkoutStep === 'cart' && `Shopping Bag (${(items || []).length})`}
                   {checkoutStep === 'checkout' && 'Complete Order on WhatsApp'}
                   {checkoutStep === 'success' && 'Order Placed via WhatsApp'}
@@ -674,14 +674,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 transition={{ type: 'spring', stiffness: 450, damping: 26 }}
                 onClick={onClose}
                 aria-label="Close shopping bag"
-                className="p-1.5 text-[#6B5D55] hover:text-[#2C2420] rounded-full hover:bg-[#F4EFE6] transition-colors cursor-pointer"
+                className="p-1 text-[#6B5D55] hover:text-[#2C2420] rounded-full hover:bg-[#F4EFE6] transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </motion.button>
             </div>
 
             {/* Content Body */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-3.5 py-2.5 sm:px-4 sm:py-3 space-y-2.5">
               <AnimatePresence mode="wait" initial={false}>
                 {/* STEP 1: CART ITEMS LIST */}
                 {checkoutStep === 'cart' && (
@@ -691,14 +691,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -14 }}
                     transition={{ type: 'spring', stiffness: 440, damping: 36, mass: 0.75 }}
-                    className="space-y-4"
+                    className="space-y-2.5"
                   >
                     {(items || []).length === 0 ? (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.96, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                        className="text-center py-16 space-y-3"
+                        className="text-center py-14 space-y-3"
                       >
                         <div className="w-16 h-16 rounded-full bg-[#F4EFE6] flex items-center justify-center mx-auto text-[#8C7A70]">
                           <ShoppingBag className="w-8 h-8" />
@@ -709,7 +709,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         </p>
                       </motion.div>
                     ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between px-1 text-[11px] text-[#8C7A70]">
                     <span>{items.length} {items.length === 1 ? 'item' : 'items'} in bag</span>
                     <span className="flex items-center gap-1 text-[10px] italic">
@@ -806,8 +806,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         key={itemKey}
                         onRemove={() => prodId && onRemoveItem(prodId)}
                       >
-                        <div className="flex gap-3 p-3 bg-white rounded-2xl border border-[#EAE2D5] shadow-xs">
-                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5] flex items-center justify-center relative">
+                        <div className="flex gap-2.5 p-2.5 bg-white rounded-2xl border border-[#EAE2D5] shadow-xs">
+                          <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5] flex items-center justify-center relative">
                             {displayImg ? (
                               isVideoMedia(displayImg) ? (
                                 <video
@@ -829,21 +829,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                               )
                             ) : (
                               <div className="flex flex-col items-center justify-center text-[#8C7A70] p-1 text-center">
-                                <Package className="w-6 h-6 opacity-40 mb-0.5" />
+                                <Package className="w-5 h-5 opacity-40 mb-0.5" />
                                 <span className="text-[9px] uppercase tracking-wider">No Photo</span>
                               </div>
                             )}
                           </div>
 
-                          <div className="flex-1 flex flex-col justify-between">
+                          <div className="flex-1 flex flex-col justify-between min-w-0">
                             <div>
                               <div className="flex items-start justify-between gap-1">
-                                <h3 className="font-serif-luxury text-sm font-bold text-[#2C2420] leading-snug">
+                                <h3 className="font-serif-luxury text-sm font-bold text-[#2C2420] leading-tight truncate">
                                   {prodName}
                                 </h3>
                                 <button
                                   onClick={() => prodId && onRemoveItem(prodId)}
-                                  className="text-[#8C7A70] hover:text-red-600 p-0.5 cursor-pointer"
+                                  className="text-[#8C7A70] hover:text-red-600 p-0.5 cursor-pointer shrink-0"
                                   title="Remove item"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -862,12 +862,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                 </div>
                               ) : null}
 
-                              <p className="text-[11px] text-[#7A6458] mt-0.5 truncate">
+                              <p className="text-[10px] text-[#7A6458] truncate">
                                 {prodDimensions}
                               </p>
                             </div>
 
-                            <div className="flex items-center justify-between pt-2">
+                            <div className="flex items-center justify-between pt-1">
                               <div className="flex items-center border border-[#EAE2D5] rounded-lg bg-[#FAF7F2]">
                                 <button
                                   type="button"
@@ -909,7 +909,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               {/* Shipping & Delivery Option Selector Directly in Cart / Shopping Bag */}
               {validItems.length > 0 && (
-                <div className="pt-3 pb-1 space-y-2 border-t border-[#EAE2D5]">
+                <div className="pt-2 pb-0.5 space-y-1.5 border-t border-[#EAE2D5]">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-[#2C2420] flex items-center gap-1.5">
                       <Truck className="w-3.5 h-3.5 text-[#8C2E46]" />
@@ -919,77 +919,77 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       {shippingOption === 'india' ? `Standard Courier (+₹${acrossIndiaFee})` : shippingOption === 'sector46' ? 'Complimentary Free' : 'Pickup / Actuals'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 gap-1.5">
                     <label
                       onClick={() => setShippingOption('india')}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                      className={`flex items-center justify-between py-2 px-3 rounded-xl border text-xs cursor-pointer transition-all ${
                         shippingOption === 'india'
                           ? 'border-[#8C2E46] bg-[#FDEAF0]/50 ring-1 ring-[#8C2E46]'
                           : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
                         <input
                           type="radio"
                           name="bag_shipping"
                           checked={shippingOption === 'india'}
                           onChange={() => setShippingOption('india')}
-                          className="accent-[#8C2E46]"
+                          className="accent-[#8C2E46] shrink-0"
                         />
-                        <div>
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 leading-tight">
                           <p className="font-semibold text-[#2C2420]">Across India</p>
                           <p className="text-[11px] text-[#7A6458]">Standard Courier Delivery</p>
                         </div>
                       </div>
-                      <span className="font-bold text-[#8C2E46]">+₹{acrossIndiaFee}</span>
+                      <span className="font-bold text-[#8C2E46] shrink-0 ml-2">+₹{acrossIndiaFee}</span>
                     </label>
 
                     <label
                       onClick={() => setShippingOption('sector46')}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                      className={`flex items-center justify-between py-2 px-3 rounded-xl border text-xs cursor-pointer transition-all ${
                         shippingOption === 'sector46'
                           ? 'border-[#2E7D46] bg-[#EAF7EE]/70 ring-1 ring-[#2E7D46]'
                           : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
                         <input
                           type="radio"
                           name="bag_shipping"
                           checked={shippingOption === 'sector46'}
                           onChange={() => setShippingOption('sector46')}
-                          className="accent-[#2E7D46]"
+                          className="accent-[#2E7D46] shrink-0"
                         />
-                        <div>
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 leading-tight">
                           <p className="font-semibold text-[#2C2420]">Sector 46, Gurgaon</p>
                           <p className="text-[11px] text-[#7A6458]">Complimentary Local Delivery</p>
                         </div>
                       </div>
-                      <span className="font-bold text-[#2E7D46] uppercase text-[11px]">Free</span>
+                      <span className="font-bold text-[#2E7D46] uppercase text-[11px] shrink-0 ml-2">Free</span>
                     </label>
 
                     <label
                       onClick={() => setShippingOption('gurgaon')}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                      className={`flex items-center justify-between py-2 px-3 rounded-xl border text-xs cursor-pointer transition-all ${
                         shippingOption === 'gurgaon'
                           ? 'border-[#8C2E46] bg-[#FDEAF0]/50 ring-1 ring-[#8C2E46]'
                           : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
                         <input
                           type="radio"
                           name="bag_shipping"
                           checked={shippingOption === 'gurgaon'}
                           onChange={() => setShippingOption('gurgaon')}
-                          className="accent-[#8C2E46]"
+                          className="accent-[#8C2E46] shrink-0"
                         />
-                        <div>
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 leading-tight">
                           <p className="font-semibold text-[#2C2420]">Rest of Gurgaon</p>
                           <p className="text-[11px] text-[#7A6458]">Self Pickup / On Actuals</p>
                         </div>
                       </div>
-                      <span className="font-medium text-[#7A6458] text-[11px]">On Actuals / Pickup</span>
+                      <span className="font-medium text-[#7A6458] text-[11px] shrink-0 ml-2">On Actuals / Pickup</span>
                     </label>
                   </div>
                 </div>
@@ -1479,10 +1479,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         )}
 
         {checkoutStep === 'cart' && validItems.length > 0 && (
-          <div className="p-4 sm:p-5 border-t border-[#EAE2D5] bg-white space-y-3.5">
+          <div className="px-3.5 py-2.5 sm:px-4 sm:py-3 border-t border-[#EAE2D5] bg-white space-y-2 shrink-0">
             {/* Notice if any items in bag are unavailable */}
             {(items || []).some((it) => !isCompleteProduct(it?.product)) && (
-              <div className="p-2.5 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2">
+              <div className="p-2 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                   <span className="text-[11px] truncate">Unavailable items will not be included in checkout.</span>
@@ -1497,17 +1497,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </div>
             )}
             {/* Promo Code & Offers Module */}
-            <div className="p-3 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5] space-y-2">
+            <div className="p-2 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#2C2420] flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-[#C29E57]" />
+                <span className="text-[11px] font-semibold text-[#2C2420] flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-[#C29E57]" />
                   <span>Coupons &amp; Offers</span>
                 </span>
                 {availableCoupons.filter((c) => c.isActive).length > 0 && (
                   <button
                     type="button"
                     onClick={() => setShowOffersList(!showOffersList)}
-                    className="text-[11px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
+                    className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
                   >
                     <Gift className="w-3 h-3" />
                     <span>{showOffersList ? 'Hide Offers' : `View Offers (${availableCoupons.filter((c) => c.isActive).length})`}</span>
@@ -1517,21 +1517,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               {/* Applied Coupon Pill */}
               {appliedCoupon ? (
-                <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-emerald-300 text-xs shadow-2xs">
+                <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">
+                    <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
                       %
                     </span>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold tracking-wider text-[#2C2420]">{appliedCoupon.code}</span>
+                        <span className="font-bold tracking-wider text-[#2C2420] text-[11px]">{appliedCoupon.code}</span>
                         {appliedCoupon.isAutomatic && (
                           <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
                             Auto
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-emerald-700 font-medium">
+                      <p className="text-[10px] text-emerald-700 font-medium leading-tight">
                         Saving ₹{effectiveCouponDiscount.toLocaleString('en-IN')} on this order
                       </p>
                     </div>
@@ -1539,10 +1539,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <button
                     type="button"
                     onClick={handleRemoveCoupon}
-                    className="p-1 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                    className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                     title="Remove coupon"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ) : (
@@ -1551,7 +1551,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     e.preventDefault();
                     handleApplyCoupon();
                   }}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1.5"
                 >
                   <input
                     type="text"
@@ -1561,34 +1561,34 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       setCouponError(null);
                     }}
                     placeholder="Enter Coupon Code"
-                    className="flex-1 px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
+                    className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
                   />
                   <button
                     type="submit"
                     disabled={couponLoading || !couponCodeInput.trim()}
-                    className="px-4 py-2 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                    className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    {couponLoading ? 'Checking...' : 'Apply'}
+                    {couponLoading ? '...' : 'Apply'}
                   </button>
                 </form>
               )}
 
               {/* Status alerts */}
               {couponSuccessMessage && (
-                <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" />
                   <span>{couponSuccessMessage}</span>
                 </p>
               )}
               {couponError && (
-                <p className="text-[11px] font-medium text-rose-600">
+                <p className="text-[10px] font-medium text-rose-600">
                   {couponError}
                 </p>
               )}
 
               {/* Expandable Offers Picker Drawer */}
               {showOffersList && (
-                <div className="pt-2 border-t border-[#EAE2D5] space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div className="pt-1.5 border-t border-[#EAE2D5] space-y-1.5 max-h-36 overflow-y-auto pr-1">
                   {availableCoupons
                     .filter((c) => c.isActive)
                     .map((coupon) => {
@@ -1596,10 +1596,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       return (
                         <div
                           key={coupon.id}
-                          className="p-2 bg-white rounded-xl border border-[#EAE2D5] text-xs space-y-1"
+                          className="p-2 bg-white rounded-lg border border-[#EAE2D5] text-xs space-y-0.5"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded text-[10px]">
+                            <span className="font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
                               {coupon.code}
                             </span>
                             <button
@@ -1621,9 +1621,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             </button>
                           </div>
                           <p className="text-[11px] text-[#2C2420] font-medium">{coupon.title}</p>
-                          {coupon.description && (
-                            <p className="text-[10px] text-[#7A6458] leading-tight">{coupon.description}</p>
-                          )}
                         </div>
                       );
                     })}
@@ -1631,65 +1628,44 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               )}
             </div>
 
-            {/* Loyalty Points Rewards & Checkout Redemption Module */}
-            <div className="p-3 bg-gradient-to-r from-amber-50/80 to-[#FAF7F2] rounded-2xl border border-amber-200/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#2C2420] flex items-center gap-1.5">
+            {/* Compact Loyalty Points Rewards & Checkout Redemption Bar */}
+            <div className="px-2.5 py-1.5 bg-gradient-to-r from-amber-50/90 to-[#FAF7F2] rounded-xl border border-amber-200/80 space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-[#2C2420] flex items-center gap-1">
                   <Award className="w-3.5 h-3.5 text-[#C29E57]" />
-                  <span>Loyalty Points Rewards</span>
+                  <span>Loyalty Rewards: <strong className="text-amber-900">+{pointsToEarn} pts</strong> on this order</span>
                 </span>
                 <button
                   type="button"
                   onClick={openLoyaltyModal}
-                  className="text-[11px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-0.5"
+                  className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-0.5 shrink-0"
                 >
                   <Sparkles className="w-3 h-3 text-[#C29E57]" />
-                  <span>Rules &amp; Wallet</span>
+                  <span>Wallet ({pointsBalance} pts)</span>
                 </button>
               </div>
 
-              {pointsBalance > 0 ? (
-                <div className="p-2.5 bg-white rounded-xl border border-amber-300 text-xs space-y-2 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-[#2C2420] flex items-center gap-1.5">
-                        <span>Available Balance:</span>
-                        <span className="text-amber-800 font-mono">{pointsBalance} pts</span>
-                      </span>
-                      <p className="text-[10px] text-[#7A6458]">
-                        Worth ₹{calculatePointsDiscount(pointsBalance)} discount (1 pt = ₹1)
-                      </p>
-                    </div>
-
-                    <label className="flex items-center gap-1.5 cursor-pointer bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 hover:bg-amber-100 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={useLoyaltyPoints}
-                        onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
-                        className="accent-[#70252D] w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span className="text-xs font-bold text-[#70252D]">
-                        {useLoyaltyPoints ? 'Applied' : 'Redeem Points'}
-                      </span>
-                    </label>
-                  </div>
-
-                  {useLoyaltyPoints && (
-                    <div className="pt-1.5 border-t border-amber-100 flex items-center justify-between text-[11px] text-emerald-800 font-semibold">
-                      <span>✓ Redeeming {pointsToRedeem} points:</span>
-                      <span>-₹{effectivePointsDiscount.toLocaleString('en-IN')} off</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-2 bg-white/70 rounded-xl border border-[#EAE2D5] text-[11px] text-[#7A6458] flex items-center justify-between">
-                  <span>Earn <strong>1 point for every ₹{LOYALTY_EARNING_RATE_INR}</strong> spent.</span>
-                  <span className="font-semibold text-amber-800">1 pt = ₹{LOYALTY_POINT_VALUE_INR} off</span>
+              {pointsBalance > 0 && (
+                <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-[11px]">
+                  <span className="text-[#6B5D55]">
+                    Balance: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{calculatePointsDiscount(pointsBalance)})
+                  </span>
+                  <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2 py-0.5 rounded-md border border-amber-300 hover:bg-amber-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={useLoyaltyPoints}
+                      onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
+                      className="accent-[#70252D] w-3 h-3 cursor-pointer"
+                    />
+                    <span className="text-[10px] font-bold text-[#70252D]">
+                      {useLoyaltyPoints ? `Applied (-₹${effectivePointsDiscount})` : 'Redeem Points'}
+                    </span>
+                  </label>
                 </div>
               )}
             </div>
 
-            <div className="space-y-1 text-xs">
+            <div className="space-y-0.5 text-[11px]">
               <div className="flex justify-between text-[#7A6458]">
                 <span>Items Subtotal</span>
                 <span className="font-semibold text-[#2C2420]">₹{originalSubtotal.toLocaleString('en-IN')}</span>
@@ -1710,7 +1686,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </div>
               )}
               {effectivePointsDiscount > 0 && (
-                <div className="flex justify-between text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-semibold">
+                <div className="flex justify-between text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
                   <span className="flex items-center gap-1">
                     <Award className="w-3 h-3 text-[#A8823B]" />
                     <span>Loyalty Points ({pointsToRedeem} pts)</span>
@@ -1727,18 +1703,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   {shippingCost > 0 ? `+₹${shippingCost}` : shippingOption === 'sector46' ? 'FREE' : 'On Actuals / Pickup'}
                 </span>
               </div>
-              <div className="flex justify-between text-sm font-bold text-[#2C2420] pt-1.5 border-t border-[#EAE2D5]">
+              <div className="flex justify-between text-xs font-bold text-[#2C2420] pt-1 border-t border-[#EAE2D5]">
                 <span>Order Total</span>
-                <span className="text-base text-[#8C2E46]">₹{finalTotal.toLocaleString('en-IN')}</span>
-              </div>
-
-              {/* Earn Points Preview Banner (1 pt per 50 Rs) */}
-              <div className="mt-2 p-2 rounded-xl bg-amber-50/80 border border-amber-200/90 flex items-center justify-between text-[11px] text-amber-900 font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
-                  <span>Points to Earn on this Purchase:</span>
-                </span>
-                <span className="font-bold text-amber-950">+{pointsToEarn} pts (1 pt / ₹50)</span>
+                <span className="text-sm text-[#8C2E46]">₹{finalTotal.toLocaleString('en-IN')}</span>
               </div>
             </div>
 
@@ -1746,7 +1713,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setCheckoutStep('checkout')}
-              className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+              className="w-full py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
               <span>Proceed to WhatsApp Checkout (₹{finalTotal.toLocaleString('en-IN')})</span>
