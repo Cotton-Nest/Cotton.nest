@@ -344,16 +344,10 @@ export default function App() {
     }
   };
 
-  // Store Owner Authentication Mode (unlocked by Google login adityaa.22082011@gmail.com or PIN)
-  const [isOwnerPinUnlocked, setIsOwnerPinUnlocked] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('cotton_nest_owner_mode') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // Store Owner Authentication Mode — strictly locked by default on every device; only unlocked via Owner Security PIN
+  const [isOwnerPinUnlocked, setIsOwnerPinUnlocked] = useState<boolean>(false);
 
-  const isOwnerMode = isOwnerPinUnlocked || isOwner;
+  const isOwnerMode = isOwnerPinUnlocked;
 
   // State to track scroll position for Home scroll-to-top button
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -1018,39 +1012,40 @@ export default function App() {
     return () => setWhatsAppListener(null);
   }, []);
 
-  // Secret Owner Access Listeners: ?admin=true in URL & Ctrl+Shift+A shortcut
+  // Secret Owner Access Listeners: ?admin=true in URL & Ctrl+Shift+A shortcut (always requires PIN page first)
   useEffect(() => {
-    // 1. Check URL parameters: ?admin=true or #admin
+    try {
+      localStorage.removeItem('cotton_nest_owner_mode');
+    } catch {
+      // ignore
+    }
+
+    // 1. Check URL parameters: ?admin=true or #admin -> open Owner PIN modal
     const checkUrl = () => {
       const params = new URLSearchParams(window.location.search);
       if (params.get('admin') === 'true' || window.location.hash === '#admin') {
-        // Clean URL quietly
         try {
           const cleanUrl = window.location.pathname;
           window.history.replaceState({}, document.title, cleanUrl);
         } catch {
           // ignore
         }
-        setIsOwnerPinUnlocked(true);
-        setIsAdminOpen(true);
-        try {
-          localStorage.setItem('cotton_nest_owner_mode', 'true');
-        } catch {
-          // ignore
-        }
+        setIsOwnerAuthOpen(true);
       }
     };
     checkUrl();
 
-    // 2. Keyboard shortcut: Ctrl + Shift + A (or Cmd + Shift + A)
+    // 2. Keyboard shortcut: Ctrl + Shift + A (or Cmd + Shift + A) -> show PIN modal before opening Admin Panel
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
         e.preventDefault();
-        setIsOwnerPinUnlocked(true);
-        setIsAdminOpen((prev) => !prev);
-        try {
-          localStorage.setItem('cotton_nest_owner_mode', 'true');
-        } catch {}
+        setIsAdminOpen((currentlyOpen) => {
+          if (currentlyOpen) {
+            return false;
+          }
+          setIsOwnerAuthOpen(true);
+          return false;
+        });
       }
     };
 
@@ -1169,11 +1164,6 @@ export default function App() {
     if (openAdmin) {
       setIsAdminOpen(true);
     }
-    try {
-      localStorage.setItem('cotton_nest_owner_mode', 'true');
-    } catch {
-      // ignore
-    }
   };
 
   const handleLockOwnerMode = () => {
@@ -1188,11 +1178,8 @@ export default function App() {
   };
 
   const handleOpenAdminSafely = () => {
-    if (isOwnerMode) {
-      setIsAdminOpen(true);
-    } else {
-      setIsOwnerAuthOpen(true);
-    }
+    // Always show the Owner Security PIN page before entering the Admin Panel
+    setIsOwnerAuthOpen(true);
   };
 
   const handleOpenPhotoManagerSafely = () => {
@@ -1436,7 +1423,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsAdminOpen(true)}
+              onClick={() => setIsOwnerAuthOpen(true)}
               className="px-2.5 py-1 bg-[#8C2E46] hover:bg-[#A33452] text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
             >
               ⚙️ Admin Panel
@@ -2013,7 +2000,7 @@ export default function App() {
         isOwnerMode={isOwnerMode}
         onOpenAdmin={() => {
           setIsAccountModalOpen(false);
-          setIsAdminOpen(true);
+          setIsOwnerAuthOpen(true);
         }}
       />
 

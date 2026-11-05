@@ -343,7 +343,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="hidden sm:inline text-xs font-medium text-[#2C2420] max-w-[80px] truncate">
                     {user.name.split(' ')[0]}
                   </span>
-                  {user.isOwner && (
+                  {isOwnerMode && (
                     <span className="hidden md:inline text-[9px] font-bold uppercase tracking-wider bg-[#8C2E46] text-white px-1.5 py-0.5 rounded-full">
                       Owner
                     </span>
@@ -363,7 +363,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="p-2 border-b border-[#EAE2D5]">
                         <div className="flex items-center justify-between">
                           <p className="text-xs font-bold text-[#2C2420] truncate">{user.name}</p>
-                          {user.isOwner && (
+                          {isOwnerMode && (
                             <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
                               Owner
                             </span>
@@ -385,7 +385,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       )}
 
-                      {user.isOwner && onOpenAdmin && (
+                      {isOwnerMode && onOpenAdmin && (
                         <button
                           onClick={() => {
                             setUserDropdownOpen(false);

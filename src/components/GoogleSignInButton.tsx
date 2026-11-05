@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { LogIn, AlertCircle, RefreshCw, Sparkles, Check, Mail } from 'lucide-react';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { useAuth, GOOGLE_GIS_CLIENT_ID } from '../context/AuthContext';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface GoogleSignInButtonProps {
   onSuccess?: () => void;
@@ -16,11 +15,55 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   variant = 'standard',
   customText,
 }) => {
-  const { loginWithGoogle, loginWithGoogleDirect, loginWithGoogleCredential, isLoading, authError, clearAuthError } = useAuth();
+  const {
+    loginWithGoogle,
+    loginWithGoogleGis,
+    loginWithGoogleCredential,
+    isLoading,
+    authError,
+    clearAuthError,
+  } = useAuth();
   const [localLoading, setLocalLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [showDirectEmail, setShowDirectEmail] = useState(false);
-  const [directEmailInput, setDirectEmailInput] = useState('');
+  const gisButtonRef = useRef<HTMLDivElement | null>(null);
+
+  // Initialize official Google Identity Services (GIS) SDK button if available (with FedCM disabled for iframe safety)
+  useEffect(() => {
+    if (variant === 'navbar' || variant === 'compact') return;
+    if (!GOOGLE_GIS_CLIENT_ID || !gisButtonRef.current) return;
+
+    const tryRenderGisButton = () => {
+      if (!window.google?.accounts?.id || !gisButtonRef.current) return false;
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_GIS_CLIENT_ID,
+          callback: async (response) => {
+            if (response?.credential) {
+              setLocalLoading(true);
+              try {
+                await loginWithGoogleCredential(response.credential);
+                if (onSuccess) onSuccess();
+              } catch (err: any) {
+                setLocalError(err?.message || 'Google Identity Services sign-in failed.');
+              } finally {
+                setLocalLoading(false);
+              }
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          ux_mode: 'popup',
+          use_fedcm_for_prompt: false,
+          use_fedcm_for_button: false,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    tryRenderGisButton();
+  }, [variant, loginWithGoogleCredential, onSuccess]);
 
   const handleClick = async () => {
     setLocalLoading(true);
@@ -38,17 +81,19 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     }
   };
 
-  const handleDirectEmailSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = directEmailInput.trim().toLowerCase();
-    if (!clean || !clean.includes('@')) return;
+  const handleGisClick = async () => {
+    setLocalLoading(true);
+    setLocalError(null);
+    clearAuthError();
     try {
-      loginWithGoogleDirect(clean);
-      setLocalError(null);
-      clearAuthError();
-      if (onSuccess) onSuccess();
+      const signedInUser = await loginWithGoogleGis();
+      if (signedInUser && onSuccess) {
+        onSuccess();
+      }
     } catch (err: any) {
-      setLocalError(err.message || 'Please enter a valid Gmail address.');
+      setLocalError(err.message || 'Google Identity Services sign-in could not be completed.');
+    } finally {
+      setLocalLoading(false);
     }
   };
 
@@ -64,7 +109,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
           onClick={handleClick}
           disabled={activeLoading}
           className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[#2C2420] bg-white border border-[#EAE2D5] rounded-xl hover:border-[#DEC89B] hover:bg-[#FAF7F2] transition-all cursor-pointer shadow-2xs disabled:opacity-60 ${className}`}
-          title="Sign in with Google API"
+          title="Sign in with Google Identity Services (GIS)"
         >
           {activeLoading ? (
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#C29E57]" />
@@ -88,8 +133,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
               </div>
             </div>
 
-
-
             <button
               type="button"
               onClick={() => {
@@ -108,8 +151,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
 
   // Standard & Large button
   return (
-    <div className="w-full space-y-2.5">
-      {/* Main Standard Google Sign-In Button */}
+    <div className="w-full space-y-2">
+      <div ref={gisButtonRef} className="hidden" aria-hidden="true" />
+
+      {/* Main Standard Google Sign-In Button (Firebase OAuth + GIS SDK) */}
       <button
         type="button"
         onClick={handleClick}
@@ -129,62 +174,39 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         <span>{activeLoading ? 'Connecting with Google...' : (customText || 'Continue with Google')}</span>
       </button>
 
-      {/* Helpful Fallback Resolution Panel if Google Popup is restricted */}
+      {/* Secondary direct Google Identity Services (GIS) SDK Account Chooser option */}
+      <div className="flex items-center justify-center">
+        <button
+          type="button"
+          onClick={handleGisClick}
+          disabled={activeLoading}
+          className="text-[11px] font-medium text-[#70252D] hover:underline cursor-pointer disabled:opacity-50"
+        >
+          Choose account via Google Identity Services (GIS) →
+        </button>
+      </div>
+
       {activeError && (
-        <div className="p-3.5 bg-[#FAF7F2] border border-[#DEC89B] rounded-2xl text-xs space-y-2.5 animate-in fade-in">
+        <div className="p-3.5 bg-[#FAF7F2] border border-[#DEC89B] rounded-2xl text-xs space-y-2 animate-in fade-in">
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-[#B83F60]" />
             <div className="flex-1">
-              <p className="font-semibold text-[#2C2420]">Google Sign-In Resolution</p>
-              <p className="text-[11px] text-[#6B5D55] mt-0.5">
-                {activeError.includes('unauthorized-domain')
-                  ? `External domain ${typeof window !== 'undefined' ? window.location.hostname : ''} is connecting. Click below to continue directly:`
-                  : activeError}
-              </p>
+              <p className="font-semibold text-[#2C2420]">Google Sign-In Notice</p>
+              <p className="text-[11px] text-[#6B5D55] mt-0.5">{activeError}</p>
             </div>
           </div>
-
-
-
-          {/* Direct Google Email Input */}
-          {showDirectEmail ? (
-            <form onSubmit={handleDirectEmailSubmit} className="space-y-1.5 pt-1">
-              <input
-                type="email"
-                value={directEmailInput}
-                onChange={(e) => setDirectEmailInput(e.target.value)}
-                placeholder="Enter your Gmail address..."
-                className="w-full px-3 py-2 bg-white rounded-xl border border-[#DEC89B] text-xs font-medium text-[#2C2420] focus:outline-none focus:border-[#70252D]"
-                required
-              />
-              <button
-                type="submit"
-                className="w-full py-2 bg-[#B83F60] hover:bg-[#9e3350] text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Sign In with Google Email
-              </button>
-            </form>
-          ) : (
-            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#DEC89B]/50">
-              <button
-                type="button"
-                onClick={() => setShowDirectEmail(true)}
-                className="text-[#70252D] hover:underline font-semibold cursor-pointer"
-              >
-                Sign in with another Google Email →
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLocalError(null);
-                  clearAuthError();
-                }}
-                className="text-stone-500 hover:text-stone-700 cursor-pointer"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
+          <div className="flex items-center justify-end text-[11px] pt-1 border-t border-[#DEC89B]/50">
+            <button
+              type="button"
+              onClick={() => {
+                setLocalError(null);
+                clearAuthError();
+              }}
+              className="text-stone-500 hover:text-stone-700 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
     </div>
