@@ -65,7 +65,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   };
 
   const handleInstantOwnerLogin = () => {
-    loginWithGoogleDirect(OWNER_EMAIL, 'Aditya (Store Owner)');
+    loginWithGoogleDirect(OWNER_EMAIL, 'Cotton Nest Admin');
     setLocalError(null);
     clearAuthError();
     if (onSuccess) onSuccess();
@@ -189,7 +189,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
             className="w-full py-2.5 px-3 bg-[#70252D] hover:bg-[#5b1e24] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Continue as Aditya ({OWNER_EMAIL})</span>
+            <span>Continue as Cotton Nest Admin ({OWNER_EMAIL})</span>
           </button>
 
           {/* Direct Google Email Input */}

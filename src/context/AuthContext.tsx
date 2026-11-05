@@ -90,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const defaultName =
           fbUser.displayName ||
           email.split('@')[0] ||
-          (isOwner ? 'Aditya (Store Owner)' : 'Valued Customer');
+          (isOwner ? 'Cotton Nest Admin' : 'Valued Customer');
         const avatar =
           fbUser.photoURL ||
           `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(defaultName)}&backgroundColor=b83f60,c29e57,2c2420&textColor=ffffff`;
@@ -217,7 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Seamlessly activate verified owner session so user is never blocked
-        loginWithGoogleDirect(OWNER_EMAIL, 'Aditya (Cotton Nest Owner)');
+        loginWithGoogleDirect(OWNER_EMAIL, 'Cotton Nest Admin');
         setAuthError(null);
         return null;
       }
@@ -296,7 +296,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthError(null);
     const targetEmail = (email || OWNER_EMAIL).trim().toLowerCase();
     const isOwner = targetEmail === OWNER_EMAIL.toLowerCase();
-    const defaultName = name || (isOwner ? 'Aditya (Store Owner)' : targetEmail.split('@')[0]);
+    const defaultName = name || (isOwner ? 'Cotton Nest Admin' : targetEmail.split('@')[0]);
     const userAvatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(defaultName)}&backgroundColor=b83f60,c29e57,2c2420&textColor=ffffff`;
 
     const profile: UserProfile = {
