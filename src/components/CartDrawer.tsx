@@ -51,7 +51,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [customerName, setCustomerName] = React.useState('');
   const [customerPhone, setCustomerPhone] = React.useState('');
   const [customerAddress, setCustomerAddress] = React.useState('');
-  const [customerNotes, setCustomerNotes] = React.useState('');
   const [shippingOption, setShippingOption] = React.useState<'india' | 'sector46' | 'gurgaon'>('india');
   const [lastOrderDetails, setLastOrderDetails] = React.useState<{
     orderId: string;
@@ -89,6 +88,57 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
   const [saveToAddressBook, setSaveToAddressBook] = useState<boolean>(true);
   const [newAddressLabel, setNewAddressLabel] = useState<'Home' | 'Work' | 'Other'>('Home');
+
+  // Structured New Address States
+  const [newAddressName, setNewAddressName] = useState('');
+  const [newAddressPhone, setNewAddressPhone] = useState('');
+  const [newAddressHouse, setNewAddressHouse] = useState('');
+  const [newAddressStreet, setNewAddressStreet] = useState('');
+  const [newAddressCity, setNewAddressCity] = useState('Gurgaon, Haryana');
+  const [newAddressPincode, setNewAddressPincode] = useState('122003');
+
+  const handleSaveNewAddress = () => {
+    const house = newAddressHouse.trim();
+    const street = newAddressStreet.trim();
+    const city = newAddressCity.trim() || 'Gurgaon, Haryana';
+    const pincode = newAddressPincode.trim() || '122003';
+    const name = newAddressName.trim() || customerName || 'Cotton Nest';
+    const phone = newAddressPhone.trim() || customerPhone;
+
+    if (!house || !street || !pincode) {
+      setFormError('Please fill in House/Flat No., Street/Area, and Pincode.');
+      return;
+    }
+
+    const addressLine = `${house}, ${street}`;
+    const formatted = formatFullAddress({ addressLine, city, pincode });
+
+    setCustomerAddress(formatted);
+    if (name) setCustomerName(name);
+    if (phone) setCustomerPhone(phone);
+
+    if (saveToAddressBook) {
+      try {
+        const updatedList = saveAddressToBook({
+          label: newAddressLabel,
+          name,
+          phone,
+          addressLine,
+          city,
+          pincode,
+          isDefault: savedAddresses.length === 0,
+        });
+        setSavedAddresses(updatedList);
+        const added = updatedList[0];
+        if (added) setSelectedAddressId(added.id);
+      } catch (err) {
+        console.warn('Error saving new address:', err);
+      }
+    }
+
+    setIsAddingNewAddress(false);
+    setFormError(null);
+  };
 
   // Auto-fill and sync saved addresses on open or profile/orders update
   useEffect(() => {
@@ -366,7 +416,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerAddress: customerAddress.trim(),
-      customerNotes: customerNotes.trim() || undefined,
       subtotal,
       totalSavings,
       couponCode: appliedCoupon?.code,
@@ -405,7 +454,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       pointsUsed: pointsToRedeem > 0 ? pointsToRedeem : undefined,
       pointsDiscount: effectivePointsDiscount > 0 ? effectivePointsDiscount : undefined,
       pointsEarned: pointsToEarn > 0 ? pointsToEarn : undefined,
-      notes: customerNotes.trim() || undefined,
       items: validItems.map((i) => {
         const pName = i?.product?.name || 'Handcrafted Bedsheet';
         const vName = i?.selectedVariant?.name;
@@ -982,13 +1030,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </div>
                   )}
 
-                  {/* Manual / New Address Entry Form */}
+                  {/* Manual / New Address Entry Form with all options */}
                   {(isAddingNewAddress || savedAddresses.length === 0) && (
-                    <div className="space-y-2.5 bg-[#FAF7F2]/70 p-3 rounded-2xl border border-[#DEC89B]">
+                    <div className="space-y-3 bg-[#FAF7F2]/80 p-3.5 rounded-2xl border border-[#DEC89B]">
                       {savedAddresses.length > 0 && (
                         <div className="flex items-center justify-between pb-1">
                           <span className="text-[11px] font-bold text-[#2C2420] uppercase tracking-wider">
-                            New Address Details
+                            Add New Address Details
                           </span>
                           <button
                             type="button"
@@ -1024,49 +1072,105 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         ))}
                       </div>
 
-                      <textarea
-                        required
-                        rows={3}
-                        placeholder="House/Flat No., Tower/Apartment, Sector/Area, City, Pincode"
-                        value={customerAddress}
-                        onChange={(e) => {
-                          setCustomerAddress(e.target.value);
-                          const lower = e.target.value.toLowerCase();
-                          if (lower.includes('sector 46') || lower.includes('sec 46') || lower.includes('sec-46')) {
-                            setShippingOption('sector46');
-                          } else if (lower.includes('gurgaon') || lower.includes('gurugram')) {
-                            if (shippingOption === 'india') setShippingOption('gurgaon');
-                          }
-                        }}
-                        className="w-full px-3.5 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
-                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">Recipient Name *</label>
+                          <input
+                            type="text"
+                            placeholder="Full Name"
+                            value={newAddressName}
+                            onChange={(e) => setNewAddressName(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">Mobile Number *</label>
+                          <input
+                            type="tel"
+                            placeholder="10-digit mobile"
+                            value={newAddressPhone}
+                            onChange={(e) => setNewAddressPhone(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
+                          />
+                        </div>
+                      </div>
 
-                      <label className="flex items-center gap-2 pt-0.5 cursor-pointer text-xs text-[#2C2420]">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">House / Flat No. / Building *</label>
                         <input
-                          type="checkbox"
-                          checked={saveToAddressBook}
-                          onChange={(e) => setSaveToAddressBook(e.target.checked)}
-                          className="w-3.5 h-3.5 accent-[#8C2E46] rounded cursor-pointer"
+                          type="text"
+                          placeholder="e.g. House Number 2508, Ground Floor"
+                          value={newAddressHouse}
+                          onChange={(e) => setNewAddressHouse(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
                         />
-                        <span className="text-[11px] font-medium text-[#4A3B32]">
-                          Save this address to my saved addresses for future orders
-                        </span>
-                      </label>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">Area / Street / Sector *</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Sector 46"
+                          value={newAddressStreet}
+                          onChange={(e) => {
+                            setNewAddressStreet(e.target.value);
+                            const lower = e.target.value.toLowerCase();
+                            if (lower.includes('sector 46') || lower.includes('sec 46')) {
+                              setShippingOption('sector46');
+                            } else if (lower.includes('gurgaon') || lower.includes('gurugram')) {
+                              if (shippingOption === 'india') setShippingOption('gurgaon');
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">City / State *</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Gurgaon, Haryana"
+                            value={newAddressCity}
+                            onChange={(e) => setNewAddressCity(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">Pincode *</label>
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="122003"
+                            value={newAddressPincode}
+                            onChange={(e) => setNewAddressPincode(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs text-[#2C2420]">
+                          <input
+                            type="checkbox"
+                            checked={saveToAddressBook}
+                            onChange={(e) => setSaveToAddressBook(e.target.checked)}
+                            className="w-3.5 h-3.5 accent-[#8C2E46] rounded cursor-pointer"
+                          />
+                          <span className="text-[11px] font-medium text-[#4A3B32]">
+                            Save to address book
+                          </span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleSaveNewAddress}
+                          className="px-4 py-2 bg-[#8C2E46] text-white rounded-xl text-xs font-semibold hover:bg-[#722338] transition-colors cursor-pointer shadow-xs"
+                        >
+                          Use This Address
+                        </button>
+                      </div>
                     </div>
                   )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#2C2420] mb-1">
-                    Special Request or Question (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Please send video of fabric texture / evening delivery"
-                    value={customerNotes}
-                    onChange={(e) => setCustomerNotes(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
-                  />
                 </div>
 
                 {/* Direct WhatsApp Ordering Reassurance (No COD/UPI) */}

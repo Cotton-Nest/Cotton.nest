@@ -250,7 +250,6 @@ export interface CartOrderPayload {
   customerName: string;
   customerPhone: string;
   customerAddress: string;
-  customerNotes?: string;
   subtotal: number;
   totalSavings?: number;
   couponCode?: string;
