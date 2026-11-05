@@ -631,51 +631,84 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#2C2420]/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="fixed inset-0" onClick={onClose} />
-
-      <div className="relative w-full max-w-md bg-[var(--color-surface,#FFFFFF)] h-full shadow-2xl flex flex-col z-10 border-l border-[var(--color-border,#EAE2D5)] text-[var(--color-text,#2C2420)]">
-        
-        {/* Drawer Header */}
-        <div className="p-4 sm:p-5 border-b border-[#EAE2D5] flex items-center justify-between bg-white">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-[#8C2E46]" />
-            <h2 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
-              {checkoutStep === 'cart' && `Shopping Bag (${(items || []).length})`}
-              {checkoutStep === 'checkout' && 'Complete Order on WhatsApp'}
-              {checkoutStep === 'success' && 'Order Placed via WhatsApp'}
-            </h2>
-          </div>
-
-          <button
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed inset-0 bg-[#2C2420]/60 backdrop-blur-xs will-change-[opacity]"
             onClick={onClose}
-            aria-label="Close shopping bag"
-            className="p-1.5 text-[#6B5D55] hover:text-[#2C2420] rounded-full hover:bg-[#F4EFE6] transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          />
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          
-          {/* STEP 1: CART ITEMS LIST */}
-          {checkoutStep === 'cart' && (
-            <>
-              {(items || []).length === 0 ? (
-                <div className="text-center py-16 space-y-3">
-                  <div className="w-16 h-16 rounded-full bg-[#F4EFE6] flex items-center justify-center mx-auto text-[#8C7A70]">
-                    <ShoppingBag className="w-8 h-8" />
-                  </div>
-                  <p className="text-sm font-semibold text-[#2C2420]">Your bag is currently empty</p>
-                  <p className="text-xs text-[#7A6458]">
-                    Explore our 100% natural cotton bedsheets to add to your order.
-                  </p>
-                </div>
-              ) : (
+          <motion.div
+            initial={{ x: '100%', opacity: 0.92 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0.92 }}
+            transition={{
+              type: 'spring',
+              stiffness: 440,
+              damping: 38,
+              mass: 0.8,
+              restDelta: 0.001,
+            }}
+            className="relative w-full max-w-md bg-[var(--color-surface,#FFFFFF)] h-full shadow-2xl flex flex-col z-10 border-l border-[var(--color-border,#EAE2D5)] text-[var(--color-text,#2C2420)] will-change-transform"
+          >
+            {/* Drawer Header */}
+            <div className="p-4 sm:p-5 border-b border-[#EAE2D5] flex items-center justify-between bg-white">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-[#8C2E46]" />
+                <h2 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+                  {checkoutStep === 'cart' && `Shopping Bag (${(items || []).length})`}
+                  {checkoutStep === 'checkout' && 'Complete Order on WhatsApp'}
+                  {checkoutStep === 'success' && 'Order Placed via WhatsApp'}
+                </h2>
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+                onClick={onClose}
+                aria-label="Close shopping bag"
+                className="p-1.5 text-[#6B5D55] hover:text-[#2C2420] rounded-full hover:bg-[#F4EFE6] transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </motion.button>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 space-y-4">
+              <AnimatePresence mode="wait" initial={false}>
+                {/* STEP 1: CART ITEMS LIST */}
+                {checkoutStep === 'cart' && (
+                  <motion.div
+                    key="step-cart"
+                    initial={{ opacity: 0, x: -14 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -14 }}
+                    transition={{ type: 'spring', stiffness: 440, damping: 36, mass: 0.75 }}
+                    className="space-y-4"
+                  >
+                    {(items || []).length === 0 ? (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        className="text-center py-16 space-y-3"
+                      >
+                        <div className="w-16 h-16 rounded-full bg-[#F4EFE6] flex items-center justify-center mx-auto text-[#8C7A70]">
+                          <ShoppingBag className="w-8 h-8" />
+                        </div>
+                        <p className="text-sm font-semibold text-[#2C2420]">Your bag is currently empty</p>
+                        <p className="text-xs text-[#7A6458]">
+                          Explore our 100% natural cotton bedsheets to add to your order.
+                        </p>
+                      </motion.div>
+                    ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between px-1 text-[11px] text-[#8C7A70]">
                     <span>{items.length} {items.length === 1 ? 'item' : 'items'} in bag</span>
@@ -960,13 +993,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </label>
                   </div>
                 </div>
-              )}
-            </>
-          )}
+                    )}
+                  </motion.div>
+                )}
 
-          {/* STEP 2: CHECKOUT DETAILS & WHATSAPP LINK */}
-          {checkoutStep === 'checkout' && (
-            <form id="whatsapp-order-form" onSubmit={handlePlaceWhatsAppOrder} className="space-y-4">
+                {/* STEP 2: CHECKOUT DETAILS & WHATSAPP LINK */}
+                {checkoutStep === 'checkout' && (
+                  <motion.form
+                    key="step-checkout"
+                    initial={{ opacity: 0, x: 18 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 18 }}
+                    transition={{ type: 'spring', stiffness: 440, damping: 36, mass: 0.75 }}
+                    id="whatsapp-order-form"
+                    onSubmit={handlePlaceWhatsAppOrder}
+                    className="space-y-4"
+                  >
               {formError && (
                 <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
                   {formError}
@@ -1311,15 +1353,27 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </p>
                 </div>
               </div>
-            </form>
+            </motion.form>
           )}
 
           {/* STEP 3: ORDER SUCCESS */}
           {checkoutStep === 'success' && lastOrderDetails && (
-            <div className="text-center py-6 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200">
+            <motion.div
+              key="step-success"
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.8 }}
+              className="text-center py-6 space-y-4"
+            >
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 22, delay: 0.05 }}
+                className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200"
+              >
                 <CheckCircle2 className="w-9 h-9" />
-              </div>
+              </motion.div>
 
               <div className="space-y-1">
                 <h3 className="font-serif-luxury text-xl font-bold text-[#2C2420]">
@@ -1398,10 +1452,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               >
                 Continue Browsing
               </button>
-            </div>
+            </motion.div>
           )}
-
-        </div>
+              </AnimatePresence>
+            </div>
 
         {/* Drawer Footer Actions */}
         {checkoutStep === 'cart' && (items || []).length > 0 && validItems.length === 0 && (
@@ -1688,39 +1742,46 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </div>
             </div>
 
-            <button
+            <motion.button
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setCheckoutStep('checkout')}
               className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
               <span>Proceed to WhatsApp Checkout (₹{finalTotal.toLocaleString('en-IN')})</span>
               <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            </motion.button>
           </div>
         )}
 
         {checkoutStep === 'checkout' && (
           <div className="p-4 sm:p-5 border-t border-[#EAE2D5] bg-white flex items-center gap-3">
-            <button
+            <motion.button
+              whileTap={{ scale: 0.96 }}
               type="button"
               onClick={() => setCheckoutStep('cart')}
-              className="py-3 px-4 text-xs font-semibold text-[#6B5D55] hover:text-[#2C2420] border border-[#EAE2D5] rounded-xl hover:bg-[#FAF7F2] transition-colors"
+              className="py-3 px-4 text-xs font-semibold text-[#6B5D55] hover:text-[#2C2420] border border-[#EAE2D5] rounded-xl hover:bg-[#FAF7F2] transition-colors cursor-pointer"
             >
               Back
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.98 }}
               type="submit"
               form="whatsapp-order-form"
               className="flex-1 py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
               <span>Send Order on WhatsApp (₹{finalTotal.toLocaleString('en-IN')})</span>
-            </button>
+            </motion.button>
           </div>
         )}
 
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };

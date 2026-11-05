@@ -152,21 +152,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* Wishlist Heart Button (Top Left) */}
         {onToggleWishlist && (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.85 }}
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onToggleWishlist(product, activeVariant);
             }}
             title={isWishlisted ? "Remove from wishlist" : "Save to wishlist"}
-            className={`absolute top-3 left-3 z-10 p-2 rounded-xl border backdrop-blur-md transition-all shadow-xs cursor-pointer ${
+            className={`absolute top-3 left-3 z-10 p-2 rounded-xl border backdrop-blur-md transition-colors shadow-xs cursor-pointer ${
               isWishlisted
-                ? 'bg-rose-50 text-rose-600 border-rose-200 shadow-sm scale-105'
+                ? 'bg-rose-50 text-rose-600 border-rose-200 shadow-sm'
                 : 'bg-[#FAF7F2]/90 hover:bg-white text-[#7A6458] hover:text-rose-600 border-[#EAE2D5]'
             }`}
           >
-            <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-rose-500 text-rose-500' : ''}`} />
-          </button>
+            <Heart className={`w-3.5 h-3.5 transition-transform ${isWishlisted ? 'fill-rose-500 text-rose-500 scale-110' : ''}`} />
+          </motion.button>
         )}
 
         {/* Quiet Single Status Badge (Moved slightly to right of wishlist button) */}
@@ -221,7 +223,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         {/* Quick Action Overlay on Hover */}
-        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
           <button
             type="button"
             onClick={(e) => {
@@ -368,7 +370,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className={`pt-1 grid gap-2 ${viewMode === 'list' ? 'grid-cols-2 max-w-sm' : 'grid-cols-2'}`}>
           {/* Add to Bag or Out of Stock Notify */}
           {isOutOfStock ? (
-            <button
+            <motion.button
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.96 }}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
@@ -381,9 +385,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             >
               <Bell className="w-3.5 h-3.5 text-amber-600" />
               <span>Notify Me</span>
-            </button>
+            </motion.button>
           ) : (
-            <button
+            <motion.button
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.96 }}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
@@ -406,11 +412,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   <span>Add to Bag</span>
                 </>
               )}
-            </button>
+            </motion.button>
           )}
 
           {/* WhatsApp Direct Inquiry */}
-          <button
+          <motion.button
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.96 }}
             type="button"
             onClick={handleWhatsAppEnquiry}
             className="py-2.5 px-2.5 text-xs font-medium text-[#2C2420] bg-[#FAF7F2] hover:bg-[#F4EFE6] border border-[#DEC89B] rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
@@ -418,7 +426,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           >
             <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span className="truncate">{isOutOfStock ? 'Join Waitlist' : 'Enquire on WhatsApp'}</span>
-          </button>
+          </motion.button>
         </div>
 
       </div>

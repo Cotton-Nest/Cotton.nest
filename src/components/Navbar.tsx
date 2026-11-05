@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, Heart, Award } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
 import { useAuth } from '../context/AuthContext';
@@ -102,20 +103,21 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           
           {/* Zone 1: Single text element wordmark in display face */}
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97 }}
             onClick={() => handleNavClick('home')}
             className="text-left group cursor-pointer focus:outline-hidden"
           >
             <span className="font-serif-luxury text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors">
               {brandName}
             </span>
-          </button>
+          </motion.button>
 
-          {/* Zone 2: Clean text navigation links with active state indicator */}
+          {/* Zone 2: Clean text navigation links with fluid active state indicator */}
           <nav className="hidden md:flex items-center gap-7 lg:gap-8 text-sm font-medium">
             <button
               onClick={() => handleNavClick('home')}
-              className={`transition-colors relative py-1 cursor-pointer ${
+              className={`transition-colors relative py-1.5 cursor-pointer ${
                 activeTab === 'home'
                   ? 'text-[var(--color-text,#2C2420)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -123,14 +125,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               Home
               {activeTab === 'home' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
+                <motion.span
+                  layoutId="desktop-nav-underline"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                />
               )}
             </button>
 
             {/* Catalogue Tab */}
             <button
               onClick={() => handleNavClick('catalogue')}
-              className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 ${
+              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
                 activeTab === 'catalogue'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -141,7 +147,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {productsCount} Designs
               </span>
               {activeTab === 'catalogue' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
+                <motion.span
+                  layoutId="desktop-nav-underline"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                />
               )}
             </button>
 
@@ -149,7 +159,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {seasonalConfig?.enabled && (
               <button
                 onClick={() => handleNavClick('seasonal')}
-                className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 group ${
+                className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 group ${
                   activeTab === 'seasonal'
                     ? 'text-[var(--color-primary,#70252D)] font-semibold'
                     : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -167,7 +177,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {seasonalConfig.badge || 'Sale'}
                 </span>
                 {activeTab === 'seasonal' && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
+                  <motion.span
+                    layoutId="desktop-nav-underline"
+                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                  />
                 )}
               </button>
             )}
@@ -175,7 +189,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* T&C Tab */}
             <button
               onClick={() => handleNavClick('tc')}
-              className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 ${
+              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
                 activeTab === 'tc'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -183,14 +197,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <span>T&amp;C</span>
               {activeTab === 'tc' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
+                <motion.span
+                  layoutId="desktop-nav-underline"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                />
               )}
             </button>
 
             {/* Customer Reviews Tab */}
             <button
               onClick={() => handleNavClick('reviews')}
-              className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 ${
+              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
                 activeTab === 'reviews'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -202,14 +220,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 4.9 ★
               </span>
               {activeTab === 'reviews' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full" />
+                <motion.span
+                  layoutId="desktop-nav-underline"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                />
               )}
             </button>
 
             {/* LIVE ORDERS TAB - SYNCED WITH ADMIN (Uses Secondary Theme Colour) */}
             <button
               onClick={() => handleNavClick('orders')}
-              className={`relative py-1 cursor-pointer transition-colors flex items-center gap-1.5 group ${
+              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 group ${
                 activeTab === 'orders'
                   ? 'text-[var(--color-secondary,#8C3A44)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
@@ -229,7 +251,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live sync" />
               {activeTab === 'orders' && (
-                <span
+                <motion.span
+                  layoutId="desktop-nav-underline"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
                   style={{ backgroundColor: 'var(--color-secondary, #8C3A44)' }}
                 />
@@ -239,7 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Our Story Tab (Uses Secondary Theme Colour) */}
             <button
               onClick={() => handleNavClick('story')}
-              className={`transition-colors relative py-1 cursor-pointer group ${
+              className={`transition-colors relative py-1.5 cursor-pointer group ${
                 activeTab === 'story'
                   ? 'text-[var(--color-secondary,#8C3A44)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
@@ -250,7 +274,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <span>Our Story</span>
               {activeTab === 'story' && (
-                <span
+                <motion.span
+                  layoutId="desktop-nav-underline"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
                   style={{ backgroundColor: 'var(--color-secondary, #8C3A44)' }}
                 />
@@ -325,66 +351,74 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 {/* Dropdown Menu */}
-                {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-[#DEC89B] shadow-xl p-2 z-50 animate-in fade-in duration-100">
-                    <div className="p-2 border-b border-[#EAE2D5]">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-[#2C2420] truncate">{user.name}</p>
-                        {user.isOwner && (
-                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                            Owner
-                          </span>
-                        )}
+                <AnimatePresence>
+                  {userDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                      className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-[#DEC89B] shadow-xl p-2 z-50 origin-top-right"
+                    >
+                      <div className="p-2 border-b border-[#EAE2D5]">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-[#2C2420] truncate">{user.name}</p>
+                          {user.isOwner && (
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                              Owner
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-[#7A6458] truncate">{user.email || user.phone}</p>
                       </div>
-                      <p className="text-[10px] text-[#7A6458] truncate">{user.email || user.phone}</p>
-                    </div>
 
-                    {onOpenAccount && (
+                      {onOpenAccount && (
+                        <button
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            onOpenAccount();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
+                        >
+                          <User className="w-3.5 h-3.5 text-[#8C2E46]" />
+                          <span>My Account</span>
+                        </button>
+                      )}
+
+                      {user.isOwner && onOpenAdmin && (
+                        <button
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            onOpenAdmin();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5 text-[#8C2E46]" />
+                          <span>Owner Admin Panel</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleNavClick('orders')}
+                        className="w-full text-left px-3 py-2 text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer"
+                      >
+                        <Package className="w-3.5 h-3.5 text-[#C29E57]" />
+                        <span>Live Orders</span>
+                      </button>
+
                       <button
                         onClick={() => {
+                          logout();
                           setUserDropdownOpen(false);
-                          onOpenAccount();
                         }}
-                        className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
+                        className="w-full text-left px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer"
                       >
-                        <User className="w-3.5 h-3.5 text-[#8C2E46]" />
-                        <span>My Account</span>
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sign Out</span>
                       </button>
-                    )}
-
-                    {user.isOwner && onOpenAdmin && (
-                      <button
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          onOpenAdmin();
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
-                      >
-                        <SlidersHorizontal className="w-3.5 h-3.5 text-[#8C2E46]" />
-                        <span>Owner Admin Panel</span>
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => handleNavClick('orders')}
-                      className="w-full text-left px-3 py-2 text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer"
-                    >
-                      <Package className="w-3.5 h-3.5 text-[#C29E57]" />
-                      <span>Live Orders</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        logout();
-                        setUserDropdownOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sign Out</span>
-                    </button>
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             ) : (
               <GoogleSignInButton variant="navbar" customText="Sign In" />
@@ -392,7 +426,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Account Hub CTA */}
             {onOpenAccount && (
-              <button
+              <motion.button
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.95 }}
                 type="button"
                 onClick={onOpenAccount}
                 aria-label="My Account"
@@ -401,12 +437,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <User className="w-3.5 h-3.5 text-[#8C2E46]" />
                 <span className="hidden sm:inline">Account</span>
-              </button>
+              </motion.button>
             )}
 
             {/* Notification Bell CTA */}
             {onOpenNotifications && (
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
                 type="button"
                 onClick={onOpenNotifications}
                 aria-label="Customer Notification Center"
@@ -419,253 +457,273 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                   </span>
                 )}
-              </button>
+              </motion.button>
             )}
 
             {/* Shopping Bag CTA */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.92 }}
               onClick={openCart}
               aria-label="View Shopping Bag"
               className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-lg hover:bg-black/5 cursor-pointer"
             >
               <ShoppingBag className="w-5 h-5" />
-              {cartCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-[var(--color-primary-contrast,#FFFFFF)] text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums">
-                  {cartCount}
-                </span>
-              )}
-            </button>
+              <AnimatePresence mode="popLayout">
+                {cartCount > 0 && (
+                  <motion.span
+                    key={cartCount}
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.4, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 20 }}
+                    className="absolute top-1 right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-[var(--color-primary-contrast,#FFFFFF)] text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums"
+                  >
+                    {cartCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
 
             {/* Mobile menu toggle */}
-            <button
+            <motion.button
+              whileTap={{ scale: 0.9 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation menu"
               className="md:hidden p-2 text-[#2C2420] hover:bg-[#F4EFE6] rounded-lg cursor-pointer"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
+            </motion.button>
           </div>
         </div>
 
         {/* Mobile menu dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-[#FAF7F2] border-b border-[#EAE2D5] px-4 pt-2 pb-6 space-y-2 shadow-lg animate-in fade-in duration-150">
-            <button
-              onClick={() => handleNavClick('home')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium ${
-                activeTab === 'home' ? 'bg-[#F4EFE6] text-[#2C2420] font-semibold' : 'text-[#6B5D55]'
-              }`}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+              className="md:hidden bg-[#FAF7F2] border-b border-[#EAE2D5] px-4 pt-2 pb-6 space-y-2 shadow-lg overflow-hidden"
             >
-              Home
-            </button>
-            <button
-              onClick={() => handleNavClick('catalogue')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between ${
-                activeTab === 'catalogue' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
-              }`}
-            >
-              <span>Product Catalogue</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--color-background,#FAF7F2)] text-[var(--color-primary,#B83F60)] border border-[var(--color-border,#F9D3DE)]">
-                {productsCount} Bedsheets
-              </span>
-            </button>
-
-            {/* Mobile Seasonal Page Tab */}
-            {seasonalConfig?.enabled && (
               <button
-                onClick={() => handleNavClick('seasonal')}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-between transition-colors ${
-                  activeTab === 'seasonal'
-                    ? 'bg-[var(--color-surface,#FFFFFF)] text-[var(--color-primary,#70252D)] border border-[var(--color-accent,#C29E57)]'
-                    : 'text-[var(--color-primary,#70252D)] bg-amber-50/60 border border-amber-200/60 hover:bg-amber-100/60'
+                onClick={() => handleNavClick('home')}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'home' ? 'bg-[#F4EFE6] text-[#2C2420] font-semibold' : 'text-[#6B5D55]'
+                }`}
+              >
+                Home
+              </button>
+              <button
+                onClick={() => handleNavClick('catalogue')}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
+                  activeTab === 'catalogue' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
+                }`}
+              >
+                <span>Product Catalogue</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--color-background,#FAF7F2)] text-[var(--color-primary,#B83F60)] border border-[var(--color-border,#F9D3DE)]">
+                  {productsCount} Bedsheets
+                </span>
+              </button>
+
+              {/* Mobile Seasonal Page Tab */}
+              {seasonalConfig?.enabled && (
+                <button
+                  onClick={() => handleNavClick('seasonal')}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-between transition-colors ${
+                    activeTab === 'seasonal'
+                      ? 'bg-[var(--color-surface,#FFFFFF)] text-[var(--color-primary,#70252D)] border border-[var(--color-accent,#C29E57)]'
+                      : 'text-[var(--color-primary,#70252D)] bg-amber-50/60 border border-amber-200/60 hover:bg-amber-100/60'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                    <span>{seasonalConfig.name || 'Festive Offers'}</span>
+                  </span>
+                  <span
+                    className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded shadow-2xs"
+                    style={{
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                    }}
+                  >
+                    {seasonalConfig.badge || 'Sale'}
+                  </span>
+                </button>
+              )}
+
+              {/* Mobile T&C Tab */}
+              <button
+                onClick={() => handleNavClick('tc')}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
+                  activeTab === 'tc' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
+                }`}
+              >
+                <span>Terms &amp; Conditions (T&amp;C)</span>
+                <span className="text-xs">🌸</span>
+              </button>
+
+              {/* Mobile Customer Reviews */}
+              <button
+                onClick={() => handleNavClick('reviews')}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
+                  activeTab === 'reviews' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-                  <span>{seasonalConfig.name || 'Festive Offers'}</span>
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                  Customer Reviews
                 </span>
-                <span
-                  className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded shadow-2xs"
-                  style={{
-                    backgroundColor: 'var(--color-primary, #70252D)',
-                    color: 'var(--color-primary-contrast, #FFFFFF)',
-                  }}
-                >
-                  {seasonalConfig.badge || 'Sale'}
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                  4.9 ★ (Verified)
                 </span>
               </button>
-            )}
 
-            {/* Mobile T&C Tab */}
-            <button
-              onClick={() => handleNavClick('tc')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between ${
-                activeTab === 'tc' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
-              }`}
-            >
-              <span>Terms &amp; Conditions (T&amp;C)</span>
-              <span className="text-xs">🌸</span>
-            </button>
-
-            {/* Mobile Customer Reviews */}
-            <button
-              onClick={() => handleNavClick('reviews')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between ${
-                activeTab === 'reviews' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
-                Customer Reviews
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                4.9 ★ (Verified)
-              </span>
-            </button>
-
-            {/* Mobile Live Orders */}
-            <button
-              onClick={() => handleNavClick('orders')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
-                activeTab === 'orders'
-                  ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
-                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Package
-                  className="w-4 h-4 transition-colors"
-                  style={{ color: 'var(--color-secondary, #8C3A44)' }}
-                />
-                Live Orders
-              </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            </button>
-
-            {onOpenAccount && (
+              {/* Mobile Live Orders */}
               <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenAccount();
-                }}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-between text-[#2C2420] hover:bg-[#FAF7F2] cursor-pointer"
+                onClick={() => handleNavClick('orders')}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
+                  activeTab === 'orders'
+                    ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
+                    : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
+                }`}
               >
                 <span className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#8C2E46]" />
-                  <span>My Account</span>
+                  <Package
+                    className="w-4 h-4 transition-colors"
+                    style={{ color: 'var(--color-secondary, #8C3A44)' }}
+                  />
+                  Live Orders
                 </span>
-                <span className="text-xs text-[#8C7A70]">→</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </button>
-            )}
 
-            <button
-              onClick={() => handleNavClick('story')}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === 'story'
-                  ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
-                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
-              }`}
-            >
-              Our Story &amp; Craft
-            </button>
-
-            {/* Mobile Auth Button */}
-            {!isAuthenticated ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenAuthModal?.();
-                }}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#2C2420] bg-white border border-[#DEC89B] flex items-center gap-2 cursor-pointer shadow-2xs hover:bg-[#FAF7F2]"
-              >
-                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-                <span>Sign In with Google</span>
-              </button>
-            ) : (
-              <div className="p-3 bg-white rounded-xl border border-[#DEC89B] flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-[#2C2420]">{user?.name}</p>
-                  <p className="text-[11px] text-[#7A6458]">{user?.email || user?.phone}</p>
-                </div>
+              {onOpenAccount && (
                 <button
+                  type="button"
                   onClick={() => {
-                    logout();
                     setMobileMenuOpen(false);
+                    onOpenAccount();
                   }}
-                  className="text-xs text-rose-600 font-semibold cursor-pointer"
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-between text-[#2C2420] hover:bg-[#FAF7F2] cursor-pointer"
                 >
-                  Sign Out
+                  <span className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-[#8C2E46]" />
+                    <span>My Account</span>
+                  </span>
+                  <span className="text-xs text-[#8C7A70]">→</span>
                 </button>
-              </div>
-            )}
+              )}
 
-            {isOwnerMode && (
-              <div className="space-y-2">
-                {onOpenPhotoManager && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenPhotoManager();
-                    }}
-                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#1E3A8A] bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="text-base">📸</span>
-                      Photo Studio
-                    </span>
-                    <span className="text-[10px] bg-[#2563EB] text-white px-2 py-0.5 rounded-full font-bold">
-                      {updatedImagesCount} updated
-                    </span>
-                  </button>
-                )}
-
-                {onOpenAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenAdmin();
-                    }}
-                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#2C2420] bg-white border border-[#DEC89B] flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-2">
-                      <SlidersHorizontal className="w-4 h-4 text-[#A8823B]" />
-                      Admin Panel (Prices & Stock)
-                    </span>
-                    <span className="text-[10px] bg-[#F4EFE6] px-2 py-0.5 rounded font-bold text-[#A8823B]">Store Admin</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-[#EAE2D5] flex items-center gap-3">
-              <a
-                href={COMPANY_DETAILS.callUrl}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-[#2C2420] bg-[#F4EFE6] rounded-lg border border-[#EAE2D5]"
+              <button
+                onClick={() => handleNavClick('story')}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'story'
+                    ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
+                    : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
+                }`}
               >
-                <Phone className="w-3.5 h-3.5 text-[#C29E57]" />
-                Call +91 7838625915
-              </a>
-              <a
-                href={COMPANY_DETAILS.whatsappUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-white bg-[#B83F60] hover:bg-[#A33452] rounded-lg"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                WhatsApp
-              </a>
-            </div>
-          </div>
-        )}
+                Our Story &amp; Craft
+              </button>
+
+              {/* Mobile Auth Button */}
+              {!isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenAuthModal?.();
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#2C2420] bg-white border border-[#DEC89B] flex items-center gap-2 cursor-pointer shadow-2xs hover:bg-[#FAF7F2]"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>Sign In with Google</span>
+                </button>
+              ) : (
+                <div className="p-3 bg-white rounded-xl border border-[#DEC89B] flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-[#2C2420]">{user?.name}</p>
+                    <p className="text-[11px] text-[#7A6458]">{user?.email || user?.phone}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="text-xs text-rose-600 font-semibold cursor-pointer"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              )}
+
+              {isOwnerMode && (
+                <div className="space-y-2">
+                  {onOpenPhotoManager && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onOpenPhotoManager();
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#1E3A8A] bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-between"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-base">📸</span>
+                        Photo Studio
+                      </span>
+                      <span className="text-[10px] bg-[#2563EB] text-white px-2 py-0.5 rounded-full font-bold">
+                        {updatedImagesCount} updated
+                      </span>
+                    </button>
+                  )}
+
+                  {onOpenAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onOpenAdmin();
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#2C2420] bg-white border border-[#DEC89B] flex items-center justify-between"
+                    >
+                      <span className="flex items-center gap-2">
+                        <SlidersHorizontal className="w-4 h-4 text-[#A8823B]" />
+                        Admin Panel (Prices & Stock)
+                      </span>
+                      <span className="text-[10px] bg-[#F4EFE6] px-2 py-0.5 rounded font-bold text-[#A8823B]">Store Admin</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-[#EAE2D5] flex items-center gap-3">
+                <a
+                  href={COMPANY_DETAILS.callUrl}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-[#2C2420] bg-[#F4EFE6] rounded-lg border border-[#EAE2D5]"
+                >
+                  <Phone className="w-3.5 h-3.5 text-[#C29E57]" />
+                  Call +91 7838625915
+                </a>
+                <a
+                  href={COMPANY_DETAILS.whatsappUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-white bg-[#B83F60] hover:bg-[#A33452] rounded-lg"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  WhatsApp
+                </a>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
     </>
   );

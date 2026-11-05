@@ -61,24 +61,30 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.65, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2"
             >
-              <button
+              <motion.button
+                whileHover={{ y: -2, scale: 1.01 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 onClick={onExploreCatalogue}
-                className="w-full sm:w-auto px-7 py-3.5 bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] text-sm font-semibold rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group active:scale-98"
+                className="w-full sm:w-auto px-7 py-3.5 bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] text-sm font-semibold rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group"
               >
                 <span>{ctaText}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileHover={{ y: -2, scale: 1.01 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 onClick={onVisitStore}
-                className="w-full sm:w-auto px-6 py-3.5 bg-[var(--color-surface,#FFFFFF)] text-[var(--color-text,#2C2420)] border border-[var(--color-border,#EAE2D5)] hover:border-[var(--color-accent,#C29E57)] text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                className="w-full sm:w-auto px-6 py-3.5 bg-[var(--color-surface,#FFFFFF)] text-[var(--color-text,#2C2420)] border border-[var(--color-border,#EAE2D5)] hover:border-[var(--color-accent,#C29E57)] text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <MapPin className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
-              </button>
+              </motion.button>
             </motion.div>
 
             {/* Quiet trust markers */}
@@ -109,15 +115,15 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.8, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="lg:col-span-6 relative"
           >
-            <div className="relative rounded-2xl overflow-hidden border border-[#EAE2D5] shadow-lg bg-[#FAF7F2] aspect-[16/10] sm:aspect-[16/11]">
+            <div className="relative rounded-2xl overflow-hidden border border-[#EAE2D5] shadow-lg bg-[#FAF7F2] aspect-[16/10] sm:aspect-[16/11] group">
               <img
                 src="/images/hero_cotton_nest_bedding_1790996973951.jpg"
                 alt="Cotton Nest luxury master bedroom featuring pure cotton bedding in cream, blush pink, and muted gold"
                 referrerPolicy="no-referrer"
-                className="w-full h-full object-cover object-center transform hover:scale-102 transition-transform duration-700"
+                className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#2C2420]/40 via-transparent to-transparent pointer-events-none" />
               
@@ -125,8 +131,10 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
               <motion.div
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.65 }}
-                className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-[#FAF7F2]/95 backdrop-blur-md p-3 rounded-xl border border-[#EAE2D5] text-left shadow-sm"
+                whileHover={{ y: -2, scale: 1.01 }}
+                transition={{ duration: 0.5, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                onClick={onVisitStore}
+                className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-[#FAF7F2]/95 backdrop-blur-md p-3 rounded-xl border border-[#EAE2D5] text-left shadow-sm cursor-pointer"
               >
                 <p className="text-[11px] font-semibold text-[#B83F60] uppercase tracking-wide">
                   Gurgaon Flagship

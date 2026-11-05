@@ -1512,249 +1512,281 @@ export default function App() {
 
           {/* Main Content Area */}
           <ErrorBoundary fallbackTitle="Storefront View Encountered an Issue" onReset={() => setActiveTab('home')}>
-          <main className="flex-1">
-            
-            {/* TAB 1: HOME VIEW */}
-            {activeTab === 'home' && (
-              <>
-                {/* Hero Section */}
-                <Hero
-                  onExploreCatalogue={() => {
-                    setActiveTab('catalogue');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  onVisitStore={() => {
-                    setActiveTab('store');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  content={siteContent}
-                />
+          <main className="flex-1 overflow-x-hidden">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {/* TAB 1: HOME VIEW */}
+                {activeTab === 'home' && (
+                  <>
+                    {/* Hero Section */}
+                    <Hero
+                      onExploreCatalogue={() => {
+                        setActiveTab('catalogue');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      onVisitStore={() => {
+                        setActiveTab('store');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      content={siteContent}
+                    />
 
-                {/* Promotional Offers & Coupons Banner */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-2 sm:-mt-6 mb-6 relative z-10">
-                  <OfferBanner onOpenCart={() => setIsCartOpen(true)} />
-                </div>
-
-                {/* Featured Showcase: 3 Spotlight bedsheets from the 9 */}
-                <section
-                  id="curated-highlights"
-                  className="py-12 sm:py-16 relative transition-colors duration-300"
-                  style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
-                >
-                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    
+                    {/* Promotional Offers & Coupons Banner */}
                     <motion.div
-                      initial={{ opacity: 0, y: 25 }}
+                      initial={{ opacity: 0, y: 18 }}
                       whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: '-50px' }}
-                      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                      className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4"
+                      viewport={{ once: true, margin: '-20px' }}
+                      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-2 sm:-mt-6 mb-6 relative z-10"
                     >
-                      <div>
-                        <div
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider mb-1"
-                          style={{ color: 'var(--color-accent, #A8823B)' }}
-                        >
-                          <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
-                          Curated Highlights
-                        </div>
-                        <h2
-                          className="font-serif-luxury text-3xl sm:text-4xl font-semibold transition-colors duration-300"
-                          style={{ color: 'var(--color-text, #2C2420)' }}
-                        >
-                          Popular Bedsheets This Season
-                        </h2>
-                        <p
-                          className="text-xs sm:text-sm mt-1 transition-colors duration-300"
-                          style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
-                        >
-                          Handpicked favorites from our pure cotton collection.
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('catalogue');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        style={{ color: 'var(--color-primary, #70252D)' }}
-                        className="inline-flex items-center gap-2 text-xs font-semibold hover:opacity-80 transition-all cursor-pointer group"
-                      >
-                        <span>Browse All {products.length} Bedsheets in Catalogue</span>
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                      </button>
+                      <OfferBanner onOpenCart={() => setIsCartOpen(true)} />
                     </motion.div>
 
-                    {/* 3 Featured Cards Grid with Staggered Scroll Animations */}
-                    <div
-                      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 transition-colors duration-300"
+                    {/* Featured Showcase: 3 Spotlight bedsheets from the 9 */}
+                    <section
+                      id="curated-highlights"
+                      className="py-12 sm:py-16 relative transition-colors duration-300"
                       style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
                     >
-                      {products.slice(0, 3).map((product, idx) => (
+                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        
                         <motion.div
-                          key={product.id}
-                          initial={{ opacity: 0, y: 35 }}
+                          initial={{ opacity: 0, y: 24 }}
                           whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true, margin: '-40px' }}
-                          transition={{ duration: 0.6, delay: idx * 0.14, ease: [0.22, 1, 0.36, 1] }}
+                          viewport={{ once: true, margin: '-50px' }}
+                          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+                          className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4"
                         >
-                          <ProductCard
-                            product={product}
-                            onQuickView={(p, editMode) => handleOpenProductModal(p, editMode)}
-                            onAddToCart={(p) => handleAddToCart(p, 1)}
-                            isAdded={addedProductIds.has(product.id)}
-                            customImage={customImages[product.id]}
-                            onUploadImage={handleUploadImage}
-                            isOwnerMode={isOwnerMode}
-                            onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
-                            reviews={reviews}
-                            onToggleCompare={handleToggleCompare}
-                            isCompared={comparedProductIds.includes(product.id)}
-                            onNotifyStock={handleNotifyStock}
-                            isWishlisted={isProductWishlisted(product.id)}
-                            onToggleWishlist={handleToggleWishlist}
-                          />
-                        </motion.div>
-                      ))}
-                    </div>
+                          <div>
+                            <div
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider mb-1"
+                              style={{ color: 'var(--color-accent, #A8823B)' }}
+                            >
+                              <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
+                              Curated Highlights
+                            </div>
+                            <h2
+                              className="font-serif-luxury text-3xl sm:text-4xl font-semibold transition-colors duration-300"
+                              style={{ color: 'var(--color-text, #2C2420)' }}
+                            >
+                              Popular Bedsheets This Season
+                            </h2>
+                            <p
+                              className="text-xs sm:text-sm mt-1 transition-colors duration-300"
+                              style={{ color: 'var(--color-text-secondary, #6B5D55)' }}
+                            >
+                              Handpicked favorites from our pure cotton collection.
+                            </p>
+                          </div>
 
-                    {/* Direct CTA to open Special Catalogue with Scroll Reveal */}
+                          <motion.button
+                            whileHover={{ x: 3 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => {
+                              setActiveTab('catalogue');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            style={{ color: 'var(--color-primary, #70252D)' }}
+                            className="inline-flex items-center gap-2 text-xs font-semibold hover:opacity-80 transition-all cursor-pointer group"
+                          >
+                            <span>Browse All {products.length} Bedsheets in Catalogue</span>
+                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                          </motion.button>
+                        </motion.div>
+
+                        {/* 3 Featured Cards Grid with Staggered Scroll Animations */}
+                        <div
+                          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 transition-colors duration-300"
+                          style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
+                        >
+                          {products.slice(0, 3).map((product, idx) => (
+                            <motion.div
+                              key={product.id}
+                              initial={{ opacity: 0, y: 28 }}
+                              whileInView={{ opacity: 1, y: 0 }}
+                              viewport={{ once: true, margin: '-40px' }}
+                              transition={{ duration: 0.55, delay: idx * 0.12, ease: [0.16, 1, 0.3, 1] }}
+                            >
+                              <ProductCard
+                                product={product}
+                                onQuickView={(p, editMode) => handleOpenProductModal(p, editMode)}
+                                onAddToCart={(p) => handleAddToCart(p, 1)}
+                                isAdded={addedProductIds.has(product.id)}
+                                customImage={customImages[product.id]}
+                                onUploadImage={handleUploadImage}
+                                isOwnerMode={isOwnerMode}
+                                onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
+                                reviews={reviews}
+                                onToggleCompare={handleToggleCompare}
+                                isCompared={comparedProductIds.includes(product.id)}
+                                onNotifyStock={handleNotifyStock}
+                                isWishlisted={isProductWishlisted(product.id)}
+                                onToggleWishlist={handleToggleWishlist}
+                              />
+                            </motion.div>
+                          ))}
+                        </div>
+
+                        {/* Direct CTA to open Special Catalogue with Scroll Reveal */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                          className="mt-10 text-center"
+                        >
+                          <motion.button
+                            whileHover={{ y: -2, scale: 1.01 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => {
+                              setActiveTab('catalogue');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            style={{
+                              backgroundColor: 'var(--color-surface, #FFFFFF)',
+                              color: 'var(--color-primary, #70252D)',
+                              borderColor: 'var(--color-border, #EAE2D5)',
+                            }}
+                            className="px-8 py-3.5 hover:shadow-md border rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs"
+                          >
+                            <span>Open Full {products.length}-Sheet Catalogue</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </motion.button>
+                        </motion.div>
+
+                      </div>
+                    </section>
+
+                    {/* Story & Craft Section */}
+                    <StoryAndFeatures
+                      onGoToCatalogue={() => {
+                        setActiveTab('catalogue');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      content={siteContent}
+                    />
+
+                    {/* Verified Customer Reviews & Comments Section */}
                     <motion.div
-                      initial={{ opacity: 0, y: 20 }}
+                      initial={{ opacity: 0, y: 24 }}
                       whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.5, delay: 0.25 }}
-                      className="mt-10 text-center"
+                      viewport={{ once: true, margin: '-40px' }}
+                      transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <button
-                        onClick={() => {
-                          setActiveTab('catalogue');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        style={{
-                          backgroundColor: 'var(--color-surface, #FFFFFF)',
-                          color: 'var(--color-primary, #70252D)',
-                          borderColor: 'var(--color-border, #EAE2D5)',
-                        }}
-                        className="px-8 py-3.5 hover:shadow-md border rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-98"
-                      >
-                        <span>Open Full {products.length}-Sheet Catalogue</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
+                      <ReviewsSection
+                        reviews={reviews}
+                        products={products}
+                        onOpenWriteReview={handleOpenWriteReview}
+                        onHelpfulClick={handleHelpfulClick}
+                      />
                     </motion.div>
 
+                    {/* Store Location Section */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-40px' }}
+                      transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+                    >
+                      <StoreLocation />
+                    </motion.div>
+                  </>
+                )}
+
+                {/* TAB 2: SPECIAL CATALOGUE VIEW (Strictly contains the bedsheets) */}
+                {activeTab === 'catalogue' && (
+                  <CatalogueView
+                    products={products}
+                    onQuickView={(p, editMode) => handleOpenProductModal(p, editMode)}
+                    onAddToCart={(p) => handleAddToCart(p, 1)}
+                    addedProductIds={addedProductIds}
+                    customImages={customImages}
+                    onUploadImage={handleUploadImage}
+                    onOpenPhotoManager={handleOpenPhotoManagerSafely}
+                    onOpenAdmin={handleOpenAdminSafely}
+                    isOwnerMode={isOwnerMode}
+                    onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
+                    onToggleCompare={handleToggleCompare}
+                    comparedProductIds={comparedProductIds}
+                    onNotifyStock={handleNotifyStock}
+                    isWishlisted={isProductWishlisted}
+                    onToggleWishlist={handleToggleWishlist}
+                    reviews={reviews}
+                  />
+                )}
+
+                {/* TAB: SEASONAL FESTIVE SHOPPING PAGE */}
+                {activeTab === 'seasonal' && (
+                  <SeasonalView
+                    products={products}
+                    seasonalConfig={seasonalConfig}
+                    onAddToCart={(p, customPrice) => handleAddToCart(p, 1, customPrice)}
+                    onQuickView={(p) => handleOpenProductModal(p, false)}
+                    addedProductIds={Array.from(addedProductIds)}
+                    isOwnerMode={isOwnerMode}
+                    onOpenAdmin={handleOpenAdminSafely}
+                    onExploreFullCatalogue={() => {
+                      setActiveTab('catalogue');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                )}
+
+                {/* TAB 3: OUR STORY & CRAFTSMANSHIP */}
+                {activeTab === 'story' && (
+                  <StoryAndFeatures
+                    onGoToCatalogue={() => {
+                      setActiveTab('catalogue');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    content={siteContent}
+                  />
+                )}
+
+                {/* TAB 4: STORE LOCATION & VISIT */}
+                {activeTab === 'store' && <StoreLocation />}
+
+                {/* TAB 5: LIVE ORDERS FOR INDIVIDUAL CLIENT */}
+                {activeTab === 'orders' && (
+                  <LiveOrdersView
+                    onExploreCatalogue={() => {
+                      setActiveTab('catalogue');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                  />
+                )}
+
+                {/* TAB 6: TERMS & CONDITIONS (T&C) */}
+                {activeTab === 'tc' && (
+                  <TermsAndConditionsView
+                    siteContent={siteContent}
+                    onExploreCatalogue={() => {
+                      setActiveTab('catalogue');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                )}
+
+                {/* TAB 7: VERIFIED CUSTOMER REVIEWS & COMMENTS */}
+                {activeTab === 'reviews' && (
+                  <div className="pt-2 sm:pt-4">
+                    <ReviewsSection
+                      reviews={reviews}
+                      products={products}
+                      onOpenWriteReview={handleOpenWriteReview}
+                      onHelpfulClick={handleHelpfulClick}
+                    />
                   </div>
-                </section>
-
-                {/* Story & Craft Section */}
-                <StoryAndFeatures
-                  onGoToCatalogue={() => {
-                    setActiveTab('catalogue');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  content={siteContent}
-                />
-
-                {/* Verified Customer Reviews & Comments Section */}
-                <ReviewsSection
-                  reviews={reviews}
-                  products={products}
-                  onOpenWriteReview={handleOpenWriteReview}
-                  onHelpfulClick={handleHelpfulClick}
-                />
-
-                {/* Store Location Section */}
-                <StoreLocation />
-              </>
-            )}
-
-            {/* TAB 2: SPECIAL CATALOGUE VIEW (Strictly contains the bedsheets) */}
-            {activeTab === 'catalogue' && (
-              <CatalogueView
-                products={products}
-                onQuickView={(p, editMode) => handleOpenProductModal(p, editMode)}
-                onAddToCart={(p) => handleAddToCart(p, 1)}
-                addedProductIds={addedProductIds}
-                customImages={customImages}
-                onUploadImage={handleUploadImage}
-                onOpenPhotoManager={handleOpenPhotoManagerSafely}
-                onOpenAdmin={handleOpenAdminSafely}
-                isOwnerMode={isOwnerMode}
-                onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
-                onToggleCompare={handleToggleCompare}
-                comparedProductIds={comparedProductIds}
-                onNotifyStock={handleNotifyStock}
-                isWishlisted={isProductWishlisted}
-                onToggleWishlist={handleToggleWishlist}
-                reviews={reviews}
-              />
-            )}
-
-            {/* TAB: SEASONAL FESTIVE SHOPPING PAGE */}
-            {activeTab === 'seasonal' && (
-              <SeasonalView
-                products={products}
-                seasonalConfig={seasonalConfig}
-                onAddToCart={(p, customPrice) => handleAddToCart(p, 1, customPrice)}
-                onQuickView={(p) => handleOpenProductModal(p, false)}
-                addedProductIds={Array.from(addedProductIds)}
-                isOwnerMode={isOwnerMode}
-                onOpenAdmin={handleOpenAdminSafely}
-                onExploreFullCatalogue={() => {
-                  setActiveTab('catalogue');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {/* TAB 3: OUR STORY & CRAFTSMANSHIP */}
-            {activeTab === 'story' && (
-              <StoryAndFeatures
-                onGoToCatalogue={() => {
-                  setActiveTab('catalogue');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                content={siteContent}
-              />
-            )}
-
-            {/* TAB 4: STORE LOCATION & VISIT */}
-            {activeTab === 'store' && <StoreLocation />}
-
-            {/* TAB 5: LIVE ORDERS FOR INDIVIDUAL CLIENT */}
-            {activeTab === 'orders' && (
-              <LiveOrdersView
-                onExploreCatalogue={() => {
-                  setActiveTab('catalogue');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onOpenAuthModal={() => setIsAuthModalOpen(true)}
-              />
-            )}
-
-            {/* TAB 6: TERMS & CONDITIONS (T&C) */}
-            {activeTab === 'tc' && (
-              <TermsAndConditionsView
-                siteContent={siteContent}
-                onExploreCatalogue={() => {
-                  setActiveTab('catalogue');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {/* TAB 7: VERIFIED CUSTOMER REVIEWS & COMMENTS */}
-            {activeTab === 'reviews' && (
-              <div className="pt-2 sm:pt-4">
-                <ReviewsSection
-                  reviews={reviews}
-                  products={products}
-                  onOpenWriteReview={handleOpenWriteReview}
-                  onHelpfulClick={handleHelpfulClick}
-                />
-              </div>
-            )}
-
+                )}
+              </motion.div>
+            </AnimatePresence>
           </main>
           </ErrorBoundary>
 

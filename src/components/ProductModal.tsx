@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon } from 'lucide-react';
+import { motion } from 'motion/react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
@@ -343,10 +344,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const savingsAmount = origPrice > currPrice ? origPrice - currPrice : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2C2420]/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#2C2420]/60 backdrop-blur-xs"
+    >
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative bg-[var(--color-surface,#FFFFFF)] w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--color-border,#EAE2D5)] shadow-2xl z-10 text-[var(--color-text,#2C2420)]">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 18 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 30, mass: 0.85 }}
+        className="relative bg-[var(--color-surface,#FFFFFF)] w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--color-border,#EAE2D5)] shadow-2xl z-10 text-[var(--color-text,#2C2420)]"
+      >
         
         {/* Owner Edit Bar or Unlock Prompt */}
         {isOwnerMode ? (
@@ -1419,7 +1430,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
         </div>
 
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

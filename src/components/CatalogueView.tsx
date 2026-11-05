@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   LayoutGrid
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   BedsheetProduct,
   BedsheetVariant,
@@ -887,7 +888,11 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
         {/* 6. Products Container (Single: 1 bedsheet view at a time / Tile: 2 on mobile, 3-4 on desktop / List: row cards) */}
         {filteredProducts.length > 0 ? (
-          <div
+          <motion.div
+            key={viewMode}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className={
               viewMode === 'single'
                 ? 'grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto'
@@ -896,27 +901,38 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6'
             }
           >
-            {filteredProducts.map((product) => (
-              <ProductCard
+            {filteredProducts.map((product, idx) => (
+              <motion.div
                 key={product.id}
-                product={product}
-                viewMode={viewMode}
-                onQuickView={onQuickView}
-                onAddToCart={onAddToCart}
-                isAdded={addedProductIds.has(product.id)}
-                customImage={customImages[product.id]}
-                onUploadImage={onUploadImage}
-                isOwnerMode={isOwnerMode}
-                onOpenOwnerAuth={onOpenOwnerAuth}
-                onToggleCompare={onToggleCompare}
-                isCompared={comparedProductIds.includes(product.id)}
-                onNotifyStock={onNotifyStock}
-                isWishlisted={isWishlisted ? isWishlisted(product.id) : false}
-                onToggleWishlist={onToggleWishlist}
-                reviews={reviews}
-              />
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-20px' }}
+                transition={{
+                  duration: 0.42,
+                  delay: Math.min(idx * 0.05, 0.25),
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+              >
+                <ProductCard
+                  product={product}
+                  viewMode={viewMode}
+                  onQuickView={onQuickView}
+                  onAddToCart={onAddToCart}
+                  isAdded={addedProductIds.has(product.id)}
+                  customImage={customImages[product.id]}
+                  onUploadImage={onUploadImage}
+                  isOwnerMode={isOwnerMode}
+                  onOpenOwnerAuth={onOpenOwnerAuth}
+                  onToggleCompare={onToggleCompare}
+                  isCompared={comparedProductIds.includes(product.id)}
+                  onNotifyStock={onNotifyStock}
+                  isWishlisted={isWishlisted ? isWishlisted(product.id) : false}
+                  onToggleWishlist={onToggleWishlist}
+                  reviews={reviews}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         ) : (
           <div className="text-center py-16 bg-white rounded-3xl border border-[#EAE2D5] p-8 max-w-md mx-auto space-y-4 my-8 shadow-xs">
             <div className="w-14 h-14 rounded-2xl bg-[#FDEAF0] text-[#8C2E46] flex items-center justify-center mx-auto">

@@ -57,16 +57,41 @@
   --color-theme-border: var(--color-border);
 }
 
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   background-color: var(--color-background, #FAF7F2);
   color: var(--color-text, #2D2522);
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .font-serif-luxury {
   font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+/* Fluid hardware-accelerated micro-interactions */
+button,
+a,
+input,
+select,
+textarea {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hide scrollbars cleanly on horizontal chip strips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Custom smooth scrollbar */
@@ -83,4 +108,19 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   filter: brightness(0.9);
+}
+
+/* Respect user reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
