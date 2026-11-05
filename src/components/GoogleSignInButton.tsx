@@ -27,8 +27,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     setLocalError(null);
     clearAuthError();
     try {
-      await loginWithGoogle();
-      if (onSuccess) onSuccess();
+      const signedInUser = await loginWithGoogle();
+      if (signedInUser && onSuccess) {
+        onSuccess();
+      }
     } catch (err: any) {
       setLocalError(err.message || 'Google sign-in could not be completed.');
     } finally {
