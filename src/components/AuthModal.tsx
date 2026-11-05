@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Lock, Phone, Mail, CheckCircle2, ArrowRight, ShieldCheck, Search, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
+import { X, Lock, Mail, CheckCircle2, ArrowRight, ShieldCheck, Search, Sparkles, AlertCircle, RefreshCw, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GoogleSignInButton } from './GoogleSignInButton';
 
@@ -8,6 +8,7 @@ interface AuthModalProps {
   onClose: () => void;
   onOpenOwnerAuth?: () => void;
   onTrackOrderDirect?: (orderId: string) => void;
+  reason?: string | null;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -15,12 +16,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onOpenOwnerAuth,
   onTrackOrderDirect,
+  reason,
 }) => {
-  const { loginWithPhone, user, isAuthenticated } = useAuth();
+  const { loginWithEmail, user, isAuthenticated } = useAuth();
   const [tab, setTab] = useState<'signin' | 'track'>('signin');
 
-  // Phone sign-in state & OTP state
-  const [phone, setPhone] = useState('');
+  // Gmail / Email OTP State
+  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [generatedOtp, setGeneratedOtp] = useState('');
@@ -32,10 +34,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendGmailOtp = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || phone.replace(/[^0-9]/g, '').length < 10) {
-      setOtpError('Please enter a valid 10-digit mobile number.');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setOtpError('Please enter a valid Gmail / Email address.');
       return;
     }
     const code = String(Math.floor(1000 + Math.random() * 9000));
@@ -50,13 +53,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setOtpError('Please enter the 4-digit OTP code.');
       return;
     }
-    // Verify OTP (accept generatedOtp or any 4 digits in demo mode)
-    loginWithPhone(phone, name || 'Cotton Nest Client');
+    // Verify OTP against generated code (or accept in demo mode)
+    if (enteredOtp.trim() !== generatedOtp && enteredOtp.trim() !== '1234') {
+      setOtpError('Invalid OTP code. Please check your Gmail or use code: ' + generatedOtp);
+      return;
+    }
+
+    loginWithEmail(email.trim().toLowerCase(), name.trim() || email.split('@')[0]);
     setOtpSent(false);
     setEnteredOtp('');
     setGeneratedOtp('');
     setOtpError(null);
     onClose();
+  };
+
+  const handleResendOtp = () => {
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    setGeneratedOtp(code);
+    setOtpError(null);
   };
 
   const handleDirectTrack = (e: React.FormEvent) => {
@@ -93,10 +107,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </h3>
           <p className="text-xs text-[#7A6458]">
             {tab === 'signin'
-              ? 'Connect securely with Google or Phone OTP to view live atelier order status, dispatch tracking, and invoices.'
+              ? 'Connect securely with Google or Gmail OTP to view orders, save addresses, and add bedsheets to your bag.'
               : 'Track the live status of any order using your Order ID.'}
           </p>
         </div>
+
+        {/* Optional Action Reason Banner (e.g. Before adding to cart) */}
+        {reason && tab === 'signin' && (
+          <div className="p-3 bg-[#F4EFE6] rounded-2xl border border-[#DEC89B] text-xs text-[#70252D] font-medium flex items-center gap-2 animate-in fade-in">
+            <Sparkles className="w-4 h-4 text-[#C29E57] shrink-0" />
+            <span>{reason}</span>
+          </div>
+        )}
 
         {/* Tab Switcher */}
         <div className="grid grid-cols-2 p-1 bg-[#EAE2D5]/50 rounded-xl text-xs font-semibold">
@@ -109,7 +131,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 : 'text-[#7A6458] hover:text-[#2C2420]'
             }`}
           >
-            Google / Phone Sign In
+            Google / Gmail Sign In
           </button>
           <button
             type="button"
@@ -132,7 +154,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <GoogleSignInButton
                 onSuccess={onClose}
                 variant="standard"
-                customText="Sign in with Google API"
+                customText="Continue with Google"
               />
               <p className="text-[11px] text-[#7A6458] text-center">
                 Uses official Google OAuth 2.0 authentication.
@@ -142,13 +164,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {/* Divider */}
             <div className="relative flex py-1 items-center">
               <div className="grow border-t border-[#EAE2D5]"></div>
-              <span className="shrink mx-3 text-[11px] text-[#7A6458] uppercase font-semibold">Or continue with phone OTP</span>
+              <span className="shrink mx-3 text-[11px] text-[#7A6458] uppercase font-semibold">Or sign in with Gmail OTP</span>
               <div className="grow border-t border-[#EAE2D5]"></div>
             </div>
 
-            {/* Phone & OTP Sign-In Form */}
+            {/* Gmail OTP Sign-In Form */}
             {!otpSent ? (
-              <form onSubmit={handleSendOtp} className="space-y-3">
+              <form onSubmit={handleSendGmailOtp} className="space-y-3">
                 {otpError && (
                   <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
                     {otpError}
@@ -156,18 +178,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
                 <div>
                   <label className="block text-xs font-medium text-[#2C2420] mb-1">
-                    Mobile Number (WhatsApp) *
+                    Gmail / Email Address *
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#7A6458]">
-                      +91
-                    </span>
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A89890]" />
                     <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="98182 34567"
-                      className="w-full pl-12 pr-3 py-2.5 rounded-xl border border-[#DEC89B] bg-white text-sm text-[#2C2420] placeholder-[#A89890] focus:outline-hidden focus:ring-1 focus:ring-[#C29E57]"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="yourname@gmail.com"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-[#DEC89B] bg-white text-sm text-[#2C2420] placeholder-[#A89890] focus:outline-hidden focus:ring-1 focus:ring-[#C29E57]"
                       required
                     />
                   </div>
@@ -188,18 +208,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 <button
                   type="submit"
-                  className="w-full py-3 bg-[#B83F60] hover:bg-[#A33452] text-white rounded-xl font-semibold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                  className="w-full py-3 bg-[#8C2E46] hover:bg-[#722338] text-white rounded-xl font-semibold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>Send OTP via WhatsApp</span>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Send OTP to Gmail</span>
                 </button>
               </form>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-3">
                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1">
-                  <p className="font-semibold">OTP Verification Code Sent</p>
+                  <p className="font-semibold">Gmail OTP Code Sent</p>
                   <p className="text-[11px] text-amber-800">
-                    We sent a 4-digit code to +91 {phone}. (Demo OTP Code: <strong className="font-bold">{generatedOtp}</strong>)
+                    We sent a 4-digit code to <strong>{email}</strong>. (Demo OTP Code: <strong className="font-bold underline">{generatedOtp}</strong>)
                   </p>
                 </div>
 
@@ -211,7 +231,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-medium text-[#2C2420] mb-1">
-                    Enter 4-Digit OTP *
+                    Enter 4-Digit Gmail OTP *
                   </label>
                   <input
                     type="text"
@@ -224,10 +244,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   />
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex items-center justify-between text-[11px] px-1 text-[#7A6458]">
+                  <span>Didn&apos;t receive code?</span>
                   <button
                     type="button"
-                    onClick={() => setOtpSent(false)}
+                    onClick={handleResendOtp}
+                    className="font-semibold text-[#8C2E46] hover:underline cursor-pointer"
+                  >
+                    Resend OTP
+                  </button>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setEnteredOtp('');
+                      setOtpError(null);
+                    }}
                     className="w-1/3 py-2.5 bg-white hover:bg-[#FAF7F2] text-[#7A6458] border border-[#DEC89B] rounded-xl font-semibold text-xs transition-colors cursor-pointer"
                   >
                     Back
@@ -245,7 +280,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2 text-[11px] text-emerald-800">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Orders placed via WhatsApp or checkout are linked automatically to your account.</span>
+              <span>Your cart items, wishlist, and saved addresses are securely preserved.</span>
             </div>
 
             {onOpenOwnerAuth && (

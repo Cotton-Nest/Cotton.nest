@@ -78,9 +78,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [showOffersList, setShowOffersList] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Saved Addresses State
+  const userKey = user?.email || user?.id || customerProfile?.id || null;
+
+  // Saved Addresses State strictly scoped to the individual customer
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() =>
-    getSavedAddresses(customerProfile, orders)
+    getSavedAddresses(customerProfile, userKey)
   );
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [isAddingNewAddress, setIsAddingNewAddress] = useState<boolean>(false);
@@ -125,7 +127,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           city,
           pincode,
           isDefault: savedAddresses.length === 0,
-        });
+        }, userKey);
         setSavedAddresses(updatedList);
         const added = updatedList[0];
         if (added) setSelectedAddressId(added.id);
@@ -138,10 +140,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     setFormError(null);
   };
 
-  // Sync saved addresses on open without auto-prefilling previous address
+  // Sync saved addresses on open strictly for the individual customer
   useEffect(() => {
     if (isOpen) {
-      const addrs = getSavedAddresses(customerProfile, orders);
+      const addrs = getSavedAddresses(customerProfile, userKey);
       setSavedAddresses(addrs);
       setSelectedAddressId(null);
       setCustomerAddress('');
@@ -151,7 +153,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         setIsAddingNewAddress(false);
       }
     }
-  }, [isOpen, customerProfile, orders]);
+  }, [isOpen, customerProfile, userKey]);
 
   const handleSelectSavedAddress = (addr: SavedAddress) => {
     setSelectedAddressId(addr.id);
@@ -481,7 +483,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           name: customerName.trim(),
           phone: customerPhone.trim(),
           addressLine: customerAddress.trim(),
-        });
+        }, userKey);
         setSavedAddresses(updatedList);
         saveCurrentCustomerProfile({
           name: customerName.trim(),

@@ -133,6 +133,13 @@ export default function App() {
   const { isLoyaltyModalOpen, closeLoyaltyModal } = useLoyalty();
   const [isOwnerAuthOpen, setIsOwnerAuthOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalReason, setAuthModalReason] = useState<string | null>(null);
+  const [pendingCartItem, setPendingCartItem] = useState<{
+    product: BedsheetProduct;
+    quantityOrVariant?: number | BedsheetVariant;
+    variantOrCustomPrice?: any;
+    optionalCustomPrice?: number;
+  } | null>(null);
   const [whatsAppHelperData, setWhatsAppHelperData] = useState<WhatsAppHelperData | null>(null);
 
   // Customer Wishlist State with local caching and backend sync
@@ -1290,6 +1297,14 @@ export default function App() {
       return;
     }
 
+    // Mandatory user sign-in check before adding item to cart
+    if (!user) {
+      setPendingCartItem({ product, quantityOrVariant, variantOrCustomPrice, optionalCustomPrice });
+      setAuthModalReason('Please sign in with Google or Gmail to add bedsheets to your bag.');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     let quantity = 1;
     let selectedVariant: BedsheetVariant | undefined;
     let customPrice: number | undefined;
@@ -1362,6 +1377,16 @@ export default function App() {
       });
     }, 2000);
   };
+
+  // Automatically add pending item to bag once user signs in
+  useEffect(() => {
+    if (user && pendingCartItem) {
+      const { product, quantityOrVariant, variantOrCustomPrice, optionalCustomPrice } = pendingCartItem;
+      setPendingCartItem(null);
+      setAuthModalReason(null);
+      handleAddToCart(product, quantityOrVariant, variantOrCustomPrice, optionalCustomPrice);
+    }
+  }, [user, pendingCartItem]);
 
   const handleUpdateQuantity = (productId: string, quantity: number) => {
     if (!productId) return;
@@ -1829,7 +1854,11 @@ export default function App() {
       {/* Google Sign In & Client Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setAuthModalReason(null);
+        }}
+        reason={authModalReason}
         onTrackOrderDirect={(_orderId) => {
           setActiveTab('orders');
           window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -83,8 +83,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     pincode: customerProfile?.pincode || '122003',
   });
 
-  // Saved Addresses book state
-  const [addressBook, setAddressBook] = useState<SavedAddress[]>(() => getSavedAddresses(customerProfile, orders));
+  const userKey = user?.email || user?.id || customerProfile?.id || null;
+
+  // Saved Addresses book state strictly scoped to customer
+  const [addressBook, setAddressBook] = useState<SavedAddress[]>(() => getSavedAddresses(customerProfile, userKey));
   const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
   const [newAddressForm, setNewAddressForm] = useState({
     name: customerProfile?.name || user?.name || '',
@@ -98,9 +100,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setAddressBook(getSavedAddresses(customerProfile, orders));
+      setAddressBook(getSavedAddresses(customerProfile, userKey));
     }
-  }, [isOpen, customerProfile, orders]);
+  }, [isOpen, customerProfile, userKey]);
 
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
@@ -130,7 +132,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         pincode: addressDraft.pincode.trim() || '122003',
         label: 'Home',
         isDefault: true,
-      });
+      }, userKey);
       setAddressBook(updatedBook);
     }
     onUpdateProfile(updated);
@@ -138,7 +140,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   };
 
   const handleSetDefaultAddress = (id: string) => {
-    const updated = setDefaultAddress(id);
+    const updated = setDefaultAddress(id, userKey);
     setAddressBook(updated);
     const def = updated.find((a) => a.id === id);
     if (def) {
@@ -155,7 +157,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   };
 
   const handleDeleteAddress = (id: string) => {
-    const updated = deleteSavedAddress(id);
+    const updated = deleteSavedAddress(id, userKey);
     setAddressBook(updated);
   };
 
@@ -170,7 +172,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       pincode: newAddressForm.pincode.trim() || '122003',
       label: newAddressForm.label,
       isDefault: newAddressForm.isDefault || addressBook.length === 0,
-    });
+    }, userKey);
     setAddressBook(updated);
     if (newAddressForm.isDefault || addressBook.length === 0) {
       const newProfile = saveCurrentCustomerProfile({

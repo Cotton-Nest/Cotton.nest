@@ -11,9 +11,18 @@ export interface SavedAddress {
   pincode: string;
   isDefault?: boolean;
   createdAt: number;
+  userId?: string;
 }
 
 export const SAVED_ADDRESSES_STORAGE_KEY = 'cotton_nest_saved_addresses';
+
+export function getUserAddressStorageKey(userIdentifier?: string | null): string {
+  if (!userIdentifier || !userIdentifier.trim()) {
+    return `${SAVED_ADDRESSES_STORAGE_KEY}_guest`;
+  }
+  const clean = userIdentifier.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  return `${SAVED_ADDRESSES_STORAGE_KEY}_user_${clean}`;
+}
 
 export function formatFullAddress(addr: {
   addressLine: string;
@@ -66,20 +75,31 @@ function sanitizeName(n?: string): string {
 }
 
 /**
- * Retrieves saved addresses from localStorage, automatically merging profile address
- * and previous orders if the address book is empty.
+ * Retrieves saved addresses strictly scoped to an individual customer.
+ * Previous orders from other customers are NEVER seeded or included.
  */
 export function getSavedAddresses(
   profile?: CustomerProfile | null,
-  orders?: Order[]
+  userIdentifierOrOrders?: string | Order[] | null,
+  userIdentifier?: string | null
 ): SavedAddress[] {
   const list: SavedAddress[] = [];
   const seenAddresses = new Set<string>();
 
-  // 1. Load custom saved addresses from localStorage
+  // Determine user identifier for storage isolation
+  const resolvedUserKey =
+    typeof userIdentifier === 'string' && userIdentifier.trim()
+      ? userIdentifier.trim()
+      : typeof userIdentifierOrOrders === 'string' && userIdentifierOrOrders.trim()
+      ? userIdentifierOrOrders.trim()
+      : profile?.email || profile?.id || profile?.phone || null;
+
+  const storageKey = getUserAddressStorageKey(resolvedUserKey);
+
+  // 1. Load custom saved addresses from the customer's isolated localStorage partition
   try {
     if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(SAVED_ADDRESSES_STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
@@ -98,6 +118,7 @@ export function getSavedAddresses(
                   pincode: item.pincode?.trim() || '122003',
                   isDefault: Boolean(item.isDefault),
                   createdAt: Number(item.createdAt) || Date.now(),
+                  userId: resolvedUserKey || undefined,
                 });
               }
             }
@@ -106,10 +127,10 @@ export function getSavedAddresses(
       }
     }
   } catch (err) {
-    console.warn('Error reading saved addresses:', err);
+    console.warn('Error reading customer saved addresses:', err);
   }
 
-  // 2. If profile address exists and not in list, seed as default profile address
+  // 2. If profile address exists for this specific individual customer and not in list, seed it
   if (profile && profile.address && profile.address.trim()) {
     const norm = profile.address.toLowerCase().trim();
     if (!seenAddresses.has(norm)) {
@@ -124,66 +145,35 @@ export function getSavedAddresses(
         pincode: profile.pincode?.trim() || '122003',
         isDefault: list.length === 0,
         createdAt: Date.now() - 100000,
+        userId: resolvedUserKey || undefined,
       });
     }
   }
 
-  // 3. If list is still empty, seed default Sector 46 Gurgaon atelier address
-  if (list.length === 0) {
-    list.push({
-      id: 'addr_default_sec46',
-      label: 'Home / Studio',
-      name: sanitizeName(profile?.name || 'Cotton Nest'),
-      phone: profile?.phone || '+91 7838625915',
-      addressLine: 'House Number 2508, Ground Floor, Sector 46',
-      city: 'Gurgaon, Haryana',
-      pincode: '122003',
-      isDefault: true,
-      createdAt: Date.now() - 200000,
-    });
-  }
-
-  // 4. Optionally seed from recent orders (up to 2 recent distinct addresses)
-  if (orders && orders.length > 0) {
-    orders.forEach((ord) => {
-      if (ord.customerAddress && ord.customerAddress.trim()) {
-        const parsed = parseAddressString(ord.customerAddress);
-        const norm = parsed.addressLine.toLowerCase().trim();
-        if (norm && !seenAddresses.has(norm) && list.length < 5) {
-          seenAddresses.add(norm);
-          list.push({
-            id: `addr_order_${ord.id}`,
-            label: 'Previous Order',
-            name: sanitizeName(ord.customerName || profile?.name || 'Cotton Nest'),
-            phone: ord.customerPhone || profile?.phone || '',
-            addressLine: parsed.addressLine,
-            city: parsed.city,
-            pincode: parsed.pincode,
-            isDefault: false,
-            createdAt: typeof ord.createdAt === 'number' ? ord.createdAt : Date.now(),
-          });
-        }
-      }
-    });
-  }
-
+  // NOTE: Previous store orders are NEVER merged into saved addresses,
+  // guaranteeing that one customer's addresses are never visible to another.
   return list;
 }
 
 /**
- * Saves a new address or updates an existing address in the saved address book.
+ * Saves a new address or updates an existing address in the individual customer's address book.
  */
-export function saveAddressToBook(newAddr: {
-  id?: string;
-  label?: string;
-  name: string;
-  phone: string;
-  addressLine: string;
-  city?: string;
-  pincode?: string;
-  isDefault?: boolean;
-}): SavedAddress[] {
-  const current = getSavedAddresses();
+export function saveAddressToBook(
+  newAddr: {
+    id?: string;
+    label?: string;
+    name: string;
+    phone: string;
+    addressLine: string;
+    city?: string;
+    pincode?: string;
+    isDefault?: boolean;
+    userId?: string;
+  },
+  userIdentifier?: string | null
+): SavedAddress[] {
+  const resolvedUserKey = userIdentifier || newAddr.userId || null;
+  const current = getSavedAddresses(null, resolvedUserKey);
   const addressLine = newAddr.addressLine.trim();
   if (!addressLine) return current;
 
@@ -215,6 +205,7 @@ export function saveAddressToBook(newAddr: {
     pincode,
     isDefault: isDefault || filteredList.length === 0,
     createdAt: Date.now(),
+    userId: resolvedUserKey || undefined,
   };
 
   if (isDefault) {
@@ -225,9 +216,10 @@ export function saveAddressToBook(newAddr: {
 
   filteredList.unshift(entry);
 
+  const storageKey = getUserAddressStorageKey(resolvedUserKey);
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, JSON.stringify(filteredList));
+      localStorage.setItem(storageKey, JSON.stringify(filteredList));
     }
   } catch (err) {
     console.warn('Error saving address to localStorage:', err);
@@ -237,20 +229,20 @@ export function saveAddressToBook(newAddr: {
 }
 
 /**
- * Removes an address from the saved address book.
+ * Removes an address from the customer's saved address book.
  */
-export function deleteSavedAddress(id: string): SavedAddress[] {
-  const current = getSavedAddresses();
+export function deleteSavedAddress(id: string, userIdentifier?: string | null): SavedAddress[] {
+  const current = getSavedAddresses(null, userIdentifier);
   const updated = current.filter((a) => a.id !== id);
 
-  // Ensure at least one default if list is not empty
   if (updated.length > 0 && !updated.some((a) => a.isDefault)) {
     updated[0].isDefault = true;
   }
 
+  const storageKey = getUserAddressStorageKey(userIdentifier);
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(storageKey, JSON.stringify(updated));
     }
   } catch (err) {
     console.warn('Error deleting address from localStorage:', err);
@@ -260,18 +252,19 @@ export function deleteSavedAddress(id: string): SavedAddress[] {
 }
 
 /**
- * Sets a specific address as default.
+ * Sets a specific address as default for the customer.
  */
-export function setDefaultAddress(id: string): SavedAddress[] {
-  const current = getSavedAddresses();
+export function setDefaultAddress(id: string, userIdentifier?: string | null): SavedAddress[] {
+  const current = getSavedAddresses(null, userIdentifier);
   const updated = current.map((a) => ({
     ...a,
     isDefault: a.id === id,
   }));
 
+  const storageKey = getUserAddressStorageKey(userIdentifier);
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(storageKey, JSON.stringify(updated));
     }
   } catch (err) {
     console.warn('Error setting default address:', err);

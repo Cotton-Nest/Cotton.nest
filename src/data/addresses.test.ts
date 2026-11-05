@@ -5,7 +5,7 @@ import {
   parseAddressString,
   getSavedAddresses,
   saveAddressToBook,
-  SavedAddress,
+  getUserAddressStorageKey,
 } from './addresses';
 
 test('formatFullAddress combines addressLine, city and pincode cleanly', () => {
@@ -31,11 +31,9 @@ test('parseAddressString extracts pincode and city from standard Indian address 
   assert.equal(parsed.addressLine, 'Flat 204, Orchid Island, Sector 51');
 });
 
-test('getSavedAddresses returns fallback Sector 46 studio if localStorage and profile are empty', () => {
-  // Clear any mock localStorage if environment has it
-  const addresses = getSavedAddresses(null);
-  assert.ok(addresses.length > 0);
-  assert.ok(addresses[0].addressLine.includes('Sector 46'));
+test('getSavedAddresses returns empty list if no addresses saved for a customer', () => {
+  const addresses = getSavedAddresses(null, 'brand_new_customer_test@gmail.com');
+  assert.equal(addresses.length, 0);
 });
 
 test('getSavedAddresses incorporates customerProfile address when provided', () => {
@@ -51,4 +49,12 @@ test('getSavedAddresses incorporates customerProfile address when provided', () 
   const found = list.find((a) => a.addressLine.includes('Nirvana Country'));
   assert.ok(found, 'Profile address should be present in saved addresses list');
   assert.equal(found?.name, 'Ananya Sharma');
+});
+
+test('getUserAddressStorageKey properly isolates customer partitions', () => {
+  const key1 = getUserAddressStorageKey('userA@gmail.com');
+  const key2 = getUserAddressStorageKey('userB@gmail.com');
+  assert.notEqual(key1, key2);
+  assert.ok(key1.includes('usera_gmail_com'));
+  assert.ok(key2.includes('userb_gmail_com'));
 });
