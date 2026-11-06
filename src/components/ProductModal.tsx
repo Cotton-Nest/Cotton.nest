@@ -533,6 +533,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     <img
                       src={resolveBedsheetImage(product.image, product.id)}
                       alt="Cover"
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => handleImageFallback(e, product.id)}
                       className="w-full h-full object-cover"
                     />
@@ -572,6 +574,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           <img
                             src={resolveBedsheetImage(imgUrl, product.id)}
                             alt={`Angle ${idx + 1}`}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover"
                           />
                         )}

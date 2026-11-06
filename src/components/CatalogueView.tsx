@@ -107,7 +107,7 @@ function parseSearchQuery(query: string) {
   return { text, queryMinPrice, queryMaxPrice, exactOrApproxPrice };
 }
 
-type FilterCategoryTab = 'quick' | 'size' | 'productType' | 'brand' | 'price' | 'color' | 'pattern';
+type FilterCategoryTab = 'size' | 'material' | 'pattern' | 'productType' | 'price' | 'color' | 'brand' | 'quick';
 
 export const CatalogueView: React.FC<CatalogueViewProps> = ({
   products = BEDSHEETS_CATALOG,
@@ -154,38 +154,86 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     }
   };
 
-  // Multi-select Filters State
+  // Multi-select Filters State - Keeping Material & Pattern strictly separated
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
+  const [selectedPatterns, setSelectedPatterns] = useState<string[]>([]);
   const [selectedProductTypes, setSelectedProductTypes] = useState<string[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedPricePreset, setSelectedPricePreset] = useState<'all' | 'under-1200' | '1200-1500' | 'above-1500' | 'custom'>('all');
   const [customMinPrice, setCustomMinPrice] = useState('');
   const [customMaxPrice, setCustomMaxPrice] = useState('');
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
-  const [selectedPatterns, setSelectedPatterns] = useState<string[]>([]);
   const [selectedQuickFilters, setSelectedQuickFilters] = useState<string[]>([]);
 
   // Myntra-style 2-column Filter Modal State
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [activeFilterTab, setActiveFilterTab] = useState<FilterCategoryTab>('quick');
+  const [activeFilterTab, setActiveFilterTab] = useState<FilterCategoryTab>('size');
   const [categorySearch, setCategorySearch] = useState('');
 
   // Extract distinct dynamic filter choices and counts from actual products data
   const availableFilterData = useMemo(() => {
     const sizesSet = new Set<string>();
+    const materialsSet = new Set<string>();
+    const patternsSet = new Set<string>();
     const typesSet = new Set<string>();
     const brandsSet = new Set<string>();
     const colorsSet = new Set<string>();
-    const patternsSet = new Set<string>();
 
     // Seed with standard presets so catalog filters are rich and predictable
     STANDARD_SIZES.filter((s) => s !== 'Other').forEach((s) => sizesSet.add(s));
     STANDARD_PRODUCT_TYPES.filter((t) => t !== 'Other').forEach((t) => typesSet.add(t));
     POPULAR_BRANDS.forEach((b) => brandsSet.add(b));
 
+    // Curated pure cotton atelier fabric & material options (100% genuine)
+    const curatedMaterials = [
+      '100% Pure Natural Cotton',
+      '100% Glace Finish Cotton',
+      '100% Pure Percale Cotton',
+      '100% Luxury Percale Cotton',
+      '100% Long-Staple Cotton',
+      '100% Premium Egyptian Combed Cotton',
+      '100% Pure Organic Cotton',
+      'Triple-Layer Pure Mulmul Cotton',
+      '100% Sanganeri Weave Cotton',
+      '100% Cotton Outer Shell (Cloud-Fill)',
+    ];
+    curatedMaterials.forEach((m) => materialsSet.add(m));
+
+    // Curated design & pattern styles (100% genuine)
+    const curatedPatterns = [
+      'Vintage Rose Floral',
+      'Soft Sage Botanicals',
+      'Circular Floral Wreath',
+      'Golden Botanical Vines',
+      'Chevron Trellis & Floral',
+      'Poppy Meadow & Grid',
+      'Centerpiece Bouquet',
+      'Royal Paisley Jaal',
+      'Cobalt Blue Rose Print',
+      'Traditional Hand-Block Floral',
+      'Box-Stitched Reversible',
+    ];
+    curatedPatterns.forEach((pat) => patternsSet.add(pat));
+
     (products || []).forEach((p) => {
       if (!p) return;
       if (p.size && typeof p.size === 'string' && p.size.trim()) sizesSet.add(p.size.trim());
+      
+      // Distinct Material extraction from custom uploaded products
+      if (p.fabric && typeof p.fabric === 'string' && p.fabric.trim()) {
+        const cleanFab = p.fabric.trim();
+        const alreadyExists = Array.from(materialsSet).some((m) => m.toLowerCase() === cleanFab.toLowerCase());
+        if (!alreadyExists) materialsSet.add(cleanFab);
+      }
+
+      // Distinct Pattern extraction from custom uploaded products
+      if (p.pattern && typeof p.pattern === 'string' && p.pattern.trim()) {
+        const cleanPat = p.pattern.trim();
+        const alreadyExists = Array.from(patternsSet).some((pat) => pat.toLowerCase() === cleanPat.toLowerCase());
+        if (!alreadyExists) patternsSet.add(cleanPat);
+      }
+
       if (p.productType && typeof p.productType === 'string' && p.productType.trim()) {
         typesSet.add(normalizeProductCategory(p.productType));
       }
@@ -201,30 +249,24 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
       p.variants?.forEach((v) => {
         if (v && v.name && typeof v.name === 'string') colorsSet.add(v.name.trim());
       });
-
-      // Extract pattern / collections
-      if (p.pattern && typeof p.pattern === 'string') patternsSet.add(p.pattern.trim());
-      if (p.collection && typeof p.collection === 'string') patternsSet.add(p.collection.trim());
     });
 
     return {
       sizes: Array.from(sizesSet),
+      materials: Array.from(materialsSet),
+      patterns: Array.from(patternsSet),
       types: Array.from(typesSet),
       brands: Array.from(brandsSet),
       colors: Array.from(colorsSet).slice(0, 14),
-      patterns: Array.from(patternsSet).slice(0, 12),
     };
   }, [products]);
 
-  // Quick Filter Options (matching Screenshot 2 top pills)
+  // Clean, authentic Quick Filter Options for Cotton Nest with distinct Material and Pattern chips
   const quickFilterDefs = [
-    { id: 'diwali-price-drop', label: 'Diwali Price Drop', icon: TrendingUp },
-    { id: 'crazy-deal', label: 'Crazy Deal', icon: Percent },
-    { id: 'top-brands', label: 'Top Brands', icon: Zap },
-    { id: 'top-rated', label: 'Top Rated', icon: Star },
-    { id: 'global-finds', label: 'Global Finds', icon: Globe },
-    { id: 'pure-cotton', label: '100% Cotton', icon: Sparkles },
-    { id: 'king-size', label: 'King Size', icon: Box },
+    { id: 'pure-cotton', label: 'Material: 100% Cotton', icon: Feather },
+    { id: 'floral-pattern', label: 'Pattern: Floral & Botanicals', icon: LayoutGrid },
+    { id: 'king-size', label: 'Size: King (108×108)', icon: Box },
+    { id: 'top-rated', label: 'Top Rated 4.5★+', icon: Star },
   ];
 
   // Helper toggle functions for multi-select
@@ -233,22 +275,24 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   };
 
   const toggleSize = (size: string) => toggleArrayFilter(selectedSizes, size, setSelectedSizes);
+  const toggleMaterial = (mat: string) => toggleArrayFilter(selectedMaterials, mat, setSelectedMaterials);
+  const togglePattern = (pattern: string) => toggleArrayFilter(selectedPatterns, pattern, setSelectedPatterns);
   const toggleProductType = (type: string) => toggleArrayFilter(selectedProductTypes, type, setSelectedProductTypes);
   const toggleBrand = (brand: string) => toggleArrayFilter(selectedBrands, brand, setSelectedBrands);
   const toggleColor = (color: string) => toggleArrayFilter(selectedColors, color, setSelectedColors);
-  const togglePattern = (pattern: string) => toggleArrayFilter(selectedPatterns, pattern, setSelectedPatterns);
   const toggleQuickFilter = (qId: string) => toggleArrayFilter(selectedQuickFilters, qId, setSelectedQuickFilters);
 
   // Clear all filters
   const handleClearAllFilters = () => {
     setSelectedSizes([]);
+    setSelectedMaterials([]);
+    setSelectedPatterns([]);
     setSelectedProductTypes([]);
     setSelectedBrands([]);
     setSelectedPricePreset('all');
     setCustomMinPrice('');
     setCustomMaxPrice('');
     setSelectedColors([]);
-    setSelectedPatterns([]);
     setSelectedQuickFilters([]);
     setSearchQuery('');
   };
@@ -257,23 +301,25 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     count += selectedSizes.length;
+    count += selectedMaterials.length;
+    count += selectedPatterns.length;
     count += selectedProductTypes.length;
     count += selectedBrands.length;
     if (selectedPricePreset !== 'all' || customMinPrice !== '' || customMaxPrice !== '') count += 1;
     count += selectedColors.length;
-    count += selectedPatterns.length;
     count += selectedQuickFilters.length;
     if (searchQuery.trim()) count += 1;
     return count;
   }, [
     selectedSizes,
+    selectedMaterials,
+    selectedPatterns,
     selectedProductTypes,
     selectedBrands,
     selectedPricePreset,
     customMinPrice,
     customMaxPrice,
     selectedColors,
-    selectedPatterns,
     selectedQuickFilters,
     searchQuery
   ]);
@@ -360,45 +406,72 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           if (!matchesNum) return false;
         }
 
-        // 6. Color filter (Multi-select)
+        // 6. Material constraint (Multi-select: Separate from Pattern)
+        if (selectedMaterials.length > 0) {
+          const matchesMat = selectedMaterials.some((m) => {
+            const cleanM = String(m || '').toLowerCase();
+            const f = prodFabric.toLowerCase();
+            if (f.includes(cleanM) || cleanM.includes(f)) return true;
+            if (cleanM.includes('glace') && f.includes('glace')) return true;
+            if (cleanM.includes('percale') && f.includes('percale')) return true;
+            if (cleanM.includes('staple') && f.includes('staple')) return true;
+            if (cleanM.includes('egyptian') && (f.includes('egyptian') || f.includes('combed'))) return true;
+            if (cleanM.includes('organic') && f.includes('organic')) return true;
+            if (cleanM.includes('mulmul') && f.includes('mulmul')) return true;
+            if (cleanM.includes('sanganeri') && f.includes('sanganeri')) return true;
+            if (cleanM.includes('flannel') && (f.includes('flannel') || f.includes('cloud'))) return true;
+            if (cleanM.includes('pure natural') && (f.includes('natural') || f.includes('pure'))) return true;
+            return false;
+          });
+          if (!matchesMat) return false;
+        }
+
+        // 7. Pattern constraint (Multi-select: Separate from Material)
+        if (selectedPatterns.length > 0) {
+          const patternString = `${prodPatt} ${prodColl}`.toLowerCase();
+          const matchesPattern = selectedPatterns.some((p) => {
+            const cleanP = String(p || '').toLowerCase();
+            if (patternString.includes(cleanP) || cleanP.includes(patternString)) return true;
+            if (cleanP.includes('rose') && patternString.includes('rose')) return true;
+            if (cleanP.includes('floral') && (patternString.includes('floral') || patternString.includes('flower') || patternString.includes('bloom') || patternString.includes('bagh'))) return true;
+            if (cleanP.includes('botanical') && (patternString.includes('botanical') || patternString.includes('sage') || patternString.includes('vines'))) return true;
+            if (cleanP.includes('trellis') && (patternString.includes('trellis') || patternString.includes('chevron'))) return true;
+            if (cleanP.includes('grid') && (patternString.includes('grid') || patternString.includes('meadow'))) return true;
+            if (cleanP.includes('bouquet') && patternString.includes('bouquet')) return true;
+            if (cleanP.includes('paisley') && (patternString.includes('paisley') || patternString.includes('jaal'))) return true;
+            if (cleanP.includes('hand-block') && (patternString.includes('hand-block') || patternString.includes('block') || patternString.includes('traditional'))) return true;
+            if (cleanP.includes('geometric') && (patternString.includes('geometric') || patternString.includes('trellis') || patternString.includes('chevron'))) return true;
+            return false;
+          });
+          if (!matchesPattern) return false;
+        }
+
+        // 8. Color filter (Multi-select)
         if (selectedColors.length > 0) {
           const colorString = `${prodColor} ${product.variants?.map((v) => v?.name || '').join(' ') || ''}`.toLowerCase();
           const matchesColor = selectedColors.some((c) => colorString.includes(String(c || '').toLowerCase()));
           if (!matchesColor) return false;
         }
 
-        // 7. Pattern / Collection filter (Multi-select)
-        if (selectedPatterns.length > 0) {
-          const patternString = `${prodPatt} ${prodColl}`.toLowerCase();
-          const matchesPattern = selectedPatterns.some((p) => patternString.includes(String(p || '').toLowerCase()));
-          if (!matchesPattern) return false;
-        }
-
-        // 8. Quick Filter chips logic
-        const origPriceNum = Number(product.originalPrice) || priceNum;
-        if (selectedQuickFilters.includes('diwali-price-drop') || selectedQuickFilters.includes('crazy-deal')) {
-          if (origPriceNum <= priceNum) return false;
-        }
-        if (selectedQuickFilters.includes('top-brands')) {
-          const isTopBrand = ['Cotton Nest', 'Swayam', 'Spaces', 'Bombay Dyeing', 'Portico New York'].includes(itemBrand);
-          if (!isTopBrand) return false;
-        }
+        // 9. Quick Filter chips logic (distinct Material & Pattern quick filters)
         if (selectedQuickFilters.includes('top-rated')) {
           const r = getProductRatingSummary(product.id, reviews);
           if (r.average < 4.5 && r.count > 0) return false;
-        }
-        if (selectedQuickFilters.includes('global-finds')) {
-          if (!product.badge && !prodColl.toLowerCase().includes('heritage')) return false;
         }
         if (selectedQuickFilters.includes('pure-cotton')) {
           const isCotton = prodFabric.toLowerCase().includes('cotton') || prodFabric.toLowerCase().includes('percale');
           if (!isCotton) return false;
         }
+        if (selectedQuickFilters.includes('floral-pattern')) {
+          const pComb = `${prodPatt} ${prodColl}`.toLowerCase();
+          const isFloral = pComb.includes('floral') || pComb.includes('flower') || pComb.includes('rose') || pComb.includes('botanical') || pComb.includes('wreath') || pComb.includes('vines') || pComb.includes('meadow') || pComb.includes('bouquet');
+          if (!isFloral) return false;
+        }
         if (selectedQuickFilters.includes('king-size')) {
           if (itemSize !== 'King' && !dims.includes('108')) return false;
         }
 
-        // 9. Free-text Search
+        // 10. Free-text Search
         if (text) {
           const nameMatch = prodName.toLowerCase().includes(text);
           const materialMatch =
@@ -436,20 +509,21 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     products,
     searchQuery,
     selectedSizes,
+    selectedMaterials,
+    selectedPatterns,
     selectedProductTypes,
     selectedBrands,
     selectedPricePreset,
     customMinPrice,
     customMaxPrice,
     selectedColors,
-    selectedPatterns,
     selectedQuickFilters,
     sortBy,
     reviews
   ]);
 
   // Compute option product counts with 100% safe null-guards
-  const getCountForFilter = (type: 'size' | 'productType' | 'brand' | 'color' | 'pattern', value?: string) => {
+  const getCountForFilter = (type: 'size' | 'material' | 'pattern' | 'productType' | 'brand' | 'color', value?: string) => {
     if (!value) return 0;
     const cleanVal = String(value).toLowerCase().trim();
     return (products || []).filter((p) => {
@@ -472,6 +546,34 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         if (cleanVal.includes('baby')) return s.includes('baby') || dims.includes('40');
         return s.includes(cleanVal) || dims.includes(cleanVal);
       }
+      if (type === 'material') {
+        const f = String(p.fabric || '').toLowerCase();
+        if (f.includes(cleanVal) || cleanVal.includes(f)) return true;
+        if (cleanVal.includes('glace') && f.includes('glace')) return true;
+        if (cleanVal.includes('percale') && f.includes('percale')) return true;
+        if (cleanVal.includes('staple') && f.includes('staple')) return true;
+        if (cleanVal.includes('egyptian') && (f.includes('egyptian') || f.includes('combed'))) return true;
+        if (cleanVal.includes('organic') && f.includes('organic')) return true;
+        if (cleanVal.includes('mulmul') && f.includes('mulmul')) return true;
+        if (cleanVal.includes('sanganeri') && f.includes('sanganeri')) return true;
+        if (cleanVal.includes('flannel') && (f.includes('flannel') || f.includes('cloud'))) return true;
+        if (cleanVal.includes('pure natural') && (f.includes('natural') || f.includes('pure'))) return true;
+        return false;
+      }
+      if (type === 'pattern') {
+        const pComb = `${p.pattern || ''} ${p.collection || ''}`.toLowerCase();
+        if (pComb.includes(cleanVal) || cleanVal.includes(pComb)) return true;
+        if (cleanVal.includes('rose') && pComb.includes('rose')) return true;
+        if (cleanVal.includes('floral') && (pComb.includes('floral') || pComb.includes('flower') || pComb.includes('bloom') || pComb.includes('bagh'))) return true;
+        if (cleanVal.includes('botanical') && (pComb.includes('botanical') || pComb.includes('sage') || pComb.includes('vines'))) return true;
+        if (cleanVal.includes('trellis') && (pComb.includes('trellis') || pComb.includes('chevron'))) return true;
+        if (cleanVal.includes('grid') && (pComb.includes('grid') || pComb.includes('meadow'))) return true;
+        if (cleanVal.includes('bouquet') && pComb.includes('bouquet')) return true;
+        if (cleanVal.includes('paisley') && (pComb.includes('paisley') || pComb.includes('jaal'))) return true;
+        if (cleanVal.includes('hand-block') && (pComb.includes('hand-block') || pComb.includes('block') || pComb.includes('traditional'))) return true;
+        if (cleanVal.includes('geometric') && (pComb.includes('geometric') || pComb.includes('trellis') || pComb.includes('chevron'))) return true;
+        return false;
+      }
       if (type === 'productType') {
         return doesProductMatchCategory(p, value);
       }
@@ -481,12 +583,6 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
       }
       if (type === 'color') {
         return String(p.colorTone || '').toLowerCase().includes(cleanVal);
-      }
-      if (type === 'pattern') {
-        return (
-          String(p.pattern || '').toLowerCase().includes(cleanVal) ||
-          String(p.collection || '').toLowerCase().includes(cleanVal)
-        );
       }
       return false;
     }).length;
@@ -702,14 +798,17 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             )}
           </button>
 
-          {/* Quick Attribute Filter Triggers (Size, Price, Color, Brand) */}
+          {/* Quick Attribute Filter Triggers (Size, Material, Pattern, Color, Price, Brand) */}
           {[
-            { id: 'size' as FilterCategoryTab, label: 'Size', count: selectedSizes.length },
-            { id: 'price' as FilterCategoryTab, label: 'Price', count: (selectedPricePreset !== 'all' || customMinPrice || customMaxPrice) ? 1 : 0 },
-            { id: 'color' as FilterCategoryTab, label: 'Color', count: selectedColors.length },
-            { id: 'brand' as FilterCategoryTab, label: 'Brand', count: selectedBrands.length },
+            { id: 'size' as FilterCategoryTab, label: 'Size', count: selectedSizes.length, icon: Box },
+            { id: 'material' as FilterCategoryTab, label: 'Material', count: selectedMaterials.length, icon: Feather },
+            { id: 'pattern' as FilterCategoryTab, label: 'Pattern', count: selectedPatterns.length, icon: LayoutGrid },
+            { id: 'price' as FilterCategoryTab, label: 'Price', count: (selectedPricePreset !== 'all' || customMinPrice || customMaxPrice) ? 1 : 0, icon: IndianRupee },
+            { id: 'color' as FilterCategoryTab, label: 'Color', count: selectedColors.length, icon: Tag },
+            { id: 'brand' as FilterCategoryTab, label: 'Brand', count: selectedBrands.length, icon: ShieldCheck },
           ].map((tab) => {
             const hasSelection = tab.count > 0;
+            const TabIcon = tab.icon;
             return (
               <button
                 key={tab.id}
@@ -724,6 +823,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                     : 'bg-white text-[#4A3B32] border-[#EAE2D5] hover:border-[#DEC89B] hover:bg-[#FAF7F2] font-medium'
                 }`}
               >
+                <TabIcon className={`w-3.5 h-3.5 ${hasSelection ? 'text-[#8C2E46]' : 'text-[#8C7A70]'}`} />
                 <span>{tab.label}</span>
                 {hasSelection ? (
                   <span className="w-4 h-4 rounded-full bg-[#8C2E46] text-white text-[9px] font-bold flex items-center justify-center">
@@ -774,6 +874,28 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 >
                   Size: {s}
                   <button type="button" onClick={() => toggleSize(s)} className="cursor-pointer hover:font-bold">✕</button>
+                </span>
+              ))}
+
+              {selectedMaterials.map((m) => (
+                <span
+                  key={`mat-${m}`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#FFF7ED] text-[#9A3412] border border-[#FED7AA] shadow-2xs"
+                >
+                  <Feather className="w-3 h-3 text-[#EA580C]" />
+                  <span>Material: {m}</span>
+                  <button type="button" onClick={() => toggleMaterial(m)} className="cursor-pointer hover:font-bold ml-0.5 text-[#9A3412]">✕</button>
+                </span>
+              ))}
+
+              {selectedPatterns.map((p) => (
+                <span
+                  key={`pat-${p}`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F0FDF4] text-[#166534] border border-[#BBF7D0] shadow-2xs"
+                >
+                  <LayoutGrid className="w-3 h-3 text-[#16A34A]" />
+                  <span>Pattern: {p}</span>
+                  <button type="button" onClick={() => togglePattern(p)} className="cursor-pointer hover:font-bold ml-0.5 text-[#166534]">✕</button>
                 </span>
               ))}
 
@@ -839,17 +961,17 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             )}
           </div>
 
-          {/* View mode toggle buttons: 1 View (Single bedsheet at a time), Tile (Grid), List (Row) */}
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#DEC89B] shadow-2xs">
+          {/* View mode toggle buttons: 1 View (Single bedsheet at a time), Tile (Grid), List (Row) - Liquid Glass Container */}
+          <div className="flex items-center gap-1 liquid-glass-surface p-1 rounded-2xl border-white/80 shadow-2xs">
             <button
               type="button"
               onClick={() => handleViewModeChange('single')}
               title="1 View (One bedsheet at a time)"
               aria-label="1 View"
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === 'single'
                   ? 'bg-[#8C2E46] text-white shadow-xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#FAF7F2]'
+                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-white/60'
               }`}
             >
               <Square className="w-3.5 h-3.5" />
@@ -860,10 +982,10 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               onClick={() => handleViewModeChange('tile')}
               title="Tile View (Grid view)"
               aria-label="Tile View"
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === 'tile'
                   ? 'bg-[#8C2E46] text-white shadow-xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#FAF7F2]'
+                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-white/60'
               }`}
             >
               <Grid2X2 className="w-3.5 h-3.5" />
@@ -874,10 +996,10 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               onClick={() => handleViewModeChange('list')}
               title="List View (Horizontal cards)"
               aria-label="List View"
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === 'list'
                   ? 'bg-[#8C2E46] text-white shadow-xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-[#FAF7F2]'
+                  : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-white/60'
               }`}
             >
               <List className="w-3.5 h-3.5" />
@@ -892,7 +1014,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             key={viewMode}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             className={
               viewMode === 'single'
                 ? 'grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto'
@@ -904,18 +1026,19 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             {filteredProducts.map((product, idx) => (
               <motion.div
                 key={product.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 18 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-20px' }}
                 transition={{
-                  duration: 0.42,
-                  delay: Math.min(idx * 0.05, 0.25),
+                  duration: 0.45,
+                  delay: Math.min(idx * 0.04, 0.22),
                   ease: [0.16, 1, 0.3, 1],
                 }}
               >
                 <ProductCard
                   product={product}
                   viewMode={viewMode}
+                  priority={idx < 2}
                   onQuickView={onQuickView}
                   onAddToCart={onAddToCart}
                   isAdded={addedProductIds.has(product.id)}
@@ -960,9 +1083,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
       {/* ======================================================== */}
       {/* 6. MOBILE STICKY BOTTOM BAR (SORT & FILTER)              */}
-      {/* (Matching Screenshot 2 bottom bar: No Gender, pure SORT/FILTER) */}
-      {/* ======================================================== */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#EAE2D5] shadow-lg md:hidden">
+      {/* Positioned above the mobile bottom navigation bar (56px) */}
+      <div className="fixed bottom-[56px] inset-x-0 z-40 bg-white border-t border-[#EAE2D5] shadow-lg md:hidden">
         <div className="grid grid-cols-2 divide-x divide-[#EAE2D5] h-13">
           {/* SORT Button */}
           <button
@@ -1074,13 +1196,14 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               {/* Left Column: Categories List (~35% width, light gray background) */}
               <div className="w-[36%] sm:w-[32%] bg-[#F7F4EF] border-r border-[#EAE2D5] overflow-y-auto no-scrollbar">
                 {[
-                  { id: 'quick', label: 'Quick Filters', count: selectedQuickFilters.length },
-                  { id: 'size', label: 'Size', count: selectedSizes.length },
-                  { id: 'productType', label: 'Categories', count: selectedProductTypes.length },
-                  { id: 'brand', label: 'Brand', count: selectedBrands.length },
-                  { id: 'price', label: 'Price', count: (selectedPricePreset !== 'all' || customMinPrice || customMaxPrice) ? 1 : 0 },
-                  { id: 'color', label: 'Color', count: selectedColors.length },
-                  { id: 'pattern', label: 'Pattern & Material', count: selectedPatterns.length },
+                  { id: 'size', label: 'Size', count: selectedSizes.length, sub: 'Mattress fit' },
+                  { id: 'material', label: 'Material', count: selectedMaterials.length, sub: 'Fabric & Weave' },
+                  { id: 'pattern', label: 'Pattern', count: selectedPatterns.length, sub: 'Prints & Motifs' },
+                  { id: 'productType', label: 'Categories', count: selectedProductTypes.length, sub: 'Sheets & Covers' },
+                  { id: 'price', label: 'Price', count: (selectedPricePreset !== 'all' || customMinPrice || customMaxPrice) ? 1 : 0, sub: 'Budget & Ranges' },
+                  { id: 'color', label: 'Color', count: selectedColors.length, sub: 'Shades & Tones' },
+                  { id: 'brand', label: 'Brand', count: selectedBrands.length, sub: 'Atelier labels' },
+                  { id: 'quick', label: 'Quick Filters', count: selectedQuickFilters.length, sub: 'Trending' },
                 ].map((cat) => {
                   const isActive = activeFilterTab === cat.id;
                   return (
@@ -1091,13 +1214,20 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                         setActiveFilterTab(cat.id as FilterCategoryTab);
                         setCategorySearch('');
                       }}
-                      className={`w-full py-4 px-3 sm:px-4 text-left text-xs font-medium transition-colors cursor-pointer flex items-center justify-between border-b border-[#EAE2D5]/60 ${
+                      className={`w-full py-3 sm:py-3.5 px-3 sm:px-4 text-left text-xs transition-colors cursor-pointer flex items-center justify-between border-b border-[#EAE2D5]/60 ${
                         isActive
                           ? 'bg-white font-bold text-[#2C2420] border-l-4 border-l-[#8C2E46]'
                           : 'text-[#6B5D55] hover:bg-[#EFE9DF]'
                       }`}
                     >
-                      <span className="truncate">{cat.label}</span>
+                      <div className="min-w-0 pr-1">
+                        <span className={`block truncate ${isActive ? 'font-bold text-[#2C2420]' : 'font-semibold text-[#4A3B32]'}`}>
+                          {cat.label}
+                        </span>
+                        <span className="text-[10px] text-[#8C7A70] block truncate">
+                          {cat.sub}
+                        </span>
+                      </div>
                       {cat.count > 0 && (
                         <span className="w-4 h-4 rounded-full bg-[#8C2E46] text-white text-[9px] font-bold flex items-center justify-center shrink-0">
                           {cat.count}
@@ -1389,39 +1519,120 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                   </div>
                 )}
 
-                {/* 7. Pattern & Material Tab */}
-                {activeFilterTab === 'pattern' && (
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider mb-2">
-                      Pattern &amp; Collections
-                    </p>
+                {/* 7. Material Tab (Kept separately from Pattern) */}
+                {activeFilterTab === 'material' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider">
+                        Pure Cotton Fabric &amp; Material
+                      </p>
+                      <span className="text-[10px] text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded-full font-bold">
+                        100% Breathable
+                      </span>
+                    </div>
+
+                    {/* Search inside Materials */}
+                    {availableFilterData.materials.length > 5 && (
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8C7A70]" />
+                        <input
+                          type="text"
+                          placeholder="Search materials (Glace, Percale, Combed, Mulmul...)"
+                          value={categorySearch}
+                          onChange={(e) => setCategorySearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-lg text-xs focus:outline-hidden"
+                        />
+                      </div>
+                    )}
+
                     <div className="space-y-1">
-                      {availableFilterData.patterns.map((p) => {
-                        const isChecked = selectedPatterns.includes(p);
-                        const count = getCountForFilter('pattern', p);
-                        return (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => togglePattern(p)}
-                            className="w-full py-3 px-2 flex items-center justify-between text-left hover:bg-[#FAF7F2] rounded-xl transition-colors cursor-pointer group"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
-                                isChecked ? 'bg-[#8C2E46] text-white' : 'border border-[#C29E57]/60 group-hover:border-[#8C2E46]'
-                              }`}>
-                                {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                      {availableFilterData.materials
+                        .filter((m) => String(m || '').toLowerCase().includes(String(categorySearch || '').toLowerCase()))
+                        .map((m) => {
+                          const isChecked = selectedMaterials.includes(m);
+                          const count = getCountForFilter('material', m);
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => toggleMaterial(m)}
+                              className="w-full py-3 px-2 flex items-center justify-between text-left hover:bg-[#FAF7F2] rounded-xl transition-colors cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
+                                  isChecked ? 'bg-[#8C2E46] text-white' : 'border border-[#C29E57]/60 group-hover:border-[#8C2E46]'
+                                }`}>
+                                  {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <span className={`text-xs ${isChecked ? 'font-bold text-[#2C2420]' : 'text-[#6B5D55]'}`}>
+                                  {m}
+                                </span>
                               </div>
-                              <span className={`text-xs ${isChecked ? 'font-bold text-[#2C2420]' : 'text-[#6B5D55]'}`}>
-                                {p}
+                              <span className="text-[11px] text-[#8C7A70] tabular-nums font-medium">
+                                ({count})
                               </span>
-                            </div>
-                            <span className="text-[11px] text-[#8C7A70] tabular-nums font-medium">
-                              ({count})
-                            </span>
-                          </button>
-                        );
-                      })}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 8. Pattern Tab (Kept separately from Material) */}
+                {activeFilterTab === 'pattern' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider">
+                        Design &amp; Pattern Style
+                      </p>
+                      <span className="text-[10px] text-[#8C2E46] bg-[#FDEAF0] px-2 py-0.5 rounded-full font-bold">
+                        Artisanal Prints
+                      </span>
+                    </div>
+
+                    {/* Search inside Patterns */}
+                    {availableFilterData.patterns.length > 5 && (
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8C7A70]" />
+                        <input
+                          type="text"
+                          placeholder="Search pattern (Floral, Geometric, Rose, Trellis...)"
+                          value={categorySearch}
+                          onChange={(e) => setCategorySearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-lg text-xs focus:outline-hidden"
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      {availableFilterData.patterns
+                        .filter((p) => String(p || '').toLowerCase().includes(String(categorySearch || '').toLowerCase()))
+                        .map((p) => {
+                          const isChecked = selectedPatterns.includes(p);
+                          const count = getCountForFilter('pattern', p);
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => togglePattern(p)}
+                              className="w-full py-3 px-2 flex items-center justify-between text-left hover:bg-[#FAF7F2] rounded-xl transition-colors cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
+                                  isChecked ? 'bg-[#8C2E46] text-white' : 'border border-[#C29E57]/60 group-hover:border-[#8C2E46]'
+                                }`}>
+                                  {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <span className={`text-xs ${isChecked ? 'font-bold text-[#2C2420]' : 'text-[#6B5D55]'}`}>
+                                  {p}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-[#8C7A70] tabular-nums font-medium">
+                                ({count})
+                              </span>
+                            </button>
+                          );
+                        })}
                     </div>
                   </div>
                 )}

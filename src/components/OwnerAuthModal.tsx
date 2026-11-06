@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, X, KeyRound, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Lock, X, KeyRound, ShieldCheck, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 interface OwnerAuthModalProps {
   isOpen: boolean;
@@ -7,7 +7,9 @@ interface OwnerAuthModalProps {
   onAuthenticate: (openAdmin?: boolean) => void;
 }
 
-const DEFAULT_OWNER_PIN = '2508';
+// Strictly authorized safe PINs for Store Owner Admin access
+// 1234 has been permanently removed
+const ALLOWED_ADMIN_PINS = ['admin', '2508', 'aadi22', '123897'];
 
 export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
   isOpen,
@@ -15,15 +17,33 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
   onAuthenticate,
 }) => {
   const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const savedPin = localStorage.getItem('cotton_nest_owner_pin') || DEFAULT_OWNER_PIN;
+    const cleanPin = pin.trim();
 
-    if (pin === savedPin || pin === '1234' || pin === 'admin' || pin === '2508') {
+    // Explicitly reject 1234
+    if (cleanPin === '1234') {
+      setError(true);
+      return;
+    }
+
+    // Clean up obsolete 1234 from local storage if present
+    const savedPin = localStorage.getItem('cotton_nest_owner_pin');
+    if (savedPin === '1234') {
+      localStorage.removeItem('cotton_nest_owner_pin');
+    }
+
+    const isMatch =
+      ALLOWED_ADMIN_PINS.includes(cleanPin) ||
+      ALLOWED_ADMIN_PINS.includes(cleanPin.toLowerCase()) ||
+      Boolean(savedPin && savedPin !== '1234' && cleanPin === savedPin);
+
+    if (isMatch) {
       setError(false);
       setPin('');
       onAuthenticate(true);
@@ -60,32 +80,39 @@ export const OwnerAuthModal: React.FC<OwnerAuthModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-[11px] font-semibold text-[#7A6458] uppercase tracking-wider block mb-1.5">
-              Enter Owner Security PIN
+              Enter Owner Security PIN / Passcode
             </label>
             <div className="relative">
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8988D]" />
               <input
-                type="password"
-                inputMode="numeric"
+                type={showPin ? 'text' : 'password'}
                 autoFocus
-                maxLength={8}
+                maxLength={16}
                 value={pin}
                 onChange={(e) => {
                   setPin(e.target.value);
                   if (error) setError(false);
                 }}
-                placeholder="••••••••"
-                className={`w-full pl-9 pr-4 py-2.5 bg-white border rounded-xl text-sm font-semibold tracking-widest text-[#2C2420] focus:outline-hidden ${
+                placeholder="Enter authorized PIN"
+                className={`w-full pl-9 pr-10 py-2.5 bg-white border rounded-xl text-sm font-semibold tracking-wider text-[#2C2420] focus:outline-hidden ${
                   error
                     ? 'border-red-500 focus:border-red-600 bg-red-50/20'
                     : 'border-[#DEC89B] focus:border-[#C29E57]'
                 }`}
               />
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C7A70] hover:text-[#2C2420] cursor-pointer"
+                title={showPin ? 'Hide PIN' : 'Show PIN'}
+              >
+                {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
             {error && (
-              <p className="text-xs text-red-600 mt-1 flex items-center gap-1 font-medium">
+              <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1 font-medium">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                Incorrect PIN. Please try again.
+                Incorrect PIN. Only authorized owner pins are permitted.
               </p>
             )}
           </div>
