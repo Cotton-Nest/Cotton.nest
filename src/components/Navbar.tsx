@@ -303,31 +303,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* Desktop Only: Google Sign In / User Profile Button */}
-            <div className="hidden sm:block">
+            {/* Google Sign-In Card / User Profile Card (Visible in Mobile & Desktop Top Nav Bar) */}
+            <div className="flex items-center shrink-0">
               {isAuthenticated && user ? (
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl border border-[#DEC89B] bg-white hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 sm:gap-2 p-1.5 pr-2 sm:pr-2.5 rounded-xl border border-[#DEC89B] bg-white hover:bg-[#FAF7F2] transition-colors cursor-pointer shadow-2xs active:scale-95"
+                    title="Account & Profile"
                   >
                     {user.avatar ? (
                       <img
                         src={user.avatar}
                         alt={user.name}
-                        className="w-6 h-6 rounded-full object-cover border border-[#DEC89B]"
+                        className="w-6 h-6 rounded-full object-cover border border-[#DEC89B] shrink-0"
                       />
                     ) : (
-                      <div className="w-6 h-6 rounded-full bg-[#2C2420] text-[#DEC89B] flex items-center justify-center text-[10px] font-bold">
+                      <div className="w-6 h-6 rounded-full bg-[#2C2420] text-[#DEC89B] flex items-center justify-center text-[10px] font-bold shrink-0">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span className="text-xs font-medium text-[#2C2420] max-w-[85px] truncate">
+                    <span className="text-xs font-semibold text-[#2C2420] max-w-[65px] sm:max-w-[85px] truncate">
                       {user.name.split(' ')[0]}
                     </span>
                     {isAdmin && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider bg-[#8C2E46] text-white px-1.5 py-0.5 rounded-full">
+                      <span className="text-[9px] font-bold uppercase tracking-wider bg-[#8C2E46] text-white px-1.5 py-0.5 rounded-full shrink-0">
                         Admin
                       </span>
                     )}

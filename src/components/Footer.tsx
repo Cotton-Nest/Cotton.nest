@@ -35,10 +35,15 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="md:col-span-5 space-y-4">
             <button
               onClick={() => onNavClick('home')}
-              className="text-left font-serif-luxury text-2xl font-bold transition-colors cursor-pointer"
+              className="text-left font-serif-luxury text-2xl font-bold transition-colors cursor-pointer flex items-center gap-3 group"
               style={{ color: 'var(--color-footer-text,#FAF7F2)' }}
             >
-              Cotton Nest
+              <img
+                src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
+                alt="Cotton Nest Logo"
+                className="w-10 h-10 object-contain rounded-full bg-white/10 p-0.5 border border-[#DEC89B]/40 group-hover:scale-105 transition-transform shrink-0"
+              />
+              <span>Cotton Nest</span>
             </button>
             
             <p className="text-xs sm:text-sm max-w-sm leading-relaxed opacity-85">

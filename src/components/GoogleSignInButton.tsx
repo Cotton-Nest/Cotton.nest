@@ -109,8 +109,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         <button
           type="button"
           onClick={handleClick}
-          disabled={activeLoading}
-          className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[#2C2420] bg-white border border-[#EAE2D5] rounded-xl hover:border-[#DEC89B] hover:bg-[#FAF7F2] transition-all cursor-pointer shadow-2xs disabled:opacity-60 ${className}`}
+          className={`inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-[#2C2420] bg-white border border-[#DEC89B] rounded-xl hover:border-[#B83F60] hover:bg-[#FAF7F2] transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-60 shrink-0 ${className}`}
           title="Sign in with Google Identity Services (GIS)"
         >
           {activeLoading ? (

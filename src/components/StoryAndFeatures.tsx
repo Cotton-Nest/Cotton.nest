@@ -119,12 +119,26 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
               borderColor: 'var(--color-border, #EAE2D5)',
             }}
           >
-            <h3
-              className="font-serif-luxury text-2xl font-semibold"
-              style={{ color: 'var(--color-text, #2C2420)' }}
-            >
-              The Four Pillars of Cotton Nest
-            </h3>
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <img
+                src="/assets/aistudio/IMG-20261106-WA0032_3f856e9c.jpg"
+                alt="Cotton Nest Atelier Seal"
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-[#DEC89B] shadow-xs shrink-0"
+                onError={(e) => {
+                  // Fallback to Cloudinary transparent logo if local file not reached
+                  (e.target as HTMLElement).setAttribute('src', 'https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png');
+                }}
+              />
+              <div>
+                <h3
+                  className="font-serif-luxury text-xl sm:text-2xl font-semibold"
+                  style={{ color: 'var(--color-text, #2C2420)' }}
+                >
+                  The Four Pillars of Cotton Nest
+                </h3>
+                <p className="text-xs text-[#7A6458] mt-0.5">Pure Natural Yarns · Sector 46 Gurgaon Atelier</p>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {pillars.map((pillar, idx) => {
