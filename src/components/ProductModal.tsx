@@ -348,7 +348,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#2C2420]/60 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#2C2420]/50 backdrop-blur-sm"
     >
       <div className="fixed inset-0" onClick={onClose} />
 
@@ -356,12 +356,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         initial={{ opacity: 0, scale: 0.95, y: 18 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 360, damping: 30, mass: 0.85 }}
-        className="relative bg-[var(--color-surface,#FFFFFF)] w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--color-border,#EAE2D5)] shadow-2xl z-10 text-[var(--color-text,#2C2420)]"
+        className="relative liquid-glass-modal w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl z-10 text-[var(--color-text,#2C2420)]"
       >
         
         {/* Owner Edit Bar or Unlock Prompt */}
         {isOwnerMode ? (
-          <div className="bg-[#2C2420] text-white px-5 py-3 rounded-t-3xl flex items-center justify-between gap-3 text-xs border-b border-[#DEC89B]/30">
+          <div className="bg-[#2C2420]/90 backdrop-blur-md text-white px-5 py-3 rounded-t-3xl flex items-center justify-between gap-3 text-xs border-b border-[#DEC89B]/30">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="font-semibold text-[#EAE2D5]">Store Owner Mode</span>
@@ -380,7 +380,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 className={`px-3 py-1.5 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer ${
                   isEditing
                     ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                    : 'bg-[#8C2E46] hover:bg-[#A33452] text-white shadow-xs'
+                    : 'liquid-glass-primary-btn text-white'
                 }`}
               >
                 <Edit3 className="w-3.5 h-3.5" />
@@ -389,7 +389,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
           </div>
         ) : (
-          <div className="bg-[#FAF7F2] border-b border-[#EAE2D5] px-5 py-2.5 flex items-center justify-between text-xs rounded-t-3xl">
+          <div className="bg-white/60 backdrop-blur-md border-b border-white/75 px-5 py-2.5 flex items-center justify-between text-xs rounded-t-3xl">
             <span className="text-[11px] font-medium text-[#7A6458] flex items-center gap-1.5">
               <Sparkles className="w-3 h-3 text-[#C29E57]" />
               <span>Cotton Nest Atelier · Sector 46 Gurgaon · 100% Pure Combed Cotton</span>
@@ -401,7 +401,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         <button
           onClick={onClose}
           aria-label="Close product details"
-          className="absolute top-4 right-4 z-20 p-2 text-[#7A6458] hover:text-[#2C2420] rounded-full bg-white/80 backdrop-blur-xs border border-[#EAE2D5] transition-colors cursor-pointer"
+          className="absolute top-3.5 right-4 z-20 p-2 text-[#7A6458] hover:text-[#2C2420] rounded-full liquid-glass-badge transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -1205,7 +1205,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onNotifyStock?.(product)}
-                      className="w-full py-3.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer shadow-xs"
+                      className="w-full py-3.5 px-4 rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 bg-amber-50/90 backdrop-blur-md text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer shadow-xs"
                       title="Subscribe to restock alerts"
                     >
                       <Bell className="w-4 h-4 text-amber-600" />
@@ -1215,10 +1215,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     <button
                       type="button"
                       onClick={handleAddToCart}
-                      className={`w-full py-3.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      className={`w-full py-3.5 px-4 rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                         added
                           ? 'bg-emerald-700 text-white shadow-sm'
-                          : 'bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] shadow-xs hover:shadow-md'
+                          : 'liquid-glass-primary-btn text-white'
                       }`}
                     >
                       {added ? (
@@ -1238,7 +1238,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <button
                     type="button"
                     onClick={handleWhatsApp}
-                    className="w-full py-3.5 px-4 bg-[#FAF7F2] hover:bg-[#F4EFE6] text-[#2C2420] border border-[#DEC89B] rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    className="w-full py-3.5 px-4 liquid-glass-badge text-[#2C2420] rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
                     <MessageCircle className="w-4 h-4 text-emerald-600" />
                     <span>{isOutOfStock ? 'Waitlist on WhatsApp' : 'Enquire on WhatsApp'}</span>

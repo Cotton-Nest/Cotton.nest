@@ -21,13 +21,17 @@ export const Footer: React.FC<FooterProps> = ({
 }) => {
   return (
     <footer
-      className="border-t border-[var(--color-border,#EAE2D5)] pt-12 pb-24 md:pb-12 transition-colors"
+      className="liquid-glass-dark pt-12 pb-28 md:pb-12 transition-colors relative overflow-hidden"
       style={{
-        backgroundColor: 'var(--color-footer,#2C2420)',
         color: 'var(--color-footer-text,#FAF7F2)',
       }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Subtle champagne ambient reflection in dark glass footer */}
+      <div
+        className="pointer-events-none absolute -top-24 right-1/4 w-96 h-96 rounded-full opacity-20 blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(230,198,135,0.45) 0%, transparent 70%)' }}
+      />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-10 border-b border-white/10">
           
@@ -41,7 +45,7 @@ export const Footer: React.FC<FooterProps> = ({
               <img
                 src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
                 alt="Cotton Nest Logo"
-                className="w-10 h-10 object-contain rounded-full bg-white/10 p-0.5 border border-[#DEC89B]/40 group-hover:scale-105 transition-transform shrink-0"
+                className="w-10 h-10 object-contain rounded-full bg-white/15 backdrop-blur-md p-0.5 border border-white/30 group-hover:scale-105 transition-transform shrink-0 shadow-sm"
               />
               <span>Cotton Nest</span>
             </button>
@@ -89,7 +93,7 @@ export const Footer: React.FC<FooterProps> = ({
                   style={{ color: 'var(--color-accent, #C29E57)' }}
                 >
                   <span>Product Catalogue</span>
-                  <span className="text-[10px] bg-white/10 px-1.5 rounded border border-white/20">
+                  <span className="text-[10px] bg-white/10 backdrop-blur-xs px-1.5 rounded-md border border-white/20">
                     {productsCount} Bedsheets
                   </span>
                 </button>
@@ -116,7 +120,7 @@ export const Footer: React.FC<FooterProps> = ({
                   className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer flex items-center gap-1.5"
                 >
                   <span>Customer Reviews &amp; Comments</span>
-                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded border border-amber-400/30 font-semibold">
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded-md border border-amber-400/30 font-semibold">
                     4.9 ★
                   </span>
                 </button>
@@ -137,7 +141,7 @@ export const Footer: React.FC<FooterProps> = ({
                     className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer flex items-center gap-1.5"
                   >
                     <span>Store Performance &amp; Analytics (Admin)</span>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-400/30 font-semibold">
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded-md border border-emerald-400/30 font-semibold">
                       Owner
                     </span>
                   </button>
@@ -165,7 +169,7 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
 
           {/* Contact & Orders */}
-          <div className="md:col-span-4 space-y-3">
+          <div className="md:col-span-4 space-y-3 liquid-glass-dark-card p-5 rounded-2xl">
             <h4
               className="text-xs font-bold uppercase tracking-wider"
               style={{ color: 'var(--color-footer-text, #FAF7F2)' }}
@@ -182,7 +186,7 @@ export const Footer: React.FC<FooterProps> = ({
                 href={COMPANY_DETAILS.whatsappUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="py-2.5 px-3.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                className="py-2.5 px-3.5 bg-emerald-700/90 hover:bg-emerald-700 border border-emerald-400/30 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span>WhatsApp (+91 7838625915)</span>
@@ -190,7 +194,7 @@ export const Footer: React.FC<FooterProps> = ({
 
               <a
                 href={COMPANY_DETAILS.callUrl}
-                className="py-2.5 px-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                className="py-2.5 px-3.5 bg-white/10 hover:bg-white/20 border border-white/25 backdrop-blur-md text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all"
                 style={{ color: 'var(--color-footer-text, #FAF7F2)' }}
               >
                 <Phone className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />

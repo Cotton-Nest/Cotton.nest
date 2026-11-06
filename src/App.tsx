@@ -399,9 +399,9 @@ export default function App() {
     return getStoredPublishedTheme();
   });
 
-  // Apply theme to DOM on initial mount
+  // Apply theme & Liquid Glass variables to DOM on initial mount
   useEffect(() => {
-    applyThemeToDom(themeConfig.colors);
+    applyThemeToDom(themeConfig.colors, themeConfig.glassOpacity, themeConfig.glassBlur);
   }, []);
 
   // Fetch published theme from server API on initial load
@@ -412,7 +412,7 @@ export default function App() {
         if (isMounted && remoteTheme && remoteTheme.colors && isValidHex(remoteTheme.colors.primary)) {
           setThemeConfig(remoteTheme);
           saveStoredPublishedTheme(remoteTheme);
-          applyThemeToDom(remoteTheme.colors);
+          applyThemeToDom(remoteTheme.colors, remoteTheme.glassOpacity, remoteTheme.glassBlur);
         }
       })
       .catch(() => {});
@@ -424,7 +424,8 @@ export default function App() {
 
   const handleThemePublished = async (newTheme: WebsiteThemeConfig) => {
     setThemeConfig(newTheme);
-    applyThemeToDom(newTheme.colors);
+    saveStoredPublishedTheme(newTheme);
+    applyThemeToDom(newTheme.colors, newTheme.glassOpacity, newTheme.glassBlur);
     try {
       await savePublishedThemeApi(newTheme);
     } catch (err) {
@@ -836,7 +837,8 @@ export default function App() {
           const remoteTheme = docSnap.data() as WebsiteThemeConfig;
           if (remoteTheme && remoteTheme.colors && isValidHex(remoteTheme.colors.primary)) {
             setThemeConfig(remoteTheme);
-            applyThemeToDom(remoteTheme.colors);
+            saveStoredPublishedTheme(remoteTheme);
+            applyThemeToDom(remoteTheme.colors, remoteTheme.glassOpacity, remoteTheme.glassBlur);
           }
         }
       },
@@ -1505,6 +1507,14 @@ export default function App() {
         </ErrorBoundary>
       ) : (
         <>
+          {/* Ambient Apple Liquid Glass Refraction Canvas (Warm Champagne Gold, Blush Rose & Rosewood Spheres) */}
+          <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+            <div className="absolute -top-24 -left-20 w-[540px] h-[540px] rounded-full bg-gradient-to-br from-[#F9D3DE]/80 via-[#F3EBD7]/65 to-transparent blur-3xl animate-liquid-orb" />
+            <div className="absolute top-[22%] -right-28 w-[580px] h-[580px] rounded-full bg-gradient-to-bl from-[#E6D5B3]/75 via-[#FDEAF0]/65 to-transparent blur-3xl animate-liquid-orb" style={{ animationDelay: '-4s' }} />
+            <div className="absolute top-[55%] left-[12%] w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-[#F1ACC0]/55 via-[#E6D5B3]/60 to-transparent blur-3xl animate-liquid-orb" style={{ animationDelay: '-8s' }} />
+            <div className="absolute bottom-[4%] right-[16%] w-[460px] h-[460px] rounded-full bg-gradient-to-tl from-[#D4B982]/50 via-[#F9D3DE]/55 to-transparent blur-3xl animate-liquid-orb" style={{ animationDelay: '-11s' }} />
+          </div>
+
           {/* Top subtle golden luxury scroll progress indicator */}
           <motion.div
             style={{ scaleX: scrollProgressX, transformOrigin: '0%' }}
@@ -1575,8 +1585,7 @@ export default function App() {
                     {/* Featured Showcase: 3 Spotlight bedsheets from the 9 */}
                     <section
                       id="curated-highlights"
-                      className="py-12 sm:py-16 relative transition-colors duration-300"
-                      style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
+                      className="py-12 sm:py-16 relative z-10 transition-colors duration-300"
                     >
                       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         
@@ -1589,7 +1598,7 @@ export default function App() {
                         >
                           <div>
                             <div
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider mb-1"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider mb-2 px-3 py-1 rounded-full liquid-glass-badge"
                               style={{ color: 'var(--color-accent, #A8823B)' }}
                             >
                               <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
@@ -1610,14 +1619,14 @@ export default function App() {
                           </div>
 
                           <motion.button
-                            whileHover={{ x: 3 }}
+                            whileHover={{ x: 3, scale: 1.02 }}
                             whileTap={{ scale: 0.97 }}
                             onClick={() => {
                               setActiveTab('catalogue');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             style={{ color: 'var(--color-primary, #70252D)' }}
-                            className="inline-flex items-center gap-2 text-xs font-semibold hover:opacity-80 transition-all cursor-pointer group"
+                            className="inline-flex items-center gap-2 text-xs font-semibold px-4 py-2.5 rounded-full liquid-glass-badge hover:bg-white transition-all cursor-pointer group self-start md:self-auto"
                           >
                             <span>Browse All {products.length} Bedsheets in Catalogue</span>
                             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -1625,10 +1634,7 @@ export default function App() {
                         </motion.div>
 
                         {/* 3 Featured Cards Grid with Staggered Scroll Animations */}
-                        <div
-                          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 transition-colors duration-300"
-                          style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
-                        >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                           {products.slice(0, 3).map((product, idx) => (
                             <motion.div
                               key={product.id}
@@ -1639,6 +1645,7 @@ export default function App() {
                             >
                               <ProductCard
                                 product={product}
+                                priority={idx < 2}
                                 onQuickView={(p, editMode) => handleOpenProductModal(p, editMode)}
                                 onAddToCart={(p) => handleAddToCart(p, 1)}
                                 isAdded={addedProductIds.has(product.id)}
@@ -1666,18 +1673,16 @@ export default function App() {
                           className="mt-10 text-center"
                         >
                           <motion.button
-                            whileHover={{ y: -2, scale: 1.01 }}
+                            whileHover={{ y: -2, scale: 1.02 }}
                             whileTap={{ scale: 0.97 }}
                             onClick={() => {
                               setActiveTab('catalogue');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             style={{
-                              backgroundColor: 'var(--color-surface, #FFFFFF)',
                               color: 'var(--color-primary, #70252D)',
-                              borderColor: 'var(--color-border, #EAE2D5)',
                             }}
-                            className="px-8 py-3.5 hover:shadow-md border rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs"
+                            className="px-8 py-3.5 liquid-glass-dock hover:bg-white rounded-full text-xs sm:text-sm font-semibold inline-flex items-center gap-2.5 transition-all cursor-pointer"
                           >
                             <span>Open Full {products.length}-Sheet Catalogue</span>
                             <ArrowRight className="w-4 h-4" />
@@ -2101,23 +2106,18 @@ export default function App() {
         }}
       />
 
-      {/* Floating Smooth Scroll-to-Top Button */}
+      {/* Floating Smooth Scroll-to-Top Button (Apple Liquid Glass Orb) */}
       <AnimatePresence>
         {showScrollTop && (
           <motion.button
             initial={{ opacity: 0, scale: 0.8, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            whileHover={{ scale: 1.1, y: -2 }}
+            whileHover={{ scale: 1.12, y: -3 }}
             whileTap={{ scale: 0.92 }}
-            transition={{ duration: 0.25 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 24 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            style={{
-              backgroundColor: 'var(--color-surface, #FFFFFF)',
-              color: 'var(--color-text, #2C2420)',
-              borderColor: 'var(--color-border, #DEC89B)',
-            }}
-            className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40 p-3 backdrop-blur-md border rounded-full shadow-lg hover:shadow-xl transition-all cursor-pointer group"
+            className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40 p-3.5 liquid-glass-dock rounded-full transition-all cursor-pointer group"
             title="Scroll back to top"
             aria-label="Scroll back to top"
           >

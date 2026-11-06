@@ -33,6 +33,9 @@ import {
   getContrastRatio,
   getContrastTextColor,
   applyThemeToDom,
+  applyGlassVariablesToDom,
+  DEFAULT_GLASS_OPACITY,
+  DEFAULT_GLASS_BLUR,
   getStoredDraftTheme,
   saveStoredDraftTheme,
   clearStoredDraftTheme,
@@ -163,21 +166,49 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
 
-  // Apply preview on mount and whenever draft colors change (if preview mode is active)
+  // Liquid Glass Opacity (0.10 to 0.95) & Blur (8 to 44px)
+  const [glassOpacity, setGlassOpacity] = useState<number>(() => {
+    return currentTheme.glassOpacity ?? currentTheme.colors?.glassOpacity ?? DEFAULT_GLASS_OPACITY;
+  });
+  const [glassBlur, setGlassBlur] = useState<number>(() => {
+    return currentTheme.glassBlur ?? currentTheme.colors?.glassBlur ?? DEFAULT_GLASS_BLUR;
+  });
+
+  useEffect(() => {
+    const nextOp = currentTheme.glassOpacity ?? currentTheme.colors?.glassOpacity ?? DEFAULT_GLASS_OPACITY;
+    const nextBl = currentTheme.glassBlur ?? currentTheme.colors?.glassBlur ?? DEFAULT_GLASS_BLUR;
+    setGlassOpacity(nextOp);
+    setGlassBlur(nextBl);
+  }, [currentTheme.glassOpacity, currentTheme.glassBlur]);
+
+  // Apply preview on mount and whenever draft colors or glass settings change
   useEffect(() => {
     if (isPreviewActive) {
-      applyThemeToDom(draftColors);
+      applyThemeToDom(draftColors, glassOpacity, glassBlur);
     } else {
-      applyThemeToDom(currentTheme.colors);
+      applyThemeToDom(currentTheme.colors, currentTheme.glassOpacity, currentTheme.glassBlur);
     }
-  }, [draftColors, isPreviewActive, currentTheme.colors]);
+  }, [draftColors, glassOpacity, glassBlur, isPreviewActive, currentTheme.colors, currentTheme.glassOpacity, currentTheme.glassBlur]);
 
   // Clean up preview on unmount if draft wasn't published
   useEffect(() => {
     return () => {
-      applyThemeToDom(currentTheme.colors);
+      applyThemeToDom(currentTheme.colors, currentTheme.glassOpacity, currentTheme.glassBlur);
     };
-  }, [currentTheme.colors]);
+  }, [currentTheme.colors, currentTheme.glassOpacity, currentTheme.glassBlur]);
+
+  const handleGlassOpacityChange = (nextOpacity: number, nextBlur: number = glassBlur) => {
+    const clampedOp = Math.min(0.95, Math.max(0.10, Number(nextOpacity.toFixed(2))));
+    const clampedBl = Math.min(44, Math.max(8, Math.round(nextBlur)));
+    setGlassOpacity(clampedOp);
+    setGlassBlur(clampedBl);
+    setDraftColors((prev) => {
+      const updated = { ...prev, glassOpacity: clampedOp, glassBlur: clampedBl };
+      saveStoredDraftTheme(updated);
+      return updated;
+    });
+    applyGlassVariablesToDom(clampedOp, clampedBl);
+  };
 
   // Handle color change (from visual picker or hex input)
   const handleColorChange = (key: keyof ThemeColors, rawValue: string) => {
@@ -266,7 +297,7 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
   const handlePublishTheme = async () => {
     // Validate all fields
     const hasErrors = Object.keys(errors).length > 0;
-    const invalidFields = COLOR_FIELDS.filter((f) => !isValidHex(draftColors[f.key] || ''));
+    const invalidFields = COLOR_FIELDS.filter((f) => !isValidHex(String(draftColors[f.key] || '')));
 
     if (hasErrors || invalidFields.length > 0) {
       setStatusMessage({
@@ -287,8 +318,12 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
     const newThemeConfig: WebsiteThemeConfig = {
       activeThemeId: selectedPresetId,
       themeName: themeName || 'Custom Website Theme',
+      glassOpacity,
+      glassBlur,
       colors: {
         ...draftColors,
+        glassOpacity,
+        glassBlur,
         primaryContrast: getContrastTextColor(draftColors.primary),
         secondaryContrast: getContrastTextColor(draftColors.secondary),
         headerText: draftColors.headerText || getContrastTextColor(draftColors.header),
@@ -300,14 +335,14 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
     };
 
     try {
-      // 1. Save to server API (persisted to store_db.json file)
+      // 1. Save to server API (persisted to Firestore & local storage)
       await savePublishedThemeApi(newThemeConfig);
 
       // 2. Clear draft since it is now published
       clearStoredDraftTheme();
 
       // 3. Apply permanently to DOM
-      applyThemeToDom(newThemeConfig.colors);
+      applyThemeToDom(newThemeConfig.colors, glassOpacity, glassBlur);
 
       // 4. Notify parent app
       onThemePublished(newThemeConfig);
@@ -582,6 +617,141 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
             <RotateCcw className="w-3 h-3" />
             Restore Original Cotton Nest Theme
           </button>
+        </div>
+      </div>
+
+      {/* SECTION 1.5: APPLE LIQUID GLASS OPACITY & BLUR CONTROLLER */}
+      <div className="liquid-glass-card rounded-3xl p-6 lg:p-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE2D5]/70 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#C29E57]" />
+              <h3 className="font-serif-luxury text-xl font-bold text-[#2C2420]">
+                Apple Liquid Glass Opacity &amp; Refraction
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#FDEAF0] text-[#8C2E46] border border-[#FAD1DC]">
+                Live Control
+              </span>
+            </div>
+            <p className="text-xs text-[#7A6458] mt-1">
+              Adjust the translucency (opacity) and optical blur of all Liquid Glass product cards, navigation bars, badges, and panels across the store.
+            </p>
+          </div>
+
+          {/* Quick Glass Presets */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { label: 'Crystal Clear (25%)', opacity: 0.25, blur: 32 },
+              { label: 'Apple Liquid (45%)', opacity: 0.45, blur: 28 },
+              { label: 'Soft Frosted (65%)', opacity: 0.65, blur: 24 },
+              { label: 'Satin Opaque (85%)', opacity: 0.85, blur: 18 },
+            ].map((preset) => {
+              const isActive = Math.abs(glassOpacity - preset.opacity) < 0.03;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => handleGlassOpacityChange(preset.opacity, preset.blur)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                    isActive
+                      ? 'bg-[#70252D] text-white border-[#70252D] shadow-xs'
+                      : 'bg-white/80 hover:bg-white text-[#2C2420] border-[#DEC89B]'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+          {/* Sliders */}
+          <div className="space-y-5">
+            {/* Opacity Slider */}
+            <div className="p-4 rounded-2xl bg-white/70 border border-white/90 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
+                  Glass Surface Opacity
+                </label>
+                <span className="px-2.5 py-0.5 rounded-lg bg-[#70252D] text-white font-mono text-xs font-bold">
+                  {Math.round(glassOpacity * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={95}
+                step={1}
+                value={Math.round(glassOpacity * 100)}
+                onChange={(e) => handleGlassOpacityChange(Number(e.target.value) / 100, glassBlur)}
+                className="w-full accent-[#70252D] cursor-pointer h-2 bg-[#EAE2D5] rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-[#8C7A70] font-medium">
+                <span>10% (Ultra Translucent)</span>
+                <span>45% (Apple Default)</span>
+                <span>95% (Solid Frosted)</span>
+              </div>
+            </div>
+
+            {/* Blur Slider */}
+            <div className="p-4 rounded-2xl bg-white/70 border border-white/90 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
+                  Optical Refraction Blur
+                </label>
+                <span className="px-2.5 py-0.5 rounded-lg bg-[#C29E57] text-white font-mono text-xs font-bold">
+                  {glassBlur}px
+                </span>
+              </div>
+              <input
+                type="range"
+                min={8}
+                max={44}
+                step={1}
+                value={glassBlur}
+                onChange={(e) => handleGlassOpacityChange(glassOpacity, Number(e.target.value))}
+                className="w-full accent-[#C29E57] cursor-pointer h-2 bg-[#EAE2D5] rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-[#8C7A70] font-medium">
+                <span>8px (Crisp Lens)</span>
+                <span>28px (Apple Liquid)</span>
+                <span>44px (Deep Frost)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Interactive Glass Card Refraction Preview */}
+          <div className="relative rounded-3xl p-5 overflow-hidden border border-[#DEC89B]/60 bg-[#FAF7F2] min-h-[210px] flex items-center justify-center">
+            {/* Underlying animated color orbs to demonstrate glass translucency */}
+            <div className="absolute -top-6 -left-6 w-36 h-36 rounded-full bg-gradient-to-br from-[#E27B97] to-[#F9D3DE] opacity-75 blur-xl animate-pulse" />
+            <div className="absolute -bottom-8 -right-6 w-40 h-40 rounded-full bg-gradient-to-tl from-[#C29E57] to-[#F3EBD7] opacity-80 blur-xl animate-pulse" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full bg-[#70252D]/35 blur-xl" />
+
+            {/* Sample Liquid Glass Product Card */}
+            <div className="relative z-10 w-full max-w-xs liquid-glass-product-card rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C2E46] liquid-glass-badge px-2.5 py-0.5 rounded-full">
+                  Live Glass Preview
+                </span>
+                <span className="text-[11px] font-mono font-bold text-[#2C2420]">
+                  {Math.round(glassOpacity * 100)}% · {glassBlur}px
+                </span>
+              </div>
+              <h4 className="font-serif-luxury text-base font-bold text-[#2C2420]">
+                Nandini Gulabi Bagh Rose
+              </h4>
+              <p className="text-[11px] text-[#5E5048] leading-snug">
+                Notice how the glowing rose and champagne spheres refract through this glass card as you drag the opacity slider.
+              </p>
+              <div className="pt-1 flex items-center justify-between">
+                <span className="text-sm font-bold text-[#2C2420]">₹1,320</span>
+                <span className="px-3 py-1 rounded-xl text-[11px] font-semibold liquid-glass-primary-btn text-white">
+                  Publish Theme to Save
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -48,10 +48,7 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
   ];
 
   return (
-    <section
-      className="py-12 sm:py-16 relative transition-colors duration-300"
-      style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
-    >
+    <section className="py-12 sm:py-16 relative z-10 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         
         {/* Story Intro with Scroll Reveal */}
@@ -65,7 +62,7 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             className="lg:col-span-6 space-y-5"
           >
             <div
-              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider"
+              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-full liquid-glass-badge"
               style={{ color: 'var(--color-accent, #C29E57)' }}
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -94,38 +91,31 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             </p>
 
             <div className="pt-2">
-              <button
+              <motion.button
+                whileHover={{ y: -2, scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={onGoToCatalogue}
-                className="px-6 py-3 text-xs font-semibold rounded-xl shadow-xs transition-all hover:shadow-md cursor-pointer active:scale-98"
-                style={{
-                  backgroundColor: 'var(--color-primary, #70252D)',
-                  color: 'var(--color-primary-contrast, #FFFFFF)',
-                }}
+                className="px-6 py-3.5 text-xs font-semibold rounded-2xl liquid-glass-primary-btn text-white transition-all cursor-pointer"
               >
                 Browse Our Signature Bedsheets
-              </button>
+              </motion.button>
             </div>
           </motion.div>
 
-          {/* Visual Showcase Card with Staggered Pillars */}
+          {/* Visual Showcase Card with Staggered Liquid Glass Pillars */}
           <motion.div
             initial={{ opacity: 0, y: 35 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-50px' }}
             transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="lg:col-span-6 rounded-3xl p-6 sm:p-8 border space-y-6"
-            style={{
-              backgroundColor: 'var(--color-surface, #FFFFFF)',
-              borderColor: 'var(--color-border, #EAE2D5)',
-            }}
+            className="lg:col-span-6 rounded-3xl p-6 sm:p-8 liquid-glass-card space-y-6"
           >
             <div className="flex items-center gap-3.5 sm:gap-4">
               <img
                 src="/assets/aistudio/IMG-20261106-WA0032_3f856e9c.jpg"
                 alt="Cotton Nest Atelier Seal"
-                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-[#DEC89B] shadow-xs shrink-0"
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-white/90 shadow-xs shrink-0"
                 onError={(e) => {
-                  // Fallback to Cloudinary transparent logo if local file not reached
                   (e.target as HTMLElement).setAttribute('src', 'https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png');
                 }}
               />
@@ -148,20 +138,15 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
                     key={pillar.title}
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
+                    whileHover={{ y: -3, scale: 1.01 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: 0.15 + idx * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                    className="p-4 rounded-2xl border space-y-2 transition-colors"
-                    style={{
-                      backgroundColor: 'var(--color-background, #FAF7F2)',
-                      borderColor: 'var(--color-border, #EAE2D5)',
-                    }}
+                    className="p-4 rounded-2xl liquid-glass-surface space-y-2 transition-all"
                   >
                     <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center border"
+                      className="w-9 h-9 rounded-xl flex items-center justify-center liquid-glass-badge"
                       style={{
-                        backgroundColor: 'color-mix(in srgb, var(--color-primary, #70252D) 10%, transparent)',
                         color: 'var(--color-primary, #70252D)',
-                        borderColor: 'color-mix(in srgb, var(--color-primary, #70252D) 20%, transparent)',
                       }}
                     >
                       <IconComponent className="w-4 h-4" />
@@ -187,17 +172,13 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
 
         </div>
 
-        {/* The Pure Cotton Difference: Visual Comparison Strip with Scroll Animation */}
+        {/* The Pure Cotton Difference: Visual Comparison Strip with Apple Liquid Glass */}
         <motion.div
           initial={{ opacity: 0, y: 35 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-50px' }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="rounded-3xl p-6 sm:p-8 border shadow-xs space-y-6"
-          style={{
-            backgroundColor: 'var(--color-surface, #FFFFFF)',
-            borderColor: 'var(--color-border, #EAE2D5)',
-          }}
+          className="rounded-3xl p-6 sm:p-8 liquid-glass-card space-y-6"
         >
           <div className="text-center max-w-xl mx-auto space-y-1">
             <span
@@ -222,19 +203,13 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             <motion.div
               whileHover={{ y: -3 }}
               transition={{ duration: 0.2 }}
-              className="p-5 sm:p-6 rounded-2xl border-2 space-y-4 relative overflow-hidden"
-              style={{
-                backgroundColor: 'var(--color-background, #FAF7F2)',
-                borderColor: 'var(--color-accent, #C29E57)',
-              }}
+              className="p-5 sm:p-6 rounded-2xl liquid-glass-surface space-y-4 relative overflow-hidden border-[#C29E57]/60"
             >
               <div className="flex items-center justify-between">
                 <span
-                  className="px-3 py-1 text-xs font-bold rounded-full border"
+                  className="px-3 py-1 text-xs font-bold rounded-full liquid-glass-badge"
                   style={{
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary, #70252D) 12%, transparent)',
                     color: 'var(--color-primary, #70252D)',
-                    borderColor: 'color-mix(in srgb, var(--color-primary, #70252D) 25%, transparent)',
                   }}
                 >
                   Cotton Nest Pure Cotton
@@ -267,14 +242,10 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             <motion.div
               whileHover={{ y: -3 }}
               transition={{ duration: 0.2 }}
-              className="p-5 sm:p-6 rounded-2xl border space-y-4 opacity-75"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--color-background, #FAF7F2) 60%, #FFFFFF)',
-                borderColor: 'var(--color-border, #EAE2D5)',
-              }}
+              className="p-5 sm:p-6 rounded-2xl liquid-glass-surface space-y-4 opacity-80"
             >
               <div className="flex items-center justify-between">
-                <span className="px-3 py-1 bg-neutral-200 text-neutral-700 text-xs font-semibold rounded-full">
+                <span className="px-3 py-1 bg-neutral-200/80 text-neutral-700 text-xs font-semibold rounded-full">
                   Conventional Microfiber
                 </span>
                 <span className="text-xs font-medium text-neutral-500">
@@ -309,8 +280,7 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-40px' }}
           transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-          className="pt-8 border-t"
-          style={{ borderColor: 'var(--color-border, #EAE2D5)' }}
+          className="pt-8 border-t border-white/80"
         >
           <div className="text-center max-w-xl mx-auto mb-8 space-y-1">
             <h3
@@ -328,13 +298,10 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -3 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="p-4 rounded-xl border space-y-1.5"
-              style={{
-                backgroundColor: 'var(--color-surface, #FFFFFF)',
-                borderColor: 'var(--color-border, #EAE2D5)',
-              }}
+              className="p-5 rounded-2xl liquid-glass-card space-y-1.5"
             >
               <p className="font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-text, #2C2420)' }}>
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> First Wash Tip
@@ -347,13 +314,10 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -3 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="p-4 rounded-xl border space-y-1.5"
-              style={{
-                backgroundColor: 'var(--color-surface, #FFFFFF)',
-                borderColor: 'var(--color-border, #EAE2D5)',
-              }}
+              className="p-5 rounded-2xl liquid-glass-card space-y-1.5"
             >
               <p className="font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-text, #2C2420)' }}>
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Detergent &amp; Bleach
@@ -366,13 +330,10 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -3 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="p-4 rounded-xl border space-y-1.5"
-              style={{
-                backgroundColor: 'var(--color-surface, #FFFFFF)',
-                borderColor: 'var(--color-border, #EAE2D5)',
-              }}
+              className="p-5 rounded-2xl liquid-glass-card space-y-1.5"
             >
               <p className="font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-text, #2C2420)' }}>
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Line Dry in Shade

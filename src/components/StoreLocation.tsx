@@ -20,10 +20,8 @@ export const StoreLocation: React.FC = () => {
   return (
     <section
       id="store-location"
-      className="py-12 sm:py-16 border-t transition-colors duration-300"
+      className="py-12 sm:py-16 border-t border-white/70 relative z-10 transition-colors duration-300"
       style={{
-        backgroundColor: 'var(--color-background, #FAF7F2)',
-        borderColor: 'var(--color-border, #EAE2D5)',
         color: 'var(--color-text, #2C2420)',
       }}
     >
@@ -38,7 +36,7 @@ export const StoreLocation: React.FC = () => {
           className="text-center max-w-2xl mx-auto mb-10 space-y-2"
         >
           <div
-            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-full liquid-glass-badge"
             style={{ color: 'var(--color-accent, #A8823B)' }}
           >
             <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
@@ -71,16 +69,10 @@ export const StoreLocation: React.FC = () => {
           >
             
             {/* Main Physical Address Card */}
-            <div
-              className="p-6 sm:p-7 rounded-2xl border shadow-xs space-y-5"
-              style={{
-                backgroundColor: 'var(--color-surface, #FFFFFF)',
-                borderColor: 'var(--color-border, #EAE2D5)',
-              }}
-            >
+            <div className="p-6 sm:p-7 rounded-3xl liquid-glass-card space-y-5">
               
               <div className="flex items-start gap-4">
-                <div className="p-3 bg-[#FDEAF0] text-[#B83F60] rounded-xl border border-[#F9D3DE] shrink-0">
+                <div className="p-3 liquid-glass-badge text-[#B83F60] rounded-2xl shrink-0">
                   <MapPin className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
@@ -101,12 +93,12 @@ export const StoreLocation: React.FC = () => {
               </div>
 
               {/* Action Buttons for Map & Call */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-[#EAE2D5]">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-white/80">
                 <a
                   href={`https://www.google.com/maps/search/?api=1&query=${COMPANY_DETAILS.mapQuery}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#F4EFE6] border border-[#DEC89B] text-[#2C2420] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="py-2.5 px-3 liquid-glass-badge hover:bg-white text-[#2C2420] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Navigation className="w-4 h-4 text-[#C29E57]" />
                   <span>Google Maps</span>
@@ -114,7 +106,7 @@ export const StoreLocation: React.FC = () => {
 
                 <a
                   href={COMPANY_DETAILS.callUrl}
-                  className="py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#F4EFE6] border border-[#EAE2D5] text-[#2C2420] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="py-2.5 px-3 liquid-glass-badge hover:bg-white text-[#2C2420] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Phone className="w-4 h-4 text-[#B83F60]" />
                   <span>+91 7838625915</span>
@@ -124,7 +116,7 @@ export const StoreLocation: React.FC = () => {
                   href={COMPANY_DETAILS.whatsappUrl("Hello Cotton Nest! I would like to get directions to your Sector 46 Gurgaon store.")}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="py-2.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  className="py-2.5 px-3 bg-emerald-700/95 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>WhatsApp Chat</span>
@@ -136,13 +128,7 @@ export const StoreLocation: React.FC = () => {
             {/* Timings and Visiting Guidelines */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
-              <div
-                className="p-5 rounded-xl border space-y-2"
-                style={{
-                  backgroundColor: 'var(--color-surface, #FFFFFF)',
-                  borderColor: 'var(--color-border, #EAE2D5)',
-                }}
-              >
+              <div className="p-5 rounded-2xl liquid-glass-card space-y-2">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-accent, #A8823B)' }}>
                   <Clock className="w-4 h-4" style={{ color: 'var(--color-accent, #C29E57)' }} />
                   Visiting Hours
@@ -153,18 +139,12 @@ export const StoreLocation: React.FC = () => {
                 <p className="text-xs" style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
                   10:00 AM – 8:30 PM (IST)
                 </p>
-                <p className="text-[11px] pt-1 border-t" style={{ borderColor: 'var(--color-border, #EAE2D5)', color: 'var(--color-text-secondary, #7A6458)' }}>
+                <p className="text-[11px] pt-1 border-t border-white/75" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>
                   Walk-ins welcome, or call ahead for dedicated fabric showing.
                 </p>
               </div>
 
-              <div
-                className="p-5 rounded-xl border space-y-2"
-                style={{
-                  backgroundColor: 'var(--color-surface, #FFFFFF)',
-                  borderColor: 'var(--color-border, #EAE2D5)',
-                }}
-              >
+              <div className="p-5 rounded-2xl liquid-glass-card space-y-2">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase" style={{ color: 'var(--color-primary, #B83F60)' }}>
                   <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--color-primary, #B83F60)' }} />
                   Gurgaon Local Perks
@@ -175,7 +155,7 @@ export const StoreLocation: React.FC = () => {
                 <p className="text-xs" style={{ color: 'var(--color-text-secondary, #6B5D55)' }}>
                   Instant express delivery to Sectors 45, 46, 47, 50, Cyber City &amp; Golf Course.
                 </p>
-                <p className="text-[11px] pt-1 border-t" style={{ borderColor: 'var(--color-border, #EAE2D5)', color: 'var(--color-text-secondary, #7A6458)' }}>
+                <p className="text-[11px] pt-1 border-t border-white/75" style={{ color: 'var(--color-text-secondary, #7A6458)' }}>
                   Orders confirmed &amp; dispatched directly over WhatsApp.
                 </p>
               </div>
@@ -192,13 +172,7 @@ export const StoreLocation: React.FC = () => {
             transition={{ duration: 0.65, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
             className="lg:col-span-5"
           >
-            <div
-              className="p-6 sm:p-7 rounded-2xl border shadow-xs space-y-4"
-              style={{
-                backgroundColor: 'var(--color-surface, #FFFFFF)',
-                borderColor: 'var(--color-border, #EAE2D5)',
-              }}
-            >
+            <div className="p-6 sm:p-7 rounded-3xl liquid-glass-card space-y-4">
               
               <div>
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-accent, #A8823B)' }}>
@@ -223,12 +197,7 @@ export const StoreLocation: React.FC = () => {
                     placeholder="e.g. Ananya Kapoor"
                     value={inquiryName}
                     onChange={(e) => setInquiryName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none"
-                    style={{
-                      backgroundColor: 'var(--color-background, #F4EFE6)',
-                      borderColor: 'var(--color-border, #EAE2D5)',
-                      color: 'var(--color-text, #2C2420)',
-                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420]"
                   />
                 </div>
 
@@ -242,12 +211,7 @@ export const StoreLocation: React.FC = () => {
                     placeholder="+91 98765 43210"
                     value={inquiryPhone}
                     onChange={(e) => setInquiryPhone(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none"
-                    style={{
-                      backgroundColor: 'var(--color-background, #F4EFE6)',
-                      borderColor: 'var(--color-border, #EAE2D5)',
-                      color: 'var(--color-text, #2C2420)',
-                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420]"
                   />
                 </div>
 
@@ -260,22 +224,13 @@ export const StoreLocation: React.FC = () => {
                     placeholder="e.g. I want to see the Gulabi Bagh Rose and Shivaura Trellis bedsheets in person this Saturday..."
                     value={inquiryMsg}
                     onChange={(e) => setInquiryMsg(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none"
-                    style={{
-                      backgroundColor: 'var(--color-background, #F4EFE6)',
-                      borderColor: 'var(--color-border, #EAE2D5)',
-                      color: 'var(--color-text, #2C2420)',
-                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420]"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--color-primary, #70252D)',
-                    color: 'var(--color-primary-contrast, #FFFFFF)',
-                  }}
+                  className="w-full py-3.5 text-xs font-semibold rounded-2xl flex items-center justify-center gap-2 liquid-glass-primary-btn text-white transition-all cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Send Direct WhatsApp Message</span>

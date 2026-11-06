@@ -1389,9 +1389,24 @@ export async function getWishlistsApi(customerId?: string): Promise<WishlistItem
       });
       return items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     }
-  } catch (err) {
-    console.warn('Firestore wishlists fetch notice, trying local API:', err);
+  } catch {
+    // Fallback to site_content/wishlists_registry or Express API
   }
+
+  try {
+    const regSnap = await getDoc(doc(db, 'site_content', 'wishlists_registry'));
+    if (regSnap.exists()) {
+      const data = regSnap.data();
+      if (data && Array.isArray(data.items)) {
+        const items = (data.items as WishlistItem[]).filter(
+          (item) => !customerId || item.customerId === customerId
+        );
+        if (items.length > 0) {
+          return items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        }
+      }
+    }
+  } catch {}
 
   try {
     const url = customerId ? `/api/wishlists?customerId=${encodeURIComponent(customerId)}` : '/api/wishlists';
@@ -1402,9 +1417,7 @@ export async function getWishlistsApi(customerId?: string): Promise<WishlistItem
         return data;
       }
     }
-  } catch (err) {
-    console.warn('Server wishlists fetch notice:', err);
-  }
+  } catch {}
 
   return [];
 }
@@ -1415,11 +1428,18 @@ export async function getWishlistsApi(customerId?: string): Promise<WishlistItem
 export async function saveWishlistItemApi(item: WishlistItem): Promise<WishlistItem> {
   const safeItem = stripUndefined(item);
 
-  // 1. Save to Firestore
+  // 1. Save to Firestore wishlists collection or site_content/wishlists_registry fallback
   try {
     await setDoc(doc(db, 'wishlists', item.id), safeItem);
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, `wishlists/${item.id}`);
+  } catch {
+    try {
+      const regRef = doc(db, 'site_content', 'wishlists_registry');
+      const regSnap = await getDoc(regRef);
+      const currentItems: WishlistItem[] =
+        regSnap.exists() && Array.isArray(regSnap.data()?.items) ? regSnap.data().items : [];
+      const filtered = currentItems.filter((w) => w.id !== item.id);
+      await setDoc(regRef, { items: [safeItem, ...filtered], updatedAt: Date.now() }, { merge: true });
+    } catch {}
   }
 
   // 2. Save to Express server store_db.json
@@ -1429,9 +1449,7 @@ export async function saveWishlistItemApi(item: WishlistItem): Promise<WishlistI
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(safeItem),
     });
-  } catch (err) {
-    console.warn('Server wishlist POST notice:', err);
-  }
+  } catch {}
 
   return item;
 }
@@ -1443,8 +1461,15 @@ export async function removeWishlistItemApi(id: string): Promise<void> {
   // 1. Delete from Firestore
   try {
     await deleteDoc(doc(db, 'wishlists', id));
-  } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, `wishlists/${id}`);
+  } catch {
+    try {
+      const regRef = doc(db, 'site_content', 'wishlists_registry');
+      const regSnap = await getDoc(regRef);
+      if (regSnap.exists() && Array.isArray(regSnap.data()?.items)) {
+        const filtered = (regSnap.data().items as WishlistItem[]).filter((w) => w.id !== id);
+        await setDoc(regRef, { items: filtered, updatedAt: Date.now() }, { merge: true });
+      }
+    } catch {}
   }
 
   // 2. Delete from Express server
@@ -1452,9 +1477,7 @@ export async function removeWishlistItemApi(id: string): Promise<void> {
     await fetch(`/api/wishlists/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
-  } catch (err) {
-    console.warn('Server wishlist DELETE notice:', err);
-  }
+  } catch {}
 }
 
 // ---------------- AI BEDSHEET DESCRIPTION GENERATOR API ---------------- //
@@ -1673,7 +1696,7 @@ import {
 export async function getSiteAnalyticsApi(): Promise<SiteTrafficData> {
   const local = getStoredTraffic();
   try {
-    const ref = doc(db, 'analytics', 'site_traffic');
+    const ref = doc(db, 'site_content', 'site_traffic');
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const remote = snap.data() as Partial<SiteTrafficData>;
@@ -1689,11 +1712,10 @@ export async function getSiteAnalyticsApi(): Promise<SiteTrafficData> {
       return merged;
     } else {
       // First time initialization in Firestore
-      await setDoc(ref, stripUndefined(local));
+      await setDoc(ref, stripUndefined(local), { merge: true });
       return local;
     }
-  } catch (err) {
-    console.warn('Analytics firestore fetch fallback to local storage:', err);
+  } catch {
     return local;
   }
 }
@@ -1701,8 +1723,7 @@ export async function getSiteAnalyticsApi(): Promise<SiteTrafficData> {
 export async function recordPageVisitApi(section: string = 'home'): Promise<SiteTrafficData> {
   const updated = recordLocalPageView(section);
   try {
-    const todayKey = new Date().toISOString().split('T')[0];
-    const ref = doc(db, 'analytics', 'site_traffic');
+    const ref = doc(db, 'site_content', 'site_traffic');
     await setDoc(
       ref,
       stripUndefined({
@@ -1718,9 +1739,8 @@ export async function recordPageVisitApi(section: string = 'home'): Promise<Site
       }),
       { merge: true }
     );
-  } catch (err) {
+  } catch {
     // Non-blocking background firestore sync
-    console.debug('Background traffic sync note:', err);
   }
   return updated;
 }

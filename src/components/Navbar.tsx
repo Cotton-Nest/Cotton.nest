@@ -72,13 +72,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* Subtle announcement bar */}
+      {/* Subtle Apple Liquid Glass announcement bar */}
       <aside
         aria-label="Announcement"
-        className="border-b text-xs py-1.5 px-4 text-center transition-colors"
+        className="relative z-40 border-b border-white/80 text-xs py-1.5 px-4 text-center transition-colors bg-white/55 backdrop-blur-xl"
         style={{
-          backgroundColor: 'var(--color-surface, #F4EFE6)',
-          borderColor: 'var(--color-border, #EAE2D5)',
           color: 'var(--color-text-secondary, #7A6458)',
         }}
       >
@@ -99,8 +97,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </aside>
 
-      {/* Main Header strictly adhering to the 3-zone Top Bar Contract */}
-      <header className="sticky top-0 z-40 bg-[var(--color-header,#FAF7F2)]/95 backdrop-blur-md border-b border-[var(--color-border,#EAE2D5)] transition-all">
+      {/* Main Header with Apple Liquid Glass */}
+      <header className="sticky top-0 z-40 liquid-glass-nav transition-all">
         <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between">
           
           {/* Zone 1: Logo and Brand Name */}
@@ -124,62 +122,69 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </motion.button>
 
-          {/* Zone 2: Clean text navigation links with fluid active state indicator */}
-          <nav className="hidden md:flex items-center gap-8 lg:gap-10 text-sm font-medium">
+          {/* Zone 2: Apple Liquid Glass Capsule Navigation Dock with Sliding Glass Pill */}
+          <nav className="hidden md:flex items-center gap-1.5 lg:gap-2 text-sm font-medium p-1.5 rounded-full liquid-glass-dock">
             <button
               onClick={() => handleNavClick('home')}
-              className={`transition-colors relative py-1.5 cursor-pointer ${
+              className={`transition-colors relative px-4 py-1.5 rounded-full cursor-pointer whitespace-nowrap ${
                 activeTab === 'home'
-                  ? 'text-[var(--color-text,#2C2420)] font-semibold'
+                  ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
               }`}
             >
-              Home
               {activeTab === 'home' && (
                 <motion.span
                   layoutId="desktop-nav-underline"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
                 />
               )}
+              <span className="relative z-10">Home</span>
             </button>
 
             {/* Catalogue Tab */}
             <button
               onClick={() => handleNavClick('catalogue')}
-              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
+              className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'catalogue'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
               }`}
             >
-              <span>Catalogue</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--color-background,#FAF7F2)] text-[var(--color-primary,#70252D)] border border-[var(--color-border,#EAE2D5)]">
-                {productsCount} Designs
-              </span>
               {activeTab === 'catalogue' && (
                 <motion.span
                   layoutId="desktop-nav-underline"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
                 />
               )}
+              <span className="relative z-10">Catalogue</span>
+              <span className="relative z-10 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/80 text-[var(--color-primary,#70252D)] border border-white/90 shadow-2xs">
+                {productsCount} Designs
+              </span>
             </button>
 
             {/* Seasonal Festive Page Tab (Dynamic Name & Visibility from Admin) */}
             {seasonalConfig?.enabled && (
               <button
                 onClick={() => handleNavClick('seasonal')}
-                className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 group ${
+                className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 group whitespace-nowrap ${
                   activeTab === 'seasonal'
                     ? 'text-[var(--color-primary,#70252D)] font-semibold'
                     : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                <span>{seasonalConfig.name || 'Festive Sale'}</span>
+                {activeTab === 'seasonal' && (
+                  <motion.span
+                    layoutId="desktop-nav-underline"
+                    transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                    className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
+                  />
+                )}
+                <Sparkles className="relative z-10 w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                <span className="relative z-10">{seasonalConfig.name || 'Festive Sale'}</span>
                 <span
-                  className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded shadow-2xs"
+                  className="relative z-10 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-2xs"
                   style={{
                     backgroundColor: 'var(--color-primary, #70252D)',
                     color: 'var(--color-primary-contrast, #FFFFFF)',
@@ -187,82 +192,75 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   {seasonalConfig.badge || 'Sale'}
                 </span>
-                {activeTab === 'seasonal' && (
-                  <motion.span
-                    layoutId="desktop-nav-underline"
-                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
-                  />
-                )}
               </button>
             )}
 
             {/* Customer Reviews Tab */}
             <button
               onClick={() => handleNavClick('reviews')}
-              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
+              className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'reviews'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
               }`}
             >
-              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-              <span>Reviews</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
-                4.9 ★
-              </span>
               {activeTab === 'reviews' && (
                 <motion.span
                   layoutId="desktop-nav-underline"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
                 />
               )}
+              <Star className="relative z-10 w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              <span className="relative z-10">Reviews</span>
+              <span className="relative z-10 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50/90 text-amber-900 border border-amber-200/80">
+                4.9 ★
+              </span>
             </button>
 
             {/* Analysis Tab - STRICTLY FOR ADMIN ONLY */}
             {isAdmin && (
               <button
                 onClick={() => handleNavClick('analytics')}
-                className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
+                className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'analytics'
                     ? 'text-[var(--color-primary,#70252D)] font-semibold'
                     : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
                 }`}
                 title="Store Traffic & Performance Analytics (Admin Only)"
               >
-                <BarChart3 className="w-3.5 h-3.5 text-[#70252D]" />
-                <span>Analysis</span>
-                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-[#70252D] text-white">
-                  Admin
-                </span>
                 {activeTab === 'analytics' && (
                   <motion.span
                     layoutId="desktop-nav-underline"
-                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                    transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                    className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
                   />
                 )}
+                <BarChart3 className="relative z-10 w-3.5 h-3.5 text-[#70252D]" />
+                <span className="relative z-10">Analysis</span>
+                <span className="relative z-10 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-[#70252D] text-white">
+                  Admin
+                </span>
               </button>
             )}
 
             {/* T&C Tab */}
             <button
               onClick={() => handleNavClick('tc')}
-              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
+              className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'tc'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
               }`}
             >
-              <span>T&amp;C</span>
               {activeTab === 'tc' && (
                 <motion.span
                   layoutId="desktop-nav-underline"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
                 />
               )}
+              <span className="relative z-10">T&amp;C</span>
             </button>
           </nav>
 
@@ -441,13 +439,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Desktop Only: Account Hub CTA */}
             {onOpenAccount && (
               <motion.button
-                whileHover={{ y: -1 }}
+                whileHover={{ y: -1, scale: 1.02 }}
                 whileTap={{ scale: 0.95 }}
                 type="button"
                 onClick={onOpenAccount}
                 aria-label="My Account"
                 title="My Account"
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-[#2C2420] hover:text-[#8C2E46] bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] rounded-xl transition-all cursor-pointer shadow-2xs"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#2C2420] hover:text-[#8C2E46] liquid-glass-badge hover:bg-white rounded-full transition-all cursor-pointer"
               >
                 <User className="w-3.5 h-3.5 text-[#8C2E46]" />
                 <span>Account</span>
@@ -457,17 +455,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Desktop Only: Notification Bell CTA */}
             {onOpenNotifications && (
               <motion.button
-                whileHover={{ scale: 1.05 }}
+                whileHover={{ scale: 1.06, y: -1 }}
                 whileTap={{ scale: 0.92 }}
                 type="button"
                 onClick={onOpenNotifications}
                 aria-label="Customer Notification Center"
                 title="Notifications & Updates"
-                className="hidden sm:inline-flex relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-xl hover:bg-black/5 cursor-pointer"
+                className="hidden sm:inline-flex relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-all rounded-full liquid-glass-badge hover:bg-white cursor-pointer"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-4.5 h-4.5" />
                 {unreadNotificationsCount > 0 && (
-                  <span className="absolute top-1 right-1 min-w-4 h-4 px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums animate-pulse">
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs">
                     {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                   </span>
                 )}
@@ -476,13 +474,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Shopping Bag CTA - Optimized for both Mobile & Desktop */}
             <motion.button
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.06, y: -1 }}
               whileTap={{ scale: 0.92 }}
               onClick={openCart}
               aria-label="View Shopping Bag"
-              className="relative p-2 sm:p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-xl bg-white/60 sm:bg-transparent border border-[#EAE2D5] sm:border-transparent hover:bg-[#F4EFE6] cursor-pointer shrink-0"
+              className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-all rounded-full liquid-glass-badge hover:bg-white cursor-pointer shrink-0"
             >
-              <ShoppingBag className="w-5 h-5" />
+              <ShoppingBag className="w-4.5 h-4.5" />
               <AnimatePresence mode="popLayout">
                 {cartCount > 0 && (
                   <motion.span
@@ -491,7 +489,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.4, opacity: 0 }}
                     transition={{ type: 'spring', stiffness: 450, damping: 20 }}
-                    className="absolute -top-1 -right-1 sm:top-1 sm:right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-[var(--color-primary-contrast,#FFFFFF)] text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs"
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-[var(--color-primary-contrast,#FFFFFF)] text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs"
                   >
                     {cartCount}
                   </motion.span>
@@ -504,14 +502,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               whileTap={{ scale: 0.92 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation menu"
-              className="md:hidden p-2 text-[#2C2420] hover:bg-[#F4EFE6] rounded-xl cursor-pointer border border-[#DEC89B] bg-white shadow-2xs shrink-0 flex items-center justify-center"
+              className="md:hidden p-2 text-[#2C2420] hover:bg-white rounded-full cursor-pointer liquid-glass-badge shrink-0 flex items-center justify-center"
             >
               {mobileMenuOpen ? <X className="w-5 h-5 text-[#70252D]" /> : <Menu className="w-5 h-5" />}
             </motion.button>
           </div>
         </div>
 
-        {/* Redesigned Luxury Mobile Menu Drawer */}
+        {/* Redesigned Luxury Mobile Menu Drawer with Apple Liquid Glass */}
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div
@@ -519,7 +517,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="md:hidden bg-[#FAF7F2] border-b border-[#EAE2D5] px-4 pt-3 pb-8 space-y-4 shadow-xl overflow-y-auto max-h-[85vh]"
+              className="md:hidden liquid-glass-modal border-b border-white/80 px-4 pt-3 pb-8 space-y-4 overflow-y-auto max-h-[85vh]"
             >
               {/* Card 1: User Profile & 1-Tap Google Sign-In */}
               {isAuthenticated && user ? (

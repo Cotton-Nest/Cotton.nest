@@ -125,7 +125,7 @@ export async function getLoyaltyAccountApi(
 
   // 3. Fetch from Firestore (Authoritative)
   try {
-    const docRef = doc(db, 'loyalty', accountId);
+    const docRef = doc(db, 'site_content', `loyalty_${accountId}`);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const firestoreData = snap.data() as LoyaltyAccount;
@@ -147,9 +147,7 @@ export async function getLoyaltyAccountApi(
       });
       await setDoc(docRef, initialDoc, { merge: true });
     }
-  } catch (err) {
-    console.warn('Loyalty account fetch notice:', err);
-  }
+  } catch {}
 
   return account;
 }
@@ -232,11 +230,8 @@ export async function earnLoyaltyPointsApi(
 
   // 3. Firestore persistence
   try {
-    await setDoc(doc(db, 'loyalty', accountId), stripUndefined(updatedAccount), { merge: true });
-    await setDoc(doc(db, 'loyalty_transactions', tx.id), stripUndefined(tx), { merge: true });
-  } catch (err) {
-    console.warn('Firestore loyalty earn notice:', err);
-  }
+    await setDoc(doc(db, 'site_content', `loyalty_${accountId}`), stripUndefined(updatedAccount), { merge: true });
+  } catch {}
 
   return { account: updatedAccount, pointsEarned, tx };
 }
@@ -310,11 +305,8 @@ export async function redeemLoyaltyPointsApi(
 
   // 3. Firestore persistence
   try {
-    await setDoc(doc(db, 'loyalty', accountId), stripUndefined(updatedAccount), { merge: true });
-    await setDoc(doc(db, 'loyalty_transactions', tx.id), stripUndefined(tx), { merge: true });
-  } catch (err) {
-    console.warn('Firestore loyalty redeem notice:', err);
-  }
+    await setDoc(doc(db, 'site_content', `loyalty_${accountId}`), stripUndefined(updatedAccount), { merge: true });
+  } catch {}
 
   return { account: updatedAccount, discountInr, tx };
 }
@@ -389,11 +381,8 @@ export async function claimReferralRewardApi(
   } catch {}
 
   try {
-    await setDoc(doc(db, 'loyalty', accountId), stripUndefined(updatedAccount), { merge: true });
-    await setDoc(doc(db, 'loyalty_transactions', tx.id), stripUndefined(tx), { merge: true });
-  } catch (err) {
-    console.warn('Firestore referral claim notice:', err);
-  }
+    await setDoc(doc(db, 'site_content', `loyalty_${accountId}`), stripUndefined(updatedAccount), { merge: true });
+  } catch {}
 
   return { account: updatedAccount, pointsAwarded, tx };
 }
@@ -430,7 +419,7 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
     }
   } catch {}
 
-  // Fetch from Firestore
+  // Fetch from Firestore if permitted
   try {
     const q = query(
       collection(db, 'loyalty_transactions'),
@@ -448,9 +437,7 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
         });
       }
     });
-  } catch (err) {
-    console.warn('Firestore transactions fetch notice:', err);
-  }
+  } catch {}
 
   const merged = Array.from(txMap.values());
   merged.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));

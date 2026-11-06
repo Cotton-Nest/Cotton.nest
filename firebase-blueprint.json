@@ -74,12 +74,14 @@
     },
     "ThemeConfig": {
       "title": "ThemeConfig",
-      "description": "Website active theme and festival color configuration.",
+      "description": "Website active theme, Liquid Glass opacity/blur, and festival color configuration.",
       "type": "object",
       "properties": {
         "activeThemeId": { "type": "string", "description": "Preset or custom theme ID" },
         "themeName": { "type": "string", "description": "Display name of active theme" },
-        "colors": { "type": "object", "description": "Color hex values for theme elements" },
+        "glassOpacity": { "type": "number", "description": "Liquid Glass surface opacity (0.10 to 0.95)" },
+        "glassBlur": { "type": "number", "description": "Liquid Glass optical backdrop blur in pixels (8 to 44)" },
+        "colors": { "type": "object", "description": "Color hex values and glass settings for theme elements" },
         "updatedAt": { "type": "number", "description": "Timestamp of theme publication" },
         "updatedBy": { "type": "string", "description": "Admin email or identifier" }
       },

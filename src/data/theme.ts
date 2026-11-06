@@ -13,6 +13,8 @@ export interface ThemeColors {
   footer: string;            // Footer background color
   footerText?: string;       // Footer text and link color
   border?: string;           // Subtle card and divider borders
+  glassOpacity?: number;     // Adjustable Apple Liquid Glass opacity (0.10 to 0.95, default 0.45)
+  glassBlur?: number;        // Adjustable Apple Liquid Glass backdrop blur in px (8 to 44, default 28)
 }
 
 export interface ThemePreset {
@@ -29,10 +31,15 @@ export interface WebsiteThemeConfig {
   activeThemeId: string;
   themeName: string;
   colors: ThemeColors;
+  glassOpacity?: number;     // Global Liquid Glass opacity (0.10 to 0.95)
+  glassBlur?: number;        // Global Liquid Glass blur in px (8 to 44)
   updatedAt: number;
   updatedBy?: string;
   version?: number;
 }
+
+export const DEFAULT_GLASS_OPACITY = 0.45; // 45% translucent Apple Liquid Glass
+export const DEFAULT_GLASS_BLUR = 28;      // 28px optical refraction blur
 
 // 1. Classic Cotton Nest (Original signature palette)
 export const CLASSIC_COTTON_NEST_COLORS: ThemeColors = {
@@ -50,6 +57,8 @@ export const CLASSIC_COTTON_NEST_COLORS: ThemeColors = {
   footer: '#2C2420',           // Deep espresso luxury footer
   footerText: '#FAF7F2',
   border: '#EAE2D5',
+  glassOpacity: DEFAULT_GLASS_OPACITY,
+  glassBlur: DEFAULT_GLASS_BLUR,
 };
 
 // 2. Festival Theme Presets (All 6 standard presets)
@@ -248,13 +257,44 @@ export function getContrastTextColor(bgHex: string): string {
   return whiteRatio >= darkRatio ? '#FFFFFF' : '#1A202C';
 }
 
-/* ---------------- DOM THEME APPLICATION ---------------- */
+/* ---------------- DOM THEME & LIQUID GLASS APPLICATION ---------------- */
 
 /**
- * Applies the given theme colors to the document's root CSS custom variables.
- * This updates all buttons, navbar, cards, texts, and accents immediately.
+ * Applies Apple Liquid Glass opacity (0.10 to 0.95) and blur (8px to 44px)
+ * directly to the root CSS custom properties for instant 60fps updates.
  */
-export function applyThemeToDom(colors: ThemeColors): void {
+export function applyGlassVariablesToDom(glassOpacity?: number, glassBlur?: number): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+
+  const rawOpacity = typeof glassOpacity === 'number' && !isNaN(glassOpacity)
+    ? glassOpacity
+    : DEFAULT_GLASS_OPACITY;
+  const opacity = Math.min(0.95, Math.max(0.10, Number(rawOpacity.toFixed(2))));
+
+  const rawBlur = typeof glassBlur === 'number' && !isNaN(glassBlur)
+    ? glassBlur
+    : DEFAULT_GLASS_BLUR;
+  const blur = Math.min(48, Math.max(6, Math.round(rawBlur)));
+
+  const opacityHigh = Math.min(0.97, Number((opacity + 0.13).toFixed(2)));
+  const opacityLow = Math.max(0.06, Number((opacity - 0.13).toFixed(2)));
+  const cardOpacity = Math.max(0.08, Number((opacity * 0.92).toFixed(2)));
+  const borderOpacity = Math.min(0.98, Math.max(0.48, Number((opacity + 0.38).toFixed(2))));
+
+  root.style.setProperty('--glass-opacity', String(opacity));
+  root.style.setProperty('--glass-opacity-high', String(opacityHigh));
+  root.style.setProperty('--glass-opacity-low', String(opacityLow));
+  root.style.setProperty('--glass-card-opacity', String(cardOpacity));
+  root.style.setProperty('--glass-border-opacity', String(borderOpacity));
+  root.style.setProperty('--glass-blur', `${blur}px`);
+}
+
+/**
+ * Applies the given theme colors and Liquid Glass settings to the document's root CSS custom variables.
+ * This updates all buttons, navbar, cards, texts, glass refraction, and accents immediately.
+ */
+export function applyThemeToDom(colors: ThemeColors, explicitGlassOpacity?: number, explicitGlassBlur?: number): void {
   if (typeof document === 'undefined') return;
 
   const root = document.documentElement;
@@ -279,6 +319,11 @@ export function applyThemeToDom(colors: ThemeColors): void {
   root.style.setProperty('--color-footer-text', footerText);
   root.style.setProperty('--color-border', border);
 
+  // Apply Apple Liquid Glass opacity & blur
+  const glassOp = explicitGlassOpacity ?? colors.glassOpacity ?? DEFAULT_GLASS_OPACITY;
+  const glassBl = explicitGlassBlur ?? colors.glassBlur ?? DEFAULT_GLASS_BLUR;
+  applyGlassVariablesToDom(glassOp, glassBl);
+
   // Directly set body background & text to prevent any FOUC
   document.body.style.backgroundColor = colors.background;
   document.body.style.color = colors.text;
@@ -296,7 +341,18 @@ export function getStoredPublishedTheme(): WebsiteThemeConfig {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.colors && isValidHex(parsed.colors.primary)) {
-        return parsed;
+        const glassOpacity = parsed.glassOpacity ?? parsed.colors.glassOpacity ?? DEFAULT_GLASS_OPACITY;
+        const glassBlur = parsed.glassBlur ?? parsed.colors.glassBlur ?? DEFAULT_GLASS_BLUR;
+        return {
+          ...parsed,
+          glassOpacity,
+          glassBlur,
+          colors: {
+            ...parsed.colors,
+            glassOpacity,
+            glassBlur,
+          },
+        };
       }
     }
   } catch {}
@@ -304,6 +360,8 @@ export function getStoredPublishedTheme(): WebsiteThemeConfig {
     activeThemeId: 'classic',
     themeName: 'Classic Cotton Nest',
     colors: CLASSIC_COTTON_NEST_COLORS,
+    glassOpacity: DEFAULT_GLASS_OPACITY,
+    glassBlur: DEFAULT_GLASS_BLUR,
     updatedAt: Date.now(),
   };
 }

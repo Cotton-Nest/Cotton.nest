@@ -36,21 +36,12 @@ export const OfferBanner: React.FC<OfferBannerProps> = ({ onOpenCart, className 
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border transition-all ${className}`}
-      style={{
-        backgroundColor: 'var(--color-surface, #FAF7F2)',
-        borderColor: 'var(--color-border, #DEC89B)',
-      }}
+      className={`relative overflow-hidden rounded-3xl liquid-glass-surface transition-all ${className}`}
     >
       <div className="px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
           <span
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase border shadow-2xs"
-            style={{
-              backgroundColor: 'var(--color-secondary, #B83F60)',
-              borderColor: 'var(--color-secondary, #B83F60)',
-              color: 'var(--color-secondary-contrast, #FFFFFF)',
-            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase liquid-glass-primary-btn text-white"
           >
             <Sparkles className="w-3 h-3 text-amber-200" />
             Special Offers
@@ -61,7 +52,7 @@ export const OfferBanner: React.FC<OfferBannerProps> = ({ onOpenCart, className 
             return (
               <div
                 key={offer.id}
-                className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 rounded-xl border border-[#DEC89B]/80 text-[#2C2420] text-xs font-medium backdrop-blur-xs"
+                className="inline-flex items-center gap-2 px-3 py-1 liquid-glass-badge rounded-xl text-[#2C2420] text-xs font-medium"
               >
                 <span>
                   {offer.discountType === 'percentage'
@@ -76,14 +67,14 @@ export const OfferBanner: React.FC<OfferBannerProps> = ({ onOpenCart, className 
                 </span>
 
                 {offer.isAutomatic ? (
-                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50/90 px-1.5 py-0.5 rounded-md border border-emerald-200">
                     Auto-Applied
                   </span>
                 ) : (
                   <button
                     type="button"
                     onClick={(e) => handleCopy(offer.code, e)}
-                    className="inline-flex items-center gap-1 font-mono font-bold text-[11px] px-1.5 py-0.5 rounded bg-[#FAF7F2] hover:bg-[#F4EFE6] text-[#70252D] border border-[#DEC89B] transition-colors cursor-pointer group"
+                    className="inline-flex items-center gap-1 font-mono font-bold text-[11px] px-2 py-0.5 rounded-lg bg-white/80 hover:bg-white text-[#70252D] border border-[#DEC89B]/80 transition-colors cursor-pointer group shadow-2xs"
                     title={`Click to copy code ${offer.code}`}
                   >
                     <span>{offer.code}</span>

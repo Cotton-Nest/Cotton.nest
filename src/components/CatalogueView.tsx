@@ -639,11 +639,9 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           <div className="flex items-center justify-between gap-3">
             <div>
               <div
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border shadow-2xs mb-1"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase liquid-glass-badge mb-1.5"
                 style={{
-                  backgroundColor: 'color-mix(in srgb, var(--color-primary, #70252D) 10%, transparent)',
                   color: 'var(--color-primary, #70252D)',
-                  borderColor: 'color-mix(in srgb, var(--color-primary, #70252D) 25%, transparent)',
                 }}
               >
                 <Sparkles className="w-3 h-3 text-[#C29E57]" />
@@ -655,11 +653,11 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             </div>
 
             {/* Desktop Filter Button (Opens the Myntra 2-column modal) */}
-            <div className="hidden md:flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => setIsFilterModalOpen(true)}
-                className="px-4 py-2 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
+                className="px-4 py-2 liquid-glass-badge text-[#2C2420] rounded-2xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
               >
                 <Sliders className="w-3.5 h-3.5 text-[#8C2E46]" />
                 <span>Filters</span>
@@ -673,7 +671,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="py-2 px-3 bg-white border border-[#EAE2D5] rounded-xl text-xs font-medium focus:outline-hidden cursor-pointer"
+                className="py-2 px-3.5 liquid-glass-badge rounded-2xl text-xs font-semibold text-[#2C2420] focus:outline-hidden cursor-pointer"
               >
                 <option value="featured">Featured Order</option>
                 <option value="price-low">Price: Low to High</option>
@@ -686,13 +684,13 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
           {/* Search Input Bar */}
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#C29E57]" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#C29E57] z-10 pointer-events-none" />
             <input
               type="text"
               placeholder="Search by size (King, Queen), fabric, style, or price (e.g. under 1500)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 bg-white border border-[#EAE2D5] rounded-xl text-xs sm:text-sm text-[#2C2420] focus:outline-hidden focus:border-[#C29E57] shadow-2xs transition-all"
+              className="w-full pl-11 pr-10 py-3 liquid-glass-input rounded-2xl text-xs sm:text-sm text-[#2C2420] transition-all"
             />
             {searchQuery && (
               <button
@@ -714,17 +712,17 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             <button
               type="button"
               onClick={() => setSelectedProductTypes([])}
-              className={`px-3.5 py-2 rounded-xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer border shrink-0 shadow-2xs ${
+              className={`px-3.5 py-2 rounded-2xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
                 selectedProductTypes.length === 0
-                  ? 'bg-[#8C2E46] text-white border-[#8C2E46] shadow-xs'
-                  : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B] hover:border-[#8C2E46]'
+                  ? 'liquid-glass-primary-btn text-white'
+                  : 'liquid-glass-badge text-[#2C2420] hover:border-[#8C2E46]/40'
               }`}
             >
               <LayoutGrid className={`w-4 h-4 ${selectedProductTypes.length === 0 ? 'text-white' : 'text-[#8C2E46]'}`} />
               <span>All Categories</span>
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  selectedProductTypes.length === 0 ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
+                  selectedProductTypes.length === 0 ? 'bg-white/25 text-white' : 'bg-[#F4EFE6]/90 text-[#7A6458]'
                 }`}
               >
                 {products.length}
@@ -751,17 +749,17 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                       setSelectedProductTypes([catType]);
                     }
                   }}
-                  className={`px-3.5 py-2 rounded-xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer border shrink-0 shadow-2xs ${
+                  className={`px-3.5 py-2 rounded-2xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
                     isSelected
-                      ? 'bg-[#8C2E46] text-white border-[#8C2E46] shadow-xs'
-                      : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B] hover:border-[#8C2E46]'
+                      ? 'liquid-glass-primary-btn text-white'
+                      : 'liquid-glass-badge text-[#2C2420] hover:border-[#8C2E46]/40'
                   }`}
                 >
                   <CategoryIcon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-[#8C2E46]'}`} />
                   <span>{displayLabel}</span>
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-[#F4EFE6] text-[#7A6458]'
+                      isSelected ? 'bg-white/25 text-white' : 'bg-[#F4EFE6]/90 text-[#7A6458]'
                     }`}
                   >
                     {count}
@@ -783,10 +781,10 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               setActiveFilterTab('quick');
               setIsFilterModalOpen(true);
             }}
-            className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 border transition-all cursor-pointer shrink-0 shadow-2xs ${
+            className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
               activeFiltersCount > 0
-                ? 'bg-[#8C2E46] text-white border-[#8C2E46]'
-                : 'bg-white hover:bg-[#FAF7F2] text-[#2C2420] border-[#DEC89B]'
+                ? 'liquid-glass-primary-btn text-white'
+                : 'liquid-glass-badge text-[#2C2420]'
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
@@ -817,10 +815,10 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                   setActiveFilterTab(tab.id);
                   setIsFilterModalOpen(true);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 border transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-2xs ${
+                className={`px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                   hasSelection
-                    ? 'bg-[#FDEAF0] text-[#8C2E46] border-[#8C2E46] font-bold'
-                    : 'bg-white text-[#4A3B32] border-[#EAE2D5] hover:border-[#DEC89B] hover:bg-[#FAF7F2] font-medium'
+                    ? 'bg-[#FDEAF0]/90 backdrop-blur-md text-[#8C2E46] border border-[#8C2E46] font-bold shadow-2xs'
+                    : 'liquid-glass-badge text-[#4A3B32] font-medium'
                 }`}
               >
                 <TabIcon className={`w-3.5 h-3.5 ${hasSelection ? 'text-[#8C2E46]' : 'text-[#8C7A70]'}`} />
@@ -847,10 +845,10 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 key={chip.id}
                 type="button"
                 onClick={() => toggleQuickFilter(chip.id)}
-                className={`px-3 py-1.5 rounded-full whitespace-nowrap font-medium flex items-center gap-1.5 transition-all cursor-pointer border shadow-2xs shrink-0 ${
+                className={`px-3 py-1.5 rounded-full whitespace-nowrap font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                   isSelected
-                    ? 'bg-[#8C2E46] text-white border-[#8C2E46] shadow-sm font-semibold'
-                    : 'bg-white hover:bg-[#F4EFE6] text-[#2C2420] border-[#EAE2D5]'
+                    ? 'liquid-glass-primary-btn text-white font-semibold'
+                    : 'liquid-glass-badge text-[#2C2420]'
                 }`}
               >
                 <IconComponent className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#8C7A70]'}`} />
@@ -863,7 +861,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
         {/* 4. Active Filters Tag Ribbon & Clear All */}
         {activeFiltersCount > 0 && (
-          <div className="flex items-center justify-between flex-wrap gap-2 py-2 px-3 mb-4 bg-white rounded-xl border border-[#EAE2D5] text-xs">
+          <div className="flex items-center justify-between flex-wrap gap-2 py-2.5 px-3.5 mb-4 liquid-glass-surface rounded-2xl text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[11px] font-semibold text-[#8C7A70] uppercase">Active:</span>
 
@@ -1057,8 +1055,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             ))}
           </motion.div>
         ) : (
-          <div className="text-center py-16 bg-white rounded-3xl border border-[#EAE2D5] p-8 max-w-md mx-auto space-y-4 my-8 shadow-xs">
-            <div className="w-14 h-14 rounded-2xl bg-[#FDEAF0] text-[#8C2E46] flex items-center justify-center mx-auto">
+          <div className="text-center py-16 liquid-glass-card rounded-3xl p-8 max-w-md mx-auto space-y-4 my-8">
+            <div className="w-14 h-14 rounded-2xl bg-[#FDEAF0]/90 border border-white/80 text-[#8C2E46] flex items-center justify-center mx-auto shadow-2xs">
               <Search className="w-7 h-7" />
             </div>
             <div className="space-y-1">
@@ -1072,7 +1070,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             <button
               type="button"
               onClick={handleClearAllFilters}
-              className="px-5 py-2.5 bg-[#8C2E46] hover:bg-[#742438] text-white text-xs font-semibold rounded-xl cursor-pointer shadow-xs transition-colors"
+              className="px-5 py-2.5 liquid-glass-primary-btn text-white text-xs font-semibold rounded-xl cursor-pointer transition-all"
             >
               Clear All Filters
             </button>
@@ -1083,14 +1081,14 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
       {/* ======================================================== */}
       {/* 6. MOBILE STICKY BOTTOM BAR (SORT & FILTER)              */}
-      {/* Positioned above the mobile bottom navigation bar (56px) */}
-      <div className="fixed bottom-[56px] inset-x-0 z-40 bg-white border-t border-[#EAE2D5] shadow-lg md:hidden">
-        <div className="grid grid-cols-2 divide-x divide-[#EAE2D5] h-13">
+      {/* Positioned above the mobile bottom navigation bar        */}
+      <div className="fixed bottom-[74px] left-3 right-3 z-40 liquid-glass-dock rounded-2xl md:hidden overflow-hidden">
+        <div className="grid grid-cols-2 divide-x divide-white/60 h-11">
           {/* SORT Button */}
           <button
             type="button"
             onClick={() => setIsSortModalOpen(true)}
-            className="flex items-center justify-center gap-2 text-xs font-bold text-[#2C2420] hover:bg-[#FAF7F2] transition-colors cursor-pointer uppercase tracking-wider"
+            className="flex items-center justify-center gap-2 text-xs font-bold text-[#2C2420] hover:bg-white/60 transition-colors cursor-pointer uppercase tracking-wider"
           >
             <ArrowUpDown className="w-4 h-4 text-[#8C2E46]" />
             <span>SORT</span>
@@ -1100,7 +1098,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           <button
             type="button"
             onClick={() => setIsFilterModalOpen(true)}
-            className="flex items-center justify-center gap-2 text-xs font-bold text-[#2C2420] hover:bg-[#FAF7F2] transition-colors cursor-pointer uppercase tracking-wider relative"
+            className="flex items-center justify-center gap-2 text-xs font-bold text-[#2C2420] hover:bg-white/60 transition-colors cursor-pointer uppercase tracking-wider relative"
           >
             <Filter className="w-4 h-4 text-[#8C2E46]" />
             <span>FILTER</span>
@@ -1119,8 +1117,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
       {isSortModalOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="fixed inset-0" onClick={() => setIsSortModalOpen(false)} />
-          <div className="relative bg-white w-full rounded-t-3xl border-t border-[#EAE2D5] p-5 shadow-2xl z-10 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D5]">
+          <div className="relative liquid-glass-modal w-full rounded-t-3xl p-5 z-10 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D5]/70">
               <span className="text-xs font-bold uppercase tracking-wider text-[#8C7A70]">Sort By</span>
               <button
                 type="button"
@@ -1130,7 +1128,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="divide-y divide-[#F4EFE6] pt-1">
+            <div className="divide-y divide-[#F4EFE6]/70 pt-1">
               {[
                 { id: 'featured', label: 'Featured Order' },
                 { id: 'price-low', label: 'Price: Low to High' },
@@ -1145,7 +1143,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                     setSortBy(opt.id as any);
                     setIsSortModalOpen(false);
                   }}
-                  className="w-full py-3.5 px-2 flex items-center justify-between text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                  className="w-full py-3.5 px-2 flex items-center justify-between text-xs font-medium text-[#2C2420] hover:bg-white/60 transition-colors cursor-pointer"
                 >
                   <span className={sortBy === opt.id ? 'font-bold text-[#8C2E46]' : ''}>{opt.label}</span>
                   {sortBy === opt.id && <Check className="w-4 h-4 text-[#8C2E46]" />}
@@ -1162,13 +1160,13 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
       {/* Top CLEAR ALL, Bottom CLOSE & APPLY)                     */}
       {/* ======================================================== */}
       {isFilterModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="fixed inset-0" onClick={() => setIsFilterModalOpen(false)} />
 
-          <div className="relative bg-white w-full max-w-xl sm:max-w-2xl h-[90vh] max-h-[720px] rounded-3xl shadow-2xl z-10 flex flex-col overflow-hidden border border-[#EAE2D5]">
+          <div className="relative liquid-glass-modal w-full max-w-xl sm:max-w-2xl h-[90vh] max-h-[720px] rounded-3xl z-10 flex flex-col overflow-hidden">
             
             {/* Modal Top Header (Matching Screenshot 1: "Filters" left, "CLEAR ALL" right) */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#EAE2D5] bg-white shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/70 bg-white/60 backdrop-blur-md shrink-0">
               <div className="flex items-center gap-2">
                 <button
                   type="button"

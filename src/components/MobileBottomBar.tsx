@@ -25,7 +25,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
   onOpenAccount,
 }) => {
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-header,#FAF7F2)]/95 backdrop-blur-md border-t border-[var(--color-border,#EAE2D5)] px-2 py-2 flex items-center justify-around text-xs shadow-lg">
+    <div className="md:hidden fixed bottom-2.5 left-3 right-3 z-40 liquid-glass-dock rounded-3xl px-2 py-1.5 flex items-center justify-around text-xs">
       
       {/* Catalogue Tab Button */}
       <motion.button
@@ -34,7 +34,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           setActiveTab('catalogue');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        className={`flex flex-col items-center gap-0.5 cursor-pointer relative px-2 py-0.5 ${
+        className={`flex flex-col items-center gap-0.5 cursor-pointer relative px-3 py-1 rounded-2xl transition-colors ${
           activeTab === 'catalogue' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
         }`}
       >
@@ -42,11 +42,11 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           <motion.span
             layoutId="mobile-bottom-active-pill"
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="absolute -top-2 inset-x-1 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+            className="absolute inset-0 bg-white/85 rounded-2xl border border-white/95 shadow-[0_2px_10px_rgba(44,36,32,0.06)] -z-10"
           />
         )}
-        <Grid className="w-5 h-5" />
-        <span className="text-[10px]">Catalogue</span>
+        <Grid className="w-4.5 h-4.5 relative z-10" />
+        <span className="text-[10px] relative z-10">Catalogue</span>
       </motion.button>
 
       {/* Seasonal Festive Page (Replaces Studio button) */}
@@ -57,7 +57,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             setActiveTab('seasonal');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex flex-col items-center gap-0.5 cursor-pointer relative px-2 py-0.5 ${
+          className={`flex flex-col items-center gap-0.5 cursor-pointer relative px-3 py-1 rounded-2xl transition-colors ${
             activeTab === 'seasonal' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
           }`}
         >
@@ -65,13 +65,13 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             <motion.span
               layoutId="mobile-bottom-active-pill"
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="absolute -top-2 inset-x-1 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+              className="absolute inset-0 bg-white/85 rounded-2xl border border-white/95 shadow-[0_2px_10px_rgba(44,36,32,0.06)] -z-10"
             />
           )}
-          <div className="relative">
-            <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />
+          <div className="relative z-10">
+            <Sparkles className="w-4.5 h-4.5 text-amber-500 animate-pulse" />
           </div>
-          <span className="text-[10px] font-semibold max-w-[65px] truncate">
+          <span className="text-[10px] font-semibold max-w-[65px] truncate relative z-10">
             {seasonalConfig.name || 'Offers'}
           </span>
         </motion.button>
@@ -82,7 +82,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             setActiveTab('reviews');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex flex-col items-center gap-0.5 cursor-pointer relative px-2 py-0.5 ${
+          className={`flex flex-col items-center gap-0.5 cursor-pointer relative px-3 py-1 rounded-2xl transition-colors ${
             activeTab === 'reviews' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
           }`}
         >
@@ -90,11 +90,11 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             <motion.span
               layoutId="mobile-bottom-active-pill"
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="absolute -top-2 inset-x-1 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+              className="absolute inset-0 bg-white/85 rounded-2xl border border-white/95 shadow-[0_2px_10px_rgba(44,36,32,0.06)] -z-10"
             />
           )}
-          <span className="text-amber-500 text-sm leading-5">★</span>
-          <span className="text-[10px]">Reviews</span>
+          <span className="text-amber-500 text-sm leading-4.5 relative z-10">★</span>
+          <span className="text-[10px] relative z-10">Reviews</span>
         </motion.button>
       )}
 
@@ -105,7 +105,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           setActiveTab('orders');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        className={`flex flex-col items-center gap-0.5 cursor-pointer relative px-2 py-0.5 ${
+        className={`flex flex-col items-center gap-0.5 cursor-pointer relative px-3 py-1 rounded-2xl transition-colors ${
           activeTab === 'orders' ? 'text-[var(--color-primary,#70252D)] font-semibold' : 'text-[var(--color-text-secondary,#6B5D55)]'
         }`}
       >
@@ -113,14 +113,13 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           <motion.span
             layoutId="mobile-bottom-active-pill"
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="absolute -top-2 inset-x-1 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+            className="absolute inset-0 bg-white/85 rounded-2xl border border-white/95 shadow-[0_2px_10px_rgba(44,36,32,0.06)] -z-10"
           />
         )}
-        <div className="relative">
-          <Package className="w-5 h-5" />
-          <span className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <div className="relative z-10">
+          <Package className="w-4.5 h-4.5" />
         </div>
-        <span className="text-[10px]">My Orders</span>
+        <span className="text-[10px] relative z-10">My Orders</span>
       </motion.button>
 
       {/* Account Button */}
@@ -128,10 +127,10 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={onOpenAccount}
-          className="flex flex-col items-center gap-0.5 text-[var(--color-text,#2C2420)] hover:text-[#8C2E46] relative cursor-pointer px-2 py-0.5"
+          className="flex flex-col items-center gap-0.5 text-[var(--color-text,#2C2420)] hover:text-[#8C2E46] relative cursor-pointer px-3 py-1 rounded-2xl"
         >
           <div className="relative">
-            <User className="w-5 h-5 text-[#8C2E46]" />
+            <User className="w-4.5 h-4.5 text-[#8C2E46]" />
           </div>
           <span className="text-[10px] font-medium">Account</span>
         </motion.button>
@@ -141,10 +140,10 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
       <motion.button
         whileTap={{ scale: 0.9 }}
         onClick={openCart}
-        className="flex flex-col items-center gap-0.5 text-[var(--color-text,#2C2420)] relative cursor-pointer px-2 py-0.5"
+        className="flex flex-col items-center gap-0.5 text-[var(--color-text,#2C2420)] relative cursor-pointer px-3 py-1 rounded-2xl"
       >
         <div className="relative">
-          <ShoppingBag className="w-5 h-5" />
+          <ShoppingBag className="w-4.5 h-4.5" />
           <AnimatePresence mode="popLayout">
             {cartCount > 0 && (
               <motion.span

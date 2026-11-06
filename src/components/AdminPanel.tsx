@@ -42,7 +42,15 @@ import {
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { useAuth } from '../context/AuthContext';
 import { ThemeCustomizer } from './ThemeCustomizer';
-import { WebsiteThemeConfig, CLASSIC_COTTON_NEST_COLORS } from '../data/theme';
+import {
+  WebsiteThemeConfig,
+  CLASSIC_COTTON_NEST_COLORS,
+  DEFAULT_GLASS_OPACITY,
+  DEFAULT_GLASS_BLUR,
+  applyGlassVariablesToDom,
+  saveStoredPublishedTheme,
+} from '../data/theme';
+import { savePublishedThemeApi } from '../services/api';
 import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 import { AdminCouponsSection } from './AdminCouponsSection';
 import { AdminNotificationsSection } from './AdminNotificationsSection';
@@ -153,6 +161,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
     return seasonalConfig || INITIAL_SEASONAL_CONFIG;
   });
+
+  // Adjustable Apple Liquid Glass Opacity & Blur state in Admin Panel
+  const [adminGlassOpacity, setAdminGlassOpacity] = useState<number>(() => {
+    return currentTheme?.glassOpacity ?? currentTheme?.colors?.glassOpacity ?? DEFAULT_GLASS_OPACITY;
+  });
+  const [adminGlassBlur, setAdminGlassBlur] = useState<number>(() => {
+    return currentTheme?.glassBlur ?? currentTheme?.colors?.glassBlur ?? DEFAULT_GLASS_BLUR;
+  });
+
+  useEffect(() => {
+    const nextOp = currentTheme?.glassOpacity ?? currentTheme?.colors?.glassOpacity ?? DEFAULT_GLASS_OPACITY;
+    const nextBl = currentTheme?.glassBlur ?? currentTheme?.colors?.glassBlur ?? DEFAULT_GLASS_BLUR;
+    setAdminGlassOpacity(nextOp);
+    setAdminGlassBlur(nextBl);
+  }, [currentTheme?.glassOpacity, currentTheme?.glassBlur]);
+
+  const handleAdminGlassChange = (nextOpacity: number, nextBlur: number = adminGlassBlur, persistImmediately: boolean = false) => {
+    const clampedOp = Math.min(0.95, Math.max(0.10, Number(nextOpacity.toFixed(2))));
+    const clampedBl = Math.min(44, Math.max(8, Math.round(nextBlur)));
+    setAdminGlassOpacity(clampedOp);
+    setAdminGlassBlur(clampedBl);
+    applyGlassVariablesToDom(clampedOp, clampedBl);
+
+    const updatedTheme: WebsiteThemeConfig = {
+      ...currentTheme,
+      glassOpacity: clampedOp,
+      glassBlur: clampedBl,
+      colors: {
+        ...currentTheme.colors,
+        glassOpacity: clampedOp,
+        glassBlur: clampedBl,
+      },
+      updatedAt: Date.now(),
+    };
+    saveStoredPublishedTheme(updatedTheme);
+    if (persistImmediately) {
+      if (onThemePublished) {
+        onThemePublished(updatedTheme);
+      } else {
+        savePublishedThemeApi(updatedTheme).catch(() => {});
+      }
+      showToast(`✨ Liquid Glass set to ${Math.round(clampedOp * 100)}% opacity (${clampedBl}px blur) & synced!`);
+    }
+  };
 
   useEffect(() => {
     if (seasonalConfig) {
@@ -2053,6 +2105,111 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {/* Main Container: Zero horizontal scrolling on mobile */}
       <main className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8 overflow-x-hidden">
         
+        {/* ======================================================== */}
+        {/* GLOBAL ADMIN CONTROL: APPLE LIQUID GLASS OPACITY STUDIO   */}
+        {/* ======================================================== */}
+        <section className="liquid-glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-white/90 shadow-xs">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#FDEAF0] text-[#8C2E46] border border-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="font-serif-luxury text-base sm:text-lg font-bold text-[#2C2420]">
+                    Apple Liquid Glass Opacity &amp; Blur
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#70252D] text-white font-mono">
+                    {Math.round(adminGlassOpacity * 100)}% Opacity · {adminGlassBlur}px Blur
+                  </span>
+                </div>
+                <p className="text-[11px] sm:text-xs text-[#6B5D55]">
+                  Adjust glass translucency for product cards, navbar, and panels across the entire website.
+                </p>
+              </div>
+            </div>
+
+            {/* Sliders & Quick Presets */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 flex-1 max-w-2xl">
+              {/* Opacity Range Slider */}
+              <div className="flex-1 bg-white/65 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/85">
+                <div className="flex items-center justify-between text-[11px] font-bold text-[#2C2420] mb-1">
+                  <span>Glass Opacity</span>
+                  <span className="text-[#8C2E46] font-mono">{Math.round(adminGlassOpacity * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={95}
+                  step={1}
+                  value={Math.round(adminGlassOpacity * 100)}
+                  onChange={(e) => handleAdminGlassChange(Number(e.target.value) / 100, adminGlassBlur, false)}
+                  onMouseUp={() => handleAdminGlassChange(adminGlassOpacity, adminGlassBlur, true)}
+                  onTouchEnd={() => handleAdminGlassChange(adminGlassOpacity, adminGlassBlur, true)}
+                  aria-label="Adjust Liquid Glass Opacity"
+                  className="w-full accent-[#70252D] cursor-pointer h-1.5 bg-[#EAE2D5] rounded-lg"
+                />
+                <div className="flex justify-between text-[9px] text-[#8C7A70] mt-0.5">
+                  <span>10% Clear</span>
+                  <span>45% Apple</span>
+                  <span>95% Solid</span>
+                </div>
+              </div>
+
+              {/* Blur Range Slider */}
+              <div className="w-full sm:w-44 bg-white/65 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/85">
+                <div className="flex items-center justify-between text-[11px] font-bold text-[#2C2420] mb-1">
+                  <span>Optical Blur</span>
+                  <span className="text-[#A8823B] font-mono">{adminGlassBlur}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={8}
+                  max={44}
+                  step={1}
+                  value={adminGlassBlur}
+                  onChange={(e) => handleAdminGlassChange(adminGlassOpacity, Number(e.target.value), false)}
+                  onMouseUp={() => handleAdminGlassChange(adminGlassOpacity, adminGlassBlur, true)}
+                  onTouchEnd={() => handleAdminGlassChange(adminGlassOpacity, adminGlassBlur, true)}
+                  aria-label="Adjust Liquid Glass Blur"
+                  className="w-full accent-[#C29E57] cursor-pointer h-1.5 bg-[#EAE2D5] rounded-lg"
+                />
+                <div className="flex justify-between text-[9px] text-[#8C7A70] mt-0.5">
+                  <span>8px</span>
+                  <span>28px</span>
+                  <span>44px</span>
+                </div>
+              </div>
+
+              {/* Quick Preset Pills */}
+              <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap shrink-0">
+                {[
+                  { label: '25%', op: 0.25, bl: 32, title: 'Crystal Clear Glass (25%)' },
+                  { label: '45%', op: 0.45, bl: 28, title: 'Apple Liquid Glass Default (45%)' },
+                  { label: '68%', op: 0.68, bl: 24, title: 'Soft Frosted Glass (68%)' },
+                ].map((p) => {
+                  const active = Math.abs(adminGlassOpacity - p.op) < 0.03;
+                  return (
+                    <button
+                      key={p.label}
+                      type="button"
+                      title={p.title}
+                      onClick={() => handleAdminGlassChange(p.op, p.bl, true)}
+                      className={`px-2.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                        active
+                          ? 'bg-[#70252D] text-white border-[#70252D] shadow-2xs'
+                          : 'bg-white/80 hover:bg-white text-[#2C2420] border-[#DEC89B]'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ======================================================== */}
         {/* TAB 1: BEDSHEET INVENTORY, VARIANTS & PHOTOS             */}
         {/* ======================================================== */}

@@ -18,22 +18,22 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
   const secondaryText = content?.hero.secondaryButtonText || "Visit Gurgaon Studio";
 
   return (
-    <section className="relative overflow-hidden pt-6 pb-12 sm:pt-10 sm:pb-20 bg-[var(--color-background,#FAF7F2)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="relative overflow-hidden pt-6 pb-12 sm:pt-10 sm:pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
           {/* Left Column: Editorial & Brand copy with staggered entrance */}
           <div className="lg:col-span-6 space-y-6 text-center lg:text-left">
             
-            {/* Quiet text kicker */}
+            {/* Liquid Glass Kicker Capsule */}
             <motion.div
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent,#C29E57)]"
+              className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent,#A8823B)] px-3.5 py-1.5 rounded-full liquid-glass-badge"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent,#C29E57)]" />
+              <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
               <span>{kicker}</span>
             </motion.div>
 
@@ -65,34 +65,34 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
               className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2"
             >
               <motion.button
-                whileHover={{ y: -2, scale: 1.01 }}
+                whileHover={{ y: -2, scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 onClick={onExploreCatalogue}
-                className="w-full sm:w-auto px-7 py-3.5 bg-[var(--color-primary,#70252D)] hover:brightness-95 text-[var(--color-primary-contrast,#FFFFFF)] text-sm font-semibold rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group"
+                className="w-full sm:w-auto px-7 py-3.5 liquid-glass-primary-btn text-[var(--color-primary-contrast,#FFFFFF)] text-sm font-semibold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer group"
               >
                 <span>{ctaText}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </motion.button>
 
               <motion.button
-                whileHover={{ y: -2, scale: 1.01 }}
+                whileHover={{ y: -2, scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 onClick={onVisitStore}
-                className="w-full sm:w-auto px-6 py-3.5 bg-[var(--color-surface,#FFFFFF)] text-[var(--color-text,#2C2420)] border border-[var(--color-border,#EAE2D5)] hover:border-[var(--color-accent,#C29E57)] text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3.5 liquid-glass-dock hover:bg-white text-[var(--color-text,#2C2420)] text-sm font-medium rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <MapPin className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
               </motion.button>
             </motion.div>
 
-            {/* Quiet trust markers */}
+            {/* Quiet trust markers in a subtle frosted glass strip */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.7, delay: 0.55 }}
-              className="pt-4 border-t border-[#EAE2D5] flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-5 text-xs text-[#7A6458]"
+              className="p-3.5 rounded-2xl liquid-glass-surface flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-5 text-xs text-[#7A6458]"
             >
               <span className="flex items-center gap-1.5 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#C29E57]" />
@@ -111,41 +111,46 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
 
           </div>
 
-          {/* Right Column: Hero Visual Showcase */}
+          {/* Right Column: Hero Visual Showcase in Apple Liquid Glass Bezel */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="lg:col-span-6 relative"
           >
-            <div className="relative rounded-2xl overflow-hidden border border-[#EAE2D5] shadow-lg bg-[#FAF7F2] aspect-[16/10] sm:aspect-[16/11] group">
-              <img
-                src="/images/hero_cotton_nest_bedding_1790996973951.jpg"
-                alt="Cotton Nest luxury master bedroom featuring pure cotton bedding in cream, blush pink, and muted gold"
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#2C2420]/40 via-transparent to-transparent pointer-events-none" />
-              
-              {/* Floating aesthetic location badge */}
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                whileHover={{ y: -2, scale: 1.01 }}
-                transition={{ duration: 0.5, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                onClick={onVisitStore}
-                className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-[#FAF7F2]/95 backdrop-blur-md p-3 rounded-xl border border-[#EAE2D5] text-left shadow-sm cursor-pointer"
-              >
-                <p className="text-[11px] font-semibold text-[#B83F60] uppercase tracking-wide">
-                  Gurgaon Flagship
-                </p>
-                <p className="text-xs text-[#2C2420] font-medium leading-snug">
-                  Sector 46, Gurgaon · Ground Floor 2508
-                </p>
-                <p className="text-[11px] text-[#7A6458] mt-0.5">
-                  Try our fabrics in person or order direct via WhatsApp
-                </p>
-              </motion.div>
+            <div className="p-2 rounded-[28px] liquid-glass-card">
+              <div className="relative rounded-3xl overflow-hidden bg-[#FAF7F2] aspect-[16/10] sm:aspect-[16/11] group">
+                <img
+                  src="/images/hero_cotton_nest_bedding_1790996973951.jpg"
+                  alt="Cotton Nest luxury master bedroom featuring pure cotton bedding in cream, blush pink, and muted gold"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#2C2420]/45 via-transparent to-transparent pointer-events-none" />
+                
+                {/* Top specular glass reflection */}
+                <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/35 to-transparent pointer-events-none" />
+
+                {/* Floating Apple Liquid Glass location card */}
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ y: -2, scale: 1.01 }}
+                  transition={{ duration: 0.5, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                  onClick={onVisitStore}
+                  className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs liquid-glass-dock p-3.5 rounded-2xl text-left cursor-pointer"
+                >
+                  <p className="text-[11px] font-semibold text-[#B83F60] uppercase tracking-wide">
+                    Gurgaon Flagship
+                  </p>
+                  <p className="text-xs text-[#2C2420] font-semibold leading-snug">
+                    Sector 46, Gurgaon · Ground Floor 2508
+                  </p>
+                  <p className="text-[11px] text-[#7A6458] mt-0.5">
+                    Try our fabrics in person or order direct via WhatsApp
+                  </p>
+                </motion.div>
+              </div>
             </div>
           </motion.div>
 
@@ -165,7 +170,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
           <motion.div
             animate={{ y: [0, 5, 0] }}
             transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-            className="flex items-center gap-2 text-xs font-medium text-[#A8823B] bg-white/80 backdrop-blur-xs px-4 py-2 rounded-full border border-[#DEC89B]/50 shadow-xs hover:border-[#C29E57] hover:bg-white transition-all group"
+            className="flex items-center gap-2 text-xs font-medium text-[#A8823B] liquid-glass-badge px-4.5 py-2 rounded-full hover:bg-white transition-all group"
           >
             <span>Scroll to explore 100% cotton sheets</span>
             <ChevronDown className="w-3.5 h-3.5 text-[#B83F60] group-hover:translate-y-0.5 transition-transform" />

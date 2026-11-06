@@ -673,10 +673,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               mass: 0.8,
               restDelta: 0.001,
             }}
-            className="relative w-full max-w-md bg-[var(--color-surface,#FFFFFF)] h-full shadow-2xl flex flex-col z-10 border-l border-[var(--color-border,#EAE2D5)] text-[var(--color-text,#2C2420)] will-change-transform"
+            className="relative w-full max-w-md liquid-glass-modal h-full flex flex-col z-10 text-[var(--color-text,#2C2420)] will-change-transform"
           >
             {/* Drawer Header */}
-            <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-b border-[#EAE2D5] flex items-center justify-between bg-white shrink-0">
+            <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-b border-white/75 flex items-center justify-between bg-white/60 backdrop-blur-md shrink-0">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-[#8C2E46]" />
                 <h2 className="font-serif-luxury text-base sm:text-lg font-bold text-[#2C2420]">
@@ -692,9 +692,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 transition={{ type: 'spring', stiffness: 450, damping: 26 }}
                 onClick={onClose}
                 aria-label="Close shopping bag"
-                className="p-1 text-[#6B5D55] hover:text-[#2C2420] rounded-full hover:bg-[#F4EFE6] transition-colors cursor-pointer"
+                className="p-1.5 text-[#6B5D55] hover:text-[#2C2420] rounded-full liquid-glass-badge transition-colors cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </motion.button>
             </div>
 
@@ -824,8 +824,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         key={itemKey}
                         onRemove={() => prodId && onRemoveItem(prodId)}
                       >
-                        <div className="flex gap-2.5 p-2.5 bg-white rounded-2xl border border-[#EAE2D5] shadow-xs">
-                          <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#EAE2D5] flex items-center justify-center relative">
+                        <div className="flex gap-2.5 p-2.5 liquid-glass-surface rounded-2xl">
+                          <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-white/80 flex items-center justify-center relative">
                             {displayImg ? (
                               isVideoMedia(displayImg) ? (
                                 <video
