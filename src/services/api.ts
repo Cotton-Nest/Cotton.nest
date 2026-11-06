@@ -1661,6 +1661,71 @@ export async function verifyEmailOtpApi(
   }
 }
 
+// ---------------- STORE TRAFFIC & ANALYTICS ---------------- //
+import {
+  SiteTrafficData,
+  getInitialTrafficData,
+  getStoredTraffic,
+  saveStoredTraffic,
+  recordLocalPageView,
+} from '../data/analytics';
+
+export async function getSiteAnalyticsApi(): Promise<SiteTrafficData> {
+  const local = getStoredTraffic();
+  try {
+    const ref = doc(db, 'analytics', 'site_traffic');
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const remote = snap.data() as Partial<SiteTrafficData>;
+      const merged: SiteTrafficData = {
+        ...local,
+        ...remote,
+        pageViewsByDate: { ...local.pageViewsByDate, ...(remote.pageViewsByDate || {}) },
+        pageViewsBySection: { ...local.pageViewsBySection, ...(remote.pageViewsBySection || {}) },
+        trafficSources: { ...local.trafficSources, ...(remote.trafficSources || {}) },
+        deviceBreakdown: { ...local.deviceBreakdown, ...(remote.deviceBreakdown || {}) },
+      };
+      saveStoredTraffic(merged);
+      return merged;
+    } else {
+      // First time initialization in Firestore
+      await setDoc(ref, stripUndefined(local));
+      return local;
+    }
+  } catch (err) {
+    console.warn('Analytics firestore fetch fallback to local storage:', err);
+    return local;
+  }
+}
+
+export async function recordPageVisitApi(section: string = 'home'): Promise<SiteTrafficData> {
+  const updated = recordLocalPageView(section);
+  try {
+    const todayKey = new Date().toISOString().split('T')[0];
+    const ref = doc(db, 'analytics', 'site_traffic');
+    await setDoc(
+      ref,
+      stripUndefined({
+        id: 'site_traffic',
+        totalVisits: updated.totalVisits,
+        uniqueVisitors: updated.uniqueVisitors,
+        todayVisits: updated.todayVisits,
+        lastVisitedAt: updated.lastVisitedAt,
+        pageViewsByDate: updated.pageViewsByDate,
+        pageViewsBySection: updated.pageViewsBySection,
+        trafficSources: updated.trafficSources,
+        deviceBreakdown: updated.deviceBreakdown,
+      }),
+      { merge: true }
+    );
+  } catch (err) {
+    // Non-blocking background firestore sync
+    console.debug('Background traffic sync note:', err);
+  }
+  return updated;
+}
+
 // ---------------- LOYALTY POINTS & REWARDS ---------------- //
 export * from './loyaltyApi';
 export * from '../data/loyalty';
+

@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SeasonalConfig } from '../data/seasonal';
 
 interface MobileBottomBarProps {
-  activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
-  setActiveTab: (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => void;
+  activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics';
+  setActiveTab: (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics') => void;
   cartCount: number;
   openCart: () => void;
   seasonalConfig?: SeasonalConfig;

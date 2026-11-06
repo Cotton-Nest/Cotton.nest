@@ -38,7 +38,7 @@ import {
   saveStoredNotificationPreferences,
 } from './data/notifications';
 import { initPushNotifications, triggerLocalPushNotification } from './utils/pushNotifications';
-import { useAuth } from './context/AuthContext';
+import { useAuth, isOwnerEmail } from './context/AuthContext';
 import { useLoyalty } from './context/LoyaltyContext';
 import { LoyaltyRewardsModal } from './components/LoyaltyRewardsModal';
 import { setWhatsAppListener } from './utils/whatsappOrder';
@@ -74,9 +74,13 @@ import {
   getWishlistsApi,
   saveWishlistItemApi,
   removeWishlistItemApi,
+  getSiteAnalyticsApi,
+  recordPageVisitApi,
 } from './services/api';
 import { WishlistDrawer } from './components/WishlistDrawer';
 import { CustomerWishlistModal } from './components/CustomerWishlistModal';
+import { AnalyticsView } from './components/AnalyticsView';
+import { SiteTrafficData, getStoredTraffic } from './data/analytics';
 import {
   WishlistItem,
   CustomerProfile,
@@ -99,11 +103,12 @@ import {
   isValidHex,
 } from './data/theme';
 import { resolveBedsheetImage, isVideoMedia } from './utils/imageUrl';
-import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, Cloud, ChevronUp, ChevronDown, Star } from 'lucide-react';
+import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star } from 'lucide-react';
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>('home');
+  const [trafficData, setTrafficData] = useState<SiteTrafficData>(() => getStoredTraffic());
   const [selectedProduct, setSelectedProduct] = useState<BedsheetProduct | null>(null);
   const [isProductModalEditMode, setIsProductModalEditMode] = useState<boolean>(false);
 
@@ -190,6 +195,36 @@ export default function App() {
       isMounted = false;
     };
   }, [customerProfile.id]);
+
+  // Initial fetch of site traffic analytics
+  useEffect(() => {
+    let isMounted = true;
+    getSiteAnalyticsApi()
+      .then((data) => {
+        if (isMounted && data) {
+          setTrafficData(data);
+        }
+      })
+      .catch((err) => {
+        console.debug('Traffic fetch note:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Record page visit on tab navigation
+  useEffect(() => {
+    recordPageVisitApi(activeTab)
+      .then((updated) => {
+        if (updated) {
+          setTrafficData(updated);
+        }
+      })
+      .catch((err) => {
+        console.debug('Page visit record note:', err);
+      });
+  }, [activeTab]);
 
   // Automated 3-Day Wishlist Retention: Send 5% Coupon
   useEffect(() => {
@@ -344,10 +379,10 @@ export default function App() {
     }
   };
 
-  // Store Owner Authentication Mode — strictly locked by default on every device; only unlocked via Owner Security PIN
+  // Store Owner Authentication Mode — strictly locked by default; unlocked via Owner Security PIN or authorized Owner Google Account
   const [isOwnerPinUnlocked, setIsOwnerPinUnlocked] = useState<boolean>(false);
 
-  const isOwnerMode = isOwnerPinUnlocked;
+  const isOwnerMode = Boolean(isOwnerPinUnlocked || isOwner || (user?.email && isOwnerEmail(user.email)));
 
   // State to track scroll position for Home scroll-to-top button
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -1773,6 +1808,68 @@ export default function App() {
                       onHelpfulClick={handleHelpfulClick}
                     />
                   </div>
+                )}
+
+                {/* TAB 8: STORE PERFORMANCE & TRAFFIC ANALYTICS (ADMIN ONLY) */}
+                {activeTab === 'analytics' && (
+                  isOwnerMode ? (
+                    <AnalyticsView
+                      products={products}
+                      orders={orders}
+                      reviews={reviews}
+                      wishlistItems={wishlistItems}
+                      trafficData={trafficData}
+                      onSelectProduct={(p) => handleOpenProductModal(p, false)}
+                      onGoToCatalogue={() => {
+                        setActiveTab('catalogue');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      onGoToReviews={() => {
+                        setActiveTab('reviews');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+                  ) : (
+                    <div className="max-w-xl mx-auto my-16 px-4">
+                      <div className="bg-white rounded-3xl p-8 sm:p-10 text-center border border-[#DEC89B] shadow-xl space-y-6">
+                        <div className="w-16 h-16 rounded-2xl bg-[#FDEAF0] text-[#70252D] border border-[#FAD1DC] flex items-center justify-center mx-auto shadow-inner">
+                          <Lock className="w-8 h-8" />
+                        </div>
+                        <div className="space-y-2">
+                          <span className="text-[11px] font-bold uppercase tracking-widest text-[#8C2E46] bg-[#FDEAF0] px-3 py-1 rounded-full">
+                            Restricted Access
+                          </span>
+                          <h2 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-[#2C2420] pt-1">
+                            Atelier Analytics Dashboard
+                          </h2>
+                          <p className="text-sm text-[#7A6458] leading-relaxed max-w-md mx-auto">
+                            Store metrics, website visitor traffic, reviewed bedsheets, order volumes, and customer wishlist insights are strictly reserved for the Cotton Nest boutique owner and administrative staff.
+                          </p>
+                        </div>
+
+                        <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setIsOwnerAuthOpen(true)}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#70252D] hover:bg-[#852C36] text-white text-sm font-semibold rounded-2xl shadow-md transition-all cursor-pointer"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                            <span>Unlock with Owner PIN</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('catalogue');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#FAF7F2] hover:bg-[#F4EFE6] text-[#2C2420] text-sm font-semibold rounded-2xl border border-[#DEC89B] transition-all cursor-pointer"
+                          >
+                            <span>Browse Catalogue</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
                 )}
               </motion.div>
             </AnimatePresence>

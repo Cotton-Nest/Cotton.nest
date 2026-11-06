@@ -3,7 +3,7 @@ import { Phone, MessageCircle, MapPin, Heart, Lock, Unlock } from 'lucide-react'
 import { COMPANY_DETAILS } from '../data/products';
 
 interface FooterProps {
-  onNavClick: (tab: 'home' | 'catalogue' | 'story' | 'store' | 'tc' | 'reviews') => void;
+  onNavClick: (tab: 'home' | 'catalogue' | 'story' | 'store' | 'tc' | 'reviews' | 'analytics') => void;
   onOpenAdmin?: () => void;
   isOwnerMode?: boolean;
   onOpenOwnerAuth?: () => void;
@@ -125,6 +125,19 @@ export const Footer: React.FC<FooterProps> = ({
                   <span className="text-[10px] text-[#B83F60]">🌸</span>
                 </button>
               </li>
+              {isOwnerMode && (
+                <li>
+                  <button
+                    onClick={() => onNavClick('analytics')}
+                    className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>Store Performance &amp; Analytics (Admin)</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-400/30 font-semibold">
+                      Owner
+                    </span>
+                  </button>
+                </li>
+              )}
               <li className="pt-1">
                 {isOwnerMode && onOpenAdmin ? (
                   <button

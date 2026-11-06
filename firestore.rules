@@ -109,5 +109,10 @@ service cloud.firestore {
     match /loyalty_transactions/{txId} {
       allow read, write: if true;
     }
+
+    // Website Traffic & Store Analytics
+    match /analytics/{docId} {
+      allow read, write: if true;
+    }
   }
 }

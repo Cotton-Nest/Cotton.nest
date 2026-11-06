@@ -1,16 +1,16 @@
 import React from 'react';
-import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, Heart, Award } from 'lucide-react';
+import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, Heart, Award, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, isOwnerEmail } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
 import { SeasonalConfig } from '../data/seasonal';
 import { GoogleSignInButton } from './GoogleSignInButton';
 
 interface NavbarProps {
-  activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
-  setActiveTab: (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => void;
+  activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics';
+  setActiveTab: (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics') => void;
   cartCount: number;
   openCart: () => void;
   onOpenPhotoManager?: () => void;
@@ -55,14 +55,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
-  const { user, isAuthenticated, logout, loginWithGoogle } = useAuth();
+  const { user, isAuthenticated, logout, loginWithGoogle, isOwner } = useAuth();
+  const isAdmin = Boolean(isOwnerMode || isOwner || (user?.email && isOwnerEmail(user.email)));
   const { pointsBalance, pointsRupeesValue, openLoyaltyModal } = useLoyalty();
 
   const announcementText = content?.announcement.text || "100% Pure Combed Natural Cotton Bedsheets · Sector 46 Gurgaon Atelier";
   const brandName = content?.company.name || "Cotton Nest";
   const contactPhone = content?.company.phone || COMPANY_DETAILS.phone;
 
-  const handleNavClick = (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews') => {
+  const handleNavClick = (tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics') => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
     setUserDropdownOpen(false);
@@ -100,24 +101,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Main Header strictly adhering to the 3-zone Top Bar Contract */}
       <header className="sticky top-0 z-40 bg-[var(--color-header,#FAF7F2)]/95 backdrop-blur-md border-b border-[var(--color-border,#EAE2D5)] transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between">
           
           {/* Zone 1: Logo and Brand Name */}
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => handleNavClick('home')}
-            className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-3"
+            className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-2.5 sm:gap-3 shrink-0 select-none"
           >
             <img
               src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
               alt="Cotton Nest Logo"
-              className="w-11 h-11 sm:w-12 sm:h-12 object-contain shrink-0 transition-transform group-hover:scale-105"
+              className="w-10 h-10 sm:w-12 sm:h-12 object-contain shrink-0 transition-transform group-hover:scale-105"
             />
-            <div>
-              <span className="font-serif-luxury text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors block">
+            <div className="flex flex-col justify-center">
+              <span className="font-serif-luxury text-lg sm:text-2xl font-bold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors leading-tight">
                 {brandName}
               </span>
-              <span className="text-[10px] tracking-widest text-[#7A6458] font-medium uppercase block -mt-0.5">
+              <span className="text-[9px] sm:text-[10px] tracking-widest text-[#7A6458] font-medium uppercase block">
                 Feel The Softness
               </span>
             </div>
@@ -196,6 +197,55 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* Customer Reviews Tab */}
+            <button
+              onClick={() => handleNavClick('reviews')}
+              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
+                activeTab === 'reviews'
+                  ? 'text-[var(--color-primary,#70252D)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
+              }`}
+            >
+              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              <span>Reviews</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
+                4.9 ★
+              </span>
+              {activeTab === 'reviews' && (
+                <motion.span
+                  layoutId="desktop-nav-underline"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                />
+              )}
+            </button>
+
+            {/* Analysis Tab - STRICTLY FOR ADMIN ONLY */}
+            {isAdmin && (
+              <button
+                onClick={() => handleNavClick('analytics')}
+                className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'analytics'
+                    ? 'text-[var(--color-primary,#70252D)] font-semibold'
+                    : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
+                }`}
+                title="Store Traffic & Performance Analytics (Admin Only)"
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-[#70252D]" />
+                <span>Analysis</span>
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-[#70252D] text-white">
+                  Admin
+                </span>
+                {activeTab === 'analytics' && (
+                  <motion.span
+                    layoutId="desktop-nav-underline"
+                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
+                  />
+                )}
+              </button>
+            )}
+
             {/* T&C Tab */}
             <button
               onClick={() => handleNavClick('tc')}
@@ -214,37 +264,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               )}
             </button>
-
-            {/* Our Story Tab */}
-            <button
-              onClick={() => handleNavClick('story')}
-              className={`transition-colors relative py-1.5 cursor-pointer group ${
-                activeTab === 'story'
-                  ? 'text-[var(--color-secondary,#8C3A44)] font-semibold'
-                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
-              }`}
-              style={{
-                color: activeTab === 'story' ? 'var(--color-secondary, #8C3A44)' : undefined,
-              }}
-            >
-              <span>Our Story</span>
-              {activeTab === 'story' && (
-                <motion.span
-                  layoutId="desktop-nav-underline"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-                  style={{ backgroundColor: 'var(--color-secondary, #8C3A44)' }}
-                />
-              )}
-            </button>
           </nav>
 
           {/* Zone 3: Primary functional actions & User Profile */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             
-            {/* Owner Exclusive Controls - Only visible when owner mode is activated via Ctrl+Shift+A or URL */}
-            {isOwnerMode && (
-              <>
+            {/* Desktop Only: Owner Exclusive Controls */}
+            {isAdmin && (
+              <div className="hidden lg:flex items-center gap-2">
                 {onOpenPhotoManager && (
                   <button
                     type="button"
@@ -253,7 +280,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     title="Open Bedsheet Photo Studio (Owner Mode)"
                   >
                     <span className="text-sm">📸</span>
-                    <span className="hidden md:inline">Photo Studio</span>
+                    <span>Photo Studio</span>
                     {updatedImagesCount > 0 && (
                       <span className="bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                         {updatedImagesCount}
@@ -273,129 +300,144 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Admin Panel</span>
                   </button>
                 )}
-              </>
-            )}
-
-            {/* Google Sign In / User Profile Button */}
-            {isAuthenticated && user ? (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl border border-[#DEC89B] bg-white hover:bg-[#FAF7F2] transition-colors cursor-pointer"
-                >
-                  {user.avatar ? (
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      className="w-6 h-6 rounded-full object-cover border border-[#DEC89B]"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-[#2C2420] text-[#DEC89B] flex items-center justify-center text-[10px] font-bold">
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <span className="hidden sm:inline text-xs font-medium text-[#2C2420] max-w-[80px] truncate">
-                    {user.name.split(' ')[0]}
-                  </span>
-                  {isOwnerMode && (
-                    <span className="hidden md:inline text-[9px] font-bold uppercase tracking-wider bg-[#8C2E46] text-white px-1.5 py-0.5 rounded-full">
-                      Owner
-                    </span>
-                  )}
-                </button>
-
-                {/* Dropdown Menu */}
-                <AnimatePresence>
-                  {userDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-[#DEC89B] shadow-xl p-2 z-50 origin-top-right"
-                    >
-                      <div className="p-2 border-b border-[#EAE2D5]">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-bold text-[#2C2420] truncate">{user.name}</p>
-                          {isOwnerMode && (
-                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                              Owner
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-[#7A6458] truncate">{user.email || user.phone}</p>
-                      </div>
-
-                      {onOpenAccount && (
-                        <button
-                          onClick={() => {
-                            setUserDropdownOpen(false);
-                            onOpenAccount();
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
-                        >
-                          <User className="w-3.5 h-3.5 text-[#8C2E46]" />
-                          <span>My Account</span>
-                        </button>
-                      )}
-
-                      {isOwnerMode && onOpenAdmin && (
-                        <button
-                          onClick={() => {
-                            setUserDropdownOpen(false);
-                            onOpenAdmin();
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
-                        >
-                          <SlidersHorizontal className="w-3.5 h-3.5 text-[#8C2E46]" />
-                          <span>Owner Admin Panel</span>
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleNavClick('orders')}
-                        className="w-full text-left px-3 py-2 text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer"
-                      >
-                        <Package className="w-3.5 h-3.5 text-[#C29E57]" />
-                        <span>Live Orders</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          loginWithGoogle();
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer"
-                      >
-                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                        </svg>
-                        <span>Switch Google Account</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          logout();
-                          setUserDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>Sign Out</span>
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
-            ) : (
-              <GoogleSignInButton variant="navbar" customText="Sign In" />
             )}
 
-            {/* Account Hub CTA */}
+            {/* Desktop Only: Google Sign In / User Profile Button */}
+            <div className="hidden sm:block">
+              {isAuthenticated && user ? (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                    className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl border border-[#DEC89B] bg-white hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                  >
+                    {user.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt={user.name}
+                        className="w-6 h-6 rounded-full object-cover border border-[#DEC89B]"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-[#2C2420] text-[#DEC89B] flex items-center justify-center text-[10px] font-bold">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-xs font-medium text-[#2C2420] max-w-[85px] truncate">
+                      {user.name.split(' ')[0]}
+                    </span>
+                    {isAdmin && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider bg-[#8C2E46] text-white px-1.5 py-0.5 rounded-full">
+                        Admin
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Dropdown Menu (Desktop) */}
+                  <AnimatePresence>
+                    {userDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                        className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-[#DEC89B] shadow-xl p-2 z-50 origin-top-right"
+                      >
+                        <div className="p-2 border-b border-[#EAE2D5]">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-[#2C2420] truncate">{user.name}</p>
+                            {isAdmin && (
+                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                Admin
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-[#7A6458] truncate">{user.email || user.phone}</p>
+                        </div>
+
+                        {onOpenAccount && (
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              onOpenAccount();
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
+                          >
+                            <User className="w-3.5 h-3.5 text-[#8C2E46]" />
+                            <span>My Account</span>
+                          </button>
+                        )}
+
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              handleNavClick('analytics');
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-[#70252D] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer mt-1"
+                          >
+                            <BarChart3 className="w-3.5 h-3.5 text-[#70252D]" />
+                            <span>Store Analytics (Admin)</span>
+                          </button>
+                        )}
+
+                        {isAdmin && onOpenAdmin && (
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              onOpenAdmin();
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer"
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-[#8C2E46]" />
+                            <span>Owner Admin Panel</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleNavClick('orders')}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer"
+                        >
+                          <Package className="w-3.5 h-3.5 text-[#C29E57]" />
+                          <span>Live Orders</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            loginWithGoogle();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer"
+                        >
+                          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                          </svg>
+                          <span>Switch Google Account</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            logout();
+                            setUserDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Sign Out</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <GoogleSignInButton variant="navbar" customText="Sign In" />
+              )}
+            </div>
+
+            {/* Desktop Only: Account Hub CTA */}
             {onOpenAccount && (
               <motion.button
                 whileHover={{ y: -1 }}
@@ -404,14 +446,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={onOpenAccount}
                 aria-label="My Account"
                 title="My Account"
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-[#2C2420] hover:text-[#8C2E46] bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] rounded-xl transition-all cursor-pointer shadow-2xs"
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-[#2C2420] hover:text-[#8C2E46] bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] rounded-xl transition-all cursor-pointer shadow-2xs"
               >
                 <User className="w-3.5 h-3.5 text-[#8C2E46]" />
-                <span className="hidden sm:inline">Account</span>
+                <span>Account</span>
               </motion.button>
             )}
 
-            {/* Notification Bell CTA */}
+            {/* Desktop Only: Notification Bell CTA */}
             {onOpenNotifications && (
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -420,7 +462,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={onOpenNotifications}
                 aria-label="Customer Notification Center"
                 title="Notifications & Updates"
-                className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-lg hover:bg-black/5 cursor-pointer"
+                className="hidden sm:inline-flex relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-xl hover:bg-black/5 cursor-pointer"
               >
                 <Bell className="w-5 h-5" />
                 {unreadNotificationsCount > 0 && (
@@ -431,13 +473,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               </motion.button>
             )}
 
-            {/* Shopping Bag CTA */}
+            {/* Shopping Bag CTA - Optimized for both Mobile & Desktop */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.92 }}
               onClick={openCart}
               aria-label="View Shopping Bag"
-              className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-lg hover:bg-black/5 cursor-pointer"
+              className="relative p-2 sm:p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-colors rounded-xl bg-white/60 sm:bg-transparent border border-[#EAE2D5] sm:border-transparent hover:bg-[#F4EFE6] cursor-pointer shrink-0"
             >
               <ShoppingBag className="w-5 h-5" />
               <AnimatePresence mode="popLayout">
@@ -448,7 +490,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.4, opacity: 0 }}
                     transition={{ type: 'spring', stiffness: 450, damping: 20 }}
-                    className="absolute top-1 right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-[var(--color-primary-contrast,#FFFFFF)] text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums"
+                    className="absolute -top-1 -right-1 sm:top-1 sm:right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-[var(--color-primary-contrast,#FFFFFF)] text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs"
                   >
                     {cartCount}
                   </motion.span>
@@ -456,219 +498,317 @@ export const Navbar: React.FC<NavbarProps> = ({
               </AnimatePresence>
             </motion.button>
 
-            {/* Mobile menu toggle */}
+            {/* Mobile Menu Hamburger Toggle */}
             <motion.button
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.92 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation menu"
-              className="md:hidden p-2 text-[#2C2420] hover:bg-[#F4EFE6] rounded-lg cursor-pointer"
+              className="md:hidden p-2 text-[#2C2420] hover:bg-[#F4EFE6] rounded-xl cursor-pointer border border-[#DEC89B] bg-white shadow-2xs shrink-0 flex items-center justify-center"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 text-[#70252D]" /> : <Menu className="w-5 h-5" />}
             </motion.button>
           </div>
         </div>
 
-        {/* Mobile menu dropdown */}
+        {/* Redesigned Luxury Mobile Menu Drawer */}
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -12 }}
+              initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-              className="md:hidden bg-[#FAF7F2] border-b border-[#EAE2D5] px-4 pt-2 pb-6 space-y-2 shadow-lg overflow-hidden"
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="md:hidden bg-[#FAF7F2] border-b border-[#EAE2D5] px-4 pt-3 pb-8 space-y-4 shadow-xl overflow-y-auto max-h-[85vh]"
             >
-              <button
-                onClick={() => handleNavClick('home')}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === 'home' ? 'bg-[#F4EFE6] text-[#2C2420] font-semibold' : 'text-[#6B5D55]'
-                }`}
-              >
-                Home
-              </button>
-              <button
-                onClick={() => handleNavClick('catalogue')}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
-                  activeTab === 'catalogue' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
-                }`}
-              >
-                <span>Product Catalogue</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--color-background,#FAF7F2)] text-[var(--color-primary,#B83F60)] border border-[var(--color-border,#F9D3DE)]">
-                  {productsCount} Bedsheets
-                </span>
-              </button>
-
-              {/* Mobile Seasonal Page Tab */}
-              {seasonalConfig?.enabled && (
-                <button
-                  onClick={() => handleNavClick('seasonal')}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-between transition-colors ${
-                    activeTab === 'seasonal'
-                      ? 'bg-[var(--color-surface,#FFFFFF)] text-[var(--color-primary,#70252D)] border border-[var(--color-accent,#C29E57)]'
-                      : 'text-[var(--color-primary,#70252D)] bg-amber-50/60 border border-amber-200/60 hover:bg-amber-100/60'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-                    <span>{seasonalConfig.name || 'Festive Offers'}</span>
-                  </span>
-                  <span
-                    className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded shadow-2xs"
-                    style={{
-                      backgroundColor: 'var(--color-primary, #70252D)',
-                      color: 'var(--color-primary-contrast, #FFFFFF)',
-                    }}
-                  >
-                    {seasonalConfig.badge || 'Sale'}
-                  </span>
-                </button>
-              )}
-
-              {/* Mobile T&C Tab */}
-              <button
-                onClick={() => handleNavClick('tc')}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
-                  activeTab === 'tc' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
-                }`}
-              >
-                <span>Terms &amp; Conditions (T&amp;C)</span>
-                <span className="text-xs">🌸</span>
-              </button>
-
-
-
-              {onOpenAccount && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenAccount();
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-between text-[#2C2420] hover:bg-[#FAF7F2] cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-[#8C2E46]" />
-                    <span>My Account</span>
-                  </span>
-                  <span className="text-xs text-[#8C7A70]">→</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => handleNavClick('story')}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === 'story'
-                    ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
-                    : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
-                }`}
-              >
-                Our Story &amp; Craft
-              </button>
-
-              {/* Mobile Auth Button */}
-              {!isAuthenticated ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    loginWithGoogle();
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#2C2420] bg-white border border-[#DEC89B] flex items-center gap-2 cursor-pointer shadow-2xs hover:bg-[#FAF7F2]"
-                >
-                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                  </svg>
-                  <span>Sign In with Google</span>
-                </button>
-              ) : (
-                <div className="p-3 bg-white rounded-xl border border-[#DEC89B] flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#2C2420] truncate">{user?.name}</p>
-                    <p className="text-[11px] text-[#7A6458] truncate">{user?.email || user?.phone}</p>
+              {/* Card 1: User Profile & 1-Tap Google Sign-In */}
+              {isAuthenticated && user ? (
+                <div className="p-3.5 bg-white rounded-2xl border border-[#DEC89B] shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="w-9 h-9 rounded-full object-cover border border-[#DEC89B] shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-[#2C2420] text-[#DEC89B] flex items-center justify-center text-xs font-bold shrink-0">
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[#2C2420] truncate">{user.name}</p>
+                        <p className="text-[11px] text-[#7A6458] truncate">{user.email || user.phone}</p>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-[#70252D] text-white shrink-0">
+                        Admin
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-[#EAE2D5]">
+                    {onOpenAccount && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          onOpenAccount();
+                        }}
+                        className="flex-1 py-1.5 text-center text-xs font-semibold text-[#8C2E46] bg-[#FDEAF0] rounded-lg border border-[#FAD1DC] cursor-pointer"
+                      >
+                        My Account
+                      </button>
+                    )}
                     <button
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        loginWithGoogle();
-                      }}
-                      className="text-xs text-[#0B57D0] font-semibold cursor-pointer"
-                    >
-                      Switch
-                    </button>
-                    <button
+                      type="button"
                       onClick={() => {
                         logout();
                         setMobileMenuOpen(false);
                       }}
-                      className="text-xs text-rose-600 font-semibold cursor-pointer"
+                      className="px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer"
                     >
                       Sign Out
                     </button>
                   </div>
                 </div>
-              )}
-
-              {isOwnerMode && (
-                <div className="space-y-2">
-                  {onOpenPhotoManager && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        onOpenPhotoManager();
-                      }}
-                      className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#1E3A8A] bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-between"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="text-base">📸</span>
-                        Photo Studio
-                      </span>
-                      <span className="text-[10px] bg-[#2563EB] text-white px-2 py-0.5 rounded-full font-bold">
-                        {updatedImagesCount} updated
-                      </span>
-                    </button>
-                  )}
-
-                  {onOpenAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        onOpenAdmin();
-                      }}
-                      className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-[#2C2420] bg-white border border-[#DEC89B] flex items-center justify-between"
-                    >
-                      <span className="flex items-center gap-2">
-                        <SlidersHorizontal className="w-4 h-4 text-[#A8823B]" />
-                        Admin Panel (Prices & Stock)
-                      </span>
-                      <span className="text-[10px] bg-[#F4EFE6] px-2 py-0.5 rounded font-bold text-[#A8823B]">Store Admin</span>
-                    </button>
-                  )}
+              ) : (
+                <div className="p-3.5 bg-white rounded-2xl border border-[#DEC89B] shadow-2xs space-y-2.5">
+                  <div className="text-center">
+                    <p className="text-xs font-bold text-[#2C2420]">Welcome to Cotton Nest</p>
+                    <p className="text-[11px] text-[#7A6458]">Sign in to track orders, save wishlists &amp; claim loyalty rewards</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      loginWithGoogle();
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl text-xs font-semibold text-[#2C2420] bg-white border border-[#DEC89B] flex items-center justify-center gap-2 shadow-2xs hover:bg-[#FAF7F2] cursor-pointer"
+                  >
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span>Sign In with Google</span>
+                  </button>
                 </div>
               )}
 
-              <div className="pt-3 border-t border-[#EAE2D5] flex items-center gap-3">
+              {/* Card 2: Primary Store Navigation */}
+              <div className="bg-white rounded-2xl border border-[#EAE2D5] p-2 space-y-1 shadow-2xs">
+                <button
+                  onClick={() => handleNavClick('home')}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-between ${
+                    activeTab === 'home' ? 'bg-[#F4EFE6] text-[#2C2420]' : 'text-[#6B5D55] hover:bg-[#FAF7F2]'
+                  }`}
+                >
+                  <span>Home Showcase</span>
+                  <span className="text-xs text-[#8C7A70]">→</span>
+                </button>
+
+                <button
+                  onClick={() => handleNavClick('catalogue')}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
+                    activeTab === 'catalogue' ? 'bg-[#FDEAF0] text-[#70252D]' : 'text-[#6B5D55] hover:bg-[#FAF7F2]'
+                  }`}
+                >
+                  <span>Product Catalogue</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FAF7F2] text-[#70252D] border border-[#FAD1DC]">
+                    {productsCount} Designs
+                  </span>
+                </button>
+
+                {seasonalConfig?.enabled && (
+                  <button
+                    onClick={() => handleNavClick('seasonal')}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
+                      activeTab === 'seasonal'
+                        ? 'bg-amber-100/70 text-[#70252D]'
+                        : 'text-[#70252D] bg-amber-50/50 hover:bg-amber-100/50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                      <span>{seasonalConfig.name || 'Festive Offers'}</span>
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#70252D] text-white">
+                      {seasonalConfig.badge || 'Sale'}
+                    </span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => handleNavClick('reviews')}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
+                    activeTab === 'reviews' ? 'bg-[#FDEAF0] text-[#70252D]' : 'text-[#6B5D55] hover:bg-[#FAF7F2]'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                    <span>Customer Reviews</span>
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
+                    4.9 ★
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleNavClick('tc')}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
+                    activeTab === 'tc' ? 'bg-[#FDEAF0] text-[#70252D]' : 'text-[#6B5D55] hover:bg-[#FAF7F2]'
+                  }`}
+                >
+                  <span>Terms &amp; Conditions (T&amp;C)</span>
+                  <span className="text-xs">🌸</span>
+                </button>
+
+                {/* Analysis Tab - STRICTLY FOR ADMIN ONLY */}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleNavClick('analytics')}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
+                      activeTab === 'analytics'
+                        ? 'bg-[#70252D] text-white'
+                        : 'bg-[#FDEAF0] text-[#70252D] hover:bg-[#F9D3DE]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4" />
+                      <span>Store Traffic &amp; Analysis</span>
+                    </span>
+                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-white text-[#70252D]">
+                      Admin Only
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Card 3: Admin Management Tools (ONLY IF isAdmin) */}
+              {isAdmin && (
+                <div className="p-3 bg-[#EFF6FF] rounded-2xl border border-[#BFDBFE] space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#1E3A8A]">
+                      Atelier Admin Controls
+                    </span>
+                    <span className="text-[9px] font-bold bg-[#2563EB] text-white px-1.5 py-0.5 rounded-full">
+                      Owner Mode
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {onOpenPhotoManager && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          onOpenPhotoManager();
+                        }}
+                        className="py-2 px-2.5 rounded-xl bg-white border border-[#BFDBFE] text-xs font-semibold text-[#1E3A8A] flex items-center justify-center gap-1.5 hover:bg-[#DBEAFE] cursor-pointer"
+                      >
+                        <span>📸 Photo Studio</span>
+                      </button>
+                    )}
+
+                    {onOpenAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          onOpenAdmin();
+                        }}
+                        className="py-2 px-2.5 rounded-xl bg-white border border-[#BFDBFE] text-xs font-semibold text-[#8C2E46] flex items-center justify-center gap-1.5 hover:bg-[#FDEAF0] cursor-pointer"
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span>Admin Panel</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Card 4: Customer Services & Quick Tools */}
+              <div className="bg-white rounded-2xl border border-[#EAE2D5] p-2 space-y-1 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => handleNavClick('orders')}
+                  className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] flex items-center justify-between cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-[#C29E57]" />
+                    <span>Track Live Orders</span>
+                  </span>
+                  <span className="text-xs text-[#8C7A70]">→</span>
+                </button>
+
+                {onOpenWishlist && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenWishlist();
+                    }}
+                    className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Heart className="w-4 h-4 text-rose-500" />
+                      <span>Saved Wishlist</span>
+                    </span>
+                    {wishlistCount > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-800">
+                        {wishlistCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {onOpenNotifications && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenNotifications();
+                    }}
+                    className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-[#70252D]" />
+                      <span>Notifications &amp; Updates</span>
+                    </span>
+                    {unreadNotificationsCount > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-600 text-white animate-pulse">
+                        {unreadNotificationsCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Card 5: Direct Studio Contact (WhatsApp & Call) */}
+              <div className="pt-2 flex items-center gap-2.5">
                 <a
                   href={COMPANY_DETAILS.callUrl}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-[#2C2420] bg-[#F4EFE6] rounded-lg border border-[#EAE2D5]"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-[#2C2420] bg-white rounded-xl border border-[#DEC89B] shadow-2xs hover:bg-[#FAF7F2]"
                 >
                   <Phone className="w-3.5 h-3.5 text-[#C29E57]" />
-                  Call +91 7838625915
+                  <span>Call Atelier</span>
                 </a>
                 <a
                   href={COMPANY_DETAILS.whatsappUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-white bg-[#B83F60] hover:bg-[#A33452] rounded-lg"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-white bg-[#70252D] hover:bg-[#8C2E46] rounded-xl shadow-2xs"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
-                  WhatsApp
+                  <span>WhatsApp</span>
                 </a>
+              </div>
+
+              <div className="text-center text-[10px] text-[#8C7A70] pt-1">
+                House 2508, Ground Floor, Sector 46, Gurgaon · Open 7 Days
               </div>
             </motion.div>
           )}

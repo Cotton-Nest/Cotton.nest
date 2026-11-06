@@ -188,6 +188,21 @@
         "createdAt": { "type": "number", "description": "Transaction timestamp" }
       },
       "required": ["id", "accountId", "type", "points", "description", "createdAt"]
+    },
+    "AnalyticsData": {
+      "title": "AnalyticsData",
+      "description": "Store website traffic, visitors, page views, and engagement metrics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identifier for analytics doc (e.g. site_traffic)" },
+        "totalVisits": { "type": "number", "description": "Total cumulative page visits" },
+        "uniqueVisitors": { "type": "number", "description": "Unique session count" },
+        "pageViewsByDate": { "type": "object", "description": "Date-wise page views count map" },
+        "pageViewsBySection": { "type": "object", "description": "Section-wise visit distribution" },
+        "deviceBreakdown": { "type": "object", "description": "Distribution across mobile, desktop, and tablet" },
+        "lastVisitedAt": { "type": "number", "description": "Timestamp of most recent page hit" }
+      },
+      "required": ["id", "totalVisits", "uniqueVisitors", "lastVisitedAt"]
     }
   },
   "firestore": {
@@ -230,6 +245,10 @@
     "/loyalty_transactions/{txId}": {
       "schema": "LoyaltyTransaction",
       "description": "Ledger records of points earned and redeemed"
+    },
+    "/analytics/{docId}": {
+      "schema": "AnalyticsData",
+      "description": "Aggregated store traffic and analytics metrics"
     }
   }
 }
