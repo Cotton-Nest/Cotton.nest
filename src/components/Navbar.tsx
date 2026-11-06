@@ -106,20 +106,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => handleNavClick('home')}
-            className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-2.5"
+            className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-3"
           >
             <img
               src="/public/assets/aistudio/IMG-20261106-WA0032_3f856e9c.jpg"
               alt="Cotton Nest Logo"
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border border-[#DEC89B] shadow-2xs shrink-0"
+              className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-[#DEC89B] shadow-xs shrink-0"
             />
-            <span className="font-serif-luxury text-xl sm:text-2xl font-semibold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors">
-              {brandName}
-            </span>
+            <div>
+              <span className="font-serif-luxury text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors block">
+                {brandName}
+              </span>
+              <span className="text-[10px] tracking-widest text-[#7A6458] font-medium uppercase block -mt-0.5">
+                Feel The Softness
+              </span>
+            </div>
           </motion.button>
 
           {/* Zone 2: Clean text navigation links with fluid active state indicator */}
-          <nav className="hidden md:flex items-center gap-7 lg:gap-8 text-sm font-medium">
+          <nav className="hidden md:flex items-center gap-8 lg:gap-10 text-sm font-medium">
             <button
               onClick={() => handleNavClick('home')}
               className={`transition-colors relative py-1.5 cursor-pointer ${
@@ -210,62 +215,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Customer Reviews Tab */}
-            <button
-              onClick={() => handleNavClick('reviews')}
-              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 ${
-                activeTab === 'reviews'
-                  ? 'text-[var(--color-primary,#70252D)] font-semibold'
-                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
-              }`}
-            >
-              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-              <span>Reviews</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                4.9 ★
-              </span>
-              {activeTab === 'reviews' && (
-                <motion.span
-                  layoutId="desktop-nav-underline"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary,#70252D)] rounded-full"
-                />
-              )}
-            </button>
-
-            {/* LIVE ORDERS TAB - SYNCED WITH ADMIN (Uses Secondary Theme Colour) */}
-            <button
-              onClick={() => handleNavClick('orders')}
-              className={`relative py-1.5 cursor-pointer transition-colors flex items-center gap-1.5 group ${
-                activeTab === 'orders'
-                  ? 'text-[var(--color-secondary,#8C3A44)] font-semibold'
-                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
-              }`}
-            >
-              <Package
-                className="w-4 h-4 transition-colors"
-                style={{ color: 'var(--color-secondary, #8C3A44)' }}
-              />
-              <span
-                className="transition-colors"
-                style={{
-                  color: activeTab === 'orders' ? 'var(--color-secondary, #8C3A44)' : undefined,
-                }}
-              >
-                Live Orders
-              </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live sync" />
-              {activeTab === 'orders' && (
-                <motion.span
-                  layoutId="desktop-nav-underline"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-                  style={{ backgroundColor: 'var(--color-secondary, #8C3A44)' }}
-                />
-              )}
-            </button>
-
-            {/* Our Story Tab (Uses Secondary Theme Colour) */}
+            {/* Our Story Tab */}
             <button
               onClick={() => handleNavClick('story')}
               className={`transition-colors relative py-1.5 cursor-pointer group ${
