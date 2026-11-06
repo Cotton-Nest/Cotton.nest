@@ -109,9 +109,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-3"
           >
             <img
-              src="/public/assets/aistudio/IMG-20261106-WA0032_3f856e9c.jpg"
+              src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
               alt="Cotton Nest Logo"
-              className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-[#DEC89B] shadow-xs shrink-0"
+              className="w-11 h-11 sm:w-12 sm:h-12 object-contain shrink-0 transition-transform group-hover:scale-105"
             />
             <div>
               <span className="font-serif-luxury text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors block">
@@ -535,40 +535,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-xs">🌸</span>
               </button>
 
-              {/* Mobile Customer Reviews */}
-              <button
-                onClick={() => handleNavClick('reviews')}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
-                  activeTab === 'reviews' ? 'bg-[#FDEAF0] text-[#B83F60] font-semibold' : 'text-[#6B5D55]'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
-                  Customer Reviews
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                  4.9 ★ (Verified)
-                </span>
-              </button>
 
-              {/* Mobile Live Orders */}
-              <button
-                onClick={() => handleNavClick('orders')}
-                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between transition-colors ${
-                  activeTab === 'orders'
-                    ? 'bg-[var(--color-background,#FAF7F2)] text-[var(--color-secondary,#8C3A44)] font-semibold border border-[var(--color-border,#EAE2D5)]'
-                    : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-secondary,#8C3A44)]'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Package
-                    className="w-4 h-4 transition-colors"
-                    style={{ color: 'var(--color-secondary, #8C3A44)' }}
-                  />
-                  Live Orders
-                </span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              </button>
 
               {onOpenAccount && (
                 <button
