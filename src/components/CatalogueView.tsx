@@ -705,158 +705,176 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           </div>
         </div>
 
-        {/* 1. Category Navigation with Distinct Icons */}
-        <div className="mb-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar text-xs">
-            {/* All Categories Option */}
-            <button
-              type="button"
-              onClick={() => setSelectedProductTypes([])}
-              className={`px-3.5 py-2 rounded-2xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
-                selectedProductTypes.length === 0
-                  ? 'liquid-glass-primary-btn text-white'
-                  : 'liquid-glass-badge text-[#2C2420] hover:border-[#8C2E46]/40'
-              }`}
-            >
-              <LayoutGrid className={`w-4 h-4 ${selectedProductTypes.length === 0 ? 'text-white' : 'text-[#8C2E46]'}`} />
-              <span>All Categories</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  selectedProductTypes.length === 0 ? 'bg-white/25 text-white' : 'bg-[#F4EFE6]/90 text-[#7A6458]'
+        {/* Frozen (Sticky) Top Filter & Category Bar */}
+        <div
+          className="sticky top-16 sm:top-18 z-30 -mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2.5 mb-4 border-b border-[#EAE2D5] shadow-2xs transition-colors"
+          style={{ backgroundColor: 'var(--color-background, #FAF7F2)' }}
+        >
+          {/* 1. Category Navigation with Distinct Icons */}
+          <div className="mb-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
+              {/* All Categories Option */}
+              <button
+                type="button"
+                onClick={() => setSelectedProductTypes([])}
+                className={`px-3.5 py-2 rounded-2xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+                  selectedProductTypes.length === 0
+                    ? 'liquid-glass-primary-btn text-white'
+                    : 'liquid-glass-badge text-[#2C2420] hover:border-[#8C2E46]/40'
                 }`}
               >
-                {products.length}
-              </span>
-            </button>
-
-            {/* Individual Category Pills with Icons & Counts */}
-            {availableFilterData.types.map((catType) => {
-              const isSelected = selectedProductTypes.some(
-                (s) => normalizeProductCategory(s).toLowerCase() === normalizeProductCategory(catType).toLowerCase()
-              );
-              const count = getCountForFilter('productType', catType);
-              const CategoryIcon = getCategoryIcon(catType);
-              const displayLabel = getCategoryDisplayLabel(catType);
-
-              return (
-                <button
-                  key={catType}
-                  type="button"
-                  onClick={() => {
-                    if (isSelected && selectedProductTypes.length === 1) {
-                      setSelectedProductTypes([]);
-                    } else {
-                      setSelectedProductTypes([catType]);
-                    }
-                  }}
-                  className={`px-3.5 py-2 rounded-2xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
-                    isSelected
-                      ? 'liquid-glass-primary-btn text-white'
-                      : 'liquid-glass-badge text-[#2C2420] hover:border-[#8C2E46]/40'
+                <LayoutGrid className={`w-4 h-4 ${selectedProductTypes.length === 0 ? 'text-white' : 'text-[#8C2E46]'}`} />
+                <span>All Categories</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    selectedProductTypes.length === 0 ? 'bg-white/25 text-white' : 'bg-[#F4EFE6]/90 text-[#7A6458]'
                   }`}
                 >
-                  <CategoryIcon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-[#8C2E46]'}`} />
-                  <span>{displayLabel}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isSelected ? 'bg-white/25 text-white' : 'bg-[#F4EFE6]/90 text-[#7A6458]'
+                  {products.length}
+                </span>
+              </button>
+
+              {/* Individual Category Pills with Icons & Counts */}
+              {availableFilterData.types.map((catType) => {
+                const isSelected = selectedProductTypes.some(
+                  (s) => normalizeProductCategory(s).toLowerCase() === normalizeProductCategory(catType).toLowerCase()
+                );
+                const count = getCountForFilter('productType', catType);
+                const CategoryIcon = getCategoryIcon(catType);
+                const displayLabel = getCategoryDisplayLabel(catType);
+
+                return (
+                  <button
+                    key={catType}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected && selectedProductTypes.length === 1) {
+                        setSelectedProductTypes([]);
+                      } else {
+                        setSelectedProductTypes([catType]);
+                      }
+                    }}
+                    className={`px-3.5 py-2 rounded-2xl whitespace-nowrap font-semibold flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+                      isSelected
+                        ? 'liquid-glass-primary-btn text-white'
+                        : 'liquid-glass-badge text-[#2C2420] hover:border-[#8C2E46]/40'
                     }`}
                   >
-                    {count}
-                  </span>
+                    <CategoryIcon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-[#8C2E46]'}`} />
+                    <span>{displayLabel}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isSelected ? 'bg-white/25 text-white' : 'bg-[#F4EFE6]/90 text-[#7A6458]'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 2. Secondary Refine & Quick Filters Bar (Frozen at Top) */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
+            {/* Main All Filters Trigger */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFilterTab('quick');
+                setIsFilterModalOpen(true);
+              }}
+              className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activeFiltersCount > 0
+                  ? 'liquid-glass-primary-btn text-white'
+                  : 'liquid-glass-badge text-[#2C2420]'
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>All Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 bg-white text-[#8C2E46] text-[10px] font-bold rounded-full">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+
+            {/* Mobile & Tablet Sort Trigger in Top Frozen Bar */}
+            <button
+              type="button"
+              onClick={() => setIsSortModalOpen(true)}
+              className={`md:hidden px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                sortBy !== 'featured'
+                  ? 'bg-[#FDEAF0] text-[#8C2E46] border border-[#8C2E46]'
+                  : 'liquid-glass-badge text-[#2C2420]'
+              }`}
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#8C2E46]" />
+              <span>Sort</span>
+            </button>
+
+            {/* Quick Attribute Filter Triggers (Size, Material, Pattern, Color, Price, Brand) */}
+            {[
+              { id: 'size' as FilterCategoryTab, label: 'Size', count: selectedSizes.length, icon: Box },
+              { id: 'material' as FilterCategoryTab, label: 'Material', count: selectedMaterials.length, icon: Feather },
+              { id: 'pattern' as FilterCategoryTab, label: 'Pattern', count: selectedPatterns.length, icon: LayoutGrid },
+              { id: 'price' as FilterCategoryTab, label: 'Price', count: (selectedPricePreset !== 'all' || customMinPrice || customMaxPrice) ? 1 : 0, icon: IndianRupee },
+              { id: 'color' as FilterCategoryTab, label: 'Color', count: selectedColors.length, icon: Tag },
+              { id: 'brand' as FilterCategoryTab, label: 'Brand', count: selectedBrands.length, icon: ShieldCheck },
+            ].map((tab) => {
+              const hasSelection = tab.count > 0;
+              const TabIcon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveFilterTab(tab.id);
+                    setIsFilterModalOpen(true);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                    hasSelection
+                      ? 'bg-[#FDEAF0] text-[#8C2E46] border border-[#8C2E46] font-bold shadow-2xs'
+                      : 'liquid-glass-badge text-[#4A3B32] font-medium'
+                  }`}
+                >
+                  <TabIcon className={`w-3.5 h-3.5 ${hasSelection ? 'text-[#8C2E46]' : 'text-[#8C7A70]'}`} />
+                  <span>{tab.label}</span>
+                  {hasSelection ? (
+                    <span className="w-4 h-4 rounded-full bg-[#8C2E46] text-white text-[9px] font-bold flex items-center justify-center">
+                      {tab.count}
+                    </span>
+                  ) : (
+                    <ChevronDown className="w-3 h-3 text-[#8C7A70]" />
+                  )}
+                </button>
+              );
+            })}
+
+            <div className="h-4 w-px bg-[#DEC89B]/50 shrink-0 mx-0.5" />
+
+            {/* Quick Refinement Chips */}
+            {quickFilterDefs.map((chip) => {
+              const isSelected = selectedQuickFilters.includes(chip.id);
+              const IconComponent = chip.icon;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => toggleQuickFilter(chip.id)}
+                  className={`px-3 py-1.5 rounded-full whitespace-nowrap font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                    isSelected
+                      ? 'liquid-glass-primary-btn text-white font-semibold'
+                      : 'liquid-glass-badge text-[#2C2420]'
+                  }`}
+                >
+                  <IconComponent className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#8C7A70]'}`} />
+                  <span>{chip.label}</span>
+                  {isSelected && <Check className="w-3 h-3 text-white ml-0.5" />}
                 </button>
               );
             })}
           </div>
-        </div>
-
-
-
-        {/* 2. Secondary Refine & Quick Filters Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar mb-3 text-xs">
-          {/* Main All Filters Trigger */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveFilterTab('quick');
-              setIsFilterModalOpen(true);
-            }}
-            className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-              activeFiltersCount > 0
-                ? 'liquid-glass-primary-btn text-white'
-                : 'liquid-glass-badge text-[#2C2420]'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>All Filters</span>
-            {activeFiltersCount > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.2 bg-white text-[#8C2E46] text-[10px] font-bold rounded-full">
-                {activeFiltersCount}
-              </span>
-            )}
-          </button>
-
-          {/* Quick Attribute Filter Triggers (Size, Material, Pattern, Color, Price, Brand) */}
-          {[
-            { id: 'size' as FilterCategoryTab, label: 'Size', count: selectedSizes.length, icon: Box },
-            { id: 'material' as FilterCategoryTab, label: 'Material', count: selectedMaterials.length, icon: Feather },
-            { id: 'pattern' as FilterCategoryTab, label: 'Pattern', count: selectedPatterns.length, icon: LayoutGrid },
-            { id: 'price' as FilterCategoryTab, label: 'Price', count: (selectedPricePreset !== 'all' || customMinPrice || customMaxPrice) ? 1 : 0, icon: IndianRupee },
-            { id: 'color' as FilterCategoryTab, label: 'Color', count: selectedColors.length, icon: Tag },
-            { id: 'brand' as FilterCategoryTab, label: 'Brand', count: selectedBrands.length, icon: ShieldCheck },
-          ].map((tab) => {
-            const hasSelection = tab.count > 0;
-            const TabIcon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setActiveFilterTab(tab.id);
-                  setIsFilterModalOpen(true);
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                  hasSelection
-                    ? 'bg-[#FDEAF0]/90 backdrop-blur-md text-[#8C2E46] border border-[#8C2E46] font-bold shadow-2xs'
-                    : 'liquid-glass-badge text-[#4A3B32] font-medium'
-                }`}
-              >
-                <TabIcon className={`w-3.5 h-3.5 ${hasSelection ? 'text-[#8C2E46]' : 'text-[#8C7A70]'}`} />
-                <span>{tab.label}</span>
-                {hasSelection ? (
-                  <span className="w-4 h-4 rounded-full bg-[#8C2E46] text-white text-[9px] font-bold flex items-center justify-center">
-                    {tab.count}
-                  </span>
-                ) : (
-                  <ChevronDown className="w-3 h-3 text-[#8C7A70]" />
-                )}
-              </button>
-            );
-          })}
-
-          <div className="h-4 w-px bg-[#DEC89B]/50 shrink-0 mx-0.5" />
-
-          {/* Quick Refinement Chips */}
-          {quickFilterDefs.map((chip) => {
-            const isSelected = selectedQuickFilters.includes(chip.id);
-            const IconComponent = chip.icon;
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => toggleQuickFilter(chip.id)}
-                className={`px-3 py-1.5 rounded-full whitespace-nowrap font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-                  isSelected
-                    ? 'liquid-glass-primary-btn text-white font-semibold'
-                    : 'liquid-glass-badge text-[#2C2420]'
-                }`}
-              >
-                <IconComponent className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#8C7A70]'}`} />
-                <span>{chip.label}</span>
-                {isSelected && <Check className="w-3 h-3 text-white ml-0.5" />}
-              </button>
-            );
-          })}
         </div>
 
         {/* 4. Active Filters Tag Ribbon & Clear All */}
@@ -1077,38 +1095,6 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           </div>
         )}
 
-      </div>
-
-      {/* ======================================================== */}
-      {/* 6. MOBILE STICKY BOTTOM BAR (SORT & FILTER)              */}
-      {/* Positioned above the mobile bottom navigation bar        */}
-      <div className="fixed bottom-[74px] left-3 right-3 z-40 liquid-glass-dock rounded-2xl md:hidden overflow-hidden">
-        <div className="grid grid-cols-2 divide-x divide-white/60 h-11">
-          {/* SORT Button */}
-          <button
-            type="button"
-            onClick={() => setIsSortModalOpen(true)}
-            className="flex items-center justify-center gap-2 text-xs font-bold text-[#2C2420] hover:bg-white/60 transition-colors cursor-pointer uppercase tracking-wider"
-          >
-            <ArrowUpDown className="w-4 h-4 text-[#8C2E46]" />
-            <span>SORT</span>
-          </button>
-
-          {/* FILTER Button */}
-          <button
-            type="button"
-            onClick={() => setIsFilterModalOpen(true)}
-            className="flex items-center justify-center gap-2 text-xs font-bold text-[#2C2420] hover:bg-white/60 transition-colors cursor-pointer uppercase tracking-wider relative"
-          >
-            <Filter className="w-4 h-4 text-[#8C2E46]" />
-            <span>FILTER</span>
-            {activeFiltersCount > 0 && (
-              <span className="w-5 h-5 bg-[#8C2E46] text-white rounded-full text-[10px] flex items-center justify-center font-bold">
-                {activeFiltersCount}
-              </span>
-            )}
-          </button>
-        </div>
       </div>
 
       {/* ======================================================== */}

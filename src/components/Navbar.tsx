@@ -72,10 +72,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* Subtle Apple Liquid Glass announcement bar */}
+      {/* Top announcement bar */}
       <aside
         aria-label="Announcement"
-        className="relative z-40 border-b border-white/80 text-xs py-1.5 px-4 text-center transition-colors bg-white/55 backdrop-blur-xl"
+        className="relative z-40 border-b border-[#EAE2D5] text-xs py-1.5 px-4 text-center transition-colors bg-[#FAF7F2]"
         style={{
           color: 'var(--color-text-secondary, #7A6458)',
         }}
