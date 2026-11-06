@@ -106,7 +106,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       }}
       whileTap={{ scale: 0.995 }}
       transition={{ type: 'spring', stiffness: 340, damping: 25, mass: 0.7 }}
-      className={`group relative bg-white rounded-2xl border border-[#EAE2D5] hover:border-[#DEC89B] shadow-xs hover:shadow-lg overflow-hidden transition-all duration-300 cursor-pointer ${
+      className={`group relative liquid-glass-product-card rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer ${
         viewMode === 'list' ? 'flex flex-col sm:flex-row' : 'flex flex-col'
       } ${
         viewMode === 'single' ? 'sm:rounded-3xl' : ''
@@ -114,6 +114,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         isOutOfStock ? 'opacity-85' : ''
       }`}
     >
+      {/* Top 24K Champagne Gold Luxury Accent Hairline */}
+      <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#C5A059] to-transparent opacity-70 group-hover:opacity-100 transition-opacity shrink-0" />
       {/* Product Image / Video Slot */}
       <div
         className={`relative bg-[#F4EFE6] overflow-hidden shrink-0 ${

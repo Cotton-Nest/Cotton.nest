@@ -41,35 +41,107 @@ export interface WebsiteThemeConfig {
 export const DEFAULT_GLASS_OPACITY = 0.45; // 45% translucent Apple Liquid Glass
 export const DEFAULT_GLASS_BLUR = 28;      // 28px optical refraction blur
 
-// 1. Classic Cotton Nest (Original signature palette)
-export const CLASSIC_COTTON_NEST_COLORS: ThemeColors = {
-  primary: '#70252D',          // Signature Cotton Nest deep burgundy
+// 1. Royal Luxury Atelier (Signature Imperial Velvet & 24K Champagne Gold palette)
+export const ROYAL_LUXURY_ATELIER_COLORS: ThemeColors = {
+  primary: '#5E1924',          // Imperial Velvet Bordeaux
   primaryContrast: '#FFFFFF',
-  secondary: '#8C3A44',        // Warm rosewood
+  secondary: '#7A2332',        // Royal Maroon Silk
   secondaryContrast: '#FFFFFF',
-  background: '#FAF7F2',       // Luminous warm cream
-  surface: '#FFFFFF',          // Crisp pure white card surface
-  text: '#2C2420',             // Deep espresso charcoal
-  textSecondary: '#6B5D55',    // Refined warm taupe
-  accent: '#C29E57',           // Muted artisan gold
-  header: '#FAF7F2',           // Matching cream header
-  headerText: '#2C2420',
-  footer: '#2C2420',           // Deep espresso luxury footer
-  footerText: '#FAF7F2',
-  border: '#EAE2D5',
+  background: '#FAF6F0',       // Warm Alabaster Silk
+  surface: '#FFFFFF',          // Crisp Ivory Linen card surface
+  text: '#1E1612',             // Deep Obsidian Espresso
+  textSecondary: '#5C4E46',    // Warm Umber
+  accent: '#C5A059',           // Burnished 24K Champagne Gold
+  header: '#FDFBF7',           // Luminous Silk Ivory header
+  headerText: '#1E1612',
+  footer: '#19120F',           // Deep Velvet Espresso footer
+  footerText: '#FAF6F0',
+  border: '#E2D4C0',           // Gilded Champagne Hairline
   glassOpacity: DEFAULT_GLASS_OPACITY,
   glassBlur: DEFAULT_GLASS_BLUR,
 };
 
-// 2. Festival Theme Presets (All 6 standard presets)
+// Classic Cotton Nest (Original signature palette)
+export const CLASSIC_COTTON_NEST_COLORS: ThemeColors = ROYAL_LUXURY_ATELIER_COLORS;
+
+// 2. Luxury & Festival Theme Presets
 export const FESTIVAL_THEME_PRESETS: ThemePreset[] = [
+  {
+    id: 'luxury',
+    name: 'Royal Luxury Atelier',
+    description: 'Imperial velvet bordeaux, burnished 24K champagne gold, and warm alabaster silk.',
+    festivalTag: 'Luxury Edition',
+    badge: 'Signature Luxury',
+    colors: ROYAL_LUXURY_ATELIER_COLORS,
+  },
+  {
+    id: 'maharaja_palace',
+    name: 'Udaipur Palace Gold & Ivory',
+    description: 'Regal antique gold, palace sandstone ivory, and deep heritage bronze.',
+    festivalTag: 'Royal Heritage',
+    badge: 'Palace Luxury',
+    colors: {
+      primary: '#8C6520',          // Regal Antique Gold
+      primaryContrast: '#FFFFFF',
+      secondary: '#5E1924',        // Royal Velvet Crimson
+      secondaryContrast: '#FFFFFF',
+      background: '#FBF8F1',       // Palace Sandstone Ivory
+      surface: '#FFFFFF',
+      text: '#221912',             // Deep Heritage Bronze
+      textSecondary: '#635243',    // Warm Sandstone Umber
+      accent: '#C99B3B',           // Burnished Sovereign Gold
+      header: '#FDFBF5',           // Alabaster Gold Wash
+      headerText: '#221912',
+      footer: '#1A130D',           // Dark Imperial Teak
+      footerText: '#FBF8F1',
+      border: '#E5D5B5',
+    },
+  },
+  {
+    id: 'luxury_noir',
+    name: 'Midnight Onyx & 24K Gold',
+    description: 'Opulent dark obsidian velvet paired with luminous champagne gold and warm ivory.',
+    festivalTag: 'Noir Luxury',
+    badge: 'Boutique Evening',
+    colors: {
+      primary: '#C5A059',          // Luminous 24K Champagne Gold
+      primaryContrast: '#14110F',
+      secondary: '#8C2E46',        // Deep Ruby Velvet
+      secondaryContrast: '#FFFFFF',
+      background: '#FAF5EC',       // Warm Champagne Parchment
+      surface: '#FFFFFF',
+      text: '#181310',             // Obsidian Espresso
+      textSecondary: '#574A42',    // Muted Truffle
+      accent: '#B88933',           // Rich Sovereign Gold
+      header: '#191310',           // Midnight Obsidian Header
+      headerText: '#FAF5EC',
+      footer: '#120E0C',           // Deepest Onyx Footer
+      footerText: '#FAF5EC',
+      border: '#DFC9A3',
+    },
+  },
   {
     id: 'classic',
     name: 'Classic Cotton Nest',
     description: 'Timeless signature palette with warm cream, deep burgundy and muted gold.',
     festivalTag: 'Signature',
     badge: 'Everyday Luxury',
-    colors: CLASSIC_COTTON_NEST_COLORS,
+    colors: {
+      primary: '#70252D',
+      primaryContrast: '#FFFFFF',
+      secondary: '#8C3A44',
+      secondaryContrast: '#FFFFFF',
+      background: '#FAF7F2',
+      surface: '#FFFFFF',
+      text: '#2C2420',
+      textSecondary: '#6B5D55',
+      accent: '#C29E57',
+      header: '#FAF7F2',
+      headerText: '#2C2420',
+      footer: '#2C2420',
+      footerText: '#FAF7F2',
+      border: '#EAE2D5',
+    },
   },
   {
     id: 'diwali',
@@ -341,6 +413,17 @@ export function getStoredPublishedTheme(): WebsiteThemeConfig {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.colors && isValidHex(parsed.colors.primary)) {
+        // Automatically upgrade default 'classic' seed to the new Royal Luxury Atelier theme
+        if (parsed.activeThemeId === 'classic') {
+          return {
+            activeThemeId: 'luxury',
+            themeName: 'Royal Luxury Atelier',
+            colors: ROYAL_LUXURY_ATELIER_COLORS,
+            glassOpacity: DEFAULT_GLASS_OPACITY,
+            glassBlur: DEFAULT_GLASS_BLUR,
+            updatedAt: Date.now(),
+          };
+        }
         const glassOpacity = parsed.glassOpacity ?? parsed.colors.glassOpacity ?? DEFAULT_GLASS_OPACITY;
         const glassBlur = parsed.glassBlur ?? parsed.colors.glassBlur ?? DEFAULT_GLASS_BLUR;
         return {
@@ -357,9 +440,9 @@ export function getStoredPublishedTheme(): WebsiteThemeConfig {
     }
   } catch {}
   return {
-    activeThemeId: 'classic',
-    themeName: 'Classic Cotton Nest',
-    colors: CLASSIC_COTTON_NEST_COLORS,
+    activeThemeId: 'luxury',
+    themeName: 'Royal Luxury Atelier',
+    colors: ROYAL_LUXURY_ATELIER_COLORS,
     glassOpacity: DEFAULT_GLASS_OPACITY,
     glassBlur: DEFAULT_GLASS_BLUR,
     updatedAt: Date.now(),
