@@ -7,7 +7,14 @@ import { saveOrder, getCouponsApi, validateCouponApi, recordCouponUseApi, isVide
 import { sendWhatsAppCartOrder } from '../utils/whatsappOrder';
 import { useAuth } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
-import { calculateEarnedPoints, calculatePointsDiscount, LOYALTY_EARNING_RATE_INR, LOYALTY_POINT_VALUE_INR } from '../data/loyalty';
+import {
+  calculateEarnedPoints,
+  calculatePointsDiscount,
+  calculatePointsForRupeeDiscount,
+  canRedeemPoints,
+  LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_POINTS_PER_100_INR,
+} from '../data/loyalty';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, formatFullAddress } from '../data/addresses';
@@ -137,7 +144,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onOpenAuthModal,
 }) => {
   const { user } = useAuth();
-  const { pointsBalance, earnPoints, redeemPoints, refreshLoyalty, openLoyaltyModal } = useLoyalty();
+  const {
+    pointsBalance,
+    redeemPoints,
+    openLoyaltyModal,
+    preferRedeemAtCheckout,
+    setPreferRedeemAtCheckout,
+  } = useLoyalty();
   const [checkoutStep, setCheckoutStep] = React.useState<'cart' | 'checkout' | 'success'>('cart');
   const [customerName, setCustomerName] = React.useState('');
   const [customerPhone, setCustomerPhone] = React.useState('');
@@ -153,8 +166,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     pointsDiscount?: number;
   } | null>(null);
 
-  // Loyalty Points State
+  // Loyalty Points State synced with Customer Account preference
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (preferRedeemAtCheckout && canRedeemPoints(pointsBalance)) {
+      setUseLoyaltyPoints(true);
+    } else if (!canRedeemPoints(pointsBalance)) {
+      setUseLoyaltyPoints(false);
+    }
+  }, [preferRedeemAtCheckout, pointsBalance]);
 
   // Coupon & Offer State
   const [couponCodeInput, setCouponCodeInput] = useState('');
@@ -364,12 +385,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const catalogSavings = Math.max(0, originalSubtotal - subtotal);
   const effectiveCouponDiscount = couponDiscount || 0;
 
-  // Loyalty points discount calculation: 1 point = 1 Rupee discount at checkout
-  const maxRedeemablePoints = Math.min(
-    Math.max(0, pointsBalance),
-    Math.max(0, subtotal - effectiveCouponDiscount)
-  );
-  const pointsToRedeem = useLoyaltyPoints ? maxRedeemablePoints : 0;
+  // Nest Points discount calculation: 100 points = ₹50 (₹0.50 per point), minimum 200 points required for redemption
+  const netSubtotalAfterCoupon = Math.max(0, subtotal - effectiveCouponDiscount);
+  const maxRedeemablePoints = canRedeemPoints(pointsBalance)
+    ? Math.min(Math.max(0, pointsBalance), calculatePointsForRupeeDiscount(netSubtotalAfterCoupon))
+    : 0;
+  const canRedeemForThisOrder = maxRedeemablePoints >= LOYALTY_MIN_REDEMPTION_POINTS;
+  const pointsToRedeem = useLoyaltyPoints && canRedeemForThisOrder ? maxRedeemablePoints : 0;
   const effectivePointsDiscount = calculatePointsDiscount(pointsToRedeem);
 
   const acrossIndiaFee =
@@ -378,8 +400,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       : 29;
   const totalSavings = catalogSavings + effectiveCouponDiscount + effectivePointsDiscount;
   const shippingCost = shippingOption === 'india' ? acrossIndiaFee : 0;
-  const finalTotal = Math.max(0, subtotal - effectiveCouponDiscount - effectivePointsDiscount) + shippingCost;
-  const pointsToEarn = calculateEarnedPoints(finalTotal); // 1 point for every 50 Rs spent
+  // Net merchandise amount strictly excludes delivery charges (No points on delivery charges)
+  const netMerchandiseAmount = Math.max(0, subtotal - effectiveCouponDiscount - effectivePointsDiscount);
+  const finalTotal = netMerchandiseAmount + shippingCost;
+  const pointsToEarn = calculateEarnedPoints(netMerchandiseAmount); // 5 points per ₹100 spent (excluding delivery charges)
 
   // Auto-apply or re-validate coupons when bag items or subtotal change
   useEffect(() => {
@@ -537,12 +561,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       paymentMethod: 'whatsapp',
       status: 'pending',
       totalAmount: finalTotal,
+      shippingCost,
       totalSavings,
       couponCode: appliedCoupon?.code,
       couponDiscount: effectiveCouponDiscount,
       pointsUsed: pointsToRedeem > 0 ? pointsToRedeem : undefined,
       pointsDiscount: effectivePointsDiscount > 0 ? effectivePointsDiscount : undefined,
       pointsEarned: pointsToEarn > 0 ? pointsToEarn : undefined,
+      pointsCredited: false,
       items: validItems.map((i) => {
         const pName = i?.product?.name || 'Handcrafted Bedsheet';
         const vName = i?.selectedVariant?.name;
@@ -584,21 +610,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       }
     }
 
-    // 1. Process loyalty points redemption if applied
-    if (pointsToRedeem > 0) {
+    // Process loyalty points redemption if applied (minimum 200 points enforced)
+    // Note: Earned points are credited ONLY after successful delivery and full payment (when order status becomes 'delivered')
+    if (pointsToRedeem >= LOYALTY_MIN_REDEMPTION_POINTS) {
       try {
         await redeemPoints(pointsToRedeem, orderId, customerPhone.trim());
       } catch (err) {
         console.warn('Loyalty points redeem notice:', err);
-      }
-    }
-
-    // 2. Credit earned loyalty points (1 point every 50 Rs spent)
-    if (pointsToEarn > 0) {
-      try {
-        await earnPoints(finalTotal, orderId, customerPhone.trim());
-      } catch (err) {
-        console.warn('Loyalty points earn notice:', err);
       }
     }
 
@@ -1014,11 +1032,50 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   {formError}
                 </div>
               )}
-              <div className="p-3 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] text-xs space-y-1">
-                <p className="font-semibold text-[#2C2420]">Order Summary</p>
+              <div className="p-3 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-[#2C2420]">Order Summary</p>
+                  <span className="font-bold text-[#8C2E46]">Payable: ₹{finalTotal.toLocaleString('en-IN')}</span>
+                </div>
                 <p className="text-[#6B5D55]">
-                  {validItems.length} bedsheet{validItems.length > 1 ? 's' : ''} (Total: ₹{subtotal.toLocaleString('en-IN')})
+                  {validItems.length} bedsheet{validItems.length > 1 ? 's' : ''} (Items Subtotal: ₹{subtotal.toLocaleString('en-IN')})
                 </p>
+
+                {/* Redeem Nest Points Option directly in Checkout Step */}
+                <div className="pt-2 border-t border-[#EAE2D5] flex items-center justify-between gap-2 text-[11px]">
+                  <div>
+                    <span className="font-semibold text-[#2C2420] flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5 text-[#C29E57]" />
+                      <span>Nest Points Available: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{calculatePointsDiscount(pointsBalance)})</span>
+                    </span>
+                    <span className="text-[10px] text-[#7A6458] block">
+                      {canRedeemForThisOrder
+                        ? `100 pts = ₹50 · Earn +${pointsToEarn} pts after delivery & full payment`
+                        : `Min. ${LOYALTY_MIN_REDEMPTION_POINTS} pts (₹100) required to redeem · Earn +${pointsToEarn} pts on delivery`}
+                    </span>
+                  </div>
+
+                  {canRedeemForThisOrder ? (
+                    <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-amber-300 hover:bg-amber-50 transition-colors shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={useLoyaltyPoints}
+                        onChange={(e) => {
+                          setUseLoyaltyPoints(e.target.checked);
+                          setPreferRedeemAtCheckout(e.target.checked);
+                        }}
+                        className="accent-[#70252D] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="text-[10px] font-bold text-[#70252D]">
+                        {useLoyaltyPoints ? `Applied (-₹${effectivePointsDiscount})` : 'Redeem Points'}
+                      </span>
+                    </label>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200 shrink-0">
+                      Min {LOYALTY_MIN_REDEMPTION_POINTS} pts
+                    </span>
+                  )}
+                </div>
               </div>
 
               {!user && (
@@ -1399,24 +1456,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 <div className="flex items-center justify-between font-bold text-amber-950">
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-[#C29E57]" />
-                    <span>Royal Club Loyalty Rewards</span>
+                    <span>Nest Points Loyalty Rewards</span>
                   </span>
                   <button
                     type="button"
                     onClick={openLoyaltyModal}
                     className="text-[11px] font-bold text-[#8C2E46] underline cursor-pointer"
                   >
-                    View Wallet &amp; Perks
+                    View Wallet &amp; Rules
                   </button>
                 </div>
                 {Boolean(lastOrderDetails.pointsEarned && lastOrderDetails.pointsEarned > 0) && (
                   <p className="text-[11px] text-amber-900 font-semibold">
-                    🎁 +{lastOrderDetails.pointsEarned} Points earned on this purchase! (1 pt / ₹50)
+                    🎁 +{lastOrderDetails.pointsEarned} Nest Points ({LOYALTY_POINTS_PER_100_INR} pts / ₹100 · credited after successful delivery &amp; full payment)
                   </p>
                 )}
                 {Boolean(lastOrderDetails.pointsUsed && lastOrderDetails.pointsUsed > 0) && (
                   <p className="text-[11px] text-emerald-800 font-medium">
-                    ✨ {lastOrderDetails.pointsUsed} Points redeemed for ₹{lastOrderDetails.pointsDiscount} instant cash discount.
+                    ✨ {lastOrderDetails.pointsUsed} Nest Points redeemed for ₹{lastOrderDetails.pointsDiscount} discount (100 pts = ₹50).
                   </p>
                 )}
               </div>
@@ -1628,12 +1685,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               )}
             </div>
 
-            {/* Compact Loyalty Points Rewards & Checkout Redemption Bar */}
+            {/* Compact Nest Points Rewards & Checkout Redemption Bar */}
             <div className="px-2.5 py-1.5 bg-gradient-to-r from-amber-50/90 to-[#FAF7F2] rounded-xl border border-amber-200/80 space-y-1">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-semibold text-[#2C2420] flex items-center gap-1">
                   <Award className="w-3.5 h-3.5 text-[#C29E57]" />
-                  <span>Loyalty Rewards: <strong className="text-amber-900">+{pointsToEarn} pts</strong> on this order</span>
+                  <span>Nest Points: <strong className="text-amber-900">+{pointsToEarn} pts</strong> (5 pts/₹100 · on delivery)</span>
                 </span>
                 <button
                   type="button"
@@ -1645,24 +1702,31 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </button>
               </div>
 
-              {pointsBalance > 0 && (
-                <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-[11px]">
-                  <span className="text-[#6B5D55]">
-                    Balance: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{calculatePointsDiscount(pointsBalance)})
-                  </span>
+              <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-[11px]">
+                <span className="text-[#6B5D55]">
+                  Available: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{calculatePointsDiscount(pointsBalance)})
+                </span>
+                {canRedeemForThisOrder ? (
                   <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2 py-0.5 rounded-md border border-amber-300 hover:bg-amber-50 transition-colors">
                     <input
                       type="checkbox"
                       checked={useLoyaltyPoints}
-                      onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
+                      onChange={(e) => {
+                        setUseLoyaltyPoints(e.target.checked);
+                        setPreferRedeemAtCheckout(e.target.checked);
+                      }}
                       className="accent-[#70252D] w-3 h-3 cursor-pointer"
                     />
                     <span className="text-[10px] font-bold text-[#70252D]">
                       {useLoyaltyPoints ? `Applied (-₹${effectivePointsDiscount})` : 'Redeem Points'}
                     </span>
                   </label>
-                </div>
-              )}
+                ) : (
+                  <span className="text-[10px] text-amber-900 font-medium">
+                    Min. {LOYALTY_MIN_REDEMPTION_POINTS} pts to redeem
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="space-y-0.5 text-[11px]">

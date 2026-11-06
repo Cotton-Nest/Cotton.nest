@@ -32,6 +32,17 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
+import {
+  LOYALTY_POINTS_PER_100_INR,
+  LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_EXPIRY_MONTHS,
+  LOYALTY_REFERRAL_REWARD_POINTS,
+  calculateEarnedPoints,
+  calculatePointsDiscount,
+  canRedeemPoints,
+  getTransactionExpiryDate,
+  isTransactionExpired,
+} from '../data/loyalty';
 import { WishlistItem, CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
 import { Order } from '../data/orders';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
@@ -71,10 +82,27 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   onOpenAdmin,
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
-  const { pointsBalance, pointsRupeesValue, transactions } = useLoyalty();
+  const {
+    pointsBalance,
+    pointsRupeesValue,
+    pointsEarnedFromPurchases,
+    pointsUsed,
+    referralPointsEarned,
+    referralCode,
+    referredByCode,
+    nextExpiryTimestamp,
+    preferRedeemAtCheckout,
+    setPreferRedeemAtCheckout,
+    claimReferralReward,
+    transactions,
+  } = useLoyalty();
 
   // Active view tab inside account modal: 'overview' | 'loyalty' | 'wishlist' | 'orders' | 'profile'
   const [activeTab, setActiveTab] = useState<'overview' | 'loyalty' | 'wishlist' | 'orders' | 'profile'>('overview');
+  const [copiedReferral, setCopiedReferral] = useState(false);
+  const [friendReferralInput, setFriendReferralInput] = useState('');
+  const [referralStatus, setReferralStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [claimingReferral, setClaimingReferral] = useState(false);
   
   // Edit profile state
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -116,6 +144,28 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     navigator.clipboard.writeText(code);
     setCopiedCoupon(code);
     setTimeout(() => setCopiedCoupon(null), 2500);
+  };
+
+  const handleCopyReferralCode = () => {
+    navigator.clipboard.writeText(referralCode);
+    setCopiedReferral(true);
+    setTimeout(() => setCopiedReferral(false), 2500);
+  };
+
+  const handleClaimReferral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!friendReferralInput.trim()) return;
+    setClaimingReferral(true);
+    setReferralStatus(null);
+    const res = await claimReferralReward(friendReferralInput.trim(), customerProfile?.phone || user?.phone);
+    setClaimingReferral(false);
+    setReferralStatus({
+      type: res.success ? 'success' : 'error',
+      message: res.message,
+    });
+    if (res.success) {
+      setFriendReferralInput('');
+    }
   };
 
   const handleSaveProfile = () => {
@@ -208,6 +258,32 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     return true; // fallback to show recent store orders
   }).slice(0, 10);
 
+  // Calculate purchase points from delivered orders as fallback/supplement
+  const deliveredOrdersEarned = customerOrders
+    .filter((o) => o.status === 'delivered')
+    .reduce((sum, o) => {
+      if (typeof o.pointsEarned === 'number' && o.pointsEarned > 0) return sum + o.pointsEarned;
+      const net = Math.max(0, (o.totalAmount || 0) - (o.shippingCost || 0));
+      return sum + calculateEarnedPoints(net);
+    }, 0);
+
+  const pendingDeliveryPoints = customerOrders
+    .filter((o) => o.status !== 'delivered' && o.status !== 'cancelled')
+    .reduce((sum, o) => {
+      if (typeof o.pointsEarned === 'number' && o.pointsEarned > 0) return sum + o.pointsEarned;
+      const net = Math.max(0, (o.totalAmount || 0) - (o.shippingCost || 0));
+      return sum + calculateEarnedPoints(net);
+    }, 0);
+
+  const displayPointsFromPurchases = Math.max(pointsEarnedFromPurchases, deliveredOrdersEarned);
+  const formattedNextExpiry = nextExpiryTimestamp
+    ? new Date(nextExpiryTimestamp).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '12 months from credit date';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="fixed inset-0" onClick={onClose} />
@@ -252,7 +328,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         <div className="flex items-center gap-1 px-4 py-2 bg-white border-b border-[#EAE2D5] overflow-x-auto no-scrollbar shrink-0 text-xs">
           {[
             { id: 'overview', label: 'Overview', icon: User },
-            { id: 'loyalty', label: 'Points & Rewards', count: `${pointsBalance} pts`, icon: Award },
+            { id: 'loyalty', label: 'Nest Points & Rewards', count: `${pointsBalance} pts`, icon: Award },
             { id: 'wishlist', label: 'Wishlist', count: wishlistItems.length, icon: Heart },
             { id: 'orders', label: 'My Orders', count: customerOrders.length, icon: Package },
             { id: 'profile', label: 'Address & Profile', icon: MapPin },
@@ -291,41 +367,103 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           {activeTab === 'overview' && (
             <div className="space-y-4">
               
-              {/* Royal Club Loyalty Banner */}
+              {/* Nest Points Complete Account Summary Card */}
               <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 via-[#FAF7F2] to-amber-100/60 border border-amber-300 shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-[#C29E57]" />
                     <span className="font-serif-luxury font-bold text-sm text-[#70252D]">
-                      Royal Club Loyalty Points Wallet
+                      Nest Points Loyalty Wallet
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
-                    Earn 1 pt / ₹50
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                    {LOYALTY_POINTS_PER_100_INR} pts / ₹100 · 100 pts = ₹50
                   </span>
                 </div>
 
-                <div className="flex items-baseline justify-between pt-1">
+                {/* Primary Balance & Equivalent Rupee Value */}
+                <div className="flex items-baseline justify-between pt-1 flex-wrap gap-2">
                   <div>
                     <span className="text-3xl font-extrabold font-mono text-[#70252D]">
                       {pointsBalance}
                     </span>
-                    <span className="text-xs font-semibold text-amber-900 ml-1.5">Points Balance</span>
+                    <span className="text-xs font-semibold text-amber-900 ml-1.5">Available Nest Points</span>
                   </div>
                   <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                    ≈ ₹{pointsRupeesValue} off at checkout
+                    Equivalent Rupee Value: ₹{pointsRupeesValue} (100 pts = ₹50)
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between pt-1 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('loyalty')}
-                    className="text-[#8C2E46] font-bold hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <span>View Points History &amp; How to Redeem</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                {/* 4-Grid Breakdown inside Overview */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+                  <div className="p-2 bg-white/90 rounded-xl border border-amber-200/80">
+                    <span className="text-[10px] text-[#7A6458] block">Earned (Purchases)</span>
+                    <span className="font-bold text-[#2C2420]">{displayPointsFromPurchases} pts</span>
+                    {pendingDeliveryPoints > 0 && (
+                      <span className="text-[9px] text-amber-800 block">+{pendingDeliveryPoints} pts on delivery</span>
+                    )}
+                  </div>
+                  <div className="p-2 bg-white/90 rounded-xl border border-amber-200/80">
+                    <span className="text-[10px] text-[#7A6458] block">Points Used</span>
+                    <span className="font-bold text-rose-800">{pointsUsed} pts (₹{calculatePointsDiscount(pointsUsed)})</span>
+                  </div>
+                  <div className="p-2 bg-white/90 rounded-xl border border-amber-200/80">
+                    <span className="text-[10px] text-[#7A6458] block">Expiry Date</span>
+                    <span className="font-bold text-[#2C2420] truncate block" title={`${LOYALTY_EXPIRY_MONTHS} months validity`}>
+                      {formattedNextExpiry}
+                    </span>
+                  </div>
+                  <div className="p-2 bg-white/90 rounded-xl border border-amber-200/80">
+                    <span className="text-[10px] text-[#7A6458] block">Referral Rewards</span>
+                    <span className="font-bold text-emerald-800">+{referralPointsEarned} pts ({referralCode})</span>
+                  </div>
+                </div>
+
+                {/* Redeem Points at Checkout Toggle & Action */}
+                <div className="pt-2 border-t border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={preferRedeemAtCheckout}
+                      onChange={(e) => setPreferRedeemAtCheckout(e.target.checked)}
+                      disabled={!canRedeemPoints(pointsBalance)}
+                      className="accent-[#8C2E46] w-3.5 h-3.5 rounded cursor-pointer disabled:opacity-50"
+                    />
+                    <span className="font-semibold text-[#2C2420]">
+                      Redeem Nest Points at Checkout
+                      {!canRedeemPoints(pointsBalance) && (
+                        <span className="text-[10px] text-amber-900 font-normal ml-1">
+                          (Min. {LOYALTY_MIN_REDEMPTION_POINTS} pts required · need {Math.max(0, LOYALTY_MIN_REDEMPTION_POINTS - pointsBalance)} more)
+                        </span>
+                      )}
+                    </span>
+                  </label>
+
+                  <div className="flex items-center gap-3">
+                    {onOpenCart && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (canRedeemPoints(pointsBalance)) {
+                            setPreferRedeemAtCheckout(true);
+                          }
+                          onClose();
+                          onOpenCart();
+                        }}
+                        className="px-2.5 py-1 bg-[#8C2E46] hover:bg-[#742438] text-white text-[11px] font-semibold rounded-lg cursor-pointer transition-colors"
+                      >
+                        Redeem at Checkout →
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('loyalty')}
+                      className="text-[#8C2E46] font-bold hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <span>Full Details &amp; Referrals</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -484,64 +622,288 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: LOYALTY & REWARDS */}
+          {/* TAB 2: NEST POINTS & REWARDS */}
           {activeTab === 'loyalty' && (
             <div className="space-y-4">
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-50 to-[#FAF7F2] border border-amber-300 space-y-3">
-                <div className="flex items-center justify-between">
+              {/* Primary Nest Points Balance & Equivalent Rupee Value */}
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-50 via-[#FAF7F2] to-amber-100/70 border border-amber-300 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Award className="w-4 h-4 text-[#C29E57]" />
-                    Royal Club Points Wallet
+                    Customer Nest Points Account
                   </span>
-                  <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
-                    1 pt = ₹1 discount
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full">
+                      {LOYALTY_POINTS_PER_100_INR} Points per ₹100
+                    </span>
+                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      100 Points = ₹50
+                    </span>
+                  </div>
+                </div>
+
+                {/* 1. Available Nest Points & 2. Equivalent Rupee Value */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3.5 bg-white rounded-2xl border border-amber-200 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                      1. Available Nest Points
+                    </span>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl font-extrabold font-mono text-[#70252D]">
+                        {pointsBalance}
+                      </span>
+                      <span className="text-xs font-semibold text-amber-900">Nest Points</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                      2. Equivalent Rupee Value
+                    </span>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-3xl font-extrabold font-mono text-emerald-800">
+                        ₹{pointsRupeesValue}
+                      </span>
+                      <span className="text-xs font-semibold text-emerald-700">(₹0.50 / pt · 100 pts = ₹50)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Points Earned from Previous Purchases, 4. Points Used, 5. Expiry Dates */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                      3. Earned from Purchases
+                    </span>
+                    <span className="text-lg font-extrabold font-mono text-emerald-800 mt-0.5 block">
+                      +{displayPointsFromPurchases} pts
+                    </span>
+                    <span className="text-[10px] text-[#7A6458] block">
+                      {pendingDeliveryPoints > 0
+                        ? `+${pendingDeliveryPoints} pts pending delivery`
+                        : 'Credited after delivery & full payment'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                      4. Points Used
+                    </span>
+                    <span className="text-lg font-extrabold font-mono text-rose-700 mt-0.5 block">
+                      {pointsUsed} pts
+                    </span>
+                    <span className="text-[10px] text-[#7A6458] block">
+                      Saved ₹{calculatePointsDiscount(pointsUsed)} on orders
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                      5. Expiry Dates
+                    </span>
+                    <span className="text-sm font-bold text-[#2C2420] mt-1 block">
+                      {formattedNextExpiry}
+                    </span>
+                    <span className="text-[10px] text-[#7A6458] block">
+                      Valid for {LOYALTY_EXPIRY_MONTHS} months from credit
+                    </span>
+                  </div>
+                </div>
+
+                {/* 7. Redeem Points Option at Checkout */}
+                <div className="p-3.5 bg-white rounded-2xl border border-[#DEC89B] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-[#2C2420]">
+                        7. Redeem Points Option at Checkout
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        canRedeemPoints(pointsBalance)
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-900'
+                      }`}>
+                        {canRedeemPoints(pointsBalance)
+                          ? `Eligible (-₹${pointsRupeesValue})`
+                          : `Min. ${LOYALTY_MIN_REDEMPTION_POINTS} pts required`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#7A6458]">
+                      {canRedeemPoints(pointsBalance)
+                        ? `Auto-apply your ${pointsBalance} Nest Points for ₹${pointsRupeesValue} off at checkout.`
+                        : `You have ${pointsBalance} pts. Collect ${Math.max(0, LOYALTY_MIN_REDEMPTION_POINTS - pointsBalance)} more Nest Points to unlock checkout redemption (200 pts = ₹100).`}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] text-xs font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={preferRedeemAtCheckout}
+                        onChange={(e) => setPreferRedeemAtCheckout(e.target.checked)}
+                        disabled={!canRedeemPoints(pointsBalance)}
+                        className="accent-[#8C2E46] w-3.5 h-3.5 cursor-pointer disabled:opacity-50"
+                      />
+                      <span>Redeem at Checkout</span>
+                    </label>
+                    {onOpenCart && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (canRedeemPoints(pointsBalance)) {
+                            setPreferRedeemAtCheckout(true);
+                          }
+                          onClose();
+                          onOpenCart();
+                        }}
+                        className="px-3.5 py-1.5 bg-[#8C2E46] hover:bg-[#742438] text-white text-xs font-semibold rounded-xl cursor-pointer shadow-xs transition-colors"
+                      >
+                        Go to Checkout →
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 6. Referral Rewards Card */}
+              <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-[#8C2E46]" />
+                    <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
+                      6. Referral Rewards (+{LOYALTY_REFERRAL_REWARD_POINTS} Nest Points)
+                    </h4>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    Earned from Referrals: {referralPointsEarned} pts (₹{calculatePointsDiscount(referralPointsEarned)})
                   </span>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold font-mono text-[#70252D]">{pointsBalance}</span>
-                  <span className="text-sm font-semibold text-amber-900">Total Points Available</span>
-                </div>
-                <p className="text-xs text-[#7A6458] leading-relaxed">
-                  Earn 1 loyalty point for every ₹50 spent across the entire Cotton Nest store. Points can be directly toggled at checkout to deduct ₹{pointsRupeesValue} from your order total!
+
+                <p className="text-xs text-[#6B5D55]">
+                  Share your personal referral code with friends &amp; family. When they claim your code or place their first Cotton Nest order, you earn <strong>+{LOYALTY_REFERRAL_REWARD_POINTS} Nest Points (worth ₹{calculatePointsDiscount(LOYALTY_REFERRAL_REWARD_POINTS)})</strong>!
                 </p>
-                {onOpenCart && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onOpenCart();
-                    }}
-                    className="px-4 py-2 bg-[#8C2E46] hover:bg-[#742438] text-white text-xs font-semibold rounded-xl cursor-pointer shadow-xs transition-colors"
-                  >
-                    Apply Points at Checkout →
-                  </button>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-[#FAF7F2] rounded-xl border border-[#DEC89B]">
+                  <div>
+                    <span className="text-[10px] text-[#7A6458] uppercase font-semibold block">Your Personal Referral Code</span>
+                    <span className="font-mono text-base font-extrabold text-[#70252D] tracking-wider">{referralCode}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyReferralCode}
+                      className="px-3 py-1.5 bg-white hover:bg-amber-50 text-[#2C2420] border border-[#DEC89B] rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      {copiedReferral ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedReferral ? 'Copied!' : 'Copy Code'}</span>
+                    </button>
+                    <a
+                      href={COMPANY_DETAILS.whatsappUrl(`Use my Cotton Nest Referral Code *${referralCode}* to claim +${LOYALTY_REFERRAL_REWARD_POINTS} Nest Points (worth ₹${calculatePointsDiscount(LOYALTY_REFERRAL_REWARD_POINTS)}) on luxury 100% pure cotton bedsheets!`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                    >
+                      <span>Share on WhatsApp</span>
+                    </a>
+                  </div>
+                </div>
+
+                {!referredByCode ? (
+                  <form onSubmit={handleClaimReferral} className="pt-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={friendReferralInput}
+                      onChange={(e) => setFriendReferralInput(e.target.value.toUpperCase())}
+                      placeholder="Have a friend's referral code? Enter here"
+                      className="flex-1 px-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs uppercase font-semibold placeholder:normal-case placeholder:font-normal"
+                    />
+                    <button
+                      type="submit"
+                      disabled={claimingReferral || !friendReferralInput.trim()}
+                      className="px-3.5 py-1.5 bg-[#8C2E46] hover:bg-[#742438] text-white rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      {claimingReferral ? 'Applying...' : 'Claim +100 Pts'}
+                    </button>
+                  </form>
+                ) : (
+                  <p className="text-[11px] text-emerald-700 font-semibold">
+                    ✓ Referred by code: {referredByCode} (+{LOYALTY_REFERRAL_REWARD_POINTS} Nest Points credited)
+                  </p>
+                )}
+
+                {referralStatus && (
+                  <p className={`text-[11px] font-semibold ${referralStatus.type === 'success' ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    {referralStatus.message}
+                  </p>
                 )}
               </div>
 
-              {/* Transactions History */}
+              {/* Official Nest Points Terms & Conditions Box */}
+              <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-2 text-xs">
+                <h4 className="font-bold text-[#2C2420] uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#8C2E46]" />
+                  <span>Nest Points Terms &amp; Conditions</span>
+                </h4>
+                <ul className="space-y-1 text-[11px] text-[#6B5D55] list-disc pl-4">
+                  <li><strong>Earning Rate:</strong> Earn <strong>5 Nest Points per ₹100</strong> spent on eligible bedsheets.</li>
+                  <li><strong>Redemption Value:</strong> <strong>100 Nest Points = ₹50</strong> (1 Nest Point = ₹0.50).</li>
+                  <li><strong>Minimum Redemption:</strong> Minimum <strong>200 Nest Points</strong> (₹100 value) required for redemption at checkout.</li>
+                  <li><strong>Credit Policy:</strong> Points are credited <strong>only after successful delivery and full payment</strong>.</li>
+                  <li><strong>Delivery Charges Excluded:</strong> No points are earned on delivery / shipping charges.</li>
+                  <li><strong>Expiry Policy:</strong> Nest Points expire after <strong>12 months</strong> from the date of credit.</li>
+                  <li><strong>Non-Encashable:</strong> Nest Points cannot be exchanged or redeemed for cash.</li>
+                </ul>
+              </div>
+
+              {/* Transactions History with Expiry Dates */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
-                  Points History
+                  Nest Points Statement &amp; Expiry Ledger
                 </h4>
                 {transactions && transactions.length > 0 ? (
                   <div className="divide-y divide-[#EAE2D5] bg-white rounded-2xl border border-[#EAE2D5]">
-                    {transactions.map((tx) => (
-                      <div key={tx.id} className="p-3 flex items-center justify-between text-xs">
-                        <div>
-                          <p className="font-semibold text-[#2C2420]">{tx.description}</p>
-                          <p className="text-[10px] text-[#8C7A70]">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                    {transactions.map((tx) => {
+                      const isPositive = tx.type === 'earned' || tx.type === 'bonus' || tx.type === 'referral' || tx.points > 0;
+                      const expiryDate = isPositive ? new Date(getTransactionExpiryDate(tx.createdAt, tx.expiresAt)) : null;
+                      const expired = isTransactionExpired(tx.createdAt, tx.expiresAt);
+                      return (
+                        <div key={tx.id} className="p-3 flex items-center justify-between text-xs gap-3">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-semibold text-[#2C2420]">{tx.description}</p>
+                              {tx.type === 'referral' && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800">
+                                  Referral
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] text-[#8C7A70] mt-0.5">
+                              <span>Credited: {new Date(tx.createdAt).toLocaleDateString('en-IN')}</span>
+                              {expiryDate && (
+                                <span className={expired ? 'text-rose-600 font-semibold' : 'text-amber-800 font-medium'}>
+                                  {expired
+                                    ? `Expired on ${expiryDate.toLocaleDateString('en-IN')}`
+                                    : `Expires: ${expiryDate.toLocaleDateString('en-IN')}`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className={`font-mono font-bold text-sm block ${
+                              isPositive ? 'text-emerald-700' : 'text-rose-700'
+                            }`}>
+                              {isPositive ? `+${Math.abs(tx.points)}` : `-${Math.abs(tx.points)}`} pts
+                            </span>
+                            <span className="text-[10px] text-[#8C7A70]">
+                              ≈ ₹{calculatePointsDiscount(Math.abs(tx.points))}
+                            </span>
+                          </div>
                         </div>
-                        <span className={`font-mono font-bold text-sm ${
-                          tx.type === 'earned' || tx.type === 'bonus' ? 'text-emerald-700' : 'text-rose-700'
-                        }`}>
-                          {tx.type === 'earned' || tx.type === 'bonus' ? `+${tx.points}` : `-${tx.points}`} pts
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="p-6 bg-white rounded-2xl border border-[#EAE2D5] text-center text-xs text-[#8C7A70]">
-                    No point transactions yet. Purchase any bedsheet to begin earning points!
+                    No point transactions yet. Purchase any bedsheet to earn 5 Nest Points per ₹100 (credited upon delivery &amp; full payment)!
                   </div>
                 )}
               </div>

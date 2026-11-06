@@ -3941,8 +3941,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             )}
                             {Boolean(order.pointsEarned && order.pointsEarned > 0) && (
                               <div className="flex items-center justify-between text-emerald-800 text-[11px]">
-                                <span>🎁 Points Earned by Customer:</span>
-                                <span className="font-bold text-emerald-900">+{order.pointsEarned} pts (1 pt / ₹50)</span>
+                                <span>🎁 Nest Points ({order.status === 'delivered' ? 'Credited' : 'Pending Delivery'}):</span>
+                                <span className="font-bold text-emerald-900">+{order.pointsEarned} pts (5 pts / ₹100)</span>
                               </div>
                             )}
                             <div className="flex items-center justify-between">

@@ -110,21 +110,34 @@ Your soft & stylish bedsheet hub. 🛍️
 👉 Rest of Gurgaon: *Self Pickup or actual delivery charges*
 👉 Across India: *₹29*
 
-🎁 *LOYALTY REWARDS & POINTS TERMS*
-• Earn *1 loyalty point for every ₹50 spent* on pure cotton bedsheets and bedding.
-• Loyalty points are *credited to your account once your order is successfully delivered* (not upon initial order placement).
-• Points are *valid for 6 months from the date of credit* and can be redeemed instantly at checkout (1 point = ₹1 discount).
+🎁 *LOYALTY REWARDS & NEST POINTS TERMS*
+• Earn *5 Nest Points for every ₹100 spent* on pure cotton bedsheets and bedding.
+• *Redemption Value:* *100 Nest Points = ₹50* instant discount at checkout.
+• *Minimum 200 points required for redemption* (equivalent to ₹100 discount).
+• *Points credited only after successful delivery and full payment.*
+• *No points on delivery charges.*
+• *Points expire after 12 months* from the date of credit.
+• *Points cannot be exchanged for cash.*
 
 💖 *Thank you for shopping with Cotton Nest!*
 *Feel the Softness. 🌸*`,
 };
+
+const UPDATED_LOYALTY_TC_BLOCK = `🎁 *LOYALTY REWARDS & NEST POINTS TERMS*
+• Earn *5 Nest Points for every ₹100 spent* on pure cotton bedsheets and bedding.
+• *Redemption Value:* *100 Nest Points = ₹50* instant discount at checkout.
+• *Minimum 200 points required for redemption* (equivalent to ₹100 discount).
+• *Points credited only after successful delivery and full payment.*
+• *No points on delivery charges.*
+• *Points expire after 12 months* from the date of credit.
+• *Points cannot be exchanged for cash.*`;
 
 export function normalizeShippingInTerms(rawText?: string): string {
   const base = typeof rawText === 'string' && rawText.trim() !== ''
     ? rawText
     : INITIAL_SITE_CONTENT.termsAndConditions;
 
-  return base
+  let normalized = base
     .replace(/Across India:\s*\*?(?:₹|Rs\.?\s*)?100(?:\s*(?:rs|INR|\/-))?\*?/gi, 'Across India: *₹29*')
     .replace(/Rest of India:\s*\*?(?:₹|Rs\.?\s*)?100(?:\s*(?:rs|INR|\/-))?\*?/gi, 'Rest of India: *₹29*')
     .replace(/for just\s*(?:₹|Rs\.?\s*)?100\s*flat/gi, 'for just ₹29 flat')
@@ -133,6 +146,17 @@ export function normalizeShippingInTerms(rawText?: string): string {
       /Shipping charges shall be levied as applicable at the time of order placement\./gi,
       'Flat ₹29 Across India (shipping charges applied at order placement: ₹29).'
     );
+
+  // Replace legacy 1 pt / ₹50 loyalty block if present
+  if (/🎁\s*\*?LOYALTY REWARDS[\s\S]*?(?=\n\s*💖|$)/i.test(normalized)) {
+    normalized = normalized.replace(
+      /🎁\s*\*?LOYALTY REWARDS[\s\S]*?(?=\n\s*💖|$)/i,
+      UPDATED_LOYALTY_TC_BLOCK
+    );
+  }
+
+  return normalized;
 }
+
 
 

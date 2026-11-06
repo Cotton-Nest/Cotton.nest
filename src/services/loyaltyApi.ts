@@ -1,10 +1,14 @@
-import { doc, getDoc, setDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '../firebase';
 import {
   LoyaltyAccount,
   LoyaltyTransaction,
+  LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_REFERRAL_REWARD_POINTS,
   calculateEarnedPoints,
   calculatePointsDiscount,
+  getTransactionExpiryDate,
+  generateReferralCode,
   sanitizeLoyaltyKey,
 } from '../data/loyalty';
 import { stripUndefined } from './api';
@@ -43,7 +47,12 @@ function saveLocalTransaction(tx: LoyaltyTransaction): void {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_TX_KEY);
     const list: LoyaltyTransaction[] = raw ? JSON.parse(raw) : [];
-    list.unshift(tx);
+    const existingIdx = list.findIndex((item) => item.id === tx.id);
+    if (existingIdx >= 0) {
+      list[existingIdx] = tx;
+    } else {
+      list.unshift(tx);
+    }
     localStorage.setItem(LOCAL_STORAGE_TX_KEY, JSON.stringify(list));
   } catch {}
 }
@@ -75,6 +84,7 @@ export async function getLoyaltyAccountApi(
   extra?: { name?: string; phone?: string; email?: string; userId?: string }
 ): Promise<LoyaltyAccount> {
   const accountId = sanitizeLoyaltyKey(rawKey);
+  const defaultReferralCode = generateReferralCode(extra?.name || extra?.email || extra?.phone || accountId);
 
   // 1. Check local cache
   const localMap = getLocalAccounts();
@@ -87,8 +97,15 @@ export async function getLoyaltyAccountApi(
     pointsBalance: 0,
     lifetimeEarned: 0,
     lifetimeSpent: 0,
+    referralPointsEarned: 0,
+    referralCode: defaultReferralCode,
+    referralCount: 0,
     updatedAt: Date.now(),
   };
+
+  if (!account.referralCode) {
+    account.referralCode = defaultReferralCode;
+  }
 
   // 2. Fetch from Express backend (/api/loyalty/:id)
   try {
@@ -96,7 +113,11 @@ export async function getLoyaltyAccountApi(
     if (res.ok) {
       const serverAccount = await res.json();
       if (serverAccount && typeof serverAccount.pointsBalance === 'number') {
-        account = { ...account, ...serverAccount };
+        account = {
+          ...account,
+          ...serverAccount,
+          referralCode: serverAccount.referralCode || account.referralCode || defaultReferralCode,
+        };
         saveLocalAccount(account);
       }
     }
@@ -109,20 +130,24 @@ export async function getLoyaltyAccountApi(
     if (snap.exists()) {
       const firestoreData = snap.data() as LoyaltyAccount;
       if (firestoreData && typeof firestoreData.pointsBalance === 'number') {
-        account = { ...account, ...firestoreData, id: accountId };
+        account = {
+          ...account,
+          ...firestoreData,
+          id: accountId,
+          referralCode: firestoreData.referralCode || account.referralCode || defaultReferralCode,
+        };
         saveLocalAccount(account);
       }
     } else {
-      // First time initial record in Firestore
       const initialDoc = stripUndefined({
         ...account,
         id: accountId,
+        referralCode: account.referralCode || defaultReferralCode,
         updatedAt: Date.now(),
       });
       await setDoc(docRef, initialDoc, { merge: true });
     }
   } catch (err) {
-    // Non-blocking fallback
     console.warn('Loyalty account fetch notice:', err);
   }
 
@@ -130,18 +155,34 @@ export async function getLoyaltyAccountApi(
 }
 
 /**
- * Record earned points from a purchase: 1 point for every 50 Rs spent.
+ * Record earned Nest Points from a delivered & paid purchase:
+ * Rule: 5 points per ₹100 spent (excluding delivery charges). Valid for 12 months.
  */
 export async function earnLoyaltyPointsApi(
   rawKey: string,
-  rupeesSpent: number,
+  eligibleRupeesExcludingDelivery: number,
   orderId: string,
-  extra?: { name?: string; phone?: string; email?: string; userId?: string }
+  extra?: { name?: string; phone?: string; email?: string; userId?: string; explicitPoints?: number }
 ): Promise<{ account: LoyaltyAccount; pointsEarned: number; tx: LoyaltyTransaction }> {
-  const pointsEarned = calculateEarnedPoints(rupeesSpent);
+  const pointsEarned =
+    typeof extra?.explicitPoints === 'number' && extra.explicitPoints > 0
+      ? Math.floor(extra.explicitPoints)
+      : calculateEarnedPoints(eligibleRupeesExcludingDelivery);
   const accountId = sanitizeLoyaltyKey(rawKey);
 
   const current = await getLoyaltyAccountApi(accountId, extra);
+
+  // Prevent duplicate credit for the same delivered orderId
+  const existingTxs = await getLoyaltyTransactionsApi(accountId);
+  const alreadyCredited = existingTxs.find(
+    (t) => t.orderId === orderId && t.type === 'earned' && t.points > 0
+  );
+  if (alreadyCredited) {
+    return { account: current, pointsEarned: alreadyCredited.points, tx: alreadyCredited };
+  }
+
+  const now = Date.now();
+  const expiresAt = getTransactionExpiryDate(now);
   const newBalance = (current.pointsBalance || 0) + pointsEarned;
   const newLifetimeEarned = (current.lifetimeEarned || 0) + pointsEarned;
 
@@ -153,18 +194,20 @@ export async function earnLoyaltyPointsApi(
     phone: extra?.phone || current.phone,
     email: extra?.email || current.email,
     userId: extra?.userId || current.userId,
-    updatedAt: Date.now(),
+    updatedAt: now,
   };
 
   const tx: LoyaltyTransaction = {
-    id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: `tx_earn_${orderId.replace(/[^a-zA-Z0-9_-]/g, '')}_${now}`,
     accountId,
     orderId,
     type: 'earned',
     points: pointsEarned,
-    amountInr: rupeesSpent,
-    description: `Earned on Order #${orderId} (1 pt / ₹50)`,
-    createdAt: Date.now(),
+    amountInr: eligibleRupeesExcludingDelivery,
+    description: `Earned on Delivered Order #${orderId} (5 pts / ₹100)`,
+    createdAt: now,
+    expiresAt,
+    status: 'credited',
   };
 
   // 1. Local update
@@ -179,7 +222,7 @@ export async function earnLoyaltyPointsApi(
       body: JSON.stringify({
         accountId,
         points: pointsEarned,
-        amountInr: rupeesSpent,
+        amountInr: eligibleRupeesExcludingDelivery,
         orderId,
         account: updatedAccount,
         tx,
@@ -199,8 +242,11 @@ export async function earnLoyaltyPointsApi(
 }
 
 /**
- * Redeem loyalty points as an instant cash discount at checkout.
- * 1 point = 1 Rupee discount.
+ * Redeem Nest Points as an instant discount at checkout.
+ * Rules:
+ * - Minimum 200 points required for redemption.
+ * - 100 points = ₹50 (1 point = ₹0.50).
+ * - Points cannot be exchanged for cash.
  */
 export async function redeemLoyaltyPointsApi(
   rawKey: string,
@@ -212,28 +258,34 @@ export async function redeemLoyaltyPointsApi(
   const current = await getLoyaltyAccountApi(accountId, extra);
 
   const availablePoints = Math.max(0, current.pointsBalance || 0);
+  if (availablePoints < LOYALTY_MIN_REDEMPTION_POINTS || pointsToRedeem < LOYALTY_MIN_REDEMPTION_POINTS) {
+    throw new Error(`Minimum ${LOYALTY_MIN_REDEMPTION_POINTS} Nest Points are required for redemption.`);
+  }
+
   const actualRedeemed = Math.min(availablePoints, Math.max(0, Math.floor(pointsToRedeem)));
   const discountInr = calculatePointsDiscount(actualRedeemed);
 
   const newBalance = availablePoints - actualRedeemed;
   const newLifetimeSpent = (current.lifetimeSpent || 0) + actualRedeemed;
+  const now = Date.now();
 
   const updatedAccount: LoyaltyAccount = {
     ...current,
     pointsBalance: newBalance,
     lifetimeSpent: newLifetimeSpent,
-    updatedAt: Date.now(),
+    updatedAt: now,
   };
 
   const tx: LoyaltyTransaction = {
-    id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: `tx_redeem_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     accountId,
     orderId,
     type: 'redeemed',
     points: -actualRedeemed,
     amountInr: discountInr,
-    description: `Redeemed for ₹${discountInr} discount on Order #${orderId}`,
-    createdAt: Date.now(),
+    description: `Redeemed ${actualRedeemed} Nest Points for ₹${discountInr} discount on Order #${orderId} (100 pts = ₹50)`,
+    createdAt: now,
+    status: 'credited',
   };
 
   // 1. Local update
@@ -268,6 +320,85 @@ export async function redeemLoyaltyPointsApi(
 }
 
 /**
+ * Claim a Referral Reward by applying a friend's referral code.
+ * Awards +100 Nest Points (₹50 value), valid for 12 months.
+ */
+export async function claimReferralRewardApi(
+  rawKey: string,
+  referralCodeInput: string,
+  extra?: { name?: string; phone?: string; email?: string; userId?: string }
+): Promise<{ account: LoyaltyAccount; pointsAwarded: number; tx: LoyaltyTransaction }> {
+  const cleanCode = (referralCodeInput || '').trim().toUpperCase();
+  if (!cleanCode || cleanCode.length < 4) {
+    throw new Error('Please enter a valid Cotton Nest referral code.');
+  }
+
+  const accountId = sanitizeLoyaltyKey(rawKey);
+  const current = await getLoyaltyAccountApi(accountId, extra);
+
+  if (current.referralCode && current.referralCode.toUpperCase() === cleanCode) {
+    throw new Error('You cannot apply your own referral code.');
+  }
+
+  if (current.referredByCode) {
+    throw new Error(`Referral reward already claimed using code ${current.referredByCode}.`);
+  }
+
+  const now = Date.now();
+  const expiresAt = getTransactionExpiryDate(now);
+  const pointsAwarded = LOYALTY_REFERRAL_REWARD_POINTS;
+
+  const updatedAccount: LoyaltyAccount = {
+    ...current,
+    pointsBalance: (current.pointsBalance || 0) + pointsAwarded,
+    lifetimeEarned: (current.lifetimeEarned || 0) + pointsAwarded,
+    referralPointsEarned: (current.referralPointsEarned || 0) + pointsAwarded,
+    referredByCode: cleanCode,
+    referralCount: (current.referralCount || 0) + 1,
+    updatedAt: now,
+  };
+
+  const tx: LoyaltyTransaction = {
+    id: `tx_ref_${now}_${Math.random().toString(36).substring(2, 6)}`,
+    accountId,
+    type: 'referral',
+    points: pointsAwarded,
+    amountInr: calculatePointsDiscount(pointsAwarded),
+    description: `Referral Reward Bonus (Code: ${cleanCode})`,
+    createdAt: now,
+    expiresAt,
+    status: 'credited',
+  };
+
+  saveLocalAccount(updatedAccount);
+  saveLocalTransaction(tx);
+
+  try {
+    fetch('/api/loyalty/earn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accountId,
+        points: pointsAwarded,
+        amountInr: calculatePointsDiscount(pointsAwarded),
+        orderId: `REF-${cleanCode}`,
+        account: updatedAccount,
+        tx,
+      }),
+    }).catch(() => {});
+  } catch {}
+
+  try {
+    await setDoc(doc(db, 'loyalty', accountId), stripUndefined(updatedAccount), { merge: true });
+    await setDoc(doc(db, 'loyalty_transactions', tx.id), stripUndefined(tx), { merge: true });
+  } catch (err) {
+    console.warn('Firestore referral claim notice:', err);
+  }
+
+  return { account: updatedAccount, pointsAwarded, tx };
+}
+
+/**
  * Fetch transaction history for a customer's loyalty wallet.
  */
 export async function getLoyaltyTransactionsApi(rawKey: string): Promise<LoyaltyTransaction[]> {
@@ -275,7 +406,13 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
   const localList = getLocalTransactions(accountId);
   const txMap = new Map<string, LoyaltyTransaction>();
 
-  localList.forEach((t) => txMap.set(t.id, t));
+  localList.forEach((t) => {
+    const normalized: LoyaltyTransaction = {
+      ...t,
+      expiresAt: t.points > 0 ? getTransactionExpiryDate(t.createdAt, t.expiresAt) : t.expiresAt,
+    };
+    txMap.set(t.id, normalized);
+  });
 
   // Fetch from server backend
   try {
@@ -283,7 +420,12 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
     if (res.ok) {
       const serverTxs: LoyaltyTransaction[] = await res.json();
       if (Array.isArray(serverTxs)) {
-        serverTxs.forEach((t) => txMap.set(t.id, t));
+        serverTxs.forEach((t) => {
+          txMap.set(t.id, {
+            ...t,
+            expiresAt: t.points > 0 ? getTransactionExpiryDate(t.createdAt, t.expiresAt) : t.expiresAt,
+          });
+        });
       }
     }
   } catch {}
@@ -299,7 +441,11 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
     snap.forEach((d) => {
       const data = d.data() as LoyaltyTransaction;
       if (data && d.id) {
-        txMap.set(d.id, { ...data, id: d.id });
+        txMap.set(d.id, {
+          ...data,
+          id: d.id,
+          expiresAt: data.points > 0 ? getTransactionExpiryDate(data.createdAt, data.expiresAt) : data.expiresAt,
+        });
       }
     });
   } catch (err) {

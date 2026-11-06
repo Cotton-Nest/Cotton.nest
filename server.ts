@@ -11,7 +11,16 @@ import { INITIAL_REVIEWS } from './src/data/reviews.ts';
 import { INITIAL_SEASONAL_CONFIG } from './src/data/seasonal.ts';
 import { INITIAL_COUPONS, CouponOffer } from './src/data/coupons.ts';
 import { WishlistItem } from './src/data/wishlist.ts';
-import { LoyaltyAccount, LoyaltyTransaction, calculateEarnedPoints, calculatePointsDiscount, sanitizeLoyaltyKey } from './src/data/loyalty.ts';
+import {
+  LoyaltyAccount,
+  LoyaltyTransaction,
+  LOYALTY_MIN_REDEMPTION_POINTS,
+  calculateEarnedPoints,
+  calculatePointsDiscount,
+  getTransactionExpiryDate,
+  generateReferralCode,
+  sanitizeLoyaltyKey,
+} from './src/data/loyalty.ts';
 import { generateProductDescription } from './api/ai-description.ts';
 import { sendOtpEmail, verifyOtp } from './api/otp-service.ts';
 
@@ -750,10 +759,74 @@ async function startServer() {
       }
     }
 
+    let pointsCreditedFlag = Boolean(previousOrder.pointsCredited || updated.pointsCredited);
+
+    // Credit Nest Points only upon successful delivery and full payment (excluding delivery charges)
+    if (newStatus === 'delivered' && !pointsCreditedFlag) {
+      const shippingCostVal = Number(previousOrder.shippingCost) || 0;
+      const eligibleOrderAmount = Math.max(0, (Number(previousOrder.totalAmount) || 0) - shippingCostVal);
+      const earnedPts =
+        typeof previousOrder.pointsEarned === 'number' && previousOrder.pointsEarned > 0
+          ? previousOrder.pointsEarned
+          : calculateEarnedPoints(eligibleOrderAmount);
+
+      if (earnedPts > 0) {
+        const rawCustomerKey =
+          previousOrder.customerPhone || previousOrder.customerEmail || previousOrder.userId || '';
+        if (rawCustomerKey) {
+          const accountId = sanitizeLoyaltyKey(rawCustomerKey);
+          if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
+          if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
+
+          const alreadyCredited = db.loyaltyTransactions.some(
+            (t) => t.orderId === id && t.type === 'earned' && t.points > 0
+          );
+
+          if (!alreadyCredited) {
+            const now = Date.now();
+            const existingAcc = db.loyaltyAccounts[accountId] || {
+              id: accountId,
+              customerName: previousOrder.customerName || 'Cotton Nest Client',
+              phone: previousOrder.customerPhone,
+              email: previousOrder.customerEmail,
+              userId: previousOrder.userId,
+              pointsBalance: 0,
+              lifetimeEarned: 0,
+              lifetimeSpent: 0,
+              referralCode: generateReferralCode(previousOrder.customerName || accountId),
+              updatedAt: now,
+            };
+
+            db.loyaltyAccounts[accountId] = {
+              ...existingAcc,
+              pointsBalance: (existingAcc.pointsBalance || 0) + earnedPts,
+              lifetimeEarned: (existingAcc.lifetimeEarned || 0) + earnedPts,
+              updatedAt: now,
+            };
+
+            db.loyaltyTransactions.unshift({
+              id: `tx_earn_${id}_${now}`,
+              accountId,
+              orderId: id,
+              type: 'earned',
+              points: earnedPts,
+              amountInr: eligibleOrderAmount,
+              description: `Earned on Delivered Order #${id} (5 pts / ₹100)`,
+              createdAt: now,
+              expiresAt: getTransactionExpiryDate(now),
+              status: 'credited',
+            });
+          }
+          pointsCreditedFlag = true;
+        }
+      }
+    }
+
     db.orders[index] = {
       ...previousOrder,
       ...updated,
-      timeline: updatedTimeline
+      pointsCredited: pointsCreditedFlag,
+      timeline: updatedTimeline,
     };
 
     saveDatabase();
@@ -1201,7 +1274,7 @@ async function startServer() {
   });
 
   /* ------------------- LOYALTY POINTS & REWARDS API ------------------- */
-  // 1 point for every 50 Rs spent; 1 point = 1 Rupee discount at checkout
+  // 5 Nest Points per ₹100 spent (no points on delivery charges); 100 points = ₹50 discount at checkout (min 200 pts)
 
   // 1. Get loyalty account balance and metadata
   app.get('/api/loyalty/:id', (req, res) => {
@@ -1216,16 +1289,21 @@ async function startServer() {
         pointsBalance: 0,
         lifetimeEarned: 0,
         lifetimeSpent: 0,
+        referralPointsEarned: 0,
+        referralCode: generateReferralCode(accountId),
+        referralCount: 0,
         updatedAt: Date.now(),
       };
       db.loyaltyAccounts[accountId] = account;
       saveDatabase();
+    } else if (!account.referralCode) {
+      account.referralCode = generateReferralCode(account.customerName || accountId);
     }
 
     res.json(account);
   });
 
-  // 2. Earn loyalty points on purchase (1 pt per 50 Rs)
+  // 2. Earn loyalty points on delivered purchase (5 pts per ₹100, valid for 12 months)
   app.post('/api/loyalty/earn', (req, res) => {
     const { accountId: rawId, points, amountInr, orderId, account, tx } = req.body || {};
     const accountId = sanitizeLoyaltyKey(rawId);
@@ -1233,13 +1311,30 @@ async function startServer() {
     if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
     if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
 
+    // Avoid duplicate earned transaction for same orderId
+    if (orderId && !String(orderId).startsWith('REF-')) {
+      const existingTx = db.loyaltyTransactions.find(
+        (t) => t.accountId === accountId && t.orderId === orderId && t.type === 'earned' && t.points > 0
+      );
+      if (existingTx && db.loyaltyAccounts[accountId]) {
+        return res.json({
+          account: db.loyaltyAccounts[accountId],
+          tx: existingTx,
+          pointsEarned: existingTx.points,
+        });
+      }
+    }
+
     const calculatedPoints = typeof points === 'number' ? points : calculateEarnedPoints(amountInr || 0);
+    const now = Date.now();
     const existing = db.loyaltyAccounts[accountId] || {
       id: accountId,
       pointsBalance: 0,
       lifetimeEarned: 0,
       lifetimeSpent: 0,
-      updatedAt: Date.now(),
+      referralPointsEarned: 0,
+      referralCode: generateReferralCode(accountId),
+      updatedAt: now,
     };
 
     const updatedAccount: LoyaltyAccount = {
@@ -1248,21 +1343,27 @@ async function startServer() {
       id: accountId,
       pointsBalance: (existing.pointsBalance || 0) + calculatedPoints,
       lifetimeEarned: (existing.lifetimeEarned || 0) + calculatedPoints,
-      updatedAt: Date.now(),
+      updatedAt: now,
     };
 
     db.loyaltyAccounts[accountId] = updatedAccount;
 
     const transaction: LoyaltyTransaction = tx || {
-      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `tx_${now}_${Math.random().toString(36).substring(2, 7)}`,
       accountId,
       orderId: orderId || 'order_unknown',
       type: 'earned',
       points: calculatedPoints,
       amountInr: amountInr || 0,
-      description: `Earned on Order #${orderId || ''} (1 pt / ₹50)`,
-      createdAt: Date.now(),
+      description: `Earned on Delivered Order #${orderId || ''} (5 pts / ₹100)`,
+      createdAt: now,
+      expiresAt: getTransactionExpiryDate(now),
+      status: 'credited',
     };
+
+    if (!transaction.expiresAt) {
+      transaction.expiresAt = getTransactionExpiryDate(transaction.createdAt || now);
+    }
 
     db.loyaltyTransactions.unshift(transaction);
     saveDatabase();
@@ -1270,7 +1371,7 @@ async function startServer() {
     res.json({ account: updatedAccount, tx: transaction, pointsEarned: calculatedPoints });
   });
 
-  // 3. Redeem loyalty points as checkout discount
+  // 3. Redeem loyalty points as checkout discount (min 200 pts, 100 pts = ₹50)
   app.post('/api/loyalty/redeem', (req, res) => {
     const { accountId: rawId, points, discountInr, orderId, account, tx } = req.body || {};
     const accountId = sanitizeLoyaltyKey(rawId);
@@ -1286,7 +1387,14 @@ async function startServer() {
       updatedAt: Date.now(),
     };
 
-    const pointsToDeduct = Math.min(existing.pointsBalance || 0, Math.max(0, Number(points) || 0));
+    const requestedPoints = Math.max(0, Number(points) || 0);
+    if ((existing.pointsBalance || 0) < LOYALTY_MIN_REDEMPTION_POINTS || requestedPoints < LOYALTY_MIN_REDEMPTION_POINTS) {
+      return res.status(400).json({
+        error: `Minimum ${LOYALTY_MIN_REDEMPTION_POINTS} Nest Points required for redemption.`,
+      });
+    }
+
+    const pointsToDeduct = Math.min(existing.pointsBalance || 0, requestedPoints);
     const effectiveDiscount = discountInr !== undefined ? discountInr : calculatePointsDiscount(pointsToDeduct);
 
     const updatedAccount: LoyaltyAccount = {
@@ -1307,8 +1415,9 @@ async function startServer() {
       type: 'redeemed',
       points: -pointsToDeduct,
       amountInr: effectiveDiscount,
-      description: `Redeemed for ₹${effectiveDiscount} discount on Order #${orderId || ''}`,
+      description: `Redeemed ${pointsToDeduct} Nest Points for ₹${effectiveDiscount} discount on Order #${orderId || ''}`,
       createdAt: Date.now(),
+      status: 'credited',
     };
 
     db.loyaltyTransactions.unshift(transaction);

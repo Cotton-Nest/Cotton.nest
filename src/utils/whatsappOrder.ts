@@ -328,7 +328,7 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
   messageLines.push(`💰 Final Total: ₹${finalTotal.toLocaleString('en-IN')}`);
 
   if (payload.pointsEarned && payload.pointsEarned > 0) {
-    messageLines.push(`🎁 Loyalty Points Earned: +${payload.pointsEarned} pts (1 pt per ₹50)`);
+    messageLines.push(`🎁 Nest Points to Earn: +${payload.pointsEarned} pts (5 pts per ₹100 · credited after delivery & payment)`);
   }
 
   if (payload.totalSavings && payload.totalSavings > 0) {

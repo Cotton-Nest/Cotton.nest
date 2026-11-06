@@ -27,12 +27,14 @@ export interface Order {
   paymentMethod: 'whatsapp' | 'cod' | 'upi';
   items: OrderItem[];
   totalAmount: number;
+  shippingCost?: number;
   totalSavings: number;
   couponCode?: string;
   couponDiscount?: number;
   pointsUsed?: number;
   pointsDiscount?: number;
   pointsEarned?: number;
+  pointsCredited?: boolean;
   status: OrderStatus;
   notes?: string;
   trackingNumber?: string;

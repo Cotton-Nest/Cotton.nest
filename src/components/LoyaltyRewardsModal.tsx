@@ -1,8 +1,30 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Award, Gift, ArrowRight, Clock, CheckCircle2, ChevronRight, ShieldCheck, ShoppingBag, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import {
+  X,
+  Sparkles,
+  Award,
+  Gift,
+  Clock,
+  ShieldCheck,
+  ShoppingBag,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Copy,
+  Check,
+} from 'lucide-react';
 import { useLoyalty } from '../context/LoyaltyContext';
 import { useAuth } from '../context/AuthContext';
-import { LOYALTY_EARNING_RATE_INR, LOYALTY_POINT_VALUE_INR } from '../data/loyalty';
+import {
+  LOYALTY_POINTS_PER_100_INR,
+  LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_EXPIRY_MONTHS,
+  LOYALTY_REFERRAL_REWARD_POINTS,
+  calculatePointsDiscount,
+  canRedeemPoints,
+  getTransactionExpiryDate,
+  isTransactionExpired,
+} from '../data/loyalty';
+import { COMPANY_DETAILS } from '../data/products';
 
 interface LoyaltyRewardsModalProps {
   isOpen: boolean;
@@ -17,11 +39,58 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
   onShopCatalogue,
   onOpenCart,
 }) => {
-  const { pointsBalance, pointsRupeesValue, lifetimeEarned, lifetimeSpent, transactions, isLoading } = useLoyalty();
-  const { user, isAuthenticated } = useAuth();
+  const {
+    pointsBalance,
+    pointsRupeesValue,
+    pointsEarnedFromPurchases,
+    pointsUsed,
+    referralPointsEarned,
+    referralCode,
+    referredByCode,
+    nextExpiryTimestamp,
+    preferRedeemAtCheckout,
+    setPreferRedeemAtCheckout,
+    claimReferralReward,
+    transactions,
+  } = useLoyalty();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'ledger'>('overview');
+  const [copiedReferral, setCopiedReferral] = useState(false);
+  const [friendReferralInput, setFriendReferralInput] = useState('');
+  const [referralStatus, setReferralStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [claimingReferral, setClaimingReferral] = useState(false);
 
   if (!isOpen) return null;
+
+  const formattedNextExpiry = nextExpiryTimestamp
+    ? new Date(nextExpiryTimestamp).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : `${LOYALTY_EXPIRY_MONTHS} months from credit date`;
+
+  const handleCopyReferralCode = () => {
+    navigator.clipboard.writeText(referralCode);
+    setCopiedReferral(true);
+    setTimeout(() => setCopiedReferral(false), 2500);
+  };
+
+  const handleClaimReferral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!friendReferralInput.trim()) return;
+    setClaimingReferral(true);
+    setReferralStatus(null);
+    const res = await claimReferralReward(friendReferralInput.trim(), user?.phone);
+    setClaimingReferral(false);
+    setReferralStatus({
+      type: res.success ? 'success' : 'error',
+      message: res.message,
+    });
+    if (res.success) {
+      setFriendReferralInput('');
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -44,36 +113,38 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/30 text-amber-200 text-[11px] font-semibold tracking-wider uppercase mb-3">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Cotton Nest · Royal Club</span>
+            <span>Cotton Nest · Nest Points Program</span>
           </div>
 
           <h3 className="font-serif-luxury text-2xl font-bold tracking-tight text-white mb-1">
-            Customer Loyalty Rewards
+            Customer Nest Points Wallet
           </h3>
           <p className="text-xs text-white/80">
-            {user?.name ? `Welcome, ${user.name}` : 'Atelier Loyalty Rewards Wallet'}
+            {user?.name ? `Welcome, ${user.name}` : '5 Points per ₹100 · 100 Points = ₹50'}
           </p>
 
           {/* Points Balance Card Highlight */}
-          <div className="mt-5 p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-between">
+          <div className="mt-5 p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-between gap-3">
             <div>
               <span className="text-[11px] font-medium text-amber-200 uppercase tracking-wider block">
-                Active Reward Balance
+                Available Nest Points
               </span>
               <div className="flex items-baseline gap-2 mt-0.5">
                 <span className="font-serif-luxury text-3xl sm:text-4xl font-bold text-white tracking-tight">
                   {pointsBalance.toLocaleString('en-IN')}
                 </span>
-                <span className="text-sm font-semibold text-amber-200">Points</span>
+                <span className="text-sm font-semibold text-amber-200">Nest Points</span>
               </div>
               <span className="text-xs text-white/90 font-medium block mt-0.5">
-                ≈ ₹{pointsRupeesValue.toLocaleString('en-IN')} instant checkout discount
+                Equivalent Rupee Value: <strong>₹{pointsRupeesValue.toLocaleString('en-IN')}</strong> (100 pts = ₹50)
               </span>
             </div>
 
             <div className="p-3 bg-amber-400/20 rounded-2xl border border-amber-300/30 text-amber-300 flex flex-col items-center justify-center shrink-0">
               <Award className="w-6 h-6" />
-              <span className="text-[10px] font-bold mt-1 uppercase tracking-wider">Active</span>
+              <span className="text-[10px] font-bold mt-1 uppercase tracking-wider">
+                {canRedeemPoints(pointsBalance) ? 'Redeemable' : `Min ${LOYALTY_MIN_REDEMPTION_POINTS}`}
+              </span>
             </div>
           </div>
         </div>
@@ -90,7 +161,7 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                   : 'text-[#7A6458] hover:text-[#2C2420]'
               }`}
             >
-              Benefits & How it Works
+              Nest Points &amp; Rules
             </button>
             <button
               type="button"
@@ -101,7 +172,7 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                   : 'text-[#7A6458] hover:text-[#2C2420]'
               }`}
             >
-              <span>Points History</span>
+              <span>Points &amp; Expiry Ledger</span>
               {transactions.length > 0 && (
                 <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#EAE2D5] text-[#2C2420]">
                   {transactions.length}
@@ -115,78 +186,123 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
         <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
           {activeTab === 'overview' ? (
             <>
-              {/* Rule Card: 1 pt per 50 Rs */}
-              <div className="p-4 bg-white rounded-2xl border border-[#DEC89B] space-y-3 shadow-2xs">
+              {/* Summary Grid: Earned, Used, Expiry */}
+              <div className="grid grid-cols-3 gap-2.5 text-center">
+                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                  <span className="text-[10px] text-[#7A6458] font-semibold uppercase block">
+                    Earned (Purchases)
+                  </span>
+                  <span className="font-mono text-base font-extrabold text-emerald-800 mt-0.5 block">
+                    +{pointsEarnedFromPurchases} pts
+                  </span>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                  <span className="text-[10px] text-[#7A6458] font-semibold uppercase block">
+                    Points Used
+                  </span>
+                  <span className="font-mono text-base font-extrabold text-rose-700 mt-0.5 block">
+                    {pointsUsed} pts
+                  </span>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                  <span className="text-[10px] text-[#7A6458] font-semibold uppercase block">
+                    Next Expiry
+                  </span>
+                  <span className="font-semibold text-[11px] text-[#2C2420] mt-1 block truncate">
+                    {formattedNextExpiry}
+                  </span>
+                </div>
+              </div>
+
+              {/* Rule Card: 5 pts per ₹100 & 100 pts = ₹50 */}
+              <div className="p-4 bg-white rounded-2xl border border-[#DEC89B] space-y-2.5 shadow-2xs">
                 <div className="flex items-center gap-2.5 text-[#70252D] font-bold text-sm">
                   <div className="p-2 bg-amber-50 rounded-xl text-amber-700 border border-amber-200">
                     <Sparkles className="w-4 h-4 text-[#C29E57]" />
                   </div>
-                  <span>Rule: 1 Point for every ₹{LOYALTY_EARNING_RATE_INR} Spent</span>
+                  <span>Nest Points Rules &amp; Terms</span>
                 </div>
-                <p className="text-[#6B5D55] leading-relaxed">
-                  Every time you purchase a pure combed cotton bedsheet, dohar, or bed set from Cotton Nest Atelier, you automatically earn <strong>1 loyalty point for every ₹{LOYALTY_EARNING_RATE_INR}</strong> in order value.
-                </p>
-                <div className="pt-2 border-t border-[#EAE2D5] flex items-center justify-between text-[11px] text-[#7A6458]">
-                  <span>Earn Rate: <strong>1 pt / ₹{LOYALTY_EARNING_RATE_INR}</strong></span>
-                  <span>Redemption: <strong>1 pt = ₹{LOYALTY_POINT_VALUE_INR} discount</strong></span>
-                </div>
+                <ul className="space-y-1 text-[11px] text-[#6B5D55] list-disc pl-4">
+                  <li><strong>Earn Rate:</strong> <strong>{LOYALTY_POINTS_PER_100_INR} Nest Points per ₹100</strong> spent on bedsheets.</li>
+                  <li><strong>Redemption Value:</strong> <strong>100 Points = ₹50</strong> (1 Nest Point = ₹0.50).</li>
+                  <li><strong>Minimum Redemption:</strong> Minimum <strong>{LOYALTY_MIN_REDEMPTION_POINTS} points</strong> (₹100 value) required for redemption.</li>
+                  <li><strong>Credited After Delivery:</strong> Points are credited only after successful delivery and full payment.</li>
+                  <li><strong>No Points on Delivery Charges:</strong> Shipping / delivery charges do not earn Nest Points.</li>
+                  <li><strong>Expiry:</strong> Points expire after <strong>{LOYALTY_EXPIRY_MONTHS} months</strong> from credit date.</li>
+                  <li><strong>Non-Cash:</strong> Points cannot be exchanged for cash.</li>
+                </ul>
               </div>
 
-              {/* How it Works Steps */}
-              <div className="space-y-2.5">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-[#7A6458]">
-                  How to Earn & Redeem
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="p-3 bg-white rounded-xl border border-[#EAE2D5] space-y-1">
-                    <div className="flex items-center gap-1.5 font-bold text-[#2C2420]">
-                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-extrabold">1</span>
-                      <span>Earn Upon Delivery</span>
-                    </div>
-                    <p className="text-[11px] text-[#7A6458]">
-                      Points are credited to your wallet once your order is delivered. Points remain valid for 6 months from the date of credit.
-                    </p>
-                  </div>
-
-                  <div className="p-3 bg-white rounded-xl border border-[#EAE2D5] space-y-1">
-                    <div className="flex items-center gap-1.5 font-bold text-[#2C2420]">
-                      <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] font-extrabold">2</span>
-                      <span>Redeem at Checkout</span>
-                    </div>
-                    <p className="text-[11px] text-[#7A6458]">
-                      In your shopping bag, toggle "Apply Loyalty Points". Your points instantly reduce the order total by ₹1 per point.
-                    </p>
-                  </div>
+              {/* Referral Rewards Card */}
+              <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#2C2420] flex items-center gap-1.5">
+                    <Gift className="w-4 h-4 text-[#8C2E46]" />
+                    <span>Referral Rewards (+{LOYALTY_REFERRAL_REWARD_POINTS} pts)</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Earned: {referralPointsEarned} pts
+                  </span>
                 </div>
+
+                <div className="flex items-center justify-between gap-2 p-2.5 bg-[#FAF7F2] rounded-xl border border-[#DEC89B]">
+                  <div>
+                    <span className="text-[10px] text-[#7A6458] block">Your Referral Code</span>
+                    <span className="font-mono font-extrabold text-sm text-[#70252D]">{referralCode}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyReferralCode}
+                    className="px-2.5 py-1 bg-white hover:bg-amber-50 text-[#2C2420] border border-[#DEC89B] rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedReferral ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedReferral ? 'Copied!' : 'Copy Code'}</span>
+                  </button>
+                </div>
+
+                {!referredByCode && (
+                  <form onSubmit={handleClaimReferral} className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={friendReferralInput}
+                      onChange={(e) => setFriendReferralInput(e.target.value.toUpperCase())}
+                      placeholder="Enter friend's referral code"
+                      className="flex-1 px-2.5 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-lg text-xs uppercase font-semibold placeholder:normal-case placeholder:font-normal"
+                    />
+                    <button
+                      type="submit"
+                      disabled={claimingReferral || !friendReferralInput.trim()}
+                      className="px-3 py-1.5 bg-[#8C2E46] text-white rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      {claimingReferral ? '...' : 'Claim'}
+                    </button>
+                  </form>
+                )}
+
+                {referralStatus && (
+                  <p className={`text-[11px] font-semibold ${referralStatus.type === 'success' ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    {referralStatus.message}
+                  </p>
+                )}
               </div>
 
-              {/* Lifetime Stats */}
-              <div className="p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200/60 grid grid-cols-2 gap-3 text-center">
+              {/* Redeem Option at Checkout */}
+              <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 flex items-center justify-between gap-2">
                 <div>
-                  <span className="text-[10px] text-amber-800 font-semibold uppercase tracking-wider block">
-                    Lifetime Earned
-                  </span>
-                  <span className="font-serif-luxury text-lg font-bold text-[#70252D]">
-                    +{lifetimeEarned} pts
-                  </span>
-                </div>
-                <div className="border-l border-amber-200/60">
-                  <span className="text-[10px] text-amber-800 font-semibold uppercase tracking-wider block">
-                    Total Redeemed
-                  </span>
-                  <span className="font-serif-luxury text-lg font-bold text-emerald-800">
-                    -₹{lifetimeSpent} saved
+                  <span className="font-bold text-[#2C2420] block">Redeem Points at Checkout</span>
+                  <span className="text-[10px] text-[#7A6458]">
+                    {canRedeemPoints(pointsBalance)
+                      ? `Apply ${pointsBalance} pts (-₹${pointsRupeesValue}) automatically in your shopping bag`
+                      : `Minimum ${LOYALTY_MIN_REDEMPTION_POINTS} Nest Points required to redeem`}
                   </span>
                 </div>
-              </div>
-
-              {/* Phone / User identification reassurance */}
-              <div className="p-2.5 bg-white rounded-xl border border-[#EAE2D5] flex items-center gap-2 text-[11px] text-[#7A6458]">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  Points are safely tied to your mobile WhatsApp number and account across visits.
-                </span>
+                <input
+                  type="checkbox"
+                  checked={preferRedeemAtCheckout}
+                  onChange={(e) => setPreferRedeemAtCheckout(e.target.checked)}
+                  disabled={!canRedeemPoints(pointsBalance)}
+                  className="accent-[#70252D] w-4 h-4 cursor-pointer disabled:opacity-50"
+                />
               </div>
             </>
           ) : (
@@ -197,13 +313,15 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                   <Clock className="w-8 h-8 text-[#DEC89B] mx-auto" />
                   <p className="font-medium text-[#2C2420]">No points transactions yet</p>
                   <p className="text-[11px] text-[#7A6458] max-w-xs mx-auto">
-                    Place an order to start earning 1 point for every ₹50 spent at Cotton Nest!
+                    Place an order to earn {LOYALTY_POINTS_PER_100_INR} Nest Points for every ₹100 spent (credited after delivery &amp; full payment)!
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {transactions.map((t) => {
-                    const isEarned = t.type === 'earned' || t.points > 0;
+                    const isEarned = t.type === 'earned' || t.type === 'bonus' || t.type === 'referral' || t.points > 0;
+                    const expiryDate = isEarned ? new Date(getTransactionExpiryDate(t.createdAt, t.expiresAt)) : null;
+                    const expired = isTransactionExpired(t.createdAt, t.expiresAt);
                     return (
                       <div
                         key={t.id}
@@ -226,11 +344,16 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                           <div className="min-w-0">
                             <p className="font-bold text-[#2C2420] truncate">{t.description}</p>
                             <span className="text-[10px] text-[#8C7A70] block">
-                              {new Date(t.createdAt).toLocaleDateString('en-IN', {
+                              Credited: {new Date(t.createdAt).toLocaleDateString('en-IN', {
                                 day: 'numeric',
                                 month: 'short',
                                 year: 'numeric',
                               })}
+                              {expiryDate && (
+                                <span className={`ml-2 ${expired ? 'text-rose-600 font-semibold' : 'text-amber-800'}`}>
+                                  · {expired ? 'Expired' : `Expires ${expiryDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                                </span>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -241,13 +364,11 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                               isEarned ? 'text-emerald-700' : 'text-rose-700'
                             }`}
                           >
-                            {isEarned ? `+${t.points}` : t.points} pts
+                            {isEarned ? `+${Math.abs(t.points)}` : `-${Math.abs(t.points)}`} pts
                           </span>
-                          {t.amountInr !== undefined && (
-                            <span className="text-[10px] text-[#8C7A70] block">
-                              {isEarned ? `(₹${t.amountInr})` : `-₹${t.amountInr}`}
-                            </span>
-                          )}
+                          <span className="text-[10px] text-[#8C7A70] block">
+                            ≈ ₹{calculatePointsDiscount(Math.abs(t.points))}
+                          </span>
                         </div>
                       </div>
                     );
@@ -261,8 +382,8 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
         {/* Footer Actions */}
         <div className="p-4 sm:p-5 border-t border-[#EAE2D5] bg-[#F4EFE6]/70 flex items-center justify-between gap-3 shrink-0">
           <div className="text-[11px] text-[#7A6458]">
-            <span>1 Point = </span>
-            <strong className="text-[#2C2420]">₹1 Discount</strong>
+            <span>100 Nest Points = </span>
+            <strong className="text-[#2C2420]">₹50 Discount</strong>
           </div>
 
           <div className="flex items-center gap-2">

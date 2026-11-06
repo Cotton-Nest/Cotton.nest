@@ -830,8 +830,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                           )}
                           {Boolean(currentSelectedOrder.pointsEarned && currentSelectedOrder.pointsEarned > 0) && (
                             <div className="flex justify-between text-amber-900 font-semibold text-[11px]">
-                              <span>Loyalty Points Earned</span>
-                              <span className="font-bold text-amber-950">+{currentSelectedOrder.pointsEarned} pts (1 pt / ₹50)</span>
+                              <span>Nest Points ({currentSelectedOrder.status === 'delivered' ? 'Credited' : 'Credited on Delivery'})</span>
+                              <span className="font-bold text-amber-950">+{currentSelectedOrder.pointsEarned} pts (5 pts / ₹100)</span>
                             </div>
                           )}
                           <div className="flex justify-between text-[#6B5D55]">

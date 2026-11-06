@@ -1,9 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { LoyaltyAccount, LoyaltyTransaction, calculatePointsDiscount, calculateEarnedPoints } from '../data/loyalty';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  LoyaltyAccount,
+  LoyaltyTransaction,
+  calculatePointsDiscount,
+  getTransactionExpiryDate,
+  isTransactionExpired,
+  generateReferralCode,
+} from '../data/loyalty';
 import {
   getLoyaltyAccountApi,
   earnLoyaltyPointsApi,
   redeemLoyaltyPointsApi,
+  claimReferralRewardApi,
   getLoyaltyTransactionsApi,
   getActiveLoyaltyKey,
 } from '../services/loyaltyApi';
@@ -15,14 +23,31 @@ interface LoyaltyContextType {
   pointsRupeesValue: number;
   lifetimeEarned: number;
   lifetimeSpent: number;
+  pointsEarnedFromPurchases: number;
+  pointsUsed: number;
+  referralPointsEarned: number;
+  referralCode: string;
+  referredByCode?: string;
+  nextExpiryTimestamp: number | null;
   transactions: LoyaltyTransaction[];
   isLoading: boolean;
   isLoyaltyModalOpen: boolean;
+  preferRedeemAtCheckout: boolean;
+  setPreferRedeemAtCheckout: (val: boolean) => void;
   openLoyaltyModal: () => void;
   closeLoyaltyModal: () => void;
   refreshLoyalty: (explicitKey?: string) => Promise<LoyaltyAccount | null>;
-  earnPoints: (amountSpent: number, orderId: string, phoneOrKey?: string) => Promise<{ pointsEarned: number }>;
+  earnPoints: (
+    eligibleAmountExcludingDelivery: number,
+    orderId: string,
+    phoneOrKey?: string,
+    explicitPoints?: number
+  ) => Promise<{ pointsEarned: number }>;
   redeemPoints: (points: number, orderId: string, phoneOrKey?: string) => Promise<{ discountInr: number }>;
+  claimReferralReward: (
+    referralCodeInput: string,
+    phoneOrKey?: string
+  ) => Promise<{ success: boolean; message: string; pointsAwarded: number }>;
   loadTransactions: () => Promise<LoyaltyTransaction[]>;
 }
 
@@ -34,6 +59,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [transactions, setTransactions] = useState<LoyaltyTransaction[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState<boolean>(false);
+  const [preferRedeemAtCheckout, setPreferRedeemAtCheckout] = useState<boolean>(false);
 
   const activeKey = getActiveLoyaltyKey(user);
 
@@ -79,16 +105,25 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [refreshLoyalty, loadTransactions]);
 
   const earnPoints = useCallback(
-    async (amountSpent: number, orderId: string, phoneOrKey?: string) => {
+    async (
+      eligibleAmountExcludingDelivery: number,
+      orderId: string,
+      phoneOrKey?: string,
+      explicitPoints?: number
+    ) => {
       const targetKey = phoneOrKey || activeKey;
-      const res = await earnLoyaltyPointsApi(targetKey, amountSpent, orderId, {
+      const res = await earnLoyaltyPointsApi(targetKey, eligibleAmountExcludingDelivery, orderId, {
         name: user?.name,
         phone: user?.phone,
         email: user?.email,
         userId: user?.id,
+        explicitPoints,
       });
       setAccount(res.account);
-      setTransactions((prev) => [res.tx, ...prev]);
+      setTransactions((prev) => {
+        if (prev.some((t) => t.id === res.tx.id)) return prev;
+        return [res.tx, ...prev];
+      });
       return { pointsEarned: res.pointsEarned };
     },
     [activeKey, user]
@@ -110,10 +145,89 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [activeKey, user]
   );
 
-  const pointsBalance = account?.pointsBalance || 0;
+  const claimReferralReward = useCallback(
+    async (referralCodeInput: string, phoneOrKey?: string) => {
+      const targetKey = phoneOrKey || activeKey;
+      try {
+        const res = await claimReferralRewardApi(targetKey, referralCodeInput, {
+          name: user?.name,
+          phone: user?.phone,
+          email: user?.email,
+          userId: user?.id,
+        });
+        setAccount(res.account);
+        setTransactions((prev) => [res.tx, ...prev]);
+        return {
+          success: true,
+          message: `🎉 +${res.pointsAwarded} Nest Points credited from referral code!`,
+          pointsAwarded: res.pointsAwarded,
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          message: err?.message || 'Could not apply referral code.',
+          pointsAwarded: 0,
+        };
+      }
+    },
+    [activeKey, user]
+  );
+
+  // Calculate active non-expired metrics
+  const {
+    pointsBalance,
+    pointsEarnedFromPurchases,
+    pointsUsed,
+    referralPointsEarned,
+    nextExpiryTimestamp,
+  } = useMemo(() => {
+    const now = Date.now();
+    const earnedTxs = transactions.filter((t) => t.points > 0 && t.type === 'earned');
+    const referralTxs = transactions.filter((t) => t.points > 0 && (t.type === 'referral' || t.type === 'bonus'));
+    const redeemedTxs = transactions.filter((t) => t.type === 'redeemed' || t.points < 0);
+
+    const calcPurchaseEarned = earnedTxs.reduce((sum, t) => sum + Math.max(0, t.points), 0);
+    const calcReferralEarned = referralTxs.reduce((sum, t) => sum + Math.max(0, t.points), 0);
+    const calcUsed = redeemedTxs.reduce((sum, t) => sum + Math.abs(t.points), 0);
+
+    const expiredPoints = [...earnedTxs, ...referralTxs]
+      .filter((t) => isTransactionExpired(t.createdAt, t.expiresAt, now))
+      .reduce((sum, t) => sum + Math.max(0, t.points), 0);
+
+    const rawAccountBalance = account?.pointsBalance || 0;
+    const effectiveBalance = Math.max(0, rawAccountBalance - expiredPoints);
+
+    // Find the earliest upcoming expiry timestamp among active positive transactions
+    const activePositiveExpiries = [...earnedTxs, ...referralTxs]
+      .map((t) => getTransactionExpiryDate(t.createdAt, t.expiresAt))
+      .filter((exp) => exp > now)
+      .sort((a, b) => a - b);
+
+    // Fallback default 12-month expiry if pointsBalance > 0 and no transactions in list
+    let earliestExpiry: number | null = activePositiveExpiries.length > 0 ? activePositiveExpiries[0] : null;
+    if (!earliestExpiry && effectiveBalance > 0 && account?.updatedAt) {
+      earliestExpiry = getTransactionExpiryDate(account.updatedAt);
+    }
+
+    return {
+      pointsBalance: effectiveBalance,
+      pointsEarnedFromPurchases:
+        calcPurchaseEarned > 0
+          ? calcPurchaseEarned
+          : Math.max(0, (account?.lifetimeEarned || 0) - (account?.referralPointsEarned || 0)),
+      pointsUsed: calcUsed > 0 ? calcUsed : account?.lifetimeSpent || 0,
+      referralPointsEarned:
+        calcReferralEarned > 0 ? calcReferralEarned : account?.referralPointsEarned || 0,
+      nextExpiryTimestamp: earliestExpiry,
+    };
+  }, [account, transactions]);
+
   const pointsRupeesValue = calculatePointsDiscount(pointsBalance);
-  const lifetimeEarned = account?.lifetimeEarned || 0;
-  const lifetimeSpent = account?.lifetimeSpent || 0;
+  const lifetimeEarned = account?.lifetimeEarned || pointsEarnedFromPurchases + referralPointsEarned;
+  const lifetimeSpent = account?.lifetimeSpent || pointsUsed;
+  const referralCode =
+    account?.referralCode ||
+    generateReferralCode(user?.name || user?.email || user?.phone || activeKey);
 
   return (
     <LoyaltyContext.Provider
@@ -123,9 +237,17 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         pointsRupeesValue,
         lifetimeEarned,
         lifetimeSpent,
+        pointsEarnedFromPurchases,
+        pointsUsed,
+        referralPointsEarned,
+        referralCode,
+        referredByCode: account?.referredByCode,
+        nextExpiryTimestamp,
         transactions,
         isLoading,
         isLoyaltyModalOpen,
+        preferRedeemAtCheckout,
+        setPreferRedeemAtCheckout,
         openLoyaltyModal: () => {
           setIsLoyaltyModalOpen(true);
           loadTransactions();
@@ -134,6 +256,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         refreshLoyalty,
         earnPoints,
         redeemPoints,
+        claimReferralReward,
         loadTransactions,
       }}
     >

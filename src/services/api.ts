@@ -664,6 +664,7 @@ export async function saveOrder(order: Order): Promise<void> {
 
 export async function updateOrderStatus(orderId: string, status: string): Promise<void> {
   const path = `orders/${orderId}`;
+  let targetOrder: Order | undefined;
 
   // 1. Update local storage
   try {
@@ -671,7 +672,17 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
     if (cached) {
       const list: Order[] = JSON.parse(cached);
       if (Array.isArray(list)) {
-        const updated = list.map((o) => (o.id === orderId ? { ...o, status: status as any } : o));
+        const updated = list.map((o) => {
+          if (o.id === orderId) {
+            targetOrder = o;
+            return {
+              ...o,
+              status: status as any,
+              pointsCredited: status === 'delivered' ? true : o.pointsCredited,
+            };
+          }
+          return o;
+        });
         localStorage.setItem('cotton_nest_orders', JSON.stringify(updated));
       }
     }
@@ -682,16 +693,41 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
     await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({
+        status,
+        ...(status === 'delivered' ? { pointsCredited: true } : {}),
+      }),
     });
   } catch (err) {
     console.warn('Failed to update order status on server:', err);
   }
 
-  // 3. Update Firestore
+  // 3. If order is marked delivered and points were not credited yet, credit Nest Points now
+  if (status === 'delivered' && targetOrder && !targetOrder.pointsCredited) {
+    const rawKey = targetOrder.customerPhone || targetOrder.customerEmail || targetOrder.userId || '';
+    const shippingCostVal = Number(targetOrder.shippingCost) || 0;
+    const eligibleAmount = Math.max(0, (Number(targetOrder.totalAmount) || 0) - shippingCostVal);
+    if (rawKey && (eligibleAmount > 0 || (targetOrder.pointsEarned && targetOrder.pointsEarned > 0))) {
+      try {
+        const { earnLoyaltyPointsApi } = await import('./loyaltyApi');
+        await earnLoyaltyPointsApi(rawKey, eligibleAmount, orderId, {
+          name: targetOrder.customerName,
+          phone: targetOrder.customerPhone,
+          email: targetOrder.customerEmail,
+          userId: targetOrder.userId,
+          explicitPoints: targetOrder.pointsEarned,
+        });
+      } catch (err) {
+        console.warn('Failed to credit Nest Points upon delivery:', err);
+      }
+    }
+  }
+
+  // 4. Update Firestore
   try {
     await updateDoc(doc(db, 'orders', orderId), {
       status,
+      ...(status === 'delivered' ? { pointsCredited: true } : {}),
       updatedAt: Date.now(),
     });
   } catch (error) {

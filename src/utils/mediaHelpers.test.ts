@@ -100,7 +100,7 @@ test('shipping fee across India is strictly ₹29 and never ₹100 in siteConten
   assert.equal(normalizeShippingFee(29), 29);
   assert.equal(normalizeShippingFee(49), 49);
   assert.equal(INITIAL_SITE_CONTENT.termsAndConditions.includes('₹29'), true);
-  assert.equal(INITIAL_SITE_CONTENT.termsAndConditions.includes('₹100'), false);
+  assert.equal(INITIAL_SITE_CONTENT.termsAndConditions.includes('Across India: *₹100*'), false);
 
   const legacyTc1 = '👉 Across India: *₹100*';
   assert.equal(normalizeShippingInTerms(legacyTc1), '👉 Across India: *₹29*');

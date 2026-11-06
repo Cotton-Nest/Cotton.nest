@@ -51,7 +51,7 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
             );
           }
 
-          if (trimmed.startsWith('✨') || trimmed.startsWith('🚚')) {
+          if (trimmed.startsWith('✨') || trimmed.startsWith('🚚') || trimmed.startsWith('🎁')) {
             return (
               <div key={idx} className="pt-4 pb-1 border-t border-[#EAE2D5] text-lg sm:text-xl font-bold font-serif-luxury text-[#2C2420]">
                 {content}
@@ -101,7 +101,7 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
             className="text-sm max-w-xl mx-auto"
             style={{ color: 'var(--color-text-secondary, #7A6458)' }}
           >
-            Please review our store policies, exchange guidelines, and delivery charges.
+            Please review our store policies, exchange guidelines, delivery charges, and Nest Points loyalty rules.
           </p>
         </div>
 
@@ -118,8 +118,48 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
           <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-[#F4EFE6]/60 rounded-full blur-2xl pointer-events-none" />
 
           {customTc && customTc.trim() !== '' ? (
-            <div className="relative">
+            <div className="relative space-y-6">
               {renderFormattedContent(customTc)}
+              {!customTc.includes('5 Nest Points') && !customTc.includes('Minimum 200 points') && (
+                <div className="pt-6 border-t border-[#EAE2D5] space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🎁</span>
+                    <h2 className="font-serif-luxury text-xl sm:text-2xl font-bold text-[#2C2420]">
+                      LOYALTY REWARDS &amp; NEST POINTS TERMS
+                    </h2>
+                  </div>
+                  <ul className="space-y-2.5 text-sm sm:text-base text-[#3C322C] pl-1">
+                    <li className="flex items-start gap-2.5">
+                      <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                      <span>Earn <strong className="font-semibold text-[#2C2420]">5 Nest Points per ₹100 spent</strong> on pure cotton bedsheets and bedding.</span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                      <span>Redemption Value: <strong className="font-semibold text-[#2C2420]">100 Nest Points = ₹50</strong> discount at checkout.</span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                      <span><strong className="font-semibold text-[#2C2420]">Minimum 200 points required for redemption</strong> (equivalent to ₹100 discount).</span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                      <span><strong className="font-semibold text-[#2C2420]">Points credited only after successful delivery and full payment.</strong></span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                      <span><strong className="font-semibold text-[#2C2420]">No points on delivery charges.</strong></span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                      <span><strong className="font-semibold text-[#2C2420]">Points expire after 12 months</strong> from the date of credit.</span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                      <span><strong className="font-semibold text-[#8C2E46]">Points cannot be exchanged for cash.</strong></span>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
           ) : (
             <div className="relative space-y-7 text-[#2C2420] leading-relaxed text-base sm:text-lg">
@@ -228,6 +268,47 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Loyalty Rewards & Nest Points Terms Section */}
+            <div className="pt-6 border-t border-[#EAE2D5] space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🎁</span>
+                <h2 className="font-serif-luxury text-xl sm:text-2xl font-bold text-[#2C2420]">
+                  LOYALTY REWARDS &amp; NEST POINTS TERMS
+                </h2>
+              </div>
+
+              <ul className="space-y-2.5 text-sm sm:text-base text-[#3C322C] pl-1">
+                <li className="flex items-start gap-2.5">
+                  <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                  <span>Earn <strong className="font-semibold text-[#2C2420]">5 Nest Points per ₹100 spent</strong> on pure cotton bedsheets and bedding.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                  <span>Redemption Value: <strong className="font-semibold text-[#2C2420]">100 Nest Points = ₹50</strong> discount at checkout.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                  <span><strong className="font-semibold text-[#2C2420]">Minimum 200 points required for redemption</strong> (equivalent to ₹100 discount).</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                  <span><strong className="font-semibold text-[#2C2420]">Points credited only after successful delivery and full payment.</strong></span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                  <span><strong className="font-semibold text-[#2C2420]">No points on delivery charges.</strong></span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                  <span><strong className="font-semibold text-[#2C2420]">Points expire after 12 months</strong> from the date of credit.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-[#C29E57] font-bold text-lg leading-none mt-1">•</span>
+                  <span><strong className="font-semibold text-[#8C2E46]">Points cannot be exchanged for cash.</strong></span>
+                </li>
+              </ul>
             </div>
 
             {/* Outro Greeting */}
