@@ -1507,14 +1507,6 @@ export default function App() {
         </ErrorBoundary>
       ) : (
         <>
-          {/* Ambient Apple Liquid Glass Refraction Canvas (Warm Champagne Gold, Blush Rose & Rosewood Spheres) */}
-          <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
-            <div className="absolute -top-24 -left-20 w-[540px] h-[540px] rounded-full bg-gradient-to-br from-[#F9D3DE]/80 via-[#F3EBD7]/65 to-transparent blur-3xl animate-liquid-orb" />
-            <div className="absolute top-[22%] -right-28 w-[580px] h-[580px] rounded-full bg-gradient-to-bl from-[#E6D5B3]/75 via-[#FDEAF0]/65 to-transparent blur-3xl animate-liquid-orb" style={{ animationDelay: '-4s' }} />
-            <div className="absolute top-[55%] left-[12%] w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-[#F1ACC0]/55 via-[#E6D5B3]/60 to-transparent blur-3xl animate-liquid-orb" style={{ animationDelay: '-8s' }} />
-            <div className="absolute bottom-[4%] right-[16%] w-[460px] h-[460px] rounded-full bg-gradient-to-tl from-[#D4B982]/50 via-[#F9D3DE]/55 to-transparent blur-3xl animate-liquid-orb" style={{ animationDelay: '-11s' }} />
-          </div>
-
           {/* Top subtle golden luxury scroll progress indicator */}
           <motion.div
             style={{ scaleX: scrollProgressX, transformOrigin: '0%' }}
