@@ -102,13 +102,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       <header className="sticky top-0 z-40 bg-[var(--color-header,#FAF7F2)]/95 backdrop-blur-md border-b border-[var(--color-border,#EAE2D5)] transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           
-          {/* Zone 1: Single text element wordmark in display face */}
+          {/* Zone 1: Logo and Brand Name */}
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => handleNavClick('home')}
-            className="text-left group cursor-pointer focus:outline-hidden"
+            className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-2.5"
           >
-            <span className="font-serif-luxury text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors">
+            <img
+              src="/public/assets/aistudio/IMG-20261106-WA0032_3f856e9c.jpg"
+              alt="Cotton Nest Logo"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border border-[#DEC89B] shadow-2xs shrink-0"
+            />
+            <span className="font-serif-luxury text-xl sm:text-2xl font-semibold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors">
               {brandName}
             </span>
           </motion.button>
