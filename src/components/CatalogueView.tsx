@@ -107,6 +107,82 @@ function parseSearchQuery(query: string) {
   return { text, queryMinPrice, queryMaxPrice, exactOrApproxPrice };
 }
 
+export function checkProductMatchesSizeFilter(filterLabel: string, itemSize?: string, dimensions?: string): boolean {
+  const cleanS = String(filterLabel || '').toLowerCase();
+  const d = String(dimensions || '').toLowerCase();
+  const sz = String(itemSize || '').toLowerCase();
+
+  // 1. Super King (108 × 108) / 108x108
+  if (
+    cleanS.includes('super king') ||
+    cleanS.includes('108 × 108') ||
+    cleanS.includes('108x108') ||
+    cleanS.includes('108 x 108') ||
+    cleanS.includes('super-king-size')
+  ) {
+    return (
+      sz.includes('super king') ||
+      d.includes('108 x 108') ||
+      d.includes('108x108') ||
+      d.includes('108 × 108') ||
+      (d.includes('108') && d.indexOf('108') !== d.lastIndexOf('108'))
+    );
+  }
+
+  // 2. Standard King (100 × 108) / 100x108
+  if (
+    cleanS.includes('king size (100') ||
+    cleanS.includes('king (100') ||
+    cleanS.includes('100 × 108') ||
+    cleanS.includes('100x108') ||
+    cleanS.includes('100 x 108') ||
+    (cleanS.includes('100') && cleanS.includes('108'))
+  ) {
+    return (
+      (d.includes('100') && d.includes('108')) ||
+      (sz.includes('king') && !sz.includes('super') && !sz.includes('120') && !d.includes('108 x 108') && !d.includes('108x108') && !d.includes('108 × 108'))
+    );
+  }
+
+  // 3. King Size XL (120 × 120)
+  if (cleanS.includes('xl') || cleanS.includes('120')) {
+    return d.includes('120') || sz.includes('xl');
+  }
+
+  // 4. Specific dimension combos
+  if (cleanS.includes('90') && cleanS.includes('108')) return d.includes('90') && d.includes('108');
+  if (cleanS.includes('90') && cleanS.includes('100')) return d.includes('90') && d.includes('100');
+  if (cleanS.includes('60') && cleanS.includes('100')) return d.includes('60') && d.includes('100');
+  if (cleanS.includes('60') && cleanS.includes('90')) return d.includes('60') && d.includes('90');
+  if (cleanS.includes('40')) return d.includes('40') && d.includes('60');
+
+  // 5. Generic King search
+  if (cleanS.includes('king')) {
+    if (cleanS.includes('super')) {
+      return (
+        sz.includes('super king') ||
+        d.includes('108 x 108') ||
+        d.includes('108x108') ||
+        d.includes('108 × 108')
+      );
+    }
+    // Standard King
+    return (
+      (sz.includes('king') && !sz.includes('super')) ||
+      (d.includes('100') && d.includes('108')) ||
+      (d.includes('108') && !d.includes('108 x 108') && !d.includes('108x108') && !d.includes('108 × 108'))
+    );
+  }
+
+  if (cleanS.includes('queen')) return sz.includes('queen') || d.includes('90');
+  if (cleanS.includes('double')) return sz.includes('double') || d.includes('90');
+  if (cleanS.includes('single')) return sz.includes('single') || d.includes('60');
+  if (cleanS.includes('diwan')) return sz.includes('diwan') || d.includes('60');
+  if (cleanS.includes('baby')) return sz.includes('baby') || d.includes('40');
+
+  return sz.includes(cleanS) || d.includes(cleanS);
+}
+
 type FilterCategoryTab = 'size' | 'material' | 'pattern' | 'productType' | 'price' | 'color' | 'brand' | 'quick';
 
 export const CatalogueView: React.FC<CatalogueViewProps> = ({
@@ -265,7 +341,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   const quickFilterDefs = [
     { id: 'pure-cotton', label: 'Material: 100% Cotton', icon: Feather },
     { id: 'floral-pattern', label: 'Pattern: Floral & Botanicals', icon: LayoutGrid },
-    { id: 'king-size', label: 'Size: King (108×108)', icon: Box },
+    { id: 'king-size', label: 'Size: King (100×108)', icon: Box },
+    { id: 'super-king-size', label: 'Size: Super King (108×108)', icon: Box },
     { id: 'top-rated', label: 'Top Rated 4.5★+', icon: Star },
   ];
 
@@ -345,25 +422,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
         // 1. Size constraint (Multi-select: Match any selected size)
         if (selectedSizes.length > 0) {
-          const matchesSize = selectedSizes.some((s) => {
-            const cleanS = String(s || '').toLowerCase();
-            const d = dims.toLowerCase();
-            const sz = itemSize.toLowerCase();
-            if (cleanS.includes('xl') || cleanS.includes('120')) return d.includes('120') || sz.includes('xl');
-            if (cleanS.includes('108')) return d.includes('108') && !d.includes('110');
-            if (cleanS.includes('90') && cleanS.includes('108')) return d.includes('90') && d.includes('108');
-            if (cleanS.includes('90') && cleanS.includes('100')) return d.includes('90') && d.includes('100');
-            if (cleanS.includes('60') && cleanS.includes('100')) return d.includes('60') && d.includes('100');
-            if (cleanS.includes('60') && cleanS.includes('90')) return d.includes('60') && d.includes('90');
-            if (cleanS.includes('40')) return d.includes('40') && d.includes('60');
-            if (cleanS.includes('king')) return sz.includes('king') || d.includes('108');
-            if (cleanS.includes('queen')) return sz.includes('queen') || d.includes('90');
-            if (cleanS.includes('double')) return sz.includes('double') || d.includes('90');
-            if (cleanS.includes('single')) return sz.includes('single') || d.includes('60');
-            if (cleanS.includes('diwan')) return sz.includes('diwan') || d.includes('60');
-            if (cleanS.includes('baby')) return sz.includes('baby') || d.includes('40');
-            return sz.includes(cleanS) || d.includes(cleanS);
-          });
+          const matchesSize = selectedSizes.some((s) => checkProductMatchesSizeFilter(s, itemSize, dims));
           if (!matchesSize) return false;
         }
 
@@ -468,7 +527,12 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           if (!isFloral) return false;
         }
         if (selectedQuickFilters.includes('king-size')) {
-          if (itemSize !== 'King' && !dims.includes('108')) return false;
+          const isKing = checkProductMatchesSizeFilter('King (100 × 108)', itemSize, dims);
+          if (!isKing) return false;
+        }
+        if (selectedQuickFilters.includes('super-king-size')) {
+          const isSuper = checkProductMatchesSizeFilter('Super King (108 × 108)', itemSize, dims);
+          if (!isSuper) return false;
         }
 
         // 10. Free-text Search
@@ -529,22 +593,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     return (products || []).filter((p) => {
       if (!p) return false;
       if (type === 'size') {
-        const s = String(p.size || '').toLowerCase();
-        const dims = String(p.dimensions || '').toLowerCase();
-        if (cleanVal.includes('xl') || cleanVal.includes('120')) return dims.includes('120') || s.includes('xl');
-        if (cleanVal.includes('108')) return dims.includes('108') && !dims.includes('110');
-        if (cleanVal.includes('90') && cleanVal.includes('108')) return dims.includes('90') && dims.includes('108');
-        if (cleanVal.includes('90') && cleanVal.includes('100')) return dims.includes('90') && dims.includes('100');
-        if (cleanVal.includes('60') && cleanVal.includes('100')) return dims.includes('60') && dims.includes('100');
-        if (cleanVal.includes('60') && cleanVal.includes('90')) return dims.includes('60') && dims.includes('90');
-        if (cleanVal.includes('40')) return dims.includes('40') && dims.includes('60');
-        if (cleanVal.includes('king')) return s.includes('king') || dims.includes('108');
-        if (cleanVal.includes('queen')) return s.includes('queen') || dims.includes('90');
-        if (cleanVal.includes('double')) return s.includes('double') || dims.includes('90');
-        if (cleanVal.includes('single')) return s.includes('single') || dims.includes('60');
-        if (cleanVal.includes('diwan')) return s.includes('diwan') || dims.includes('60');
-        if (cleanVal.includes('baby')) return s.includes('baby') || dims.includes('40');
-        return s.includes(cleanVal) || dims.includes(cleanVal);
+        return checkProductMatchesSizeFilter(cleanVal, p.size, p.dimensions);
       }
       if (type === 'material') {
         const f = String(p.fabric || '').toLowerCase();
@@ -1263,7 +1312,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                       Select Bedsheet Size &amp; Mattress
                     </p>
                     {[
-                      { label: 'King Size (108 × 108)', spec: 'Mattress: 72 × 78' },
+                      { label: 'King Size (100 × 108)', spec: 'Mattress: 72 × 78 (Standard King)' },
+                      { label: 'Super King Size (108 × 108)', spec: 'Mattress: 72 × 78 (Super King / Extra Drop)' },
                       { label: 'King Size XL (120 × 120)', spec: 'Mattress: 72 × 78' },
                       { label: 'Queen Size (90 × 100)', spec: 'Mattress: 60 × 78' },
                       { label: 'Queen Size XL (90 × 108)', spec: 'Mattress: 60 × 78' },

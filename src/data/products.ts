@@ -35,7 +35,7 @@ export interface BedsheetProduct {
   brand?: string;       // 'Cotton Nest' | 'Swayam' | 'Spaces' | etc. (Admin & Filter only, never shown on cards/details)
 }
 
-export const STANDARD_SIZES = ['Single', 'Double', 'Queen', 'King', 'Super King', 'Other'] as const;
+export const STANDARD_SIZES = ['Single', 'Double', 'Queen', 'King (100 × 108)', 'Super King (108 × 108)', 'Other'] as const;
 export type StandardSize = (typeof STANDARD_SIZES)[number];
 
 export const STANDARD_PRODUCT_TYPES = [
