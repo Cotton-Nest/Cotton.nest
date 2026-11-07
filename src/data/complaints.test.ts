@@ -110,12 +110,32 @@ test('verifies order ownership and product membership', () => {
 });
 
 test('validates full complaint submission and supports multiple complaints for different products in one order', () => {
+  // Returns are rejected as per Cotton Nest 48-Hour Defect Exchange Policy
+  const returnRejectedRes = validateComplaintSubmission(
+    {
+      orderId: 'CN-551234',
+      productId: 'sheet-jaipuri-1',
+      requestType: 'Return' as any,
+      description: 'Customer requested refund return.',
+      photos: [
+        {
+          url: 'https://res.cloudinary.com/ys2sgydi/image/upload/v1794001/cotton_nest/complaints/defect_hem.jpg',
+          publicId: 'cotton_nest/complaints/defect_hem',
+        },
+      ],
+      customerPhone: '9876543210',
+    },
+    SAMPLE_ORDER
+  );
+  assert.equal(returnRejectedRes.valid, false);
+  assert.ok(returnRejectedRes.error?.includes('Cotton Nest Terms & Conditions'));
+
   // Missing photos should fail
   const noPhotoRes = validateComplaintSubmission(
     {
       orderId: 'CN-551234',
       productId: 'sheet-jaipuri-1',
-      requestType: 'Return',
+      requestType: 'Exchange',
       description: 'Stitching on corner seam came undone on arrival.',
       photos: [],
       customerPhone: '9876543210',

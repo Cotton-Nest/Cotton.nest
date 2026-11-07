@@ -403,7 +403,8 @@
           "description": "Order received at Cotton Nest Atelier, Sector 46 Gurgaon."
         }
       ],
-      "trackingNumber": "CN-TRK-279192"
+      "trackingNumber": "CN-TRK-279192",
+      "pointsCredited": true
     },
     {
       "id": "CN-892410",
@@ -1045,9 +1046,73 @@
       "referralCode": "NEST-PHON252",
       "referralCount": 0,
       "updatedAt": 1794031169062
+    },
+    "phone_9876543210": {
+      "id": "phone_9876543210",
+      "pointsBalance": 139,
+      "lifetimeEarned": 139,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-PHON813",
+      "referralCount": 0,
+      "updatedAt": 1794040599084
+    },
+    "email_aarav_example_com": {
+      "id": "email_aarav_example_com",
+      "pointsBalance": 0,
+      "lifetimeEarned": 0,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-EMAI770",
+      "referralCount": 0,
+      "updatedAt": 1794040599056
+    },
+    "email_email_aarav@example.com": {
+      "id": "email_email_aarav@example.com",
+      "pointsBalance": 0,
+      "lifetimeEarned": 0,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-EMAI130",
+      "referralCount": 0,
+      "updatedAt": 1794040619631
+    },
+    "email_aarav@example.com": {
+      "id": "email_aarav@example.com",
+      "pointsBalance": 278,
+      "lifetimeEarned": 278,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-EMAI770",
+      "referralCount": 0,
+      "updatedAt": 1794040782194
+    },
+    "email_saurabh.451485@gmail.com": {
+      "id": "email_saurabh.451485@gmail.com",
+      "pointsBalance": 108,
+      "lifetimeEarned": 108,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-EMAI268",
+      "referralCount": 0,
+      "updatedAt": 1794040790181,
+      "phone": "7838625915",
+      "email": "saurabh.451485@gmail.com"
     }
   },
   "loyaltyTransactions": [
+    {
+      "id": "tx_earn_CN-892410_1794040599084",
+      "accountId": "phone_9876543210",
+      "orderId": "CN-892410",
+      "type": "earned",
+      "points": 139,
+      "amountInr": 2790,
+      "description": "Earned on Delivered Order #CN-892410 (5 pts / ₹100)",
+      "createdAt": 1794040599084,
+      "expiresAt": 1825576599084,
+      "status": "credited"
+    },
     {
       "id": "tx_earn_CN-401356_1794031165736",
       "accountId": "phone_7838625915",
@@ -1075,6 +1140,54 @@
   ],
   "updatedAt": 1793800787137,
   "complaints": [
+    {
+      "id": "CMP-621648",
+      "orderId": "CN-892410",
+      "userId": "usr_test_customer_1",
+      "customerName": "Aarav Sharma",
+      "customerPhone": "9876543210",
+      "customerEmail": "aarav@example.com",
+      "customerAddress": "House 2508, Sector 46, Gurgaon, Haryana - 122003",
+      "productId": "sheet-jaipuri-1",
+      "productName": "Royal Jaipuri Floral",
+      "productSize": "King (108 × 108 in)",
+      "productDimensions": "108 x 108 inches (King Size)",
+      "variantName": "Crimson Gold",
+      "productPrice": 1395,
+      "productQuantity": 1,
+      "requestType": "Exchange",
+      "description": "Corner border hem was frayed upon opening package.",
+      "photos": [
+        {
+          "url": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794002/cotton_nest/complaints/frayed_hem.jpg",
+          "publicId": "cotton_nest/complaints/frayed_hem",
+          "orderId": "CN-892410",
+          "productId": "sheet-jaipuri-1",
+          "complaintId": "CMP-621648",
+          "uploadedAt": 1794040838146
+        }
+      ],
+      "status": "Exchange Processing",
+      "responseHistory": [
+        {
+          "id": "resp_1794040838146",
+          "status": "New",
+          "message": "Exchange request submitted by customer with 1 product photo(s).",
+          "respondedBy": "Customer",
+          "createdAt": "2026-11-07T08:40:38.145Z"
+        },
+        {
+          "id": "resp_1794040838152_gd7l",
+          "status": "Exchange Processing",
+          "message": "Atelier team has verified defect photos and approved replacement. Replacement King bedsheet dispatched!",
+          "respondedBy": "Cotton Nest Admin",
+          "createdAt": "2026-11-07T08:40:38.152Z"
+        }
+      ],
+      "createdAt": "2026-11-07T08:40:38.145Z",
+      "updatedAt": "2026-11-07T08:40:38.152Z",
+      "adminResponse": "Atelier team has verified defect photos and approved replacement. Replacement King bedsheet dispatched!"
+    },
     {
       "id": "CMP-227644",
       "orderId": "CN-892410",
@@ -1278,6 +1391,86 @@
     }
   ],
   "notifications": [
+    {
+      "id": "notif-cmp-CMP-621648-admin_update-1794040838152",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Cotton Nest Responded to Your Exchange (#CMP-621648)",
+      "message": "Status: Exchange Processing — \"Atelier team has verified defect photos and approved replacement. Replacement King bedsheet dispatched!\" (Order #CN-892410 · Royal Jaipuri Floral)",
+      "timestamp": 1794040838152,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-621648",
+        "requestType": "Exchange",
+        "complaintStatus": "Exchange Processing",
+        "adminResponse": "Atelier team has verified defect photos and approved replacement. Replacement King bedsheet dispatched!",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794002/cotton_nest/complaints/frayed_hem.jpg"
+      }
+    },
+    {
+      "id": "notif-admin-cmp-CMP-621648-1794040838146",
+      "recipientId": "admin",
+      "type": "admin_complaint",
+      "category": "admin",
+      "title": "New Exchange: #CMP-621648 (Order #CN-892410)",
+      "message": "Aarav Sharma submitted a exchange for Royal Jaipuri Floral with 1 defect photo(s).",
+      "timestamp": 1794040838146,
+      "isRead": false,
+      "linkTarget": {
+        "view": "admin",
+        "targetId": "CMP-621648",
+        "adminTab": "orders"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-621648",
+        "requestType": "Exchange",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794002/cotton_nest/complaints/frayed_hem.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-621648-submitted-1794040838146",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Exchange Request #CMP-621648 Submitted",
+      "message": "Your exchange request for Royal Jaipuri Floral (Order #CN-892410) has been received. Status: New.",
+      "timestamp": 1794040838146,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-621648",
+        "requestType": "Exchange",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794002/cotton_nest/complaints/frayed_hem.jpg"
+      }
+    },
     {
       "id": "notif-cmp-CMP-347383-admin_responded-1794031569619",
       "recipientId": "aarav@example.com",

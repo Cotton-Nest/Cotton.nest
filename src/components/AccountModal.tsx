@@ -887,56 +887,114 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 </ul>
               </div>
 
-              {/* Transactions History with Expiry Dates */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
-                  Nest Points Statement &amp; Expiry Ledger
-                </h4>
+              {/* Points History with Chronological Log & Expiry Dates */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-[#70252D] uppercase tracking-wider flex items-center gap-1.5 font-serif-luxury">
+                    <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+                    <span>Points History &amp; Expiry Ledger</span>
+                  </h4>
+                  {transactions && transactions.length > 0 && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                      {transactions.length} record(s) · Newest first
+                    </span>
+                  )}
+                </div>
+
                 {transactions && transactions.length > 0 ? (
-                  <div className="divide-y divide-[#EAE2D5] bg-white rounded-2xl border border-[#EAE2D5]">
-                    {transactions.map((tx) => {
-                      const isPositive = tx.type === 'earned' || tx.type === 'bonus' || tx.type === 'referral' || tx.points > 0;
-                      const expiryDate = isPositive ? new Date(getTransactionExpiryDate(tx.createdAt, tx.expiresAt)) : null;
-                      const expired = isTransactionExpired(tx.createdAt, tx.expiresAt);
-                      return (
-                        <div key={tx.id} className="p-3 flex items-center justify-between text-xs gap-3">
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="font-semibold text-[#2C2420]">{tx.description}</p>
-                              {tx.type === 'referral' && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800">
-                                  Referral
-                                </span>
-                              )}
+                  <div className="max-h-72 overflow-y-auto space-y-2 pr-1 scrollbar-thin scrollbar-thumb-amber-200">
+                    {[...transactions]
+                      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+                      .map((tx) => {
+                        const isPositive =
+                          tx.type === 'earned' || tx.type === 'bonus' || tx.type === 'referral' || tx.points > 0;
+                        const pts = Math.abs(tx.points);
+                        const expiryDate = isPositive
+                          ? new Date(getTransactionExpiryDate(tx.createdAt, tx.expiresAt))
+                          : null;
+                        const expired = isTransactionExpired(tx.createdAt, tx.expiresAt);
+
+                        // Formatted log title: e.g. "+50 points: Order #1234"
+                        let title = isPositive
+                          ? tx.type === 'referral'
+                            ? `+${pts} points: Referral Bonus${tx.orderId ? ` (${tx.orderId})` : ''}`
+                            : tx.orderId
+                            ? `+${pts} points: Order #${tx.orderId}`
+                            : `+${pts} points: Delivered Order`
+                          : tx.orderId
+                          ? `-${pts} points: Redeemed on Order #${tx.orderId}`
+                          : `-${pts} points: Redeemed at Checkout`;
+
+                        return (
+                          <div
+                            key={tx.id}
+                            className={`p-3 rounded-xl border bg-white flex items-center justify-between text-xs gap-3 shadow-2xs ${
+                              isPositive ? 'border-[#EAE2D5] hover:border-emerald-300' : 'border-[#EAE2D5] hover:border-rose-300'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h5
+                                  className={`font-bold font-sans tracking-tight text-xs ${
+                                    isPositive ? 'text-emerald-900' : 'text-rose-900'
+                                  }`}
+                                >
+                                  {title}
+                                </h5>
+                                {tx.type === 'referral' && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                    Referral
+                                  </span>
+                                )}
+                                {tx.orderId && (
+                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                                    #{tx.orderId}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-[#6B5D55] mt-0.5 leading-normal truncate max-w-sm">
+                                {tx.description}
+                              </p>
+                              <div className="flex items-center gap-2.5 text-[10px] text-[#8C7A70] mt-1 flex-wrap">
+                                <span>Credited: {new Date(tx.createdAt).toLocaleDateString('en-IN')}</span>
+                                {expiryDate && (
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded ${
+                                      expired
+                                        ? 'bg-rose-50 text-rose-700 font-semibold'
+                                        : 'bg-amber-50 text-amber-900 font-medium'
+                                    }`}
+                                  >
+                                    {expired
+                                      ? `Expired on ${expiryDate.toLocaleDateString('en-IN')}`
+                                      : `Expires: ${expiryDate.toLocaleDateString('en-IN')} (12 mos)`}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 text-[10px] text-[#8C7A70] mt-0.5">
-                              <span>Credited: {new Date(tx.createdAt).toLocaleDateString('en-IN')}</span>
-                              {expiryDate && (
-                                <span className={expired ? 'text-rose-600 font-semibold' : 'text-amber-800 font-medium'}>
-                                  {expired
-                                    ? `Expired on ${expiryDate.toLocaleDateString('en-IN')}`
-                                    : `Expires: ${expiryDate.toLocaleDateString('en-IN')}`}
-                                </span>
-                              )}
+
+                            <div className="text-right shrink-0">
+                              <span
+                                className={`font-mono font-bold text-sm block ${
+                                  isPositive ? 'text-emerald-700' : 'text-rose-700'
+                                }`}
+                              >
+                                {isPositive ? `+${pts}` : `-${pts}`} pts
+                              </span>
+                              <span className="text-[10px] text-[#8C7A70] block">
+                                ≈ ₹{calculatePointsDiscount(pts)} value
+                              </span>
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <span className={`font-mono font-bold text-sm block ${
-                              isPositive ? 'text-emerald-700' : 'text-rose-700'
-                            }`}>
-                              {isPositive ? `+${Math.abs(tx.points)}` : `-${Math.abs(tx.points)}`} pts
-                            </span>
-                            <span className="text-[10px] text-[#8C7A70]">
-                              ≈ ₹{calculatePointsDiscount(Math.abs(tx.points))}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 ) : (
-                  <div className="p-6 bg-white rounded-2xl border border-[#EAE2D5] text-center text-xs text-[#8C7A70]">
-                    No point transactions yet. Purchase any bedsheet to earn 5 Nest Points per ₹100 (credited upon delivery &amp; full payment)!
+                  <div className="p-6 bg-white rounded-2xl border border-[#EAE2D5] text-center text-xs text-[#8C7A70] space-y-1">
+                    <p className="font-semibold text-[#2C2420]">No points transactions yet</p>
+                    <p>
+                      Purchase any bedsheet to earn 5 Nest Points per ₹100 (credited upon delivery &amp; full payment)!
+                    </p>
                   </div>
                 )}
               </div>
@@ -1065,20 +1123,35 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         ))}
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-[#EAE2D5] text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#EAE2D5] text-xs">
                         <span className="text-[#7A6458]">Total Paid: <strong className="text-[#2C2420]">₹{order.totalAmount}</strong></span>
-                        <a
-                          href={COMPANY_DETAILS.whatsappUrl(`Hello Cotton Nest, I would like an update on my order #${order.id}.`)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#8C2E46] font-semibold hover:underline flex items-center gap-1"
-                        >
-                          <Phone className="w-3 h-3" />
-                          <span>WhatsApp Order Support</span>
-                        </a>
+                        <div className="flex items-center gap-3">
+                          {onTrackOrderDirect && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onClose();
+                                onTrackOrderDirect(order.id);
+                              }}
+                              className="text-[#8C2E46] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Package className="w-3.5 h-3.5" />
+                              <span>Live Tracker</span>
+                            </button>
+                          )}
+                          <a
+                            href={COMPANY_DETAILS.whatsappUrl(`Hello Cotton Nest, I would like an update on my order #${order.id}.`)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#7A6458] hover:text-[#8C2E46] font-semibold flex items-center gap-1"
+                          >
+                            <Phone className="w-3 h-3" />
+                            <span>WhatsApp</span>
+                          </a>
+                        </div>
                       </div>
 
-                      {/* Return / Exchange / Complaint & Customer Tracking under every order card */}
+                      {/* Defect Exchange & Quality Complaint under every order card */}
                       <OrderComplaintSection order={order} compact />
                     </div>
                   ))}

@@ -706,39 +706,65 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
     }
   } catch {}
 
-  // 2. Update Express server backend
+  // If not found in localStorage, fetch targetOrder from server so loyalty calculation has order metadata
+  if (!targetOrder) {
+    try {
+      const oRes = await fetch(`/api/orders?orderId=${encodeURIComponent(orderId)}`);
+      if (oRes.ok) {
+        const oData = await oRes.json();
+        if (Array.isArray(oData) && oData.length > 0) {
+          targetOrder = oData[0];
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Update Express server backend (server handles points crediting logic upon delivered status)
   try {
     await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status,
-        ...(status === 'delivered' ? { pointsCredited: true } : {}),
-      }),
+      body: JSON.stringify({ status }),
     });
   } catch (err) {
     console.warn('Failed to update order status on server:', err);
   }
 
-  // 3. If order is marked delivered and points were not credited yet, credit Nest Points now
+  // 3. If order is marked delivered and points were not credited yet, credit Nest Points now across customer keys
   if (status === 'delivered' && targetOrder && !targetOrder.pointsCredited) {
-    const rawKey = targetOrder.customerPhone || targetOrder.customerEmail || targetOrder.userId || '';
+    const rawKeys: string[] = [];
+    if (targetOrder.customerPhone) rawKeys.push(targetOrder.customerPhone);
+    if (targetOrder.customerEmail) rawKeys.push(targetOrder.customerEmail);
+    if (targetOrder.userId) rawKeys.push(targetOrder.userId);
+
     const shippingCostVal = Number(targetOrder.shippingCost) || 0;
     const eligibleAmount = Math.max(0, (Number(targetOrder.totalAmount) || 0) - shippingCostVal);
-    if (rawKey && (eligibleAmount > 0 || (targetOrder.pointsEarned && targetOrder.pointsEarned > 0))) {
+
+    if (rawKeys.length > 0 && (eligibleAmount > 0 || (targetOrder.pointsEarned && targetOrder.pointsEarned > 0))) {
       try {
         const { earnLoyaltyPointsApi } = await import('./loyaltyApi');
-        await earnLoyaltyPointsApi(rawKey, eligibleAmount, orderId, {
-          name: targetOrder.customerName,
-          phone: targetOrder.customerPhone,
-          email: targetOrder.customerEmail,
-          userId: targetOrder.userId,
-          explicitPoints: targetOrder.pointsEarned,
-        });
+        for (const k of rawKeys) {
+          await earnLoyaltyPointsApi(k, eligibleAmount, orderId, {
+            name: targetOrder.customerName,
+            phone: targetOrder.customerPhone,
+            email: targetOrder.customerEmail,
+            userId: targetOrder.userId,
+            explicitPoints: targetOrder.pointsEarned,
+          }).catch(() => {});
+        }
       } catch (err) {
         console.warn('Failed to credit Nest Points upon delivery:', err);
       }
     }
+
+    // Broadcast loyalty balance update so customer modal & header reflect immediately
+    try {
+      window.dispatchEvent(
+        new CustomEvent('cotton-nest-loyalty-updated', {
+          detail: { orderId, status: 'delivered' },
+        })
+      );
+    } catch {}
   }
 
   // 4. Update Firestore

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Sparkles,
@@ -11,10 +11,18 @@ import {
   ArrowDownLeft,
   Copy,
   Check,
+  History,
+  Filter,
+  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  Info,
+  Layers,
 } from 'lucide-react';
 import { useLoyalty } from '../context/LoyaltyContext';
 import { useAuth } from '../context/AuthContext';
 import {
+  LoyaltyTransaction,
   LOYALTY_POINTS_PER_100_INR,
   LOYALTY_MIN_REDEMPTION_POINTS,
   LOYALTY_EXPIRY_MONTHS,
@@ -33,6 +41,40 @@ interface LoyaltyRewardsModalProps {
   onOpenCart?: () => void;
 }
 
+/**
+ * Formats a loyalty transaction into a clean, human-readable chronological log title
+ * e.g., "+50 points: Order #1234", "+100 points: Referral Bonus", "-200 points: Redeemed on Order #1234"
+ */
+function getTransactionTitle(t: LoyaltyTransaction): string {
+  const isEarned = t.type === 'earned' || t.type === 'bonus' || t.type === 'referral' || t.points > 0;
+  const pts = Math.abs(t.points);
+
+  if (!isEarned) {
+    if (t.orderId) {
+      return `-${pts} points: Redeemed on Order #${t.orderId}`;
+    }
+    return `-${pts} points: Redeemed at Checkout`;
+  }
+
+  if (t.type === 'referral') {
+    return `+${pts} points: Referral Bonus${t.orderId ? ` (${t.orderId})` : ''}`;
+  }
+
+  if (t.orderId) {
+    return `+${pts} points: Order #${t.orderId}`;
+  }
+
+  if (t.description) {
+    const orderMatch = t.description.match(/Order\s*#?([A-Za-z0-9_-]+)/i);
+    if (orderMatch) {
+      return `+${pts} points: Order #${orderMatch[1]}`;
+    }
+    return `+${pts} points: ${t.description.replace(/^Earned on /i, '')}`;
+  }
+
+  return `+${pts} points: Delivered Order`;
+}
+
 export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
   isOpen,
   onClose,
@@ -42,6 +84,8 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
   const {
     pointsBalance,
     pointsRupeesValue,
+    lifetimeEarned,
+    lifetimeSpent,
     pointsEarnedFromPurchases,
     pointsUsed,
     referralPointsEarned,
@@ -52,13 +96,53 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
     setPreferRedeemAtCheckout,
     claimReferralReward,
     transactions,
+    loadTransactions,
+    refreshLoyalty,
   } = useLoyalty();
+
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'ledger'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'earned' | 'redeemed'>('all');
   const [copiedReferral, setCopiedReferral] = useState(false);
   const [friendReferralInput, setFriendReferralInput] = useState('');
   const [referralStatus, setReferralStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [claimingReferral, setClaimingReferral] = useState(false);
+
+  // Sync latest loyalty data and transactions whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      refreshLoyalty();
+      loadTransactions();
+    }
+  }, [isOpen, refreshLoyalty, loadTransactions]);
+
+  // Sort transactions chronologically: newest first
+  const chronologicalTransactions = useMemo(() => {
+    return [...transactions].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, [transactions]);
+
+  // Filtered transactions based on filter tabs
+  const filteredTransactions = useMemo(() => {
+    if (historyFilter === 'earned') {
+      return chronologicalTransactions.filter(
+        (t) => t.type === 'earned' || t.type === 'bonus' || t.type === 'referral' || t.points > 0
+      );
+    }
+    if (historyFilter === 'redeemed') {
+      return chronologicalTransactions.filter((t) => t.type === 'redeemed' || t.points < 0);
+    }
+    return chronologicalTransactions;
+  }, [chronologicalTransactions, historyFilter]);
+
+  const earnedTxsCount = useMemo(() => {
+    return chronologicalTransactions.filter(
+      (t) => t.type === 'earned' || t.type === 'bonus' || t.type === 'referral' || t.points > 0
+    ).length;
+  }, [chronologicalTransactions]);
+
+  const redeemedTxsCount = useMemo(() => {
+    return chronologicalTransactions.filter((t) => t.type === 'redeemed' || t.points < 0).length;
+  }, [chronologicalTransactions]);
 
   if (!isOpen) return null;
 
@@ -93,14 +177,14 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative bg-[#FAF7F2] w-full max-w-lg rounded-3xl border border-[#DEC89B] shadow-2xl z-10 text-[#2C2420] overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative bg-[#FAF7F2] w-full max-w-lg rounded-3xl border border-[#DEC89B] shadow-2xl z-10 text-[#2C2420] overflow-hidden flex flex-col max-h-[92vh]">
         
-        {/* Header with decorative luxury gold accent */}
-        <div className="relative bg-gradient-to-br from-[#70252D] via-[#8C2E46] to-[#541B22] text-white p-6 pb-7 rounded-t-3xl overflow-hidden shrink-0">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-400/20 via-transparent to-transparent pointer-events-none" />
+        {/* Luxury Gold & Royal Burgundy Header */}
+        <div className="relative bg-gradient-to-br from-[#70252D] via-[#8C2E46] to-[#541B22] text-white p-5 sm:p-6 pb-6 rounded-t-3xl overflow-hidden shrink-0">
+          <div className="absolute top-0 right-0 w-52 h-52 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-400/25 via-transparent to-transparent pointer-events-none" />
           
           {/* Close button */}
           <button
@@ -111,22 +195,22 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
             <X className="w-4 h-4" />
           </button>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/30 text-amber-200 text-[11px] font-semibold tracking-wider uppercase mb-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/30 text-amber-200 text-[11px] font-semibold tracking-wider uppercase mb-2.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             <span>Cotton Nest · Nest Points Program</span>
           </div>
 
-          <h3 className="font-serif-luxury text-2xl font-bold tracking-tight text-white mb-1">
+          <h3 className="font-serif-luxury text-xl sm:text-2xl font-bold tracking-tight text-white mb-0.5">
             Customer Nest Points Wallet
           </h3>
-          <p className="text-xs text-white/80">
+          <p className="text-xs text-white/85">
             {user?.name ? `Welcome, ${user.name}` : '5 Points per ₹100 · 100 Points = ₹50'}
           </p>
 
           {/* Points Balance Card Highlight */}
-          <div className="mt-5 p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-between gap-3">
+          <div className="mt-4 p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-between gap-3 shadow-inner">
             <div>
-              <span className="text-[11px] font-medium text-amber-200 uppercase tracking-wider block">
+              <span className="text-[10px] sm:text-[11px] font-medium text-amber-200 uppercase tracking-wider block">
                 Available Nest Points
               </span>
               <div className="flex items-baseline gap-2 mt-0.5">
@@ -135,13 +219,13 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                 </span>
                 <span className="text-sm font-semibold text-amber-200">Nest Points</span>
               </div>
-              <span className="text-xs text-white/90 font-medium block mt-0.5">
-                Equivalent Rupee Value: <strong>₹{pointsRupeesValue.toLocaleString('en-IN')}</strong> (100 pts = ₹50)
+              <span className="text-xs text-white/95 font-medium block mt-0.5">
+                Equivalent Rupee Value: <strong className="text-amber-200">₹{pointsRupeesValue.toLocaleString('en-IN')}</strong> (100 pts = ₹50)
               </span>
             </div>
 
-            <div className="p-3 bg-amber-400/20 rounded-2xl border border-amber-300/30 text-amber-300 flex flex-col items-center justify-center shrink-0">
-              <Award className="w-6 h-6" />
+            <div className="p-3 bg-amber-400/20 rounded-2xl border border-amber-300/30 text-amber-200 flex flex-col items-center justify-center shrink-0">
+              <Award className="w-6 h-6 text-amber-300" />
               <span className="text-[10px] font-bold mt-1 uppercase tracking-wider">
                 {canRedeemPoints(pointsBalance) ? 'Redeemable' : `Min ${LOYALTY_MIN_REDEMPTION_POINTS}`}
               </span>
@@ -149,46 +233,48 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="px-6 pt-4 pb-2 border-b border-[#EAE2D5] bg-[#FAF7F2] shrink-0">
-          <div className="grid grid-cols-2 p-1 bg-[#EAE2D5]/50 rounded-xl text-xs font-semibold">
+        {/* Tab Switcher: Overview vs Points History */}
+        <div className="px-5 sm:px-6 pt-3.5 pb-2 border-b border-[#EAE2D5] bg-[#FAF7F2] shrink-0">
+          <div className="grid grid-cols-2 p-1 bg-[#EAE2D5]/60 rounded-xl text-xs font-semibold">
             <button
               type="button"
               onClick={() => setActiveTab('overview')}
-              className={`py-2 rounded-lg transition-all cursor-pointer ${
+              className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === 'overview'
                   ? 'bg-white text-[#2C2420] shadow-xs'
                   : 'text-[#7A6458] hover:text-[#2C2420]'
               }`}
             >
-              Nest Points &amp; Rules
+              <Award className="w-3.5 h-3.5 text-[#C29E57]" />
+              <span>Nest Points &amp; Rules</span>
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('ledger')}
+              onClick={() => setActiveTab('history')}
               className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                activeTab === 'ledger'
-                  ? 'bg-white text-[#2C2420] shadow-xs'
+                activeTab === 'history'
+                  ? 'bg-white text-[#70252D] shadow-xs font-bold'
                   : 'text-[#7A6458] hover:text-[#2C2420]'
               }`}
             >
-              <span>Points &amp; Expiry Ledger</span>
-              {transactions.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#EAE2D5] text-[#2C2420]">
-                  {transactions.length}
+              <History className="w-3.5 h-3.5 text-[#8C2E46]" />
+              <span>Points History</span>
+              {chronologicalTransactions.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#DEC89B]/50 text-[#70252D] font-bold">
+                  {chronologicalTransactions.length}
                 </span>
               )}
             </button>
           </div>
         </div>
 
-        {/* Tab Content (Scrollable) */}
-        <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+        {/* Tab Content (Scrollable Area) */}
+        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
           {activeTab === 'overview' ? (
             <>
               {/* Summary Grid: Earned, Used, Expiry */}
               <div className="grid grid-cols-3 gap-2.5 text-center">
-                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5] shadow-2xs">
                   <span className="text-[10px] text-[#7A6458] font-semibold uppercase block">
                     Earned (Purchases)
                   </span>
@@ -196,7 +282,7 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                     +{pointsEarnedFromPurchases} pts
                   </span>
                 </div>
-                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5] shadow-2xs">
                   <span className="text-[10px] text-[#7A6458] font-semibold uppercase block">
                     Points Used
                   </span>
@@ -204,7 +290,7 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                     {pointsUsed} pts
                   </span>
                 </div>
-                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5]">
+                <div className="p-3 bg-white rounded-xl border border-[#EAE2D5] shadow-2xs">
                   <span className="text-[10px] text-[#7A6458] font-semibold uppercase block">
                     Next Expiry
                   </span>
@@ -212,6 +298,33 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                     {formattedNextExpiry}
                   </span>
                 </div>
+              </div>
+
+              {/* Quick Jump to Points History */}
+              <div className="p-3.5 bg-gradient-to-r from-amber-50 to-[#FAF7F2] rounded-2xl border border-[#DEC89B] flex items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded-xl bg-amber-100/70 text-[#70252D] border border-amber-200/80 shrink-0">
+                    <History className="w-4 h-4 text-[#8C2E46]" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-[#2C2420] text-xs">
+                      Points History Log
+                    </h4>
+                    <p className="text-[11px] text-[#7A6458] truncate">
+                      {chronologicalTransactions.length > 0
+                        ? `${chronologicalTransactions.length} recorded transaction(s) · Newest first`
+                        : 'Chronological log of earned & redeemed Nest Points'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('history')}
+                  className="px-3 py-1.5 bg-white hover:bg-amber-50 text-[#70252D] border border-[#DEC89B] rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shrink-0 shadow-2xs"
+                >
+                  <span>View History</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               {/* Rule Card: 5 pts per ₹100 & 100 pts = ₹50 */}
@@ -222,7 +335,7 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                   </div>
                   <span>Nest Points Rules &amp; Terms</span>
                 </div>
-                <ul className="space-y-1 text-[11px] text-[#6B5D55] list-disc pl-4">
+                <ul className="space-y-1 text-[11px] text-[#6B5D55] list-disc pl-4 leading-relaxed">
                   <li><strong>Earn Rate:</strong> <strong>{LOYALTY_POINTS_PER_100_INR} Nest Points per ₹100</strong> spent on bedsheets.</li>
                   <li><strong>Redemption Value:</strong> <strong>100 Points = ₹50</strong> (1 Nest Point = ₹0.50).</li>
                   <li><strong>Minimum Redemption:</strong> Minimum <strong>{LOYALTY_MIN_REDEMPTION_POINTS} points</strong> (₹100 value) required for redemption.</li>
@@ -234,7 +347,7 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
               </div>
 
               {/* Referral Rewards Card */}
-              <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-2.5">
+              <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-2.5 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-[#2C2420] flex items-center gap-1.5">
                     <Gift className="w-4 h-4 text-[#8C2E46]" />
@@ -306,75 +419,241 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
               </div>
             </>
           ) : (
-            /* Points History / Ledger */
-            <div className="space-y-3">
-              {transactions.length === 0 ? (
-                <div className="text-center py-8 space-y-2">
-                  <Clock className="w-8 h-8 text-[#DEC89B] mx-auto" />
-                  <p className="font-medium text-[#2C2420]">No points transactions yet</p>
-                  <p className="text-[11px] text-[#7A6458] max-w-xs mx-auto">
-                    Place an order to earn {LOYALTY_POINTS_PER_100_INR} Nest Points for every ₹100 spent (credited after delivery &amp; full payment)!
+            /* DEDICATED 'POINTS HISTORY' CHRONOLOGICAL LOG & SCROLLABLE CONTAINER */
+            <div className="space-y-3.5">
+              
+              {/* Header and Filter Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-1">
+                <div>
+                  <h4 className="font-serif-luxury font-bold text-sm text-[#70252D] flex items-center gap-1.5">
+                    <History className="w-4 h-4 text-[#8C2E46]" />
+                    <span>Points History Ledger</span>
+                  </h4>
+                  <p className="text-[11px] text-[#7A6458]">
+                    Chronological audit log of earned &amp; redeemed Nest Points
                   </p>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {transactions.map((t) => {
-                    const isEarned = t.type === 'earned' || t.type === 'bonus' || t.type === 'referral' || t.points > 0;
-                    const expiryDate = isEarned ? new Date(getTransactionExpiryDate(t.createdAt, t.expiresAt)) : null;
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1 bg-[#EAE2D5]/70 p-1 rounded-xl self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                      historyFilter === 'all'
+                        ? 'bg-white text-[#70252D] shadow-2xs'
+                        : 'text-[#7A6458] hover:text-[#2C2420]'
+                    }`}
+                  >
+                    All ({chronologicalTransactions.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryFilter('earned')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                      historyFilter === 'earned'
+                        ? 'bg-emerald-700 text-white shadow-2xs'
+                        : 'text-[#7A6458] hover:text-emerald-800'
+                    }`}
+                  >
+                    Earned ({earnedTxsCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryFilter('redeemed')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                      historyFilter === 'redeemed'
+                        ? 'bg-[#70252D] text-white shadow-2xs'
+                        : 'text-[#7A6458] hover:text-rose-800'
+                    }`}
+                  >
+                    Redeemed ({redeemedTxsCount})
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Container for the Points History List */}
+              <div className="max-h-72 sm:max-h-80 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-amber-200/80 hover:scrollbar-thumb-amber-300">
+                {filteredTransactions.length === 0 ? (
+                  <div className="text-center py-10 px-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-3 shadow-2xs">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-[#C29E57]">
+                      <Clock className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-[#2C2420]">
+                        {historyFilter === 'all'
+                          ? 'No Points History Yet'
+                          : historyFilter === 'earned'
+                          ? 'No Points Earned Yet'
+                          : 'No Points Redeemed Yet'}
+                      </p>
+                      <p className="text-[11px] text-[#7A6458] max-w-xs mx-auto mt-1 leading-relaxed">
+                        {historyFilter === 'all'
+                          ? `Nest Points are logged automatically upon successful delivery of orders (5 pts / ₹100 spent) or referral rewards (+100 pts).`
+                          : historyFilter === 'earned'
+                          ? `Delivered orders earn 5 Nest Points per ₹100 spent (excluding delivery charges).`
+                          : `Points redeemed at checkout (min. ${LOYALTY_MIN_REDEMPTION_POINTS} pts = ₹100) will appear here.`}
+                      </p>
+                    </div>
+
+                    {historyFilter === 'all' && (
+                      <div className="pt-2 flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCopyReferralCode}
+                          className="px-3 py-1.5 bg-[#FAF7F2] hover:bg-amber-50 text-[#70252D] border border-[#DEC89B] rounded-xl text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {copiedReferral ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>Share Referral Code (+100 pts)</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  filteredTransactions.map((t) => {
+                    const isEarned =
+                      t.type === 'earned' || t.type === 'bonus' || t.type === 'referral' || t.points > 0;
+                    const expiryDate = isEarned
+                      ? new Date(getTransactionExpiryDate(t.createdAt, t.expiresAt))
+                      : null;
                     const expired = isTransactionExpired(t.createdAt, t.expiresAt);
+                    const title = getTransactionTitle(t);
+                    const formattedDate = new Date(t.createdAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    });
+                    const formattedTime = new Date(t.createdAt).toLocaleTimeString('en-IN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    });
+
                     return (
                       <div
                         key={t.id}
-                        className="p-3 bg-white rounded-xl border border-[#EAE2D5] flex items-center justify-between gap-3 shadow-2xs"
+                        className={`p-3.5 rounded-2xl border transition-all shadow-2xs ${
+                          isEarned
+                            ? 'bg-white hover:border-emerald-300 border-[#EAE2D5]'
+                            : 'bg-white hover:border-rose-300 border-[#EAE2D5]'
+                        }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div
-                            className={`p-2 rounded-lg shrink-0 ${
-                              isEarned
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}
-                          >
-                            {isEarned ? (
-                              <ArrowDownLeft className="w-4 h-4" />
-                            ) : (
-                              <ArrowUpRight className="w-4 h-4" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-bold text-[#2C2420] truncate">{t.description}</p>
-                            <span className="text-[10px] text-[#8C7A70] block">
-                              Credited: {new Date(t.createdAt).toLocaleDateString('en-IN', {
-                                day: 'numeric',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
-                              {expiryDate && (
-                                <span className={`ml-2 ${expired ? 'text-rose-600 font-semibold' : 'text-amber-800'}`}>
-                                  · {expired ? 'Expired' : `Expires ${expiryDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
-                                </span>
+                        <div className="flex items-start justify-between gap-3">
+                          
+                          {/* Left: Direction Icon & Main Log Line */}
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <div
+                              className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                                isEarned
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}
+                            >
+                              {isEarned ? (
+                                <ArrowDownLeft className="w-4 h-4" />
+                              ) : (
+                                <ArrowUpRight className="w-4 h-4" />
                               )}
+                            </div>
+
+                            <div className="min-w-0">
+                              {/* Main chronological log title: e.g. "+50 points: Order #1234" */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h5
+                                  className={`font-bold text-xs sm:text-sm font-sans tracking-tight ${
+                                    isEarned ? 'text-emerald-900' : 'text-rose-900'
+                                  }`}
+                                >
+                                  {title}
+                                </h5>
+
+                                {t.type === 'referral' && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                    Referral
+                                  </span>
+                                )}
+
+                                {t.orderId && (
+                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                                    #{t.orderId}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Secondary description */}
+                              <p className="text-[11px] text-[#6B5D55] mt-0.5 leading-normal">
+                                {t.description}
+                              </p>
+
+                              {/* Timestamp & Expiry Details */}
+                              <div className="flex items-center gap-2 flex-wrap text-[10px] text-[#8C7A70] mt-1.5">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3 text-[#A8988D]" />
+                                  <span>{formattedDate} at {formattedTime}</span>
+                                </span>
+
+                                {expiryDate && (
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded-md font-medium ${
+                                      expired
+                                        ? 'bg-rose-50 text-rose-700 border border-rose-200 font-semibold'
+                                        : 'bg-amber-50 text-amber-900 border border-amber-200'
+                                    }`}
+                                  >
+                                    {expired
+                                      ? `Expired on ${expiryDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                                      : `Expires: ${expiryDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} (12 mos)`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Points Delta & Rupee Equivalent */}
+                          <div className="text-right shrink-0">
+                            <span
+                              className={`inline-block font-mono font-extrabold text-sm px-2 py-0.5 rounded-lg ${
+                                isEarned
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+                              }`}
+                            >
+                              {isEarned ? `+${Math.abs(t.points)}` : `-${Math.abs(t.points)}`} pts
+                            </span>
+                            <span className="text-[10px] text-[#7A6458] font-medium block mt-1">
+                              ≈ ₹{calculatePointsDiscount(Math.abs(t.points))} value
                             </span>
                           </div>
-                        </div>
 
-                        <div className="text-right shrink-0">
-                          <span
-                            className={`font-bold font-mono text-xs ${
-                              isEarned ? 'text-emerald-700' : 'text-rose-700'
-                            }`}
-                          >
-                            {isEarned ? `+${Math.abs(t.points)}` : `-${Math.abs(t.points)}`} pts
-                          </span>
-                          <span className="text-[10px] text-[#8C7A70] block">
-                            ≈ ₹{calculatePointsDiscount(Math.abs(t.points))}
-                          </span>
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                )}
+              </div>
+
+              {/* Ledger Summary Stats */}
+              <div className="p-3 bg-white rounded-2xl border border-[#DEC89B] grid grid-cols-3 gap-2 text-center shadow-2xs">
+                <div>
+                  <span className="text-[10px] text-[#7A6458] uppercase font-semibold block">Total Earned</span>
+                  <span className="font-mono font-bold text-xs text-emerald-800 mt-0.5 block">
+                    +{lifetimeEarned} pts
+                  </span>
                 </div>
-              )}
+                <div>
+                  <span className="text-[10px] text-[#7A6458] uppercase font-semibold block">Total Redeemed</span>
+                  <span className="font-mono font-bold text-xs text-rose-800 mt-0.5 block">
+                    -{lifetimeSpent} pts
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#7A6458] uppercase font-semibold block">Active Balance</span>
+                  <span className="font-mono font-bold text-xs text-[#70252D] mt-0.5 block">
+                    {pointsBalance} pts (₹{pointsRupeesValue})
+                  </span>
+                </div>
+              </div>
+
             </div>
           )}
         </div>
@@ -420,3 +699,4 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
     </div>
   );
 };
+

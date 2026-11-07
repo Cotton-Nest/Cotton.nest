@@ -123,14 +123,15 @@ export function generateReferralCode(seed?: string | null): string {
 export function sanitizeLoyaltyKey(rawKey?: string | null): string {
   if (!rawKey) return 'guest_session';
   const trimmed = rawKey.trim().toLowerCase();
-  // If phone number, strip non-digits
+  // If already phone_... with 10 digits
   const digitsOnly = trimmed.replace(/[^0-9]/g, '');
   if (digitsOnly.length >= 10) {
     return `phone_${digitsOnly.slice(-10)}`;
   }
   // If email
   if (trimmed.includes('@')) {
-    return `email_${trimmed.replace(/[^a-z0-9@._-]/g, '_')}`;
+    const cleanEmail = trimmed.startsWith('email_') ? trimmed.replace(/^email_+/, '') : trimmed;
+    return `email_${cleanEmail.replace(/[^a-z0-9@._-]/g, '_')}`;
   }
   return trimmed.replace(/[^a-z0-9_-]/g, '_');
 }

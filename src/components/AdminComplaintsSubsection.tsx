@@ -264,7 +264,7 @@ export const AdminComplaintsSubsection: React.FC<AdminComplaintsSubsectionProps>
           <div className="text-2xl font-bold font-serif-luxury text-[#2C2420]">
             {complaints.length}
           </div>
-          <p className="text-[10px] text-[#7A6458] mt-0.5">Returns, exchanges &amp; defects</p>
+          <p className="text-[10px] text-[#7A6458] mt-0.5">Exchanges &amp; product complaints</p>
         </div>
 
         <div className="bg-[#FAF6F0] p-4 rounded-2xl border border-[#DEC89B] shadow-xs">
@@ -322,7 +322,6 @@ export const AdminComplaintsSubsection: React.FC<AdminComplaintsSubsectionProps>
             className="px-3 py-1.5 rounded-xl bg-white border border-[#DEC89B] text-xs font-semibold text-[#2C2420]"
           >
             <option value="All">All Types</option>
-            <option value="Return">Return</option>
             <option value="Exchange">Exchange</option>
             <option value="Product Complaint">Product Complaint</option>
           </select>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   RotateCcw,
   AlertTriangle,
@@ -50,8 +51,8 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
   const [isLoadingComplaints, setIsLoadingComplaints] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
-  // Form state
-  const [requestType, setRequestType] = useState<ComplaintRequestType>('Return');
+  // Form state - Default to Exchange as per Cotton Nest 48-hour defect exchange policy
+  const [requestType, setRequestType] = useState<ComplaintRequestType>('Exchange');
   const [selectedItemIndex, setSelectedItemIndex] = useState<number>(0);
   const [description, setDescription] = useState<string>('');
   const [uploadedPhotos, setUploadedPhotos] = useState<ComplaintPhoto[]>([]);
@@ -125,7 +126,7 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
   const handleOpenModal = () => {
     setFormError(null);
     setSubmitSuccess(null);
-    setRequestType('Return');
+    setRequestType('Exchange');
     setDescription('');
     setUploadedPhotos([]);
 
@@ -325,12 +326,12 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
 
   const getRequestTypeBadgeStyle = (type: ComplaintRequestType) => {
     switch (type) {
-      case 'Return':
-        return 'bg-rose-50 text-[#70252D] border-[#DEC89B]';
       case 'Exchange':
         return 'bg-amber-50 text-amber-950 border-amber-300';
       case 'Product Complaint':
         return 'bg-orange-50 text-orange-950 border-orange-300';
+      default:
+        return 'bg-neutral-50 text-[#70252D] border-[#DEC89B]';
     }
   };
 
@@ -353,16 +354,16 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
 
   return (
     <div className="pt-4 border-t border-[#EAE2D5] space-y-4">
-      {/* Return / Exchange Action Bar underneath every Order Card */}
+      {/* Exchange / Complaint Action Bar underneath every Order Card */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FAF6F0] p-3.5 rounded-2xl border border-[#DEC89B]">
         <div className="flex items-start sm:items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#5E1924]/10 border border-[#C5A059]/40 flex items-center justify-center text-[#5E1924] shrink-0">
-            <RotateCcw className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4 text-[#C5A059]" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-[#2C2420]">
-                Return, Exchange or Product Complaint
+                Defect Exchange &amp; Complaint Desk
               </span>
               {complaints.length > 0 && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#5E1924] text-[#FAF6F0]">
@@ -371,7 +372,7 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
               )}
             </div>
             <p className="text-[11px] text-[#6B5D55]">
-              Received a damaged, defective, or incorrect product in Order #{order.id}? Request a return, exchange, or resolution.
+              Received a damaged or defective bedsheet in Order #{order.id}? Request an exchange under our 48-Hour Guarantee.
             </p>
           </div>
         </div>
@@ -380,10 +381,10 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
           type="button"
           data-testid={`return-exchange-btn-${order.id}`}
           onClick={handleOpenModal}
-          className="px-4 py-2.5 bg-[#5E1924] hover:bg-[#48121B] text-[#FAF6F0] text-xs font-semibold rounded-xl border border-[#C5A059]/50 shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          className="w-full sm:w-auto px-4 py-2.5 bg-[#5E1924] hover:bg-[#48121B] text-[#FAF6F0] text-xs font-semibold rounded-xl border border-[#C5A059]/50 shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
         >
-          <RotateCcw className="w-3.5 h-3.5 text-[#C5A059]" />
-          <span>{complaints.length > 0 ? 'New Return / Exchange' : 'Return / Exchange'}</span>
+          <RefreshCw className="w-3.5 h-3.5 text-[#C5A059]" />
+          <span>{complaints.length > 0 ? 'New Exchange / Complaint' : 'Request Exchange'}</span>
         </button>
       </div>
 
@@ -393,7 +394,7 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-[#5E1924] uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#C5A059]" />
-              <span>Submitted Return / Exchange &amp; Complaint Tracking ({complaints.length})</span>
+              <span>Submitted Exchange &amp; Complaint Tracking ({complaints.length})</span>
             </p>
             <span className="text-[10px] text-[#7A6458]">Live status synced with Cotton Nest Admin</span>
           </div>
@@ -589,148 +590,159 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
         </div>
       )}
 
-      {/* RETURN / EXCHANGE / COMPLAINT SUBMISSION MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-xs animate-in fade-in duration-200">
-          <div
-            className="fixed inset-0"
-            onClick={() => {
-              if (!isSubmitting && !isUploadingPhotos) setIsModalOpen(false);
-            }}
-          />
+      {/* EXCHANGE / COMPLAINT SUBMISSION MODAL - PORTALED DIRECTLY TO BODY FOR RELIABLE MOBILE STACKING */}
+      {isModalOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+            <div
+              className="fixed inset-0"
+              onClick={() => {
+                if (!isSubmitting && !isUploadingPhotos) setIsModalOpen(false);
+              }}
+            />
 
-          <div
-            data-testid="return-exchange-modal"
-            className="relative bg-[#FAF6F0] w-full max-w-2xl max-h-[92vh] rounded-3xl border border-[#C5A059] shadow-2xl z-10 flex flex-col overflow-hidden text-[#2C2420]"
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-[#5E1924] text-[#FAF6F0] border-b border-[#C5A059]/40 shrink-0">
-              <div>
-                <div className="flex items-center gap-2">
-                  <RotateCcw className="w-4 h-4 text-[#C5A059]" />
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-[#C5A059]">
-                    Order #{order.id} · Customer Resolution Desk
-                  </span>
-                </div>
-                <h3 className="font-serif-luxury text-xl font-bold mt-0.5">
-                  Return, Exchange or Product Complaint
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-full text-[#FAF6F0]/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
-              {submitSuccess ? (
-                <div
-                  data-testid="complaint-submit-success"
-                  className="bg-white rounded-2xl border border-emerald-300 p-6 text-center space-y-4"
-                >
-                  <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-8 h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-[#FAF6F0] border border-[#DEC89B] text-[#5E1924]">
-                      Complaint ID: #{submitSuccess.id}
+            <div
+              data-testid="return-exchange-modal"
+              className="relative bg-[#FAF6F0] w-full max-w-2xl max-h-[92vh] rounded-3xl border border-[#C5A059] shadow-2xl z-10 flex flex-col overflow-hidden text-[#2C2420]"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-[#5E1924] text-[#FAF6F0] border-b border-[#C5A059]/40 shrink-0">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-[#C5A059]" />
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-[#C5A059]">
+                      Order #{order.id} · Atelier Resolution Desk
                     </span>
-                    <h4 className="font-serif-luxury text-2xl font-bold text-[#2C2420] pt-2">
-                      {submitSuccess.requestType} Request Submitted
-                    </h4>
-                    <p className="text-xs text-[#6B5D55] max-w-md mx-auto leading-relaxed">
-                      Your request for <strong>{submitSuccess.productName}</strong> ({submitSuccess.productSize} · {submitSuccess.variantName}) along with {submitSuccess.photos.length} product photo(s) has been permanently linked to Order <strong>#{submitSuccess.orderId}</strong>.
-                    </p>
                   </div>
+                  <h3 className="font-serif-luxury text-xl font-bold mt-0.5">
+                    Exchange Request or Product Complaint
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-1.5 rounded-full text-[#FAF6F0]/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                  {/* Preview of uploaded Cloudinary defect photos */}
-                  <div className="flex items-center justify-center gap-2 pt-2">
-                    {submitSuccess.photos.map((p, i) => (
-                      <img
-                        key={i}
-                        src={p.url}
-                        alt="Uploaded defect"
-                        className="w-16 h-16 rounded-xl object-cover border border-[#C5A059]"
-                      />
-                    ))}
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+                {/* Cotton Nest 48-Hour Policy Note */}
+                <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-xs text-amber-950 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <Sparkles className="w-3.5 h-3.5 text-[#C5A059]" />
+                    <span>Cotton Nest 48-Hour Defect Exchange Policy</span>
                   </div>
+                  <p className="text-[11px] text-[#7A6458] leading-relaxed">
+                    Under our Terms &amp; Conditions, pure cotton bedsheets with transit damage, stitching defects, or printing irregularities reported within 48 hours are eligible for prompt replacement exchanges. No returns or cash refunds are offered.
+                  </p>
+                </div>
 
-                  <div className="pt-3 flex flex-wrap items-center justify-center gap-3">
-                    {orderItems.length > 1 && (
+                {submitSuccess ? (
+                  <div
+                    data-testid="complaint-submit-success"
+                    className="bg-white rounded-2xl border border-emerald-300 p-6 text-center space-y-4"
+                  >
+                    <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-[#FAF6F0] border border-[#DEC89B] text-[#5E1924]">
+                        Complaint ID: #{submitSuccess.id}
+                      </span>
+                      <h4 className="font-serif-luxury text-2xl font-bold text-[#2C2420] pt-2">
+                        {submitSuccess.requestType} Request Submitted
+                      </h4>
+                      <p className="text-xs text-[#6B5D55] max-w-md mx-auto leading-relaxed">
+                        Your request for <strong>{submitSuccess.productName}</strong> ({submitSuccess.productSize} · {submitSuccess.variantName}) along with {submitSuccess.photos.length} product photo(s) has been permanently linked to Order <strong>#{submitSuccess.orderId}</strong>.
+                      </p>
+                    </div>
+
+                    {/* Preview of uploaded Cloudinary defect photos */}
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                      {submitSuccess.photos.map((p, i) => (
+                        <img
+                          key={i}
+                          src={p.url}
+                          alt="Uploaded defect"
+                          className="w-16 h-16 rounded-xl object-cover border border-[#C5A059]"
+                        />
+                      ))}
+                    </div>
+
+                    <div className="pt-3 flex flex-wrap items-center justify-center gap-3">
+                      {orderItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSubmitSuccess(null);
+                            setDescription('');
+                            setUploadedPhotos([]);
+                          }}
+                          className="px-4 py-2.5 bg-[#FAF6F0] hover:bg-[#EAE2D5] text-[#2C2420] border border-[#DEC89B] rounded-xl text-xs font-semibold cursor-pointer"
+                        >
+                          Submit for Another Product in This Order
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => {
-                          setSubmitSuccess(null);
-                          setDescription('');
-                          setUploadedPhotos([]);
-                        }}
-                        className="px-4 py-2.5 bg-[#FAF6F0] hover:bg-[#EAE2D5] text-[#2C2420] border border-[#DEC89B] rounded-xl text-xs font-semibold cursor-pointer"
+                        data-testid="close-complaint-success-btn"
+                        onClick={() => setIsModalOpen(false)}
+                        className="px-6 py-2.5 bg-[#5E1924] hover:bg-[#48121B] text-white rounded-xl text-xs font-semibold cursor-pointer"
                       >
-                        Submit for Another Product in This Order
+                        View Live Tracking Under Order
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      data-testid="close-complaint-success-btn"
-                      onClick={() => setIsModalOpen(false)}
-                      className="px-6 py-2.5 bg-[#5E1924] hover:bg-[#48121B] text-white rounded-xl text-xs font-semibold cursor-pointer"
-                    >
-                      View Live Tracking Under Order
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmitComplaint} className="space-y-5">
-                  {/* 1. Choose Request Type */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#5E1924] block">
-                      1. Select Request Type *
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      {COMPLAINT_REQUEST_TYPES.map((type) => {
-                        const active = requestType === type;
-                        return (
-                          <button
-                            key={type}
-                            type="button"
-                            data-testid={`request-type-${type.toLowerCase().replace(/\s+/g, '-')}`}
-                            onClick={() => setRequestType(type)}
-                            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                              active
-                                ? 'bg-[#5E1924] text-[#FAF6F0] border-[#C5A059] shadow-sm'
-                                : 'bg-white text-[#2C2420] border-[#DEC89B] hover:bg-[#FAF6F0]'
-                            }`}
-                          >
-                            <div className="font-bold text-xs flex items-center justify-between">
-                              <span>{type}</span>
-                              {active && <CheckCircle2 className="w-4 h-4 text-[#C5A059]" />}
-                            </div>
-                            <p
-                              className={`text-[10px] mt-1 leading-snug ${
-                                active ? 'text-[#FAF6F0]/80' : 'text-[#7A6458]'
-                              }`}
-                            >
-                              {type === 'Return'
-                                ? 'Return defective or damaged item for refund'
-                                : type === 'Exchange'
-                                ? 'Replace with a fresh inspected bedsheet'
-                                : 'Report a quality, stitching, or print defect'}
-                            </p>
-                          </button>
-                        );
-                      })}
                     </div>
                   </div>
+                ) : (
+                  <form onSubmit={handleSubmitComplaint} className="space-y-5">
+                    {/* 1. Choose Request Type (Exchange or Product Complaint only) */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-[#5E1924] block">
+                        1. Select Request Type *
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {COMPLAINT_REQUEST_TYPES.map((type) => {
+                          const active = requestType === type;
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              data-testid={`request-type-${type.toLowerCase().replace(/\s+/g, '-')}`}
+                              onClick={() => setRequestType(type)}
+                              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                                active
+                                  ? 'bg-[#5E1924] text-[#FAF6F0] border-[#C5A059] shadow-sm'
+                                  : 'bg-white text-[#2C2420] border-[#DEC89B] hover:bg-[#FAF6F0]'
+                              }`}
+                            >
+                              <div className="font-bold text-xs flex items-center justify-between">
+                                <span>{type}</span>
+                                {active && <CheckCircle2 className="w-4 h-4 text-[#C5A059]" />}
+                              </div>
+                              <p
+                                className={`text-[10px] mt-1 leading-snug ${
+                                  active ? 'text-[#FAF6F0]/80' : 'text-[#7A6458]'
+                                }`}
+                              >
+                                {type === 'Exchange'
+                                  ? 'Replace with a fresh inspected bedsheet (48-hr defect policy)'
+                                  : 'Report quality, stitching, fabric, or print issues with photo proof'}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                  {/* 2. Select Specific Product from Order */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#5E1924] block">
-                      2. Select Specific Product from Order #{order.id} *
-                    </label>
+                    {/* 2. Select Specific Product from Order */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-[#5E1924] block">
+                        2. Select Specific Product from Order #{order.id} *
+                      </label>
                     <div className="space-y-2">
                       {orderItems.map((item, idx) => {
                         const isSelected = idx === selectedItemIndex;
@@ -983,47 +995,51 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ENLARGED DEFECT PHOTO LIGHTBOX MODAL */}
-      {lightboxPhoto && (
-        <div
-          data-testid="defect-photo-lightbox"
-          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
-          onClick={() => setLightboxPhoto(null)}
-        >
+      {lightboxPhoto &&
+        typeof document !== 'undefined' &&
+        createPortal(
           <div
-            className="relative max-w-3xl w-full bg-[#1C1412] rounded-3xl border border-[#C5A059] overflow-hidden shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            data-testid="defect-photo-lightbox"
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs"
+            onClick={() => setLightboxPhoto(null)}
           >
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 text-white">
-              <div className="min-w-0">
-                <p className="text-xs font-bold truncate">
-                  {lightboxPhoto.caption || 'Customer Uploaded Defect Photo'}
-                </p>
-                <p className="text-[10px] font-mono text-[#C5A059] truncate">
-                  Cloudinary Public ID: {lightboxPhoto.publicId}
-                </p>
+            <div
+              className="relative max-w-3xl w-full bg-[#1C1412] rounded-3xl border border-[#C5A059] overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 text-white">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">
+                    {lightboxPhoto.caption || 'Customer Uploaded Defect Photo'}
+                  </p>
+                  <p className="text-[10px] font-mono text-[#C5A059] truncate">
+                    Cloudinary Public ID: {lightboxPhoto.publicId}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLightboxPhoto(null)}
+                  className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setLightboxPhoto(null)}
-                className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="p-4 flex items-center justify-center bg-black max-h-[75vh]">
+                <img
+                  src={lightboxPhoto.url}
+                  alt="Enlarged customer defect"
+                  className="max-h-[70vh] w-auto object-contain rounded-xl"
+                />
+              </div>
             </div>
-            <div className="p-4 flex items-center justify-center bg-black max-h-[75vh]">
-              <img
-                src={lightboxPhoto.url}
-                alt="Enlarged customer defect"
-                className="max-h-[70vh] w-auto object-contain rounded-xl"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

@@ -1,12 +1,8 @@
 import { Order, OrderItem } from './orders';
 
-export type ComplaintRequestType = 'Return' | 'Exchange' | 'Product Complaint';
+export const COMPLAINT_REQUEST_TYPES = ['Exchange', 'Product Complaint'] as const;
 
-export const COMPLAINT_REQUEST_TYPES: ComplaintRequestType[] = [
-  'Return',
-  'Exchange',
-  'Product Complaint',
-];
+export type ComplaintRequestType = (typeof COMPLAINT_REQUEST_TYPES)[number] | 'Return';
 
 export type ComplaintStatus =
   | 'New'
@@ -317,11 +313,11 @@ export function validateComplaintSubmission(
     return { valid: false, error: ownershipCheck.error || 'Order verification failed.' };
   }
 
-  // 2. Verify request type
-  if (!COMPLAINT_REQUEST_TYPES.includes(input.requestType)) {
+  // 2. Verify request type (Cotton Nest policy: Exchange or Product Complaint only; returns not accepted)
+  if (!COMPLAINT_REQUEST_TYPES.includes(input.requestType as any)) {
     return {
       valid: false,
-      error: 'Invalid request type. Please choose Return, Exchange, or Product Complaint.',
+      error: 'Invalid request type. As per Cotton Nest Terms & Conditions, we offer Defect Exchanges or Product Complaints only (no returns/refunds).',
     };
   }
 

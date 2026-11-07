@@ -842,10 +842,11 @@ async function startServer() {
       }
     }
 
-    let pointsCreditedFlag = Boolean(previousOrder.pointsCredited || updated.pointsCredited);
-
     // Credit Nest Points only upon successful delivery and full payment (excluding delivery charges)
-    if (newStatus === 'delivered' && !pointsCreditedFlag) {
+    const shouldCreditPoints = newStatus === 'delivered' && !previousOrder.pointsCredited;
+    let pointsCreditedFlag = Boolean(previousOrder.pointsCredited);
+
+    if (shouldCreditPoints) {
       const shippingCostVal = Number(previousOrder.shippingCost) || 0;
       const eligibleOrderAmount = Math.max(0, (Number(previousOrder.totalAmount) || 0) - shippingCostVal);
       const earnedPts =
@@ -854,55 +855,67 @@ async function startServer() {
           : calculateEarnedPoints(eligibleOrderAmount);
 
       if (earnedPts > 0) {
-        const rawCustomerKey =
-          previousOrder.customerPhone || previousOrder.customerEmail || previousOrder.userId || '';
-        if (rawCustomerKey) {
-          const accountId = sanitizeLoyaltyKey(rawCustomerKey);
-          if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
-          if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
+        const loyaltyAccountsMap = db.loyaltyAccounts || (db.loyaltyAccounts = {});
+        const loyaltyTransactionsList = db.loyaltyTransactions || (db.loyaltyTransactions = []);
 
-          const alreadyCredited = db.loyaltyTransactions.some(
-            (t) => t.orderId === id && t.type === 'earned' && t.points > 0
-          );
+        // Collect all candidate keys (phone, email, userId) to ensure points reflect whether customer logs in by phone or email
+        const candidateKeys: string[] = [];
+        if (previousOrder.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.customerPhone));
+        if (previousOrder.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.customerEmail));
+        if (previousOrder.userId) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.userId));
+        if (updated.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(updated.customerPhone));
+        if (updated.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(updated.customerEmail));
 
-          if (!alreadyCredited) {
-            const now = Date.now();
-            const existingAcc = db.loyaltyAccounts[accountId] || {
-              id: accountId,
-              customerName: previousOrder.customerName || 'Cotton Nest Client',
-              phone: previousOrder.customerPhone,
-              email: previousOrder.customerEmail,
-              userId: previousOrder.userId,
+        const uniqueKeys = Array.from(new Set(candidateKeys.filter(Boolean)));
+        const now = Date.now();
+        const expiry = getTransactionExpiryDate(now);
+
+        const alreadyCredited = loyaltyTransactionsList.some(
+          (t) => t.orderId === id && t.type === 'earned' && t.points > 0
+        );
+
+        if (!alreadyCredited) {
+          uniqueKeys.forEach((accKey) => {
+            const existingAcc = loyaltyAccountsMap[accKey] || {
+              id: accKey,
+              customerName: previousOrder.customerName || updated.customerName || 'Cotton Nest Client',
+              phone: previousOrder.customerPhone || updated.customerPhone,
+              email: previousOrder.customerEmail || updated.customerEmail,
+              userId: previousOrder.userId || updated.userId,
               pointsBalance: 0,
               lifetimeEarned: 0,
               lifetimeSpent: 0,
-              referralCode: generateReferralCode(previousOrder.customerName || accountId),
+              referralCode: generateReferralCode(previousOrder.customerName || accKey),
               updatedAt: now,
             };
 
-            db.loyaltyAccounts[accountId] = {
+            loyaltyAccountsMap[accKey] = {
               ...existingAcc,
               pointsBalance: (existingAcc.pointsBalance || 0) + earnedPts,
               lifetimeEarned: (existingAcc.lifetimeEarned || 0) + earnedPts,
+              phone: existingAcc.phone || previousOrder.customerPhone || updated.customerPhone,
+              email: existingAcc.email || previousOrder.customerEmail || updated.customerEmail,
               updatedAt: now,
             };
 
-            db.loyaltyTransactions.unshift({
-              id: `tx_earn_${id}_${now}`,
-              accountId,
+            loyaltyTransactionsList.unshift({
+              id: `tx_earn_${id}_${accKey}_${now}`,
+              accountId: accKey,
               orderId: id,
               type: 'earned',
               points: earnedPts,
               amountInr: eligibleOrderAmount,
               description: `Earned on Delivered Order #${id} (5 pts / ₹100)`,
               createdAt: now,
-              expiresAt: getTransactionExpiryDate(now),
+              expiresAt: expiry,
               status: 'credited',
             });
-          }
-          pointsCreditedFlag = true;
+          });
         }
+        pointsCreditedFlag = true;
       }
+    } else if (updated.pointsCredited) {
+      pointsCreditedFlag = true;
     }
 
     db.orders[index] = {
@@ -1602,6 +1615,58 @@ async function startServer() {
       saveDatabase();
     } else if (!account.referralCode) {
       account.referralCode = generateReferralCode(account.customerName || accountId);
+    }
+
+    // Cross-link phone and email: if current balance is 0 or low, check if another account or delivered orders exist for this user
+    if ((account.pointsBalance || 0) === 0) {
+      const cleanRaw = String(rawId).toLowerCase().trim();
+      const extractedEmail = cleanRaw.startsWith('email_') ? cleanRaw.slice(6) : cleanRaw.includes('@') ? cleanRaw : '';
+      const cleanPhoneDigits = cleanRaw.replace(/[^0-9]/g, '').slice(-10);
+
+      // 1. Search other loyalty accounts with matching email or phone
+      for (const [otherKey, otherAcc] of Object.entries(db.loyaltyAccounts)) {
+        if (otherKey === accountId || !otherAcc) continue;
+        const matchesEmail = Boolean(extractedEmail && otherAcc.email?.toLowerCase().trim() === extractedEmail);
+        const matchesPhone = Boolean(cleanPhoneDigits && otherAcc.phone?.replace(/[^0-9]/g, '').endsWith(cleanPhoneDigits));
+        if ((matchesEmail || matchesPhone) && (otherAcc.pointsBalance || 0) > (account.pointsBalance || 0)) {
+          account.pointsBalance = otherAcc.pointsBalance;
+          account.lifetimeEarned = Math.max(account.lifetimeEarned || 0, otherAcc.lifetimeEarned || 0);
+          account.lifetimeSpent = Math.max(account.lifetimeSpent || 0, otherAcc.lifetimeSpent || 0);
+          account.phone = account.phone || otherAcc.phone;
+          account.email = account.email || otherAcc.email;
+          account.updatedAt = Date.now();
+          db.loyaltyAccounts[accountId] = account;
+          saveDatabase();
+          break;
+        }
+      }
+
+      // 2. If still 0, check if this customer has delivered orders where points should be credited
+      if ((account.pointsBalance || 0) === 0 && Array.isArray(db.orders)) {
+        let earnedFromOrders = 0;
+        let lifetimeEarnedOrders = 0;
+        db.orders.forEach((o) => {
+          if (!o) return;
+          const oEmail = (o.customerEmail || '').toLowerCase().trim();
+          const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
+          const isMatch = (extractedEmail && oEmail === extractedEmail) || (cleanPhoneDigits && oPhone === cleanPhoneDigits);
+          if (isMatch && o.status === 'delivered') {
+            const ship = Number(o.shippingCost) || 0;
+            const net = Math.max(0, (Number(o.totalAmount) || 0) - ship);
+            const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
+            earnedFromOrders += pts;
+            lifetimeEarnedOrders += pts;
+          }
+        });
+
+        if (earnedFromOrders > 0) {
+          account.pointsBalance = earnedFromOrders;
+          account.lifetimeEarned = lifetimeEarnedOrders;
+          account.updatedAt = Date.now();
+          db.loyaltyAccounts[accountId] = account;
+          saveDatabase();
+        }
+      }
     }
 
     res.json(account);

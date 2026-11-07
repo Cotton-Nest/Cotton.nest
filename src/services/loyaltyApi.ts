@@ -60,6 +60,9 @@ function saveLocalTransaction(tx: LoyaltyTransaction): void {
 /**
  * Resolves the primary key for a user (Phone > Email > User ID > Guest Phone > browser session).
  */
+/**
+ * Resolves the primary key for a user (Phone > Email > User ID > Guest Phone > browser session).
+ */
 export function getActiveLoyaltyKey(user?: any, phoneInput?: string): string {
   if (phoneInput && phoneInput.replace(/[^0-9]/g, '').length >= 10) {
     return sanitizeLoyaltyKey(phoneInput);
@@ -67,6 +70,16 @@ export function getActiveLoyaltyKey(user?: any, phoneInput?: string): string {
   if (user?.phone && user.phone.replace(/[^0-9]/g, '').length >= 10) {
     return sanitizeLoyaltyKey(user.phone);
   }
+  // Check customer profile from localStorage
+  try {
+    const raw = localStorage.getItem('cotton_nest_customer_profile');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.phone && parsed.phone.replace(/[^0-9]/g, '').length >= 10) {
+        return sanitizeLoyaltyKey(parsed.phone);
+      }
+    }
+  } catch {}
   if (user?.email) {
     return sanitizeLoyaltyKey(user.email);
   }
@@ -123,7 +136,43 @@ export async function getLoyaltyAccountApi(
     }
   } catch {}
 
-  // 3. Fetch from Firestore (Authoritative)
+  // 3. Fallback: if balance is 0 and customer has an alternate key (e.g. phone vs email), try querying alternate key
+  if ((account.pointsBalance || 0) === 0) {
+    const alternateKeys: string[] = [];
+    if (extra?.phone) alternateKeys.push(sanitizeLoyaltyKey(extra.phone));
+    if (extra?.email) alternateKeys.push(sanitizeLoyaltyKey(extra.email));
+    try {
+      const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
+      if (rawProfile) {
+        const parsed = JSON.parse(rawProfile);
+        if (parsed?.phone) alternateKeys.push(sanitizeLoyaltyKey(parsed.phone));
+        if (parsed?.email) alternateKeys.push(sanitizeLoyaltyKey(parsed.email));
+      }
+    } catch {}
+
+    for (const alt of alternateKeys) {
+      if (alt && alt !== accountId) {
+        try {
+          const altRes = await fetch(`/api/loyalty/${encodeURIComponent(alt)}`);
+          if (altRes.ok) {
+            const altData = await altRes.json();
+            if (altData && typeof altData.pointsBalance === 'number' && altData.pointsBalance > 0) {
+              account = {
+                ...account,
+                ...altData,
+                id: accountId, // preserve current key
+                referralCode: altData.referralCode || account.referralCode || defaultReferralCode,
+              };
+              saveLocalAccount(account);
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+  }
+
+  // 4. Fetch from Firestore (Authoritative)
   try {
     const docRef = doc(db, 'site_content', `loyalty_${accountId}`);
     const snap = await getDoc(docRef);

@@ -102,6 +102,19 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     refreshLoyalty();
     loadTransactions();
+
+    const handleLoyaltyUpdate = () => {
+      refreshLoyalty();
+      loadTransactions();
+    };
+
+    window.addEventListener('cotton-nest-loyalty-updated', handleLoyaltyUpdate);
+    window.addEventListener('storage', handleLoyaltyUpdate);
+
+    return () => {
+      window.removeEventListener('cotton-nest-loyalty-updated', handleLoyaltyUpdate);
+      window.removeEventListener('storage', handleLoyaltyUpdate);
+    };
   }, [refreshLoyalty, loadTransactions]);
 
   const earnPoints = useCallback(

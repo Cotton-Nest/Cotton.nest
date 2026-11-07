@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, 
   Clock, 
@@ -43,6 +43,9 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const selectedOrderIdRef = useRef<string | null>(null);
+  selectedOrderIdRef.current = selectedOrderId;
+
   const [filterTab, setFilterTab] = useState<'all' | 'active' | 'completed'>('all');
   const [manualOrderId, setManualOrderId] = useState<string>('');
   const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
@@ -50,6 +53,23 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   const [isSearchingDirect, setIsSearchingDirect] = useState<boolean>(false);
   const [isAutoSyncing, setIsAutoSyncing] = useState<boolean>(false);
   const [lastSyncedTime, setLastSyncedTime] = useState<Date>(new Date());
+
+  // Handle user explicitly clicking an order to view its details
+  const handleSelectOrder = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    selectedOrderIdRef.current = orderId;
+    setSearchedOrder(null);
+
+    // On mobile devices, smoothly scroll down to the active order tracker details
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setTimeout(() => {
+        const el = document.getElementById('live-order-details-card');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 50);
+    }
+  };
 
   // Fetch orders for current authenticated user
   const fetchUserOrders = async (silent: boolean = false) => {
@@ -105,10 +125,14 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
       setOrders(mergedList);
       setLastSyncedTime(new Date());
 
-      // Default select first order if none selected
-      if (mergedList.length > 0 && !selectedOrderId) {
-        setSelectedOrderId(mergedList[0].id);
-      }
+      // Pin and preserve the customer's selected order; do NOT reset to mergedList[0].id on background sync
+      setSelectedOrderId((prevSelected) => {
+        const currentTarget = prevSelected || selectedOrderIdRef.current;
+        if (currentTarget && mergedList.some((o) => o.id === currentTarget)) {
+          return currentTarget;
+        }
+        return mergedList.length > 0 ? mergedList[0].id : null;
+      });
     } catch (err) {
       console.warn('Could not fetch user live orders:', err);
     } finally {
@@ -553,13 +577,64 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
               </div>
             )}
 
-            {/* MAIN TWO-COLUMN DASHBOARD */}
+            {/* MAIN DASHBOARD */}
             {currentSelectedOrder && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 
-                {/* LEFT COLUMN: Order List Cards (if user has multiple orders) */}
+                {/* Mobile Order Switcher Ribbon (clean horizontal scrolling pills on phones) */}
                 {orders.length > 1 && (
-                  <div className="lg:col-span-4 space-y-3">
+                  <div className="lg:hidden col-span-1 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-[#7A6458] uppercase tracking-wider">
+                        My Orders ({displayedOrders.length})
+                      </p>
+                      <span className="text-[10px] text-[#8C2E46] font-semibold">Tap to switch order</span>
+                    </div>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                      {displayedOrders.map((order) => {
+                        const isSelected = order.id === currentSelectedOrder.id;
+                        return (
+                          <button
+                            key={order.id}
+                            type="button"
+                            onClick={() => handleSelectOrder(order.id)}
+                            className={`shrink-0 px-3.5 py-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#5E1924] text-white border-[#C5A059] shadow-sm ring-1 ring-[#C5A059]'
+                                : 'bg-white text-[#2C2420] border-[#EAE2D5] hover:bg-[#FAF7F2]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-bold">
+                                #{order.id}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize ${
+                                  isSelected
+                                    ? 'bg-white/20 text-[#FAF6F0]'
+                                    : 'bg-emerald-50 text-emerald-800'
+                                }`}
+                              >
+                                {order.status}
+                              </span>
+                            </div>
+                            <p
+                              className={`text-[10px] mt-0.5 max-w-[170px] truncate ${
+                                isSelected ? 'text-white/80' : 'text-[#7A6458]'
+                              }`}
+                            >
+                              ₹{order.totalAmount} · {order.items[0]?.productName || 'Bedsheet'}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* DESKTOP LEFT COLUMN: Order List Cards (hidden on mobile, shown on lg screens) */}
+                {orders.length > 1 && (
+                  <div className="hidden lg:block lg:col-span-4 space-y-3">
                     <p className="text-xs font-bold text-[#7A6458] uppercase tracking-wider">
                       Select Order ({displayedOrders.length})
                     </p>
@@ -569,10 +644,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                         return (
                           <div
                             key={order.id}
-                            onClick={() => {
-                              setSelectedOrderId(order.id);
-                              setSearchedOrder(null);
-                            }}
+                            onClick={() => handleSelectOrder(order.id)}
                             className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-white border-[#B83F60] shadow-md ring-1 ring-[#B83F60]'
@@ -609,10 +681,13 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                 )}
 
                 {/* RIGHT COLUMN (OR FULL WIDTH): Detailed Live Order Tracker */}
-                <div className={`${orders.length > 1 ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-6`}>
+                <div className={`${orders.length > 1 ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-6 w-full`}>
                   
                   {/* Order Overview Card */}
-                  <div className="bg-white rounded-3xl border border-[#DEC89B] p-6 sm:p-8 shadow-md space-y-6">
+                  <div
+                    id="live-order-details-card"
+                    className="bg-white rounded-3xl border border-[#DEC89B] p-6 sm:p-8 shadow-md space-y-6 scroll-mt-24"
+                  >
                     
                     {/* Header bar */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#EAE2D5]">
