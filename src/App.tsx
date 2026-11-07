@@ -30,6 +30,7 @@ import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { ProductCompareModal } from './components/ProductCompareModal';
 import { ProductCompareBar } from './components/ProductCompareBar';
 import { StockAlertModal } from './components/StockAlertModal';
+import { CartToastNotification, CartToastInfo } from './components/CartToastNotification';
 import {
   AppNotification,
   DEFAULT_NOTIFICATIONS,
@@ -118,6 +119,7 @@ export default function App() {
   };
 
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartToast, setCartToast] = useState<CartToastInfo | null>(null);
   const [isPhotoManagerOpen, setIsPhotoManagerOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const isAdminOpenRef = React.useRef(isAdminOpen);
@@ -1465,6 +1467,23 @@ export default function App() {
         return next;
       });
     }, 2000);
+
+    // Trigger subtle cart confirmation toast with item name & size added
+    const sizeText = product.size
+      ? product.size
+      : product.dimensions
+      ? (product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions)
+      : 'Standard Size';
+
+    setCartToast({
+      id: String(Date.now()),
+      productName: product.name,
+      sizeLabel: sizeText,
+      image: resolveBedsheetImage(safeVariant?.image || product.image, product.id, product.updatedAt),
+      price: finalProduct.price,
+      quantity,
+      variantName: safeVariant?.name,
+    });
   };
 
   // Automatically add pending item to bag once user signs in
@@ -2182,6 +2201,12 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Subtle Cart Addition Toast Notification */}
+      <CartToastNotification
+        toast={cartToast}
+        onClose={() => setCartToast(null)}
+        onOpenCart={() => setIsCartOpen(true)}
+      />
     </div>
   );
 }
