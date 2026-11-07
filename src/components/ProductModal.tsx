@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon } from 'lucide-react';
+import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon, Maximize2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS } from '../data/products';
+import { ImageLightboxModal } from './ImageLightboxModal';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { updateSingleProduct, addProductGalleryImageApi, removeProductGalleryImageApi, getCouponsApi } from '../services/api';
@@ -72,6 +73,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [editBadge, setEditBadge] = React.useState('');
   const [editProductType, setEditProductType] = React.useState('Bedsheet');
   const [editSize, setEditSize] = React.useState('King');
+  const [editAvailabilityType, setEditAvailabilityType] = React.useState('standard');
   const [editInStock, setEditInStock] = React.useState(true);
   const [editStockQuantity, setEditStockQuantity] = React.useState(10);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -81,6 +83,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [copiedCouponCode, setCopiedCouponCode] = React.useState<string | null>(null);
   const [showVideoUrlModal, setShowVideoUrlModal] = React.useState(false);
   const [videoUrlInput, setVideoUrlInput] = React.useState('');
+  const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
+  const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
   React.useEffect(() => {
     getCouponsApi()
@@ -114,20 +118,45 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setEditBadge(product.badge || '');
       setEditProductType(product.productType || 'Bedsheet');
       setEditSize(product.size || 'King');
+      setEditAvailabilityType(product.availabilityType || 'standard');
       setEditInStock(product.inStock);
       setEditStockQuantity(product.stockQuantity ?? 10);
     }
   }, [product?.id, product?.image, customImage]);
 
-  if (!product) return null;
-
-  const activeVariant = selectedVariantId
+  const activeVariant = selectedVariantId && product
     ? product.variants?.find((v) => v.id === selectedVariantId)
     : undefined;
 
-  const rawImage = selectedPreviewUrl || activeVariant?.image || product.image || customImage;
-  const displayImage = resolveBedsheetImage(rawImage, product.id, product.updatedAt);
+  const rawImage = selectedPreviewUrl || activeVariant?.image || product?.image || customImage;
+  const displayImage = product ? resolveBedsheetImage(rawImage, product.id, product.updatedAt) : '';
   const productRating = product ? getProductRatingSummary(product.id, reviews) : { average: 4.9, count: 0, reviews: [] };
+
+  const lightboxPhotos = React.useMemo(() => {
+    if (!product) return [];
+    const list: string[] = [];
+    const addPhoto = (url?: string) => {
+      if (!url) return;
+      const resolved = resolveBedsheetImage(url, product.id, product.updatedAt);
+      if (resolved && !isVideoMedia(resolved) && !list.includes(resolved)) {
+        list.push(resolved);
+      }
+    };
+
+    addPhoto(selectedPreviewUrl || displayImage || product.image);
+    addPhoto(product.image);
+
+    if (Array.isArray(product.additionalImages)) {
+      product.additionalImages.forEach(addPhoto);
+    }
+    if (Array.isArray(product.variants)) {
+      product.variants.forEach((v) => addPhoto(v.image));
+    }
+
+    return list;
+  }, [product, selectedPreviewUrl, displayImage]);
+
+  if (!product) return null;
 
   const handleSaveToFirebase = async () => {
     if (!product) return;
@@ -146,6 +175,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         badge: editBadge.trim() ? editBadge.trim() : '',
         productType: editProductType || product.productType || 'Bedsheet',
         size: editSize || product.size || 'King',
+        availabilityType: editAvailabilityType || product.availabilityType || 'standard',
         inStock: editInStock,
         stockQuantity: Number(editStockQuantity),
         updatedAt: Date.now(),
@@ -429,13 +459,35 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </span>
                 </div>
               ) : (
-                <img
-                  src={displayImage}
-                  alt={product.name}
-                  referrerPolicy="no-referrer"
-                  onError={handleImageFallback}
-                  className="w-full h-full object-cover object-center"
-                />
+                <div
+                  className="w-full h-full relative cursor-zoom-in group/img overflow-hidden"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex(0);
+                    setIsLightboxOpen(true);
+                  }}
+                  title="Click to enlarge photo"
+                >
+                  <img
+                    src={displayImage}
+                    alt={product.name}
+                    referrerPolicy="no-referrer"
+                    onError={handleImageFallback}
+                    className="w-full h-full object-cover object-center transition-transform duration-500 group-hover/img:scale-105"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightboxIndex(0);
+                      setIsLightboxOpen(true);
+                    }}
+                    className="absolute bottom-3 right-3 z-20 bg-black/75 hover:bg-black/90 text-white backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold border border-white/40 flex items-center gap-1.5 shadow-lg transition-all hover:scale-105 cursor-pointer active:scale-95"
+                  >
+                    <Maximize2 className="w-4 h-4 text-[#E6C687]" />
+                    <span>Enlarge Photo</span>
+                  </button>
+                </div>
               )}
               {product.badge && (
                 <span className="absolute top-3 left-3 bg-[#FAF7F2]/95 backdrop-blur-sm px-3 py-1 rounded-md text-xs font-semibold text-[#8C2E46] border border-[#FAD1DC]">
@@ -460,7 +512,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
               {/* Replace image button inside modal - only visible to store owners */}
               {isOwnerMode && (
-                <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5">
+                <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1.5">
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -715,11 +767,33 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             </div>
 
-            {/* Store Pickup Callout */}
-            <div className="p-3 bg-[#FDEAF0]/60 rounded-xl border border-[#F9D3DE] flex items-center gap-2.5 text-xs text-[#8C2E46]">
-              <MapPin className="w-4 h-4 text-[#B83F60] shrink-0" />
-              <span>Available for touch &amp; feel at Sector 46 Gurgaon Atelier</span>
-            </div>
+            {/* Store Availability Callout */}
+            {product.availabilityType === 'atelier_touch' ? (
+              <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#DEC89B] flex items-center gap-3 text-xs text-[#8C2E46] shadow-2xs">
+                <div className="w-8 h-8 rounded-xl bg-[#8C2E46]/10 text-[#8C2E46] flex items-center justify-center shrink-0">
+                  <Sparkles className="w-4 h-4 text-[#C29E57]" />
+                </div>
+                <div>
+                  <p className="font-bold text-[#8C2E46]">Available for Touch &amp; Feel in Sector 46 Atelier</p>
+                  <p className="text-[11px] text-[#6B5D55]">Visit our atelier store in Sector 46 Gurgaon to feel the pure cotton fabric before buying.</p>
+                </div>
+              </div>
+            ) : product.availabilityType === 'on_order' ? (
+              <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 flex items-center gap-3 text-xs text-amber-900 shadow-2xs">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-sm">
+                  🧵
+                </div>
+                <div>
+                  <p className="font-bold text-amber-900">Made On Order Basis</p>
+                  <p className="text-[11px] text-amber-800">Handcrafted to order at our atelier. Custom finished &amp; delivered in 3-5 business days.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-[#FDEAF0]/60 rounded-xl border border-[#F9D3DE] flex items-center gap-2.5 text-xs text-[#8C2E46]">
+                <MapPin className="w-4 h-4 text-[#B83F60] shrink-0" />
+                <span>Available for touch &amp; feel at Sector 46 Gurgaon Atelier</span>
+              </div>
+            )}
 
             {/* Return / Exchange Reassurance under photo */}
             <div className="p-3 bg-white rounded-xl border border-[#EAE2D5] flex items-center justify-between text-xs text-[#2C2420]">
@@ -887,6 +961,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       {!STANDARD_SIZES.includes(editSize as any) && (
                         <option value={editSize}>{editSize}</option>
                       )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
+                      Store Availability Option
+                    </label>
+                    <select
+                      value={editAvailabilityType}
+                      onChange={(e) => setEditAvailabilityType(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                    >
+                      {AVAILABILITY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -1435,6 +1523,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         </div>
 
       </motion.div>
+
+      {/* Image Lightbox Fullscreen Modal */}
+      <ImageLightboxModal
+        isOpen={isLightboxOpen}
+        images={lightboxPhotos}
+        initialIndex={lightboxIndex}
+        title={product.name}
+        onClose={() => setIsLightboxOpen(false)}
+      />
     </motion.div>
   );
 };

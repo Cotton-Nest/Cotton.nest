@@ -33,7 +33,28 @@ export interface BedsheetProduct {
   size?: string;        // 'Single' | 'Double' | 'Queen' | 'King' | 'Super King' | custom size
   productType?: string; // 'Bedsheet' | 'Blanket' | 'Comforter' | custom type
   brand?: string;       // 'Cotton Nest' | 'Swayam' | 'Spaces' | etc. (Admin & Filter only, never shown on cards/details)
+  availabilityType?: 'atelier_touch' | 'on_order' | 'standard' | string; // 'atelier_touch' | 'on_order' | 'standard'
 }
+
+export type AvailabilityType = 'atelier_touch' | 'on_order' | 'standard';
+
+export const AVAILABILITY_OPTIONS: { value: AvailabilityType; label: string; badgeText: string }[] = [
+  {
+    value: 'standard',
+    label: 'Standard In-Stock',
+    badgeText: '',
+  },
+  {
+    value: 'atelier_touch',
+    label: 'Available for Touch & Feel in Sector 46 Atelier',
+    badgeText: 'Touch & Feel in Sec 46 Atelier',
+  },
+  {
+    value: 'on_order',
+    label: 'Made On Order Basis',
+    badgeText: 'On Order Basis',
+  },
+];
 
 export const STANDARD_SIZES = ['Single', 'Double', 'Queen', 'King (100 × 108)', 'Super King (108 × 108)', 'Other'] as const;
 export type StandardSize = (typeof STANDARD_SIZES)[number];

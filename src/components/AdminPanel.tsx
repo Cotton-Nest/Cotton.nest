@@ -7,6 +7,7 @@ import {
   STANDARD_SIZES,
   STANDARD_PRODUCT_TYPES,
   POPULAR_BRANDS,
+  AVAILABILITY_OPTIONS,
   normalizeProductCategory,
   doesProductMatchCategory,
 } from '../data/products';
@@ -2881,6 +2882,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </div>
                         </div>
 
+                        {/* Availability Option Selection */}
+                        <div className="mt-2 pt-2 border-t border-[#EAE2D5]/80 flex items-center justify-between gap-2">
+                          <label className="text-[10px] font-bold text-[#8C7A70] uppercase tracking-wider shrink-0">
+                            Store Availability:
+                          </label>
+                          <select
+                            value={product.availabilityType || 'standard'}
+                            onChange={(e) => handleProductFieldChange(product.id, 'availabilityType', e.target.value)}
+                            className="px-2 py-1 bg-[#FAF7F2] border border-[#C29E57]/60 rounded-lg text-xs font-bold text-[#8C2E46] focus:outline-hidden focus:border-[#C29E57] max-w-[240px] truncate"
+                          >
+                            {AVAILABILITY_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
                         <div className="flex items-center justify-between text-[11px] text-[#7A6458] pt-0.5">
                           <span className="truncate">{product.dimensions} · {product.size || 'King'}</span>
                           <button
@@ -5473,6 +5492,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     />
                   )}
                   <p className="text-[10px] text-[#8C7A70] mt-1">Bedsheet, Winter Bedsheet, Dohar, Bed Cover, Quilt, Blanket, Comforter, or custom</p>
+                </div>
+
+                {/* Availability Status */}
+                <div>
+                  <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
+                    Store Availability Status
+                  </label>
+                  <select
+                    value={newProduct.availabilityType || 'standard'}
+                    onChange={(e) => setNewProduct({ ...newProduct, availabilityType: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                  >
+                    {AVAILABILITY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-[#8C7A70] mt-1">Select "Touch &amp; Feel in Sector 46 Atelier" for physical store stock or "Made On Order Basis" for custom orders.</p>
                 </div>
 
                 {/* Brand - Backend Only */}
