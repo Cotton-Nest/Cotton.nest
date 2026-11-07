@@ -196,6 +196,7 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
           isActive={isAnimationActive}
           onFestivalChange={(type) => setCurrentFestival(type)}
           showControls={true}
+          showSwitcher={isOwnerMode || seasonalConfig?.showFestivalSwitcher === true}
           enableInteraction={true}
         />
 

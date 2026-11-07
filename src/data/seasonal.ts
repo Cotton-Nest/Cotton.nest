@@ -14,6 +14,7 @@ export interface SeasonalConfig {
   bannerNotice?: string; // e.g. "✨ Special Festive Pricing Active · Free 2-Hour Delivery in Gurgaon"
   discountLabel?: string; // e.g. "Up to 35% OFF"
   items: SeasonalItemDiscount[]; // list of bedsheets included with discounts
+  showFestivalSwitcher?: boolean; // Controls whether store visitors can switch festival animations (Default: false)
   updatedAt?: number;
 }
 
@@ -25,6 +26,7 @@ export const INITIAL_SEASONAL_CONFIG: SeasonalConfig = {
   description: "Celebrate the season of joy with our handcrafted natural cotton bedsheets. Each festive set includes 1 King bedsheet (108″×108″) and 2 coordinating pillow covers (45×70 cm) at special celebratory prices.",
   bannerNotice: "✨ Festive Season Offer: Special Discounted Rates & Free Express Delivery in Gurgaon",
   discountLabel: "Up to 35% OFF",
+  showFestivalSwitcher: false,
   items: [
     {
       productId: "amber-orchid-medallion",

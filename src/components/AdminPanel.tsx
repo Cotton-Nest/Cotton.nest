@@ -4310,6 +4310,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
+              {/* Admin Toggle: Show Festival Switcher in Main Store */}
+              <div className="p-3.5 bg-white rounded-2xl border border-[var(--color-border,#EAE2D5)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[var(--color-primary,#70252D)]">
+                      Festival Switcher Visibility in Main Store
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      editableSeasonal.showFestivalSwitcher
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                    }`}>
+                      {editableSeasonal.showFestivalSwitcher ? 'Visible to Store Visitors' : 'Locked to Active Festival (Hidden from Visitors)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--color-text-secondary,#6B5D55)]">
+                    {editableSeasonal.showFestivalSwitcher
+                      ? 'Store visitors can manually switch between Diwali crackers, Holi colors, Winter snow, and Eid starlight.'
+                      : 'Store visitors see only the active festival animation (e.g., Diwali Fest crackers). Other festivals are hidden in the main store and only configurable by Admin.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newValue = !editableSeasonal.showFestivalSwitcher;
+                    setEditableSeasonal((prev) => ({ ...prev, showFestivalSwitcher: newValue }));
+                    showToast(newValue ? 'Festival switcher enabled for store visitors' : 'Festival switcher hidden from main store (Locked to active festival)');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition-all cursor-pointer shrink-0 ${
+                    editableSeasonal.showFestivalSwitcher
+                      ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                      : 'bg-stone-100 text-stone-700 border-stone-300 hover:bg-stone-200'
+                  }`}
+                >
+                  {editableSeasonal.showFestivalSwitcher ? '✓ Switcher ON in Store' : '🔒 Switcher OFF in Store (Admin Only)'}
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {/* Seasonal Page Name */}
                 <div className="space-y-1.5">
