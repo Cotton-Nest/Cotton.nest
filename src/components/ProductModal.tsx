@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon, Maximize2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS, normalizeAvailabilityType } from '../data/products';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
@@ -73,7 +73,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [editBadge, setEditBadge] = React.useState('');
   const [editProductType, setEditProductType] = React.useState('Bedsheet');
   const [editSize, setEditSize] = React.useState('King');
-  const [editAvailabilityType, setEditAvailabilityType] = React.useState('standard');
+  const [editAvailabilityType, setEditAvailabilityType] = React.useState('none');
   const [editInStock, setEditInStock] = React.useState(true);
   const [editStockQuantity, setEditStockQuantity] = React.useState(10);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -118,7 +118,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setEditBadge(product.badge || '');
       setEditProductType(product.productType || 'Bedsheet');
       setEditSize(product.size || 'King');
-      setEditAvailabilityType(product.availabilityType || 'standard');
+      setEditAvailabilityType(normalizeAvailabilityType(product.availabilityType));
       setEditInStock(product.inStock);
       setEditStockQuantity(product.stockQuantity ?? 10);
     }
@@ -175,7 +175,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         badge: editBadge.trim() ? editBadge.trim() : '',
         productType: editProductType || product.productType || 'Bedsheet',
         size: editSize || product.size || 'King',
-        availabilityType: editAvailabilityType || product.availabilityType || 'standard',
+        availabilityType: normalizeAvailabilityType(editAvailabilityType),
         inStock: editInStock,
         stockQuantity: Number(editStockQuantity),
         updatedAt: Date.now(),
@@ -767,8 +767,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             </div>
 
-            {/* Store Availability Callout */}
-            {product.availabilityType === 'atelier_touch' ? (
+            {/* Store Availability Callout (Hidden when Blank / 'none' is selected) */}
+            {normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' ? (
               <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#DEC89B] flex items-center gap-3 text-xs text-[#8C2E46] shadow-2xs">
                 <div className="w-8 h-8 rounded-xl bg-[#8C2E46]/10 text-[#8C2E46] flex items-center justify-center shrink-0">
                   <Sparkles className="w-4 h-4 text-[#C29E57]" />
@@ -778,22 +778,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <p className="text-[11px] text-[#6B5D55]">Visit our atelier store in Sector 46 Gurgaon to feel the pure cotton fabric before buying.</p>
                 </div>
               </div>
-            ) : product.availabilityType === 'on_order' ? (
+            ) : normalizeAvailabilityType(product.availabilityType) === 'on_order' ? (
               <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 flex items-center gap-3 text-xs text-amber-900 shadow-2xs">
                 <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-sm">
                   🧵
                 </div>
                 <div>
-                  <p className="font-bold text-amber-900">Made On Order Basis</p>
+                  <p className="font-bold text-amber-900">On Order Basis</p>
                   <p className="text-[11px] text-amber-800">Handcrafted to order at our atelier. Custom finished &amp; delivered in 3-5 business days.</p>
                 </div>
               </div>
-            ) : (
-              <div className="p-3 bg-[#FDEAF0]/60 rounded-xl border border-[#F9D3DE] flex items-center gap-2.5 text-xs text-[#8C2E46]">
-                <MapPin className="w-4 h-4 text-[#B83F60] shrink-0" />
-                <span>Available for touch &amp; feel at Sector 46 Gurgaon Atelier</span>
-              </div>
-            )}
+            ) : null}
 
             {/* Return / Exchange Reassurance under photo */}
             <div className="p-3 bg-white rounded-xl border border-[#EAE2D5] flex items-center justify-between text-xs text-[#2C2420]">
@@ -1109,12 +1104,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <>
                 <div className="space-y-4">
               {/* Category & Collection */}
-              <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-[#A8823B]">
+              <div className="flex items-center flex-wrap gap-2 text-xs font-semibold tracking-wider uppercase text-[#A8823B]">
                 <span>{product.collection}</span>
                 <span>·</span>
                 <span className={isOutOfStock ? "text-amber-800" : "text-[#3E7D5A]"}>
                   {isOutOfStock ? "Out of Stock" : "In Stock"}
                 </span>
+                {normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case tracking-normal bg-[#FAF7F2] text-[#8C2E46] border border-[#DEC89B]">
+                    <Sparkles className="w-2.5 h-2.5 text-[#C29E57]" />
+                    <span>Available at Sec 46 Atelier</span>
+                  </span>
+                )}
+                {normalizeAvailabilityType(product.availabilityType) === 'on_order' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case tracking-normal bg-amber-50 text-amber-900 border border-amber-200">
+                    <span>🧵 On Order Basis</span>
+                  </span>
+                )}
               </div>
 
               {/* Title */}

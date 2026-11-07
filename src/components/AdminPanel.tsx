@@ -8,6 +8,7 @@ import {
   STANDARD_PRODUCT_TYPES,
   POPULAR_BRANDS,
   AVAILABILITY_OPTIONS,
+  normalizeAvailabilityType,
   normalizeProductCategory,
   doesProductMatchCategory,
 } from '../data/products';
@@ -1178,6 +1179,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       cloudinaryPublicId: assignedPublicId,
       variants: newProduct.variants || [],
       badge: newProduct.badge || 'New Arrival',
+      availabilityType: normalizeAvailabilityType(newProduct.availabilityType),
       inStock: newProduct.inStock ?? true,
       stockQuantity: Number(newProduct.stockQuantity) || 15,
       features: [
@@ -2882,15 +2884,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </div>
                         </div>
 
-                        {/* Availability Option Selection */}
-                        <div className="mt-2 pt-2 border-t border-[#EAE2D5]/80 flex items-center justify-between gap-2">
+                        {/* Availability Option Selection (Mobile & Web) */}
+                        <div className="mt-2 pt-2 border-t border-[#EAE2D5]/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2">
                           <label className="text-[10px] font-bold text-[#8C7A70] uppercase tracking-wider shrink-0">
                             Store Availability:
                           </label>
                           <select
-                            value={product.availabilityType || 'standard'}
+                            value={normalizeAvailabilityType(product.availabilityType)}
                             onChange={(e) => handleProductFieldChange(product.id, 'availabilityType', e.target.value)}
-                            className="px-2 py-1 bg-[#FAF7F2] border border-[#C29E57]/60 rounded-lg text-xs font-bold text-[#8C2E46] focus:outline-hidden focus:border-[#C29E57] max-w-[240px] truncate"
+                            className="w-full sm:w-auto px-2.5 py-1.5 bg-[#FAF7F2] border border-[#C29E57]/60 rounded-lg text-xs font-bold text-[#8C2E46] focus:outline-hidden focus:border-[#C29E57] sm:max-w-[260px]"
                           >
                             {AVAILABILITY_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>
@@ -5500,7 +5502,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Store Availability Status
                   </label>
                   <select
-                    value={newProduct.availabilityType || 'standard'}
+                    value={normalizeAvailabilityType(newProduct.availabilityType)}
                     onChange={(e) => setNewProduct({ ...newProduct, availabilityType: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
                   >
@@ -5510,7 +5512,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </option>
                     ))}
                   </select>
-                  <p className="text-[10px] text-[#8C7A70] mt-1">Select "Touch &amp; Feel in Sector 46 Atelier" for physical store stock or "Made On Order Basis" for custom orders.</p>
+                  <p className="text-[10px] text-[#8C7A70] mt-1">Choose Blank (no tag), "Touch &amp; Feel in Sector 46 Atelier", or "On Order Basis".</p>
                 </div>
 
                 {/* Brand - Backend Only */}

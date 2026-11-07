@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell, Heart, Sparkles, Play, Video, Film } from 'lucide-react';
-import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, normalizeAvailabilityType } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
@@ -206,12 +206,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="absolute top-2.5 left-12 z-10 bg-[#2C2420] px-3 py-1 rounded-full text-[11px] font-medium text-amber-300 border border-amber-400/35 shadow-xs">
             Sold Out
           </div>
-        ) : product.availabilityType === 'atelier_touch' ? (
+        ) : normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' ? (
           <div className="absolute top-2.5 left-12 z-10 bg-[#FAF7F2] text-[#8C2E46] px-2.5 py-1 rounded-full text-[10px] font-bold border border-[#DEC89B] shadow-xs flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-[#C29E57]" />
-            <span>Sec 46 Touch &amp; Feel</span>
+            <span>Available at Sec 46</span>
           </div>
-        ) : product.availabilityType === 'on_order' ? (
+        ) : normalizeAvailabilityType(product.availabilityType) === 'on_order' ? (
           <div className="absolute top-2.5 left-12 z-10 bg-amber-950/90 text-amber-200 px-2.5 py-1 rounded-full text-[10px] font-bold border border-amber-400/40 shadow-xs flex items-center gap-1">
             <span>🧵 On Order Basis</span>
           </div>
@@ -387,31 +387,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             )}
           </div>
 
-          {/* Clean Editorial Delivery & Exchange Strip */}
+          {/* Clean Editorial Availability & Exchange Strip */}
           <div className="flex items-center justify-between text-[11px] text-[#6B5D55] py-1.5 px-2.5 rounded-lg bg-[#FAF7F2] border border-[#EAE2D5]">
-            {product.availabilityType === 'atelier_touch' ? (
+            {normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' ? (
               <span className="text-[#8C2E46] font-bold flex items-center gap-1.5 truncate">
                 <Sparkles className="w-3.5 h-3.5 text-[#C29E57] shrink-0" />
-                <span>Sec 46 Touch &amp; Feel</span>
+                <span>Available at Sec 46</span>
               </span>
-            ) : product.availabilityType === 'on_order' ? (
+            ) : normalizeAvailabilityType(product.availabilityType) === 'on_order' ? (
               <span className="text-amber-800 font-bold flex items-center gap-1.5 truncate">
-                <span>🧵 Made On Order</span>
+                <span>🧵 On Order Basis</span>
               </span>
             ) : (
-              <span className="text-[#2E6B4A] font-semibold flex items-center gap-1.5 truncate">
-                <Truck className="w-3.5 h-3.5 text-[#2E6B4A] shrink-0" />
-                <span>Free Sec 46 Delivery</span>
-              </span>
+              <span className="truncate" />
             )}
             <span
-              className="text-[#8C2E46] font-semibold hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-1"
+              className="text-[#8C2E46] font-semibold hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-auto"
               onClick={(e) => {
                 e.stopPropagation();
                 onQuickView(product);
               }}
             >
-              <span>48h Exchange</span>
+              <span>48h Defect Exchange</span>
             </span>
           </div>
         </div>
