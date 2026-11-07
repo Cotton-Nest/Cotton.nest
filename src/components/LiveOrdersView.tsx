@@ -25,6 +25,9 @@ import {
 import { Order, OrderStatus } from '../data/orders';
 import { COMPANY_DETAILS } from '../data/products';
 import { useAuth } from '../context/AuthContext';
+import { getOrders } from '../services/api';
+import { normalizePhoneDigits } from '../data/complaints';
+import { OrderComplaintSection } from './OrderComplaintSection';
 
 interface LiveOrdersViewProps {
   onExploreCatalogue: () => void;
@@ -40,7 +43,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [filterTab, setFilterTab] = useState<'all' | 'active' | 'completed'>('active');
+  const [filterTab, setFilterTab] = useState<'all' | 'active' | 'completed'>('all');
   const [manualOrderId, setManualOrderId] = useState<string>('');
   const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
   const [searchError, setSearchError] = useState<string>('');
@@ -67,15 +70,44 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
       }
 
       const res = await fetch(url);
+      let serverOrders: Order[] = [];
       if (res.ok) {
         const data = await res.json();
-        setOrders(Array.isArray(data) ? data : []);
-        setLastSyncedTime(new Date());
+        if (Array.isArray(data)) serverOrders = data;
+      }
 
-        // Default select first order if none selected
-        if (data.length > 0 && !selectedOrderId) {
-          setSelectedOrderId(data[0].id);
-        }
+      // Also merge matching orders from Firestore/local cache so orders are never missed
+      const allKnown = await getOrders().catch(() => [] as Order[]);
+      const cleanEmail = user?.email ? user.email.trim().toLowerCase() : '';
+      const cleanPhone = normalizePhoneDigits(user?.phone);
+      const cleanUserId = user?.id ? user.id.trim() : '';
+
+      const matchingFirestoreOrders = allKnown.filter((o) => {
+        if (!cleanEmail && !cleanPhone && !cleanUserId) return false;
+        const oEmail = o.customerEmail ? o.customerEmail.trim().toLowerCase() : '';
+        const oPhone = normalizePhoneDigits(o.customerPhone);
+        const oUserId = o.userId ? o.userId.trim() : '';
+        return (
+          Boolean(cleanEmail && oEmail && oEmail === cleanEmail) ||
+          Boolean(cleanPhone && oPhone && oPhone === cleanPhone) ||
+          Boolean(cleanUserId && oUserId && oUserId === cleanUserId)
+        );
+      });
+
+      const mergedMap = new Map<string, Order>();
+      [...serverOrders, ...matchingFirestoreOrders].forEach((o) => {
+        if (o && o.id) mergedMap.set(o.id, o);
+      });
+      const mergedList = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+
+      setOrders(mergedList);
+      setLastSyncedTime(new Date());
+
+      // Default select first order if none selected
+      if (mergedList.length > 0 && !selectedOrderId) {
+        setSelectedOrderId(mergedList[0].id);
       }
     } catch (err) {
       console.warn('Could not fetch user live orders:', err);
@@ -111,17 +143,23 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
     setSearchedOrder(null);
 
     try {
-      const res = await fetch(`/api/orders?orderId=${encodeURIComponent(manualOrderId.trim())}`);
+      const targetId = manualOrderId.trim();
+      const res = await fetch(`/api/orders?orderId=${encodeURIComponent(targetId)}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           setSearchedOrder(data[0]);
           setSelectedOrderId(data[0].id);
-        } else {
-          setSearchError(`No order found matching "${manualOrderId}". Please check your order ID.`);
+          return;
         }
+      }
+      const allKnown = await getOrders().catch(() => [] as Order[]);
+      const found = allKnown.find((o) => o.id?.toLowerCase() === targetId.toLowerCase());
+      if (found) {
+        setSearchedOrder(found);
+        setSelectedOrderId(found.id);
       } else {
-        setSearchError('Could not locate order. Please try again.');
+        setSearchError(`No order found matching "${manualOrderId}". Please check your order ID.`);
       }
     } catch {
       setSearchError('Network error while searching for order.');
@@ -871,6 +909,12 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                         </div>
                       </div>
                     )}
+
+                    {/* RETURN / EXCHANGE / COMPLAINT OPTION & CUSTOMER TRACKING */}
+                    <OrderComplaintSection
+                      key={currentSelectedOrder.id}
+                      order={currentSelectedOrder}
+                    />
 
                   </div>
 

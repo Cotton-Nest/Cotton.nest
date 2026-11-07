@@ -2,10 +2,12 @@ export type NotificationCategory = 'orders' | 'promotions' | 'stock' | 'admin' |
 
 export type NotificationType =
   | 'order_status'
+  | 'complaint_update'
   | 'promotion'
   | 'new_arrival'
   | 'back_in_stock'
   | 'admin_order'
+  | 'admin_complaint'
   | 'admin_stock'
   | 'admin_review'
   | 'system';
@@ -32,6 +34,151 @@ export interface AppNotification {
     stockQuantity?: number;
     reviewId?: string;
     imageUrl?: string;
+    complaintId?: string;
+    requestType?: string;
+    complaintStatus?: string;
+    adminResponse?: string;
+    customerName?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+  };
+}
+
+export interface ComplaintNotificationSource {
+  id: string;
+  orderId: string;
+  productId: string;
+  productName: string;
+  productSize?: string;
+  variantName?: string;
+  requestType: string;
+  status: string;
+  adminResponse?: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  photos?: Array<{ url: string; publicId: string }>;
+}
+
+/**
+ * Builds a customer-facing notification whenever a complaint/return/exchange
+ * is submitted, its status is updated, or the admin sends a response.
+ */
+export function buildComplaintNotificationForCustomer(
+  complaint: ComplaintNotificationSource,
+  eventType: 'submitted' | 'admin_update' | 'admin_responded' | 'status_updated'
+): AppNotification {
+  const now = Date.now();
+  const hasResponse = Boolean(complaint.adminResponse && complaint.adminResponse.trim().length > 0);
+  const trimmedResponse = complaint.adminResponse ? complaint.adminResponse.trim() : '';
+
+  let title: string;
+  let message: string;
+
+  if (eventType === 'submitted') {
+    title = `${complaint.requestType} Request #${complaint.id} Submitted`;
+    message = `Your ${complaint.requestType.toLowerCase()} request for ${complaint.productName} (Order #${complaint.orderId}) has been received. Status: ${complaint.status}.`;
+  } else if (hasResponse) {
+    title = `Cotton Nest Responded to Your ${complaint.requestType} (#${complaint.id})`;
+    message = `Status: ${complaint.status} — "${trimmedResponse}" (Order #${complaint.orderId} · ${complaint.productName})`;
+  } else {
+    title = `${complaint.requestType} Status Updated: ${complaint.status} (#${complaint.id})`;
+    message = `Your ${complaint.requestType.toLowerCase()} request for ${complaint.productName} (Order #${complaint.orderId}) has been updated to "${complaint.status}".`;
+  }
+
+  return {
+    id: `notif-cmp-${complaint.id}-${eventType}-${now}`,
+    recipientId: complaint.customerEmail || complaint.customerPhone || 'all',
+    type: 'complaint_update',
+    category: 'orders',
+    title,
+    message,
+    timestamp: now,
+    isRead: false,
+    linkTarget: {
+      view: 'orders',
+      targetId: complaint.orderId,
+    },
+    metadata: {
+      orderId: complaint.orderId,
+      productId: complaint.productId,
+      productName: complaint.productName,
+      complaintId: complaint.id,
+      requestType: complaint.requestType,
+      complaintStatus: complaint.status,
+      adminResponse: trimmedResponse || undefined,
+      customerName: complaint.customerName,
+      customerPhone: complaint.customerPhone,
+      customerEmail: complaint.customerEmail,
+      imageUrl: complaint.photos?.[0]?.url,
+    },
+  };
+}
+
+/**
+ * Builds an admin notification when a customer submits a new return/exchange/complaint.
+ */
+export function buildComplaintNotificationForAdmin(
+  complaint: ComplaintNotificationSource
+): AppNotification {
+  const now = Date.now();
+  return {
+    id: `notif-admin-cmp-${complaint.id}-${now}`,
+    recipientId: 'admin',
+    type: 'admin_complaint',
+    category: 'admin',
+    title: `New ${complaint.requestType}: #${complaint.id} (Order #${complaint.orderId})`,
+    message: `${complaint.customerName || 'Customer'} submitted a ${complaint.requestType.toLowerCase()} for ${complaint.productName} with ${complaint.photos?.length || 1} defect photo(s).`,
+    timestamp: now,
+    isRead: false,
+    linkTarget: {
+      view: 'admin',
+      targetId: complaint.id,
+      adminTab: 'orders',
+    },
+    metadata: {
+      orderId: complaint.orderId,
+      productId: complaint.productId,
+      productName: complaint.productName,
+      complaintId: complaint.id,
+      requestType: complaint.requestType,
+      complaintStatus: complaint.status,
+      customerName: complaint.customerName,
+      customerPhone: complaint.customerPhone,
+      customerEmail: complaint.customerEmail,
+      imageUrl: complaint.photos?.[0]?.url,
+    },
+  };
+}
+
+/**
+ * Builds a customer notification when an order's delivery/fulfillment status is updated.
+ */
+export function buildOrderStatusNotification(
+  orderId: string,
+  customerName: string,
+  recipientId: string,
+  status: string
+): AppNotification {
+  const now = Date.now();
+  const statusLabel = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Updated';
+  return {
+    id: `notif-ord-${orderId}-${status}-${now}`,
+    recipientId: recipientId || 'all',
+    type: 'order_status',
+    category: 'orders',
+    title: `Order #${orderId} Update: ${statusLabel}`,
+    message: `Hi ${customerName || 'Valued Customer'}, your Cotton Nest order #${orderId} status is now "${statusLabel}".`,
+    timestamp: now,
+    isRead: false,
+    linkTarget: {
+      view: 'orders',
+      targetId: orderId,
+    },
+    metadata: {
+      orderId,
+      customerName,
+    },
   };
 }
 

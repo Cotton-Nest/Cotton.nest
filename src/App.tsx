@@ -697,6 +697,33 @@ export default function App() {
     setStockAlertProduct(product);
   };
 
+  const refreshNotifications = React.useCallback(async () => {
+    try {
+      const recipientKey = user?.email || user?.phone || customerProfile.email || customerProfile.phone || undefined;
+      const merged = await getNotificationsApi(recipientKey, isOwnerMode);
+      if (Array.isArray(merged) && merged.length > 0) {
+        setNotifications(merged);
+      }
+    } catch {}
+  }, [user?.email, user?.phone, customerProfile.email, customerProfile.phone, isOwnerMode]);
+
+  useEffect(() => {
+    refreshNotifications();
+    const handleNotifEvent = () => {
+      refreshNotifications();
+    };
+    window.addEventListener('cotton-nest-notifications-updated', handleNotifEvent);
+    return () => {
+      window.removeEventListener('cotton-nest-notifications-updated', handleNotifEvent);
+    };
+  }, [refreshNotifications]);
+
+  useEffect(() => {
+    if (isNotificationCenterOpen) {
+      refreshNotifications();
+    }
+  }, [isNotificationCenterOpen, refreshNotifications]);
+
   const handleMarkNotificationAsRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
@@ -871,7 +898,27 @@ export default function App() {
       }
     );
 
-    // 4. Authoritative Orders listener from Firestore
+    // Initial fetch from merged Express + Firestore + local orders
+    getOrders()
+      .then((merged) => {
+        if (Array.isArray(merged) && merged.length > 0) {
+          setOrders((prev) => {
+            const byId = new Map<string, Order>();
+            for (const o of merged) {
+              if (o && o.id) byId.set(o.id, o);
+            }
+            for (const o of prev) {
+              if (o && o.id && !byId.has(o.id)) byId.set(o.id, o);
+            }
+            return Array.from(byId.values()).sort(
+              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            );
+          });
+        }
+      })
+      .catch(() => {});
+
+    // 4. Authoritative Orders listener from Firestore (merged with Express /api/orders)
     const unsubOrders = onSnapshot(
       collection(db, 'orders'),
       (snapshot) => {
@@ -892,8 +939,24 @@ export default function App() {
               createdAt: raw.createdAt || new Date().toISOString(),
             });
           });
-          loadedOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-          setOrders(loadedOrders);
+          getOrders()
+            .then((apiMerged) => {
+              const byId = new Map<string, Order>();
+              for (const o of loadedOrders) {
+                if (o && o.id) byId.set(o.id, o);
+              }
+              for (const o of apiMerged) {
+                if (o && o.id && !byId.has(o.id)) byId.set(o.id, o);
+              }
+              const combined = Array.from(byId.values()).sort(
+                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              );
+              setOrders(combined);
+            })
+            .catch(() => {
+              loadedOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+              setOrders(loadedOrders);
+            });
         }
       },
       (error) => {

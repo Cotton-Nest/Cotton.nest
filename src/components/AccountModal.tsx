@@ -49,6 +49,8 @@ import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/produ
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, setDefaultAddress, formatFullAddress } from '../data/addresses';
+import { OrderComplaintSection } from './OrderComplaintSection';
+import { getOrders } from '../services/api';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -130,11 +132,18 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     isDefault: false,
   });
 
+  const [fetchedOrders, setFetchedOrders] = useState<Order[]>([]);
+
   useEffect(() => {
     if (isOpen) {
       setAddressBook(getSavedAddresses(customerProfile, userKey));
+      getOrders()
+        .then((res) => {
+          if (Array.isArray(res)) setFetchedOrders(res);
+        })
+        .catch(() => {});
     }
-  }, [isOpen, customerProfile, userKey]);
+  }, [isOpen, customerProfile, userKey, activeTab]);
 
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
@@ -251,8 +260,20 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     setIsAddingNewAddress(false);
   };
 
+  // Merge props.orders and fetchedOrders
+  const mergedOrdersMap = new Map<string, Order>();
+  for (const o of fetchedOrders) {
+    if (o && o.id) mergedOrdersMap.set(o.id, o);
+  }
+  for (const o of orders) {
+    if (o && o.id && !mergedOrdersMap.has(o.id)) mergedOrdersMap.set(o.id, o);
+  }
+  const allMergedOrders = Array.from(mergedOrdersMap.values()).sort(
+    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+  );
+
   // Filter orders relevant to this user/phone/email
-  const customerOrders = orders.filter((o) => {
+  const customerOrders = allMergedOrders.filter((o) => {
     if (user?.email && o.customerEmail?.toLowerCase() === user.email.toLowerCase()) return true;
     if (customerProfile?.phone && o.customerPhone === customerProfile.phone) return true;
     return true; // fallback to show recent store orders
@@ -339,6 +360,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
               <button
                 key={tab.id}
                 type="button"
+                data-testid={`account-tab-${tab.id}`}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`px-3 py-1.5 rounded-xl whitespace-nowrap font-medium transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border ${
                   isActive
@@ -1055,6 +1077,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                           <span>WhatsApp Order Support</span>
                         </a>
                       </div>
+
+                      {/* Return / Exchange / Complaint & Customer Tracking under every order card */}
+                      <OrderComplaintSection order={order} compact />
                     </div>
                   ))}
                 </div>

@@ -23,6 +23,18 @@ import {
 } from './src/data/loyalty.ts';
 import { generateProductDescription } from './api/ai-description.ts';
 import { sendOtpEmail, verifyOtp } from './api/otp-service.ts';
+import {
+  OrderComplaint,
+  validateComplaintSubmission,
+  applyAdminComplaintUpdate,
+  normalizePhoneDigits,
+} from './src/data/complaints.ts';
+import {
+  AppNotification,
+  INITIAL_CUSTOMER_NOTIFICATIONS,
+  buildComplaintNotificationForCustomer,
+  buildComplaintNotificationForAdmin,
+} from './src/data/notifications.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +49,8 @@ const DB_FILE = path.join(DATA_DIR, 'store_db.json');
 interface StoreDatabase {
   products: any[];
   orders: any[];
+  complaints?: OrderComplaint[];
+  notifications?: AppNotification[];
   siteContent: any;
   theme?: any;
   reviews?: any[];
@@ -110,6 +124,14 @@ function initDatabase(): StoreDatabase {
           parsed.loyaltyTransactions = [];
           needsSave = true;
         }
+        if (!parsed.complaints || !Array.isArray(parsed.complaints)) {
+          parsed.complaints = [];
+          needsSave = true;
+        }
+        if (!parsed.notifications || !Array.isArray(parsed.notifications)) {
+          parsed.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+          needsSave = true;
+        }
         if (needsSave) {
           try {
             fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
@@ -128,6 +150,8 @@ function initDatabase(): StoreDatabase {
   const initialDb: StoreDatabase = {
     products: BEDSHEETS_CATALOG,
     orders: INITIAL_ORDERS,
+    complaints: [],
+    notifications: [...INITIAL_CUSTOMER_NOTIFICATIONS],
     siteContent: INITIAL_SITE_CONTENT,
     reviews: INITIAL_REVIEWS,
     seasonalConfig: INITIAL_SEASONAL_CONFIG,
@@ -304,11 +328,18 @@ async function startServer() {
 
       const query = req.query || {};
       const body = req.body || {};
-      const productId = (query.productId || body.productId || '').trim();
-      const explicitPublicId = (query.public_id || body.public_id || '').trim();
+      const productId = String(query.productId || body.productId || '').trim();
+      const orderId = String(query.orderId || body.orderId || '').trim();
+      const requestedFolder = String(query.folder || body.folder || '').trim();
+      const explicitPublicId = String(query.public_id || body.public_id || '').trim();
 
       const timestamp = Math.round(new Date().getTime() / 1000);
-      const folder = 'cotton_nest/bedsheets';
+      const folder =
+        requestedFolder && requestedFolder.startsWith('cotton_nest/')
+          ? requestedFolder
+          : orderId
+          ? 'cotton_nest/complaints'
+          : 'cotton_nest/bedsheets';
 
       const paramsToSign: Record<string, any> = {
         folder,
@@ -318,6 +349,12 @@ async function startServer() {
       let assignedPublicId: string | undefined;
       if (explicitPublicId) {
         assignedPublicId = explicitPublicId;
+        paramsToSign.public_id = assignedPublicId;
+      } else if (orderId && productId) {
+        const safeOrder = orderId.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const safeProd = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const randSuffix = Math.random().toString(36).slice(2, 6);
+        assignedPublicId = `complaint_${safeOrder}_${safeProd}_${timestamp}_${randSuffix}`;
         paramsToSign.public_id = assignedPublicId;
       } else if (productId) {
         const sanitizedId = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
@@ -354,6 +391,16 @@ async function startServer() {
         }
 
         const productId = String(req.query.productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_');
+        const orderId = String(req.query.orderId || '').replace(/[^a-zA-Z0-9-_]/g, '_');
+        const requestedFolder = String(req.query.folder || '').trim();
+        const explicitPublicId = String(req.query.public_id || '').replace(/[^a-zA-Z0-9-_]/g, '_');
+        const targetFolder =
+          requestedFolder && requestedFolder.startsWith('cotton_nest/')
+            ? requestedFolder
+            : orderId
+            ? 'cotton_nest/complaints'
+            : 'cotton_nest/bedsheets';
+
         const mime = String(req.headers['content-type'] || '').toLowerCase();
         const isVideo =
           req.query.resource_type === 'video' ||
@@ -371,7 +418,12 @@ async function startServer() {
           else ext = 'jpg';
         }
 
-        const filename = `sheet_${productId}_${Date.now()}.${ext}`;
+        const basePublicId =
+          explicitPublicId ||
+          (orderId
+            ? `complaint_${orderId}_${productId}_${Date.now()}`
+            : `sheet_${productId}_${Date.now()}`);
+        const filename = `${basePublicId}.${ext}`;
         const filepath = path.join(UPLOADS_DIR, filename);
         await fs.promises.writeFile(filepath, buffer);
 
@@ -380,15 +432,23 @@ async function startServer() {
         if (config) {
           try {
             const result = await cloudinary.uploader.upload(filepath, {
-              folder: 'cotton_nest/bedsheets',
+              folder: targetFolder,
               resource_type: isVideo ? 'video' : 'auto',
               overwrite: true,
-              public_id: `sheet_${productId}_${Date.now()}`,
+              public_id: basePublicId,
+              tags: [
+                'cotton_nest',
+                ...(orderId ? ['complaint', `order_${orderId}`] : []),
+                `product_${productId}`,
+              ],
             });
             if (result?.secure_url) {
               return res.json({
                 url: result.secure_url,
                 public_id: result.public_id,
+                width: result.width,
+                height: result.height,
+                format: result.format,
                 provider: 'cloudinary',
                 resource_type: result.resource_type || (isVideo ? 'video' : 'image'),
               });
@@ -400,6 +460,7 @@ async function startServer() {
 
         return res.json({
           url: `/uploads/${filename}`,
+          public_id: `${targetFolder}/${basePublicId}`,
           provider: 'server',
           resource_type: isVideo ? 'video' : 'image',
         });
@@ -413,7 +474,7 @@ async function startServer() {
   // Dedicated media (image & video) upload API with primary Cloudinary support
   app.post('/api/upload', async (req, res) => {
     try {
-      const { image, media, productId, public_id, resource_type } = req.body || {};
+      const { image, media, productId, orderId, folder: reqFolder, public_id, resource_type } = req.body || {};
       const mediaData = media || image;
       if (!mediaData || typeof mediaData !== 'string') {
         return res.status(400).json({ error: 'Media data is required' });
@@ -421,22 +482,46 @@ async function startServer() {
 
       // If already a Cloudinary URL or remote HTTPS URL, return directly
       if (mediaData.startsWith('https://res.cloudinary.com/') || mediaData.startsWith('http://') || mediaData.startsWith('https://')) {
-        return res.json({ url: mediaData, provider: 'cloudinary' });
+        return res.json({
+          url: mediaData,
+          public_id: public_id || `cotton_nest/external_${Date.now()}`,
+          provider: 'cloudinary',
+        });
       }
 
       const isVideo = resource_type === 'video' ||
         mediaData.startsWith('data:video/') ||
         /\.(mp4|webm|mov|m4v|ogg)($|\?)/i.test(mediaData);
 
+      const safeProductId = String(productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_');
+      const safeOrderId = String(orderId || '').replace(/[^a-zA-Z0-9-_]/g, '_');
+      const targetFolder =
+        typeof reqFolder === 'string' && reqFolder.startsWith('cotton_nest/')
+          ? reqFolder
+          : safeOrderId
+          ? 'cotton_nest/complaints'
+          : 'cotton_nest/bedsheets';
+
+      const basePublicId =
+        (public_id && String(public_id).replace(/[^a-zA-Z0-9-_]/g, '_')) ||
+        (safeOrderId
+          ? `complaint_${safeOrderId}_${safeProductId}_${Date.now()}`
+          : `sheet_${safeProductId}_${Date.now()}`);
+
       // Try uploading to Cloudinary first
       const config = initCloudinary();
       if (config) {
         try {
           const uploadOptions: any = {
-            folder: 'cotton_nest/bedsheets',
+            folder: targetFolder,
             resource_type: isVideo ? 'video' : 'auto',
             overwrite: true,
-            tags: ['cotton_nest', productId ? `product_${productId}` : 'general_sheet'],
+            public_id: basePublicId,
+            tags: [
+              'cotton_nest',
+              ...(safeOrderId ? ['complaint', `order_${safeOrderId}`] : []),
+              productId ? `product_${productId}` : 'general_sheet',
+            ],
           };
 
           if (!isVideo) {
@@ -444,13 +529,6 @@ async function startServer() {
               { quality: 'auto:good' },
               { fetch_format: 'auto' }
             ];
-          }
-
-          if (public_id) {
-            uploadOptions.public_id = public_id;
-          } else if (productId) {
-            const sanitized = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
-            uploadOptions.public_id = `sheet_${sanitized}_${Date.now()}`;
           }
 
           const result = await cloudinary.uploader.upload(mediaData, uploadOptions);
@@ -476,7 +554,6 @@ async function startServer() {
         const mimeMain = header.split(';')[0] || '';
         const [mediaKind, rawSubtype] = mimeMain.split('/');
         const base64Payload = mediaData.slice(markerIdx + base64Marker.length);
-        const safeProductId = (productId || 'custom').replace(/[^a-zA-Z0-9-_]/g, '_');
 
         if (mediaKind === 'video' || isVideo) {
           let ext = 'mp4';
@@ -485,11 +562,12 @@ async function startServer() {
           else if (rawSubtype === 'ogg' || rawSubtype === 'ogv') ext = 'ogg';
           else if (rawSubtype === 'x-m4v' || rawSubtype === 'm4v') ext = 'm4v';
 
-          const filename = `sheet_${safeProductId}_${Date.now()}.${ext}`;
+          const filename = `${basePublicId}.${ext}`;
           const filepath = path.join(UPLOADS_DIR, filename);
           await fs.promises.writeFile(filepath, Buffer.from(base64Payload, 'base64'));
           return res.json({
             url: `/uploads/${filename}`,
+            public_id: `${targetFolder}/${basePublicId}`,
             provider: 'server',
             resource_type: 'video',
           });
@@ -500,11 +578,12 @@ async function startServer() {
         else if (rawSubtype === 'webp') ext = 'webp';
         else if (rawSubtype === 'gif') ext = 'gif';
 
-        const filename = `sheet_${safeProductId}_${Date.now()}.${ext}`;
+        const filename = `${basePublicId}.${ext}`;
         const filepath = path.join(UPLOADS_DIR, filename);
         await fs.promises.writeFile(filepath, Buffer.from(base64Payload, 'base64'));
         return res.json({
           url: `/uploads/${filename}`,
+          public_id: `${targetFolder}/${basePublicId}`,
           provider: 'server',
           resource_type: 'image',
         });
@@ -526,7 +605,11 @@ async function startServer() {
       }
 
       // Security check: only allow deletion within store folders
-      if (!public_id.includes('cotton_nest') && !public_id.startsWith('sheet_')) {
+      if (
+        !public_id.includes('cotton_nest') &&
+        !public_id.startsWith('sheet_') &&
+        !public_id.startsWith('complaint_')
+      ) {
         return res.status(403).json({ error: 'Cannot delete assets outside store folder' });
       }
 
@@ -829,6 +912,32 @@ async function startServer() {
       timeline: updatedTimeline,
     };
 
+    // If status changed on order, record an order status notification
+    if (newStatus && newStatus !== previousOrder.status) {
+      if (!db.notifications) db.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+      const orderNotif: AppNotification = {
+        id: `notif-order-${id}-${newStatus}-${Date.now()}`,
+        recipientId: previousOrder.customerEmail || previousOrder.customerPhone || 'all',
+        type: 'order_status',
+        category: 'orders',
+        title: `Order #${id} Updated: ${String(newStatus).toUpperCase()}`,
+        message: `Your Cotton Nest order #${id} is now ${newStatus}.`,
+        timestamp: Date.now(),
+        isRead: false,
+        linkTarget: {
+          view: 'orders',
+          targetId: id,
+        },
+        metadata: {
+          orderId: id,
+          customerName: previousOrder.customerName,
+          customerPhone: previousOrder.customerPhone,
+          customerEmail: previousOrder.customerEmail,
+        },
+      };
+      db.notifications.unshift(orderNotif);
+    }
+
     saveDatabase();
     res.json(db.orders[index]);
   });
@@ -839,6 +948,201 @@ async function startServer() {
     saveDatabase();
     res.json({ success: true, id });
   });
+
+  /* ------------------- NOTIFICATIONS API ------------------- */
+  app.get('/api/notifications', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.notifications) db.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+    const sorted = [...db.notifications].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    res.json(sorted);
+  });
+
+  app.post('/api/notifications', (req, res) => {
+    if (!db.notifications) db.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+    const notif = req.body as AppNotification;
+    if (!notif || !notif.id || !notif.title) {
+      return res.status(400).json({ error: 'Valid notification object is required.' });
+    }
+    const stamped: AppNotification = {
+      ...notif,
+      timestamp: notif.timestamp || Date.now(),
+      isRead: Boolean(notif.isRead),
+    };
+    const idx = db.notifications.findIndex((n) => n.id === stamped.id);
+    if (idx >= 0) {
+      db.notifications[idx] = stamped;
+    } else {
+      db.notifications.unshift(stamped);
+    }
+    saveDatabase();
+    return res.status(201).json(stamped);
+  });
+
+  app.patch('/api/notifications/:id', (req, res) => {
+    if (!db.notifications) db.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+    const { id } = req.params;
+    const idx = db.notifications.findIndex((n) => n.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Notification not found.' });
+    }
+    db.notifications[idx] = {
+      ...db.notifications[idx],
+      ...req.body,
+    };
+    saveDatabase();
+    return res.json(db.notifications[idx]);
+  });
+
+  app.post('/api/notifications/mark-all-read', (_req, res) => {
+    if (!db.notifications) db.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+    db.notifications = db.notifications.map((n) => ({ ...n, isRead: true }));
+    saveDatabase();
+    return res.json({ success: true });
+  });
+
+  app.delete('/api/notifications', (_req, res) => {
+    db.notifications = [];
+    saveDatabase();
+    return res.json({ success: true });
+  });
+
+  /* ------------------- RETURN / EXCHANGE / COMPLAINTS API ------------------- */
+
+  // 1. Get complaints (all for admin, or filtered by orderId / customer identity)
+  app.get('/api/complaints', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.complaints) db.complaints = [];
+
+    const { orderId, email, phone, userId } = req.query as Record<string, string | undefined>;
+    let list = [...db.complaints];
+
+    if (orderId) {
+      const targetOrder = orderId.trim().toLowerCase();
+      list = list.filter((c) => c.orderId?.toLowerCase() === targetOrder);
+      return res.json(
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      );
+    }
+
+    if (email || phone || userId) {
+      const cleanEmail = email ? email.trim().toLowerCase() : '';
+      const cleanPhone = normalizePhoneDigits(phone);
+      const cleanUserId = userId ? userId.trim() : '';
+
+      list = list.filter((c) => {
+        const cEmail = c.customerEmail ? c.customerEmail.trim().toLowerCase() : '';
+        const cPhone = normalizePhoneDigits(c.customerPhone);
+        const cUserId = c.userId ? c.userId.trim() : '';
+
+        const matchesEmail = Boolean(cleanEmail && cEmail && cEmail === cleanEmail);
+        const matchesPhone = Boolean(cleanPhone && cPhone && cPhone === cleanPhone);
+        const matchesUserId = Boolean(cleanUserId && cUserId && cUserId === cleanUserId);
+
+        return matchesEmail || matchesPhone || matchesUserId;
+      });
+    }
+
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    res.json(list);
+  });
+
+  // 2. Submit a new Return / Exchange / Product Complaint (verifies order ownership & product membership)
+  app.post('/api/complaints', (req, res) => {
+    try {
+      if (!db.complaints) db.complaints = [];
+      if (!db.notifications) db.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+      const payload = req.body || {};
+      const orderId = String(payload.orderId || '').trim();
+
+      if (!orderId) {
+        return res.status(400).json({ error: 'Original orderId is required.' });
+      }
+
+      // Find original order in server DB, or hydrate from orderSnapshot if order was created in Firestore
+      let order = db.orders.find((o) => o.id?.toLowerCase() === orderId.toLowerCase());
+      if (!order && payload.orderSnapshot && payload.orderSnapshot.id === orderId) {
+        order = payload.orderSnapshot;
+        db.orders.unshift(order);
+      }
+
+      const validation = validateComplaintSubmission(payload, order);
+      if (!validation.valid || !validation.complaint) {
+        return res.status(400).json({
+          error: validation.error || 'Complaint validation failed.',
+        });
+      }
+
+      const newComplaint = validation.complaint;
+
+      // Replace if same complaint ID was retried, otherwise prepend
+      const existingIdx = db.complaints.findIndex((c) => c.id === newComplaint.id);
+      if (existingIdx >= 0) {
+        db.complaints[existingIdx] = newComplaint;
+      } else {
+        db.complaints.unshift(newComplaint);
+      }
+
+      // Automatically record customer and admin notifications on submission
+      const customerNotif = buildComplaintNotificationForCustomer(newComplaint, 'submitted');
+      const adminNotif = buildComplaintNotificationForAdmin(newComplaint);
+      db.notifications.unshift(customerNotif);
+      db.notifications.unshift(adminNotif);
+
+      saveDatabase();
+      return res.status(201).json(newComplaint);
+    } catch (err: any) {
+      console.error('Error creating complaint:', err);
+      return res.status(500).json({ error: err.message || 'Failed to submit complaint.' });
+    }
+  });
+
+  // 3. Admin Update Complaint Status & Response
+  const handleUpdateComplaint = (req: express.Request, res: express.Response) => {
+    try {
+      if (!db.complaints) db.complaints = [];
+      if (!db.notifications) db.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+      const { id } = req.params;
+      const body = req.body || {};
+
+      let existingIdx = db.complaints.findIndex((c) => c.id === id);
+      if (existingIdx === -1 && body.complaintSnapshot && body.complaintSnapshot.id === id) {
+        db.complaints.unshift(body.complaintSnapshot);
+        existingIdx = 0;
+      }
+
+      if (existingIdx === -1) {
+        return res.status(404).json({ error: 'Complaint record not found.' });
+      }
+
+      const updateResult = applyAdminComplaintUpdate(db.complaints[existingIdx], {
+        status: body.status,
+        adminResponse: body.adminResponse,
+        respondedBy: body.respondedBy,
+      });
+
+      if (!updateResult.valid || !updateResult.complaint) {
+        return res.status(400).json({ error: updateResult.error || 'Invalid status update.' });
+      }
+
+      db.complaints[existingIdx] = updateResult.complaint;
+
+      // Automatically record a customer notification when admin updates status or responds
+      const customerUpdateNotif = buildComplaintNotificationForCustomer(
+        updateResult.complaint,
+        'admin_update'
+      );
+      db.notifications.unshift(customerUpdateNotif);
+
+      saveDatabase();
+      return res.json(updateResult.complaint);
+    } catch (err: any) {
+      console.error('Error updating complaint:', err);
+      return res.status(500).json({ error: err.message || 'Failed to update complaint.' });
+    }
+  };
+
+  app.patch('/api/complaints/:id', handleUpdateComplaint);
+  app.put('/api/complaints/:id', handleUpdateComplaint);
 
   // Site Content API
   app.get('/api/content', (_req, res) => {

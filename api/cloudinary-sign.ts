@@ -103,6 +103,20 @@ export default async function handler(req: any, res: any) {
       ''
     ).trim();
 
+    const orderId = (
+      query.orderId ||
+      urlSearchParams?.get('orderId') ||
+      (body as any).orderId ||
+      ''
+    ).trim();
+
+    const requestedFolder = (
+      query.folder ||
+      urlSearchParams?.get('folder') ||
+      (body as any).folder ||
+      ''
+    ).trim();
+
     const explicitPublicId = (
       query.public_id ||
       urlSearchParams?.get('public_id') ||
@@ -111,7 +125,12 @@ export default async function handler(req: any, res: any) {
     ).trim();
 
     const timestamp = Math.round(new Date().getTime() / 1000);
-    const folder = 'cotton_nest/bedsheets';
+    const folder =
+      requestedFolder && requestedFolder.startsWith('cotton_nest/')
+        ? requestedFolder
+        : orderId
+        ? 'cotton_nest/complaints'
+        : 'cotton_nest/bedsheets';
 
     const paramsToSign: Record<string, any> = {
       folder,
@@ -121,6 +140,12 @@ export default async function handler(req: any, res: any) {
     let assignedPublicId: string | undefined;
     if (explicitPublicId) {
       assignedPublicId = explicitPublicId;
+      paramsToSign.public_id = assignedPublicId;
+    } else if (orderId && productId) {
+      const safeOrder = orderId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const safeProd = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const randSuffix = Math.random().toString(36).slice(2, 6);
+      assignedPublicId = `complaint_${safeOrder}_${safeProd}_${timestamp}_${randSuffix}`;
       paramsToSign.public_id = assignedPublicId;
     } else if (productId) {
       const sanitizedId = productId.replace(/[^a-zA-Z0-9-_]/g, '_');

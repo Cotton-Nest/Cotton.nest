@@ -11,8 +11,34 @@ export async function compressImage(
   quality = 0.82
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let rawDataUrlFallback = typeof input === 'string' ? input : '';
+
+    const finishResolve = (val: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(val);
+    };
+
+    const finishReject = (err: any) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (rawDataUrlFallback) {
+        resolve(rawDataUrlFallback);
+      } else {
+        reject(err);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      if (!settled && rawDataUrlFallback) {
+        finishResolve(rawDataUrlFallback);
+      }
+    }, 1500);
+
     const img = new Image();
-    img.crossOrigin = 'anonymous';
 
     img.onload = () => {
       let { width, height } = img;
@@ -28,46 +54,52 @@ export async function compressImage(
       }
 
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, width);
-      canvas.height = Math.max(1, height);
+      canvas.width = Math.max(1, width || 1);
+      canvas.height = Math.max(1, height || 1);
 
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        resolve(typeof input === 'string' ? input : '');
+        finishResolve(rawDataUrlFallback);
         return;
       }
 
-      // Smooth resizing
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
       try {
         const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedDataUrl);
+        finishResolve(compressedDataUrl || rawDataUrlFallback);
       } catch (e) {
-        if (typeof input === 'string') resolve(input);
-        else reject(e);
+        finishReject(e);
       }
     };
 
     img.onerror = (err) => {
-      if (typeof input === 'string') resolve(input);
-      else reject(err);
+      finishReject(err);
     };
 
     if (typeof input === 'string') {
+      if (input.startsWith('http://') || input.startsWith('https://')) {
+        img.crossOrigin = 'anonymous';
+      }
       img.src = input;
     } else {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
+          rawDataUrlFallback = reader.result;
+          // If file is already compact (< 500KB), skip canvas re-encoding for instant upload
+          if (input.size <= 500 * 1024) {
+            finishResolve(reader.result);
+            return;
+          }
           img.src = reader.result;
         } else {
-          reject(new Error('Failed to read file'));
+          finishReject(new Error('Failed to read file'));
         }
       };
-      reader.onerror = reject;
+      reader.onerror = finishReject;
       reader.readAsDataURL(input);
     }
   });

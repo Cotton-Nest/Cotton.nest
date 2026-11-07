@@ -55,6 +55,7 @@ import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '.
 import { AdminCouponsSection } from './AdminCouponsSection';
 import { AdminNotificationsSection } from './AdminNotificationsSection';
 import { AdminWishlistsSection } from './AdminWishlistsSection';
+import { AdminComplaintsSubsection } from './AdminComplaintsSubsection';
 import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
 import {
@@ -332,6 +333,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Orders local state & filter
   const [editableOrders, setEditableOrders] = useState<Order[]>(orders);
+  const [ordersSubsection, setOrdersSubsection] = useState<'orders' | 'complaints'>('orders');
   const [orderFilter, setOrderFilter] = useState<OrderStatus | 'all'>('all');
   const [orderSearch, setOrderSearch] = useState('');
   const [deleteConfirmationProduct, setDeleteConfirmationProduct] = useState<BedsheetProduct | null>(null);
@@ -3730,7 +3732,63 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {/* ======================================================== */}
         {activeAdminTab === 'orders' && (
           <div className="space-y-6">
-            
+            {/* Orders vs. Complaints Subsection Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-[#FAF6F0] border border-[#DEC89B]">
+              <div>
+                <h2 className="font-serif-luxury text-xl font-bold text-[#2C2420]">
+                  {ordersSubsection === 'orders'
+                    ? 'Customer Orders & Dispatch'
+                    : 'Customer Complaints · Returns & Exchanges'}
+                </h2>
+                <p className="text-xs text-[#6B5D55]">
+                  {ordersSubsection === 'orders'
+                    ? 'Manage live customer orders, dispatch statuses, and WhatsApp notifications.'
+                    : 'Review customer Return, Exchange, and Product Complaint requests with uploaded Cloudinary defect photos.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  data-testid="admin-orders-subtab-orders"
+                  onClick={() => setOrdersSubsection('orders')}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer border ${
+                    ordersSubsection === 'orders'
+                      ? 'bg-[#5E1924] text-[#FAF6F0] border-[#C5A059] shadow-xs'
+                      : 'bg-white text-[#2C2420] border-[#DEC89B] hover:bg-[#FAF6F0]'
+                  }`}
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 text-[#C5A059]" />
+                  <span>Orders ({editableOrders.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="admin-orders-subtab-complaints"
+                  onClick={() => setOrdersSubsection('complaints')}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer border ${
+                    ordersSubsection === 'complaints'
+                      ? 'bg-[#5E1924] text-[#FAF6F0] border-[#C5A059] shadow-xs'
+                      : 'bg-white text-[#2C2420] border-[#DEC89B] hover:bg-[#FAF6F0]'
+                  }`}
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-[#C5A059]" />
+                  <span>Complaints</span>
+                </button>
+              </div>
+            </div>
+
+            {ordersSubsection === 'complaints' ? (
+              <AdminComplaintsSubsection
+                orders={editableOrders}
+                onShowToast={showToast}
+                onJumpToOrder={(targetOrderId) => {
+                  setOrdersSubsection('orders');
+                  setOrderSearch(targetOrderId);
+                }}
+              />
+            ) : (
+              <>
             {/* Orders Metric Row */}
             <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
@@ -4018,6 +4076,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               )}
             </section>
+              </>
+            )}
 
           </div>
         )}

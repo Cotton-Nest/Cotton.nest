@@ -364,7 +364,254 @@
       "stockQuantity": 15
     }
   ],
-  "orders": [],
+  "orders": [
+    {
+      "id": "CN-892410",
+      "createdAt": "2026-11-05T06:00:49.216Z",
+      "customerName": "Aarav Sharma",
+      "customerPhone": "9876543210",
+      "customerEmail": "aarav@example.com",
+      "userId": "usr_test_customer_1",
+      "customerAddress": "House 2508, Sector 46, Gurgaon, Haryana - 122003",
+      "paymentMethod": "whatsapp",
+      "totalAmount": 2790,
+      "totalSavings": 400,
+      "status": "delivered",
+      "items": [
+        {
+          "productId": "sheet-jaipuri-1",
+          "productName": "Royal Jaipuri Floral - Crimson Gold",
+          "productImage": "/images/exact_sheet1_pink_rose_1790997736396.jpg",
+          "dimensions": "108 x 108 inches (King Size)",
+          "price": 1395,
+          "quantity": 1
+        },
+        {
+          "productId": "sheet-linen-2",
+          "productName": "Ivory Botanical Breeze - Sage Leaf",
+          "productImage": "/images/exact_sheet2_white_floral_1790997740050.jpg",
+          "dimensions": "90 x 100 inches (Queen)",
+          "price": 1395,
+          "quantity": 1
+        }
+      ],
+      "timeline": [
+        {
+          "status": "delivered",
+          "timestamp": "2026-11-07T06:00:49.219Z",
+          "title": "Order Placed",
+          "description": "Order received at Cotton Nest Atelier, Sector 46 Gurgaon."
+        }
+      ],
+      "trackingNumber": "CN-TRK-279192"
+    },
+    {
+      "id": "CN-892410",
+      "createdAt": "2026-11-05T05:58:25.313Z",
+      "customerName": "Aarav Sharma",
+      "customerPhone": "9876543210",
+      "customerEmail": "aarav@example.com",
+      "userId": "usr_test_customer_1",
+      "customerAddress": "House 2508, Sector 46, Gurgaon, Haryana - 122003",
+      "paymentMethod": "whatsapp",
+      "totalAmount": 2790,
+      "totalSavings": 400,
+      "status": "delivered",
+      "items": [
+        {
+          "productId": "sheet-jaipuri-1",
+          "productName": "Royal Jaipuri Floral - Crimson Gold",
+          "productImage": "/images/exact_sheet1_pink_rose_1790997736396.jpg",
+          "dimensions": "108 x 108 inches (King Size)",
+          "price": 1395,
+          "quantity": 1
+        },
+        {
+          "productId": "sheet-linen-2",
+          "productName": "Ivory Botanical Breeze - Sage Leaf",
+          "productImage": "/images/exact_sheet2_white_floral_1790997740050.jpg",
+          "dimensions": "90 x 100 inches (Queen)",
+          "price": 1395,
+          "quantity": 1
+        }
+      ],
+      "timeline": [
+        {
+          "status": "delivered",
+          "timestamp": "2026-11-07T05:58:25.316Z",
+          "title": "Order Placed",
+          "description": "Order received at Cotton Nest Atelier, Sector 46 Gurgaon."
+        }
+      ],
+      "trackingNumber": "CN-TRK-401855"
+    },
+    {
+      "totalAmount": 1035,
+      "couponDiscount": 0,
+      "shippingCost": 0,
+      "pointsCredited": true,
+      "totalSavings": 115,
+      "id": "CN-795749",
+      "status": "delivered",
+      "items": [
+        {
+          "productName": "संस्कृति (Sanskriti)",
+          "price": 1035,
+          "dimensions": "108 x 108 inches (274 x 274 cm)",
+          "quantity": 1,
+          "productId": "bedsheet-mw0si2eu",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1793716521/cotton_nest/bedsheets/sheet_bedsheet-mw0si2eu_1793716517.jpg"
+        }
+      ],
+      "updatedAt": 1794030871218,
+      "customerAddress": "2508, 46, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003",
+      "userId": "y1RXTxbslaYV453HAFazLTB2iOn1",
+      "paymentMethod": "whatsapp",
+      "customerName": "Saurabh",
+      "trackingNumber": "CN-TRK-177343",
+      "customerPhone": "7838625915",
+      "timeline": [
+        {
+          "timestamp": "2026-11-07T05:53:37.225Z",
+          "status": "pending",
+          "description": "Customer initiated order from Cotton Nest storefront.",
+          "title": "Order Placed via WhatsApp"
+        }
+      ],
+      "createdAt": "2026-11-07T05:53:37.225Z",
+      "customerEmail": "saurabh.451485@gmail.com",
+      "pointsEarned": 51
+    },
+    {
+      "customerName": "Saurabh",
+      "pointsEarned": 57,
+      "createdAt": "2026-11-06T15:28:53.850Z",
+      "items": [
+        {
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1793716521/cotton_nest/bedsheets/sheet_bedsheet-mw0si2eu_1793716517.jpg",
+          "dimensions": "108 x 108 inches (274 x 274 cm)",
+          "quantity": 1,
+          "productId": "bedsheet-mw0si2eu",
+          "productName": "संस्कृति (Sanskriti)",
+          "price": 1150
+        }
+      ],
+      "customerAddress": "2508, 46, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003",
+      "paymentMethod": "whatsapp",
+      "totalAmount": 1150,
+      "trackingNumber": "CN-TRK-599120",
+      "customerPhone": "7838625915",
+      "userId": "y1RXTxbslaYV453HAFazLTB2iOn1",
+      "customerEmail": "saurabh.451485@gmail.com",
+      "couponDiscount": 0,
+      "totalSavings": 0,
+      "timeline": [
+        {
+          "description": "Customer initiated order from Cotton Nest storefront.",
+          "status": "pending",
+          "timestamp": "2026-11-06T15:28:53.850Z",
+          "title": "Order Placed via WhatsApp"
+        },
+        {
+          "status": "delivered",
+          "timestamp": "2026-11-07T05:59:24.510Z",
+          "title": "Delivered Successfully",
+          "description": "Package delivered to the customer."
+        }
+      ],
+      "status": "delivered",
+      "pointsCredited": true,
+      "shippingCost": 0,
+      "id": "CN-401356"
+    },
+    {
+      "id": "CN-892410",
+      "customerName": "Aarav Mehta",
+      "customerPhone": "+91 9811223344",
+      "customerEmail": "aarav.mehta@example.com",
+      "customerAddress": "B-402, DLF Phase 4, Gurgaon, Haryana - 122009",
+      "status": "delivered",
+      "totalAmount": 2680,
+      "createdAt": "2026-11-06T12:00:00.000Z",
+      "items": [
+        {
+          "productId": "sheet-royal-rose",
+          "productName": "Nandini Gulabi Bagh Rose (Variant: Blush Rose)",
+          "size": "King",
+          "variantId": "var-blush-rose",
+          "variantName": "Blush Rose",
+          "price": 1320,
+          "quantity": 1,
+          "image": "/images/exact_sheet1_pink_rose_1790997736396.jpg"
+        },
+        {
+          "productId": "sheet-ivory-breeze",
+          "productName": "Nandini Ivory Garland (Variant: Ivory Gold)",
+          "size": "Queen",
+          "variantId": "var-ivory-gold",
+          "variantName": "Ivory Gold",
+          "price": 1360,
+          "quantity": 1,
+          "image": "/images/exact_sheet3_cream_garland_1791246583605.jpg"
+        }
+      ],
+      "timeline": [
+        {
+          "status": "delivered",
+          "timestamp": "2026-11-07T05:37:27.191Z",
+          "title": "Order Placed",
+          "description": "Order received at Cotton Nest Atelier, Sector 46 Gurgaon."
+        }
+      ],
+      "trackingNumber": "CN-TRK-966259"
+    },
+    {
+      "id": "CN-892410",
+      "createdAt": "2026-03-25T10:30:00.000Z",
+      "customerName": "Ananya Verma",
+      "customerPhone": "9811223344",
+      "customerEmail": "ananya.verma@example.com",
+      "userId": "usr_ananya_892",
+      "customerAddress": "Villa 14, Sector 46, Gurgaon, Haryana - 122003",
+      "paymentMethod": "whatsapp",
+      "status": "delivered",
+      "totalAmount": 2640,
+      "totalSavings": 600,
+      "items": [
+        {
+          "productId": "sheet-royal-rose",
+          "productName": "Royal Rose Jaipuri King Bedsheet - Crimson Gold",
+          "productImage": "/images/exact_sheet1_pink_rose_1790997736396.jpg",
+          "dimensions": "108 x 108 inches",
+          "size": "King (108 x 108 in)",
+          "variantId": "var-crimson-gold",
+          "variantName": "Crimson Gold",
+          "price": 1320,
+          "quantity": 1
+        },
+        {
+          "productId": "sheet-ivory-breeze",
+          "productName": "Ivory Botanical Breeze - Sage Leaf",
+          "productImage": "/images/exact_sheet2_white_floral_1790997740050.jpg",
+          "dimensions": "90 x 100 inches",
+          "size": "Queen (90 x 100 in)",
+          "variantId": "var-sage-leaf",
+          "variantName": "Sage Leaf",
+          "price": 1320,
+          "quantity": 1
+        }
+      ],
+      "timeline": [
+        {
+          "status": "delivered",
+          "timestamp": "2026-11-07T04:53:25.471Z",
+          "title": "Order Placed",
+          "description": "Order received at Cotton Nest Atelier, Sector 46 Gurgaon."
+        }
+      ],
+      "trackingNumber": "CN-TRK-192101"
+    }
+  ],
   "siteContent": {
     "company": {
       "name": "Cotton Nest",
@@ -738,7 +985,8 @@
       "pointsBalance": 0,
       "lifetimeEarned": 0,
       "lifetimeSpent": 0,
-      "updatedAt": 1793790618535
+      "updatedAt": 1793790618535,
+      "referralCode": "NEST-GUES346"
     },
     "email_email_email_adityaa.22082011@gmail.com": {
       "id": "email_email_email_adityaa.22082011@gmail.com",
@@ -753,8 +1001,755 @@
       "lifetimeEarned": 0,
       "lifetimeSpent": 0,
       "updatedAt": 1793802714507
+    },
+    "email_email_email_saurabh.451485@gmail.com": {
+      "id": "email_email_email_saurabh.451485@gmail.com",
+      "pointsBalance": 0,
+      "lifetimeEarned": 0,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-EMAI188",
+      "referralCount": 0,
+      "updatedAt": 1794026470059
+    },
+    "phone_9811223344": {
+      "id": "phone_9811223344",
+      "pointsBalance": 0,
+      "lifetimeEarned": 0,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-PHON805",
+      "referralCount": 0,
+      "updatedAt": 1794027270350
+    },
+    "phone_7838625915": {
+      "id": "phone_7838625915",
+      "pointsBalance": 108,
+      "lifetimeEarned": 108,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-PHON312",
+      "referralCount": 0,
+      "updatedAt": 1794031165681,
+      "customerName": "Saurabh",
+      "phone": "7838625915",
+      "email": "saurabh.451485@gmail.com",
+      "userId": "y1RXTxbslaYV453HAFazLTB2iOn1"
+    },
+    "phone_9711189945": {
+      "id": "phone_9711189945",
+      "pointsBalance": 0,
+      "lifetimeEarned": 0,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-PHON252",
+      "referralCount": 0,
+      "updatedAt": 1794031169062
     }
   },
-  "loyaltyTransactions": [],
-  "updatedAt": 1793800787137
+  "loyaltyTransactions": [
+    {
+      "id": "tx_earn_CN-401356_1794031165736",
+      "accountId": "phone_7838625915",
+      "orderId": "CN-401356",
+      "type": "earned",
+      "points": 57,
+      "amountInr": 1150,
+      "description": "Earned on Delivered Order #CN-401356 (5 pts / ₹100)",
+      "createdAt": 1794031165736,
+      "expiresAt": 1825567165736,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_CN-795749_1794030871040",
+      "accountId": "phone_7838625915",
+      "orderId": "CN-795749",
+      "type": "earned",
+      "points": 51,
+      "amountInr": 1035,
+      "description": "Earned on Delivered Order #CN-795749 (5 pts / ₹100)",
+      "createdAt": 1794030871040,
+      "expiresAt": 1825566871040,
+      "status": "credited"
+    }
+  ],
+  "updatedAt": 1793800787137,
+  "complaints": [
+    {
+      "id": "CMP-227644",
+      "orderId": "CN-892410",
+      "userId": "usr_test_customer_1",
+      "customerName": "Aarav Sharma",
+      "customerPhone": "9876543210",
+      "customerEmail": "aarav@example.com",
+      "customerAddress": "House 2508, Sector 46, Gurgaon, Haryana - 122003",
+      "productId": "sheet-linen-2",
+      "productName": "Ivory Botanical Breeze",
+      "productSize": "Queen / Double (90 × 100 in)",
+      "productDimensions": "90 x 100 inches (Queen)",
+      "variantName": "Sage Leaf",
+      "productPrice": 1395,
+      "productQuantity": 1,
+      "requestType": "Product Complaint",
+      "description": "Minor dye mark noticed on one pillow cover of Ivory Botanical Breeze.",
+      "photos": [
+        {
+          "url": "/uploads/complaint_CN-892410_sheet-linen-2_1794031257_vh7v.jpg",
+          "publicId": "cotton_nest/complaints/complaint_CN-892410_sheet-linen-2_1794031257_vh7v",
+          "orderId": "CN-892410",
+          "productId": "sheet-linen-2",
+          "complaintId": "CMP-227644",
+          "uploadedAt": 1794031257489,
+          "format": "jpg"
+        }
+      ],
+      "status": "New",
+      "responseHistory": [
+        {
+          "id": "resp_1794031257611",
+          "status": "New",
+          "message": "Product Complaint request submitted by customer with 1 product photo(s).",
+          "respondedBy": "Customer",
+          "createdAt": "2026-11-07T06:00:57.611Z"
+        }
+      ],
+      "createdAt": "2026-11-07T06:00:57.611Z",
+      "updatedAt": "2026-11-07T06:00:57.611Z"
+    },
+    {
+      "id": "CMP-347383",
+      "orderId": "CN-892410",
+      "userId": "usr_test_customer_1",
+      "customerName": "Aarav Sharma",
+      "customerPhone": "9876543210",
+      "customerEmail": "aarav@example.com",
+      "customerAddress": "House 2508, Sector 46, Gurgaon, Haryana - 122003",
+      "productId": "sheet-jaipuri-1",
+      "productName": "Royal Jaipuri Floral",
+      "productSize": "King (108 × 108 in)",
+      "productDimensions": "108 x 108 inches (King Size)",
+      "variantName": "Crimson Gold",
+      "productPrice": 1395,
+      "productQuantity": 1,
+      "requestType": "Exchange",
+      "description": "Corner border stitching came undone upon unpacking the Royal Jaipuri Floral King bedsheet.",
+      "photos": [
+        {
+          "url": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg",
+          "publicId": "cotton_nest/complaints/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi",
+          "orderId": "CN-892410",
+          "productId": "sheet-jaipuri-1",
+          "complaintId": "CMP-347383",
+          "uploadedAt": 1794031254871,
+          "format": "jpg"
+        }
+      ],
+      "status": "Exchange Processing",
+      "responseHistory": [
+        {
+          "id": "resp_1794031255389",
+          "status": "New",
+          "message": "Exchange request submitted by customer with 1 product photo(s).",
+          "respondedBy": "Customer",
+          "createdAt": "2026-11-07T06:00:55.389Z"
+        },
+        {
+          "id": "resp_1794031568988_8q8f",
+          "status": "Exchange Processing",
+          "message": "Status updated to \"Exchange Processing\" by Cotton Nest Atelier.",
+          "respondedBy": "Cotton Nest Admin",
+          "createdAt": "2026-11-07T06:06:08.988Z"
+        },
+        {
+          "id": "resp_1794031569481_u0bu",
+          "status": "Exchange Processing",
+          "message": "We have inspected your uploaded photo and approved your exchange. A fresh Royal Jaipuri Floral King bedsheet is being dispatched today.",
+          "respondedBy": "Cotton Nest Admin",
+          "createdAt": "2026-11-07T06:06:09.481Z"
+        }
+      ],
+      "createdAt": "2026-11-07T06:00:55.389Z",
+      "updatedAt": "2026-11-07T06:06:09.481Z",
+      "adminResponse": "We have inspected your uploaded photo and approved your exchange. A fresh Royal Jaipuri Floral King bedsheet is being dispatched today."
+    },
+    {
+      "id": "CMP-520336",
+      "orderId": "CN-795749",
+      "userId": "y1RXTxbslaYV453HAFazLTB2iOn1",
+      "customerName": "Saurabh",
+      "customerPhone": "7838625915",
+      "customerEmail": "saurabh.451485@gmail.com",
+      "customerAddress": "2508, 46, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003",
+      "productId": "bedsheet-mw0si2eu",
+      "productName": "संस्कृति (Sanskriti)",
+      "productSize": "King (108 × 108 in)",
+      "productDimensions": "108 x 108 inches (274 x 274 cm)",
+      "variantName": "Signature Classic",
+      "productPrice": 1035,
+      "productQuantity": 1,
+      "requestType": "Exchange",
+      "description": "esdrtfgbhjnkml",
+      "photos": [
+        {
+          "url": "/uploads/complaint_CN-795749_bedsheet-mw0si2eu_1794030969_upsb.jpg",
+          "publicId": "cotton_nest/complaints/complaint_CN-795749_bedsheet-mw0si2eu_1794030969_upsb",
+          "orderId": "CN-795749",
+          "productId": "bedsheet-mw0si2eu",
+          "complaintId": "CMP-520336",
+          "uploadedAt": 1794030969938,
+          "format": "jpg"
+        }
+      ],
+      "status": "Resolved",
+      "responseHistory": [
+        {
+          "id": "resp_1794031015070",
+          "status": "New",
+          "message": "Exchange request submitted by customer with 1 product photo(s).",
+          "respondedBy": "Customer",
+          "createdAt": "2026-11-07T05:56:55.070Z"
+        },
+        {
+          "id": "resp_1794031261612_rajv",
+          "status": "Resolved",
+          "message": "Status updated to \"Resolved\" by Cotton Nest Atelier.",
+          "respondedBy": "Cotton Nest Admin",
+          "createdAt": "2026-11-07T06:01:01.612Z"
+        }
+      ],
+      "createdAt": "2026-11-07T05:56:55.070Z",
+      "updatedAt": "2026-11-07T06:01:01.612Z"
+    },
+    {
+      "id": "CMP-593770",
+      "orderId": "CN-401356",
+      "userId": "y1RXTxbslaYV453HAFazLTB2iOn1",
+      "customerName": "Saurabh",
+      "customerPhone": "7838625915",
+      "customerEmail": "saurabh.451485@gmail.com",
+      "customerAddress": "2508, 46, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003, Gurgaon, Haryana – 122003",
+      "productId": "bedsheet-mw0si2eu",
+      "productName": "संस्कृति (Sanskriti)",
+      "productSize": "King (108 × 108 in)",
+      "productDimensions": "108 x 108 inches (274 x 274 cm)",
+      "variantName": "Signature Classic",
+      "productPrice": 1150,
+      "productQuantity": 1,
+      "requestType": "Exchange",
+      "description": "ykfkf",
+      "photos": [
+        {
+          "url": "/uploads/complaint_CN-401356_bedsheet-mw0si2eu_1794030102_9o20.jpg",
+          "publicId": "cotton_nest/complaints/complaint_CN-401356_bedsheet-mw0si2eu_1794030102_9o20",
+          "orderId": "CN-401356",
+          "productId": "bedsheet-mw0si2eu",
+          "complaintId": "CMP-593770",
+          "uploadedAt": 1794030102476,
+          "format": "jpg"
+        }
+      ],
+      "status": "Resolved",
+      "responseHistory": [
+        {
+          "id": "resp_1794030109956",
+          "status": "New",
+          "message": "Exchange request submitted by customer with 1 product photo(s).",
+          "respondedBy": "Customer",
+          "createdAt": "2026-11-07T05:41:49.956Z"
+        },
+        {
+          "id": "resp_1794030151393_fin4",
+          "status": "New",
+          "message": "we will exchange",
+          "respondedBy": "Cotton Nest Admin",
+          "createdAt": "2026-11-07T05:42:31.393Z"
+        },
+        {
+          "id": "resp_1794031259000_i76b",
+          "status": "Resolved",
+          "message": "we will exchange",
+          "respondedBy": "Cotton Nest Admin",
+          "createdAt": "2026-11-07T06:00:59.000Z"
+        }
+      ],
+      "createdAt": "2026-11-07T05:41:49.956Z",
+      "updatedAt": "2026-11-07T06:00:59.000Z",
+      "adminResponse": "we will exchange"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-cmp-CMP-347383-admin_responded-1794031569619",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Cotton Nest Responded to Your Exchange (#CMP-347383)",
+      "message": "Status: Exchange Processing — \"We have inspected your uploaded photo and approved your exchange. A fresh Royal Jaipuri Floral King bedsheet is being dispatched today.\" (Order #CN-892410 · Royal Jaipuri Floral)",
+      "timestamp": 1794031569619,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-347383",
+        "requestType": "Exchange",
+        "complaintStatus": "Exchange Processing",
+        "adminResponse": "We have inspected your uploaded photo and approved your exchange. A fresh Royal Jaipuri Floral King bedsheet is being dispatched today.",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-347383-admin_update-1794031569481",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Cotton Nest Responded to Your Exchange (#CMP-347383)",
+      "message": "Status: Exchange Processing — \"We have inspected your uploaded photo and approved your exchange. A fresh Royal Jaipuri Floral King bedsheet is being dispatched today.\" (Order #CN-892410 · Royal Jaipuri Floral)",
+      "timestamp": 1794031569481,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-347383",
+        "requestType": "Exchange",
+        "complaintStatus": "Exchange Processing",
+        "adminResponse": "We have inspected your uploaded photo and approved your exchange. A fresh Royal Jaipuri Floral King bedsheet is being dispatched today.",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-347383-status_updated-1794031569180",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Exchange Status Updated: Exchange Processing (#CMP-347383)",
+      "message": "Your exchange request for Royal Jaipuri Floral (Order #CN-892410) has been updated to \"Exchange Processing\".",
+      "timestamp": 1794031569180,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-347383",
+        "requestType": "Exchange",
+        "complaintStatus": "Exchange Processing",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-347383-admin_update-1794031568988",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Exchange Status Updated: Exchange Processing (#CMP-347383)",
+      "message": "Your exchange request for Royal Jaipuri Floral (Order #CN-892410) has been updated to \"Exchange Processing\".",
+      "timestamp": 1794031568988,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-347383",
+        "requestType": "Exchange",
+        "complaintStatus": "Exchange Processing",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-520336-admin_update-1794031261612",
+      "recipientId": "saurabh.451485@gmail.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Exchange Status Updated: Resolved (#CMP-520336)",
+      "message": "Your exchange request for संस्कृति (Sanskriti) (Order #CN-795749) has been updated to \"Resolved\".",
+      "timestamp": 1794031261612,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-795749"
+      },
+      "metadata": {
+        "orderId": "CN-795749",
+        "productId": "bedsheet-mw0si2eu",
+        "productName": "संस्कृति (Sanskriti)",
+        "complaintId": "CMP-520336",
+        "requestType": "Exchange",
+        "complaintStatus": "Resolved",
+        "customerName": "Saurabh",
+        "customerPhone": "7838625915",
+        "customerEmail": "saurabh.451485@gmail.com",
+        "imageUrl": "/uploads/complaint_CN-795749_bedsheet-mw0si2eu_1794030969_upsb.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-593770-admin_update-1794031259000",
+      "recipientId": "saurabh.451485@gmail.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Cotton Nest Responded to Your Exchange (#CMP-593770)",
+      "message": "Status: Resolved — \"we will exchange\" (Order #CN-401356 · संस्कृति (Sanskriti))",
+      "timestamp": 1794031259000,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-401356"
+      },
+      "metadata": {
+        "orderId": "CN-401356",
+        "productId": "bedsheet-mw0si2eu",
+        "productName": "संस्कृति (Sanskriti)",
+        "complaintId": "CMP-593770",
+        "requestType": "Exchange",
+        "complaintStatus": "Resolved",
+        "adminResponse": "we will exchange",
+        "customerName": "Saurabh",
+        "customerPhone": "7838625915",
+        "customerEmail": "saurabh.451485@gmail.com",
+        "imageUrl": "/uploads/complaint_CN-401356_bedsheet-mw0si2eu_1794030102_9o20.jpg"
+      }
+    },
+    {
+      "id": "notif-admin-cmp-CMP-227644-1794031257871",
+      "recipientId": "admin",
+      "type": "admin_complaint",
+      "category": "admin",
+      "title": "New Product Complaint: #CMP-227644 (Order #CN-892410)",
+      "message": "Aarav Sharma submitted a product complaint for Ivory Botanical Breeze with 1 defect photo(s).",
+      "timestamp": 1794031257871,
+      "isRead": false,
+      "linkTarget": {
+        "view": "admin",
+        "targetId": "CMP-227644",
+        "adminTab": "orders"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-linen-2",
+        "productName": "Ivory Botanical Breeze",
+        "complaintId": "CMP-227644",
+        "requestType": "Product Complaint",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-linen-2_1794031257_vh7v.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-227644-submitted-1794031257871",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Product Complaint Request #CMP-227644 Submitted",
+      "message": "Your product complaint request for Ivory Botanical Breeze (Order #CN-892410) has been received. Status: New.",
+      "timestamp": 1794031257871,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-linen-2",
+        "productName": "Ivory Botanical Breeze",
+        "complaintId": "CMP-227644",
+        "requestType": "Product Complaint",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-linen-2_1794031257_vh7v.jpg"
+      }
+    },
+    {
+      "id": "notif-admin-cmp-CMP-227644-1794031257611",
+      "recipientId": "admin",
+      "type": "admin_complaint",
+      "category": "admin",
+      "title": "New Product Complaint: #CMP-227644 (Order #CN-892410)",
+      "message": "Aarav Sharma submitted a product complaint for Ivory Botanical Breeze with 1 defect photo(s).",
+      "timestamp": 1794031257611,
+      "isRead": false,
+      "linkTarget": {
+        "view": "admin",
+        "targetId": "CMP-227644",
+        "adminTab": "orders"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-linen-2",
+        "productName": "Ivory Botanical Breeze",
+        "complaintId": "CMP-227644",
+        "requestType": "Product Complaint",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-linen-2_1794031257_vh7v.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-227644-submitted-1794031257611",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Product Complaint Request #CMP-227644 Submitted",
+      "message": "Your product complaint request for Ivory Botanical Breeze (Order #CN-892410) has been received. Status: New.",
+      "timestamp": 1794031257611,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-linen-2",
+        "productName": "Ivory Botanical Breeze",
+        "complaintId": "CMP-227644",
+        "requestType": "Product Complaint",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-linen-2_1794031257_vh7v.jpg"
+      }
+    },
+    {
+      "id": "notif-admin-cmp-CMP-347383-1794031255529",
+      "recipientId": "admin",
+      "type": "admin_complaint",
+      "category": "admin",
+      "title": "New Exchange: #CMP-347383 (Order #CN-892410)",
+      "message": "Aarav Sharma submitted a exchange for Royal Jaipuri Floral with 1 defect photo(s).",
+      "timestamp": 1794031255529,
+      "isRead": false,
+      "linkTarget": {
+        "view": "admin",
+        "targetId": "CMP-347383",
+        "adminTab": "orders"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-347383",
+        "requestType": "Exchange",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-347383-submitted-1794031255529",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Exchange Request #CMP-347383 Submitted",
+      "message": "Your exchange request for Royal Jaipuri Floral (Order #CN-892410) has been received. Status: New.",
+      "timestamp": 1794031255529,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-347383",
+        "requestType": "Exchange",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg"
+      }
+    },
+    {
+      "id": "notif-admin-cmp-CMP-347383-1794031255390",
+      "recipientId": "admin",
+      "type": "admin_complaint",
+      "category": "admin",
+      "title": "New Exchange: #CMP-347383 (Order #CN-892410)",
+      "message": "Aarav Sharma submitted a exchange for Royal Jaipuri Floral with 1 defect photo(s).",
+      "timestamp": 1794031255390,
+      "isRead": false,
+      "linkTarget": {
+        "view": "admin",
+        "targetId": "CMP-347383",
+        "adminTab": "orders"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-347383",
+        "requestType": "Exchange",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-347383-submitted-1794031255389",
+      "recipientId": "aarav@example.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Exchange Request #CMP-347383 Submitted",
+      "message": "Your exchange request for Royal Jaipuri Floral (Order #CN-892410) has been received. Status: New.",
+      "timestamp": 1794031255389,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-892410"
+      },
+      "metadata": {
+        "orderId": "CN-892410",
+        "productId": "sheet-jaipuri-1",
+        "productName": "Royal Jaipuri Floral",
+        "complaintId": "CMP-347383",
+        "requestType": "Exchange",
+        "complaintStatus": "New",
+        "customerName": "Aarav Sharma",
+        "customerPhone": "9876543210",
+        "customerEmail": "aarav@example.com",
+        "imageUrl": "/uploads/complaint_CN-892410_sheet-jaipuri-1_1794031255_qqoi.jpg"
+      }
+    },
+    {
+      "id": "notif-order-CN-401356-delivered-1794031164510",
+      "recipientId": "saurabh.451485@gmail.com",
+      "type": "order_status",
+      "category": "orders",
+      "title": "Order #CN-401356 Updated: DELIVERED",
+      "message": "Your Cotton Nest order #CN-401356 is now delivered.",
+      "timestamp": 1794031164510,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-401356"
+      },
+      "metadata": {
+        "orderId": "CN-401356",
+        "customerName": "Saurabh",
+        "customerPhone": "7838625915",
+        "customerEmail": "saurabh.451485@gmail.com"
+      }
+    },
+    {
+      "id": "notif-admin-cmp-CMP-520336-1794031015070",
+      "recipientId": "admin",
+      "type": "admin_complaint",
+      "category": "admin",
+      "title": "New Exchange: #CMP-520336 (Order #CN-795749)",
+      "message": "Saurabh submitted a exchange for संस्कृति (Sanskriti) with 1 defect photo(s).",
+      "timestamp": 1794031015070,
+      "isRead": false,
+      "linkTarget": {
+        "view": "admin",
+        "targetId": "CMP-520336",
+        "adminTab": "orders"
+      },
+      "metadata": {
+        "orderId": "CN-795749",
+        "productId": "bedsheet-mw0si2eu",
+        "productName": "संस्कृति (Sanskriti)",
+        "complaintId": "CMP-520336",
+        "requestType": "Exchange",
+        "complaintStatus": "New",
+        "customerName": "Saurabh",
+        "customerPhone": "7838625915",
+        "customerEmail": "saurabh.451485@gmail.com",
+        "imageUrl": "/uploads/complaint_CN-795749_bedsheet-mw0si2eu_1794030969_upsb.jpg"
+      }
+    },
+    {
+      "id": "notif-cmp-CMP-520336-submitted-1794031015070",
+      "recipientId": "saurabh.451485@gmail.com",
+      "type": "complaint_update",
+      "category": "orders",
+      "title": "Exchange Request #CMP-520336 Submitted",
+      "message": "Your exchange request for संस्कृति (Sanskriti) (Order #CN-795749) has been received. Status: New.",
+      "timestamp": 1794031015070,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "CN-795749"
+      },
+      "metadata": {
+        "orderId": "CN-795749",
+        "productId": "bedsheet-mw0si2eu",
+        "productName": "संस्कृति (Sanskriti)",
+        "complaintId": "CMP-520336",
+        "requestType": "Exchange",
+        "complaintStatus": "New",
+        "customerName": "Saurabh",
+        "customerPhone": "7838625915",
+        "customerEmail": "saurabh.451485@gmail.com",
+        "imageUrl": "/uploads/complaint_CN-795749_bedsheet-mw0si2eu_1794030969_upsb.jpg"
+      }
+    },
+    {
+      "id": "welcome-atelier-announcement",
+      "recipientId": "all",
+      "type": "promotion",
+      "category": "promotions",
+      "title": "Welcome to Cotton Nest Atelier",
+      "message": "Explore our 100% natural pure cotton bedsheets crafted for everyday luxury and restful sleep.",
+      "timestamp": 1793858133214,
+      "isRead": false,
+      "linkTarget": {
+        "view": "catalogue"
+      }
+    },
+    {
+      "id": "diwali-festive-offers-launch",
+      "recipientId": "all",
+      "type": "promotion",
+      "category": "promotions",
+      "title": "New Festive Offers & Coupons Live!",
+      "message": "Apply code NEST10 at checkout for an instant 10% discount on luxury king-size bedsheets.",
+      "timestamp": 1794009333214,
+      "isRead": false,
+      "linkTarget": {
+        "view": "seasonal"
+      },
+      "metadata": {
+        "couponCode": "NEST10"
+      }
+    }
+  ]
 }

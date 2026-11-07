@@ -3,6 +3,9 @@ export interface OrderItem {
   productName: string;
   productImage: string;
   dimensions: string;
+  size?: string;
+  variantId?: string;
+  variantName?: string;
   price: number;
   quantity: number;
 }
@@ -44,3 +47,4 @@ export interface Order {
 
 // Clean, empty initial orders list (no mock/fake orders)
 export const INITIAL_ORDERS: Order[] = [];
+

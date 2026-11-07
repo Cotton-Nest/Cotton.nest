@@ -139,7 +139,10 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative bg-[#FAF7F2] w-full max-w-lg rounded-3xl border border-[#DEC89B] shadow-2xl z-10 text-[#2C2420] overflow-hidden flex flex-col max-h-[88vh]">
+      <div
+        data-testid="notification-center-modal"
+        className="relative bg-[#FAF7F2] w-full max-w-lg rounded-3xl border border-[#DEC89B] shadow-2xl z-10 text-[#2C2420] overflow-hidden flex flex-col max-h-[88vh]"
+      >
         
         {/* Header */}
         <div className="p-4 sm:p-5 bg-white border-b border-[#EAE2D5] flex items-center justify-between gap-3">
@@ -164,7 +167,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                 )}
               </div>
               <p className="text-[11px] text-[#7A6458]">
-                Atelier updates, order dispatches, and exclusive launches
+                Atelier updates, order dispatches, and complaint responses
               </p>
             </div>
           </div>
@@ -184,6 +187,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
             </button>
             <button
               onClick={onClose}
+              data-testid="close-notification-center-btn"
               className="p-2 text-[#7A6458] hover:text-[#2C2420] rounded-xl hover:bg-[#FAF7F2] transition-colors cursor-pointer border border-[#EAE2D5]"
             >
               <X className="w-4 h-4" />
@@ -217,10 +221,10 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
               <div className="space-y-0.5">
                 <span className="text-xs font-semibold text-[#2C2420] flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-emerald-700" />
-                  Order Status Updates
+                  Order &amp; Return/Exchange Updates
                 </span>
                 <p className="text-[11px] text-[#7A6458] leading-tight">
-                  Receipt, verification, courier dispatch tracking, and delivery notifications.
+                  Receipt, verification, courier dispatch tracking, delivery, and complaint responses.
                 </p>
               </div>
               <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
@@ -345,13 +349,14 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                 {(
                   [
                     { id: 'all', label: 'All' },
-                    { id: 'orders', label: 'Orders' },
+                    { id: 'orders', label: 'Orders & Support' },
                     { id: 'promotions', label: 'Offers' },
                     { id: 'stock', label: 'In-Stock' },
                   ] as const
                 ).map((tab) => (
                   <button
                     key={tab.id}
+                    data-testid={`notification-tab-${tab.id}`}
                     onClick={() => setActiveTab(tab.id)}
                     className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                       activeTab === tab.id
@@ -391,7 +396,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
             </div>
 
             {/* Notification Items List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5" data-testid="notification-items-list">
               {filteredNotifications.length === 0 ? (
                 <div className="text-center py-16 px-4 space-y-3">
                   <div className="w-14 h-14 rounded-full bg-white border border-[#DEC89B] flex items-center justify-center mx-auto text-[#A8823B] shadow-2xs">
@@ -402,7 +407,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                       All caught up!
                     </p>
                     <p className="text-xs text-[#7A6458] mt-1 max-w-xs mx-auto">
-                      No notifications right now. Order updates, exclusive coupons, and restock alerts will appear here.
+                      No notifications right now. Order updates, complaint responses, exclusive coupons, and restock alerts will appear here.
                     </p>
                   </div>
                 </div>
@@ -411,7 +416,10 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                   let icon = <Bell className="w-4 h-4 text-[#A8823B]" />;
                   let badgeBg = 'bg-[#FAF7F2] border-[#DEC89B] text-[#70252D]';
 
-                  if (item.category === 'orders') {
+                  if (item.type === 'complaint_update' || item.type === 'admin_complaint') {
+                    icon = <ShieldCheck className="w-4 h-4 text-[#8C2E46]" />;
+                    badgeBg = 'bg-[#FDEAF0] border-[#FAD1DC] text-[#8C2E46]';
+                  } else if (item.category === 'orders') {
                     icon = <Package className="w-4 h-4 text-emerald-700" />;
                     badgeBg = 'bg-emerald-50 border-emerald-200 text-emerald-800';
                   } else if (item.category === 'promotions') {
@@ -425,6 +433,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                   return (
                     <div
                       key={item.id}
+                      data-testid={`notification-item-${item.id}`}
                       onClick={() => handleNotificationClick(item)}
                       className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 relative group ${
                         item.isRead
@@ -447,23 +456,33 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                             {formatRelativeTime(item.timestamp)}
                           </span>
                         </div>
-                        <p className="text-xs text-[#6B5D55] leading-relaxed line-clamp-2">
+                        <p className="text-xs text-[#6B5D55] leading-relaxed line-clamp-3">
                           {item.message}
                         </p>
 
                         {/* Metadata Tag / Action Link */}
-                        <div className="mt-2 flex items-center justify-between text-[11px]">
-                          {item.metadata?.couponCode ? (
-                            <span className="inline-flex items-center gap-1 font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-[#FAF7F2] text-[#70252D] border border-[#DEC89B]">
-                              Code: {item.metadata.couponCode}
-                            </span>
-                          ) : item.metadata?.orderId ? (
-                            <span className="inline-flex items-center gap-1 font-mono font-semibold text-[10px] text-emerald-800">
-                              Order #{item.metadata.orderId}
-                            </span>
-                          ) : (
-                            <span />
-                          )}
+                        <div className="mt-2 flex items-center justify-between flex-wrap gap-1.5 text-[11px]">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {item.metadata?.complaintId && (
+                              <span className="inline-flex items-center gap-1 font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-[#FAF7F2] text-[#70252D] border border-[#DEC89B]">
+                                #{item.metadata.complaintId}
+                              </span>
+                            )}
+                            {item.metadata?.complaintStatus && (
+                              <span className="inline-flex items-center gap-1 font-semibold text-[10px] px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
+                                {item.metadata.complaintStatus}
+                              </span>
+                            )}
+                            {item.metadata?.couponCode ? (
+                              <span className="inline-flex items-center gap-1 font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-[#FAF7F2] text-[#70252D] border border-[#DEC89B]">
+                                Code: {item.metadata.couponCode}
+                              </span>
+                            ) : item.metadata?.orderId ? (
+                              <span className="inline-flex items-center gap-1 font-mono font-semibold text-[10px] text-emerald-800">
+                                Order #{item.metadata.orderId}
+                              </span>
+                            ) : null}
+                          </div>
 
                           {item.linkTarget && (
                             <span className="text-[#8C2E46] group-hover:underline font-semibold flex items-center gap-0.5 text-[10px]">

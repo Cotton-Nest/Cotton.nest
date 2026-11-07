@@ -577,6 +577,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           productName: vName ? `${pName} - ${vName}` : pName,
           productImage: i?.selectedVariant?.image || i?.product?.image || '',
           dimensions: i?.product?.dimensions || '108 x 108 inches',
+          size: i?.product?.size || 'King',
+          variantId: i?.selectedVariant?.id,
+          variantName: vName,
           price: typeof i?.product?.price === 'number' && !isNaN(i?.product?.price) ? i.product.price : 0,
           quantity: typeof i?.quantity === 'number' && !isNaN(i?.quantity) && i?.quantity > 0 ? i.quantity : 1,
         };

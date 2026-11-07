@@ -22,7 +22,7 @@ export default async function handler(req: any, res: any) {
       } catch {}
     }
 
-    const { image, media, video, productId, public_id, resource_type } = body || {};
+    const { image, media, video, productId, orderId, folder: reqFolder, public_id, resource_type } = body || {};
     const mediaData = media || video || image;
 
     if (!mediaData || typeof mediaData !== 'string') {
@@ -33,7 +33,7 @@ export default async function handler(req: any, res: any) {
     if (mediaData.startsWith('https://res.cloudinary.com/') || mediaData.startsWith('http://') || mediaData.startsWith('https://')) {
       return res.status(200).json({
         url: mediaData,
-        public_id: public_id || null,
+        public_id: public_id || `cotton_nest/external_${Date.now()}`,
         provider: 'cloudinary',
         message: 'Already hosted URL'
       });
@@ -53,11 +53,22 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    const targetFolder =
+      typeof reqFolder === 'string' && reqFolder.startsWith('cotton_nest/')
+        ? reqFolder
+        : orderId
+        ? 'cotton_nest/complaints'
+        : 'cotton_nest/bedsheets';
+
     const uploadOptions: any = {
-      folder: 'cotton_nest/bedsheets',
+      folder: targetFolder,
       resource_type: isVideo ? 'video' : 'auto',
       overwrite: true,
-      tags: ['cotton_nest', productId ? `product_${productId}` : 'general_sheet'],
+      tags: [
+        'cotton_nest',
+        ...(orderId ? ['complaint', `order_${orderId}`] : []),
+        productId ? `product_${productId}` : 'general_sheet',
+      ],
     };
 
     if (!isVideo) {
@@ -69,6 +80,10 @@ export default async function handler(req: any, res: any) {
 
     if (public_id) {
       uploadOptions.public_id = public_id;
+    } else if (orderId && productId) {
+      const safeOrder = String(orderId).replace(/[^a-zA-Z0-9-_]/g, '_');
+      const safeProd = String(productId).replace(/[^a-zA-Z0-9-_]/g, '_');
+      uploadOptions.public_id = `complaint_${safeOrder}_${safeProd}_${Date.now()}`;
     } else if (productId) {
       const sanitized = productId.replace(/[^a-zA-Z0-9-_]/g, '_');
       uploadOptions.public_id = `sheet_${sanitized}_${Date.now()}`;

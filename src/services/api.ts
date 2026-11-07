@@ -16,16 +16,34 @@ import { BedsheetProduct, BEDSHEETS_CATALOG } from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from '../data/siteContent';
 import { resolveBedsheetImage } from '../utils/imageUrl';
-import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
+import { uploadToCloudinary, uploadComplaintPhotoToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
 import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 import { CouponOffer, INITIAL_COUPONS, evaluateCouponEligibility, CartItemLike, CouponEvaluationResult } from '../data/coupons';
-import { AppNotification, StockSubscription, PushSubscriptionData, INITIAL_CUSTOMER_NOTIFICATIONS } from '../data/notifications';
+import {
+  AppNotification,
+  StockSubscription,
+  PushSubscriptionData,
+  INITIAL_CUSTOMER_NOTIFICATIONS,
+  buildComplaintNotificationForCustomer,
+  buildComplaintNotificationForAdmin,
+  buildOrderStatusNotification,
+} from '../data/notifications';
+import { triggerLocalPushNotification } from '../utils/pushNotifications';
 import { WishlistItem } from '../data/wishlist';
+import {
+  OrderComplaint,
+  ComplaintSubmissionInput,
+  ComplaintStatus,
+  validateComplaintSubmission,
+  applyAdminComplaintUpdate,
+  normalizePhoneDigits,
+} from '../data/complaints';
 
 // Re-export Cloudinary & media service helpers
 export {
   uploadToCloudinary,
+  uploadComplaintPhotoToCloudinary,
   deleteFromCloudinary,
   isCloudinaryUrl,
   isVideoMedia,
@@ -733,6 +751,21 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
+
+  // 5. Notify customer of order status update
+  try {
+    const recipient = targetOrder?.customerEmail || targetOrder?.customerPhone || targetOrder?.userId || 'all';
+    const orderNotif = buildOrderStatusNotification(
+      orderId,
+      targetOrder?.customerName || 'Valued Customer',
+      recipient,
+      status
+    );
+    await saveNotificationApi(orderNotif);
+    triggerLocalPushNotification(orderNotif.title, orderNotif.message, { url: '/#orders' }).catch(() => {});
+  } catch (notifErr) {
+    console.warn('Order status notification dispatch notice:', notifErr);
+  }
 }
 
 export async function deleteOrder(orderId: string): Promise<void> {
@@ -1188,67 +1221,105 @@ export async function recordCouponUseApi(couponId: string, customerIdentifier?: 
 
 // ---------------- NOTIFICATIONS & WEB PUSH API ---------------- //
 
+function dispatchNotificationsUpdatedEvent(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cotton-nest-notifications-updated'));
+  }
+}
+
 export async function getNotificationsApi(
   recipientId?: string,
   isOwner?: boolean
 ): Promise<AppNotification[]> {
+  const notifMap = new Map<string, AppNotification>();
+
+  const shouldInclude = (item: AppNotification): boolean => {
+    if (!item || !item.id) return false;
+    if (isOwner) return true;
+    if (item.category === 'admin') return false;
+    if (!recipientId || !item.recipientId || item.recipientId === 'all') return true;
+    const rClean = recipientId.trim().toLowerCase();
+    const itemRecip = item.recipientId.trim().toLowerCase();
+    const metaEmail = item.metadata?.customerEmail?.trim().toLowerCase();
+    const metaPhone = normalizePhoneDigits(item.metadata?.customerPhone);
+    const rDigits = normalizePhoneDigits(recipientId);
+    return (
+      itemRecip === rClean ||
+      Boolean(metaEmail && metaEmail === rClean) ||
+      Boolean(rDigits && metaPhone && rDigits === metaPhone) ||
+      Boolean(rDigits && normalizePhoneDigits(item.recipientId) === rDigits)
+    );
+  };
+
+  const upsertNotif = (item: AppNotification) => {
+    if (!shouldInclude(item)) return;
+    const existing = notifMap.get(item.id);
+    if (!existing || (item.timestamp || 0) >= (existing.timestamp || 0)) {
+      notifMap.set(item.id, item);
+    }
+  };
+
+  // 1. Fetch from Express backend (/api/notifications)
   try {
-    const list: AppNotification[] = [];
+    const qs = new URLSearchParams();
+    if (recipientId) qs.set('recipientId', recipientId);
+    if (isOwner) qs.set('isOwner', 'true');
+    const res = await fetch(`/api/notifications${qs.toString() ? `?${qs.toString()}` : ''}`, {
+      headers: { 'Cache-Control': 'no-cache' },
+    });
+    if (res.ok) {
+      const serverList: AppNotification[] = await res.json();
+      if (Array.isArray(serverList)) {
+        serverList.forEach(upsertNotif);
+      }
+    }
+  } catch (err) {
+    console.warn('Backend /api/notifications fetch notice:', err);
+  }
+
+  // 2. Fetch from Firestore notifications collection
+  try {
     const snapshot = await getDocs(collection(db, 'notifications'));
     if (!snapshot.empty) {
       snapshot.forEach((docSnap) => {
         const item = { id: docSnap.id, ...docSnap.data() } as AppNotification;
-        if (isOwner) {
-          list.push(item);
-        } else {
-          // Customers only see 'all' or specifically addressed to their email/phone
-          const isTargeted =
-            item.recipientId === 'all' ||
-            (recipientId && item.recipientId && item.recipientId.toLowerCase() === recipientId.toLowerCase());
-          if (isTargeted && item.category !== 'admin') {
-            list.push(item);
-          }
-        }
+        upsertNotif(item);
       });
-      list.sort((a, b) => b.timestamp - a.timestamp);
-      return list;
     }
   } catch (err) {
     console.warn('Firestore notifications fetch notice:', err);
   }
 
-  // Fallback to local storage
+  // 3. Merge with localStorage cache
   try {
     const local = localStorage.getItem('cotton_nest_notifications');
     if (local) {
       const parsed: AppNotification[] = JSON.parse(local);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((n) => (isOwner ? true : n.category !== 'admin'));
+      if (Array.isArray(parsed)) {
+        parsed.forEach(upsertNotif);
       }
     }
   } catch {}
+
+  const merged = Array.from(notifMap.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  if (merged.length > 0) {
+    try {
+      localStorage.setItem('cotton_nest_notifications', JSON.stringify(merged));
+    } catch {}
+    return merged;
+  }
 
   return INITIAL_CUSTOMER_NOTIFICATIONS;
 }
 
 export async function saveNotificationApi(notification: AppNotification): Promise<AppNotification> {
-  const stamped: AppNotification = {
+  const stamped: AppNotification = stripUndefined({
     ...notification,
     timestamp: notification.timestamp || Date.now(),
-  };
+  });
 
-  const docData: Record<string, any> = {};
-  for (const [key, val] of Object.entries(stamped)) {
-    if (val !== undefined) docData[key] = val;
-  }
-
-  try {
-    await setDoc(doc(db, 'notifications', stamped.id), docData, { merge: true });
-  } catch (err) {
-    console.warn('Firestore notification save notice:', err);
-  }
-
-  // Sync to local cache
+  // 1. Sync to local cache first for immediate UI update
   try {
     const current = localStorage.getItem('cotton_nest_notifications');
     let list: AppNotification[] = current ? JSON.parse(current) : [];
@@ -1262,17 +1333,34 @@ export async function saveNotificationApi(notification: AppNotification): Promis
     localStorage.setItem('cotton_nest_notifications', JSON.stringify(list));
   } catch {}
 
+  // 2. Save to Express server (/api/notifications)
+  try {
+    await fetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stamped),
+    });
+  } catch (err) {
+    console.warn('Backend /api/notifications save notice:', err);
+  }
+
+  // 3. Save to Firestore notifications collection
+  const docData: Record<string, any> = {};
+  for (const [key, val] of Object.entries(stamped)) {
+    if (val !== undefined) docData[key] = val;
+  }
+
+  try {
+    await setDoc(doc(db, 'notifications', stamped.id), docData, { merge: true });
+  } catch (err) {
+    console.warn('Firestore notification save notice:', err);
+  }
+
+  dispatchNotificationsUpdatedEvent();
   return stamped;
 }
 
 export async function markNotificationReadApi(notificationId: string): Promise<void> {
-  try {
-    await updateDoc(doc(db, 'notifications', notificationId), {
-      isRead: true,
-      updatedAt: Date.now(),
-    });
-  } catch {}
-
   try {
     const current = localStorage.getItem('cotton_nest_notifications');
     if (current) {
@@ -1281,9 +1369,43 @@ export async function markNotificationReadApi(notificationId: string): Promise<v
       localStorage.setItem('cotton_nest_notifications', JSON.stringify(updated));
     }
   } catch {}
+
+  try {
+    await fetch(`/api/notifications/${encodeURIComponent(notificationId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isRead: true }),
+    });
+  } catch {}
+
+  try {
+    await updateDoc(doc(db, 'notifications', notificationId), {
+      isRead: true,
+      updatedAt: Date.now(),
+    });
+  } catch {}
+
+  dispatchNotificationsUpdatedEvent();
 }
 
 export async function markAllNotificationsReadApi(recipientId?: string): Promise<void> {
+  try {
+    const current = localStorage.getItem('cotton_nest_notifications');
+    if (current) {
+      const list: AppNotification[] = JSON.parse(current);
+      const updated = list.map((n) => ({ ...n, isRead: true }));
+      localStorage.setItem('cotton_nest_notifications', JSON.stringify(updated));
+    }
+  } catch {}
+
+  try {
+    await fetch('/api/notifications/mark-all-read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipientId }),
+    });
+  } catch {}
+
   try {
     const snap = await getDocs(collection(db, 'notifications'));
     snap.forEach((d) => {
@@ -1294,17 +1416,19 @@ export async function markAllNotificationsReadApi(recipientId?: string): Promise
     });
   } catch {}
 
-  try {
-    const current = localStorage.getItem('cotton_nest_notifications');
-    if (current) {
-      const list: AppNotification[] = JSON.parse(current);
-      const updated = list.map((n) => ({ ...n, isRead: true }));
-      localStorage.setItem('cotton_nest_notifications', JSON.stringify(updated));
-    }
-  } catch {}
+  dispatchNotificationsUpdatedEvent();
 }
 
 export async function clearAllNotificationsApi(recipientId?: string): Promise<void> {
+  try {
+    localStorage.removeItem('cotton_nest_notifications');
+  } catch {}
+
+  try {
+    const qs = recipientId ? `?recipientId=${encodeURIComponent(recipientId)}` : '';
+    await fetch(`/api/notifications${qs}`, { method: 'DELETE' });
+  } catch {}
+
   try {
     const snap = await getDocs(collection(db, 'notifications'));
     snap.forEach((d) => {
@@ -1315,9 +1439,7 @@ export async function clearAllNotificationsApi(recipientId?: string): Promise<vo
     });
   } catch {}
 
-  try {
-    localStorage.removeItem('cotton_nest_notifications');
-  } catch {}
+  dispatchNotificationsUpdatedEvent();
 }
 
 // ---------------- BACK-IN-STOCK SUBSCRIPTIONS ---------------- //
@@ -1745,7 +1867,294 @@ export async function recordPageVisitApi(section: string = 'home'): Promise<Site
   return updated;
 }
 
+// ---------------- RETURN / EXCHANGE / COMPLAINTS API ---------------- //
+
+export async function getComplaintsApi(filters?: {
+  orderId?: string;
+  email?: string;
+  phone?: string;
+  userId?: string;
+}): Promise<OrderComplaint[]> {
+  const complaintMap = new Map<string, OrderComplaint>();
+
+  const upsertComplaint = (c: OrderComplaint) => {
+    if (!c || !c.id || !c.orderId || !c.productId) return;
+    // Ensure photos never contain base64 data URIs
+    if (Array.isArray(c.photos)) {
+      c.photos = c.photos.filter(
+        (p) => p && typeof p.url === 'string' && !p.url.startsWith('data:') && !p.url.startsWith('blob:')
+      );
+    }
+    const existing = complaintMap.get(c.id);
+    if (!existing) {
+      complaintMap.set(c.id, c);
+    } else {
+      const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      const incomingTime = new Date(c.updatedAt || c.createdAt || 0).getTime();
+      if (incomingTime >= existingTime) {
+        complaintMap.set(c.id, c);
+      }
+    }
+  };
+
+  // 1. Fetch from Firestore site_content/complaints_registry
+  try {
+    const regSnap = await getDoc(doc(db, 'site_content', 'complaints_registry'));
+    if (regSnap.exists()) {
+      const data = regSnap.data();
+      if (data && Array.isArray(data.items)) {
+        (data.items as OrderComplaint[]).forEach(upsertComplaint);
+      }
+    }
+  } catch (err) {
+    console.warn('Firestore complaints_registry fetch notice:', err);
+  }
+
+  // 2. Fetch from Express server backend (/api/complaints)
+  try {
+    const params = new URLSearchParams();
+    if (filters?.orderId) params.set('orderId', filters.orderId);
+    if (filters?.email) params.set('email', filters.email);
+    if (filters?.phone) params.set('phone', filters.phone);
+    if (filters?.userId) params.set('userId', filters.userId);
+    const qs = params.toString();
+    const res = await fetch(`/api/complaints${qs ? `?${qs}` : ''}`, {
+      headers: { 'Cache-Control': 'no-cache' },
+    });
+    if (res.ok) {
+      const serverList: OrderComplaint[] = await res.json();
+      if (Array.isArray(serverList)) {
+        serverList.forEach(upsertComplaint);
+      }
+    }
+  } catch (err) {
+    console.warn('Backend /api/complaints fetch notice:', err);
+  }
+
+  // 3. Check localStorage cache
+  try {
+    const cached = localStorage.getItem('cotton_nest_complaints');
+    if (cached) {
+      const localList: OrderComplaint[] = JSON.parse(cached);
+      if (Array.isArray(localList)) {
+        localList.forEach(upsertComplaint);
+      }
+    }
+  } catch {}
+
+  let all = Array.from(complaintMap.values());
+  all.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+  // Update local cache with full merged set if unfiltered
+  if (!filters?.orderId && !filters?.email && !filters?.phone && !filters?.userId) {
+    try {
+      localStorage.setItem('cotton_nest_complaints', JSON.stringify(all));
+    } catch {}
+  }
+
+  // Apply client-side filter if requested
+  if (filters?.orderId) {
+    const targetOrder = filters.orderId.trim().toLowerCase();
+    return all.filter((c) => c.orderId?.toLowerCase() === targetOrder);
+  }
+
+  if (filters?.email || filters?.phone || filters?.userId) {
+    const cleanEmail = filters.email ? filters.email.trim().toLowerCase() : '';
+    const cleanPhone = normalizePhoneDigits(filters.phone);
+    const cleanUserId = filters.userId ? filters.userId.trim() : '';
+
+    return all.filter((c) => {
+      const cEmail = c.customerEmail ? c.customerEmail.trim().toLowerCase() : '';
+      const cPhone = normalizePhoneDigits(c.customerPhone);
+      const cUserId = c.userId ? c.userId.trim() : '';
+
+      const matchesEmail = Boolean(cleanEmail && cEmail && cEmail === cleanEmail);
+      const matchesPhone = Boolean(cleanPhone && cPhone && cPhone === cleanPhone);
+      const matchesUserId = Boolean(cleanUserId && cUserId && cUserId === cleanUserId);
+
+      return matchesEmail || matchesPhone || matchesUserId;
+    });
+  }
+
+  return all;
+}
+
+export async function submitComplaintApi(
+  input: ComplaintSubmissionInput,
+  order: Order
+): Promise<OrderComplaint> {
+  // 1. Validate locally first
+  const localValidation = validateComplaintSubmission(input, order);
+  if (!localValidation.valid || !localValidation.complaint) {
+    throw new Error(localValidation.error || 'Complaint validation failed.');
+  }
+
+  let savedComplaint: OrderComplaint = stripUndefined(localValidation.complaint);
+
+  // 2. Submit to Express backend (/api/complaints) which verifies order ownership & product membership
+  try {
+    const res = await fetch('/api/complaints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...input,
+        id: savedComplaint.id,
+        orderSnapshot: stripUndefined(order),
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(data?.error || 'Backend complaint verification failed.');
+    }
+    if (data && data.id) {
+      savedComplaint = stripUndefined(data as OrderComplaint);
+    }
+  } catch (err: any) {
+    if (err.message && (err.message.includes('ownership') || err.message.includes('not part of Order') || err.message.includes('Base64'))) {
+      throw err;
+    }
+    console.warn('Backend /api/complaints submission notice:', err);
+  }
+
+  // 3. Persist to localStorage
+  try {
+    const cached = localStorage.getItem('cotton_nest_complaints');
+    const list: OrderComplaint[] = cached ? JSON.parse(cached) : [];
+    const filtered = Array.isArray(list) ? list.filter((c) => c.id !== savedComplaint.id) : [];
+    localStorage.setItem('cotton_nest_complaints', JSON.stringify([savedComplaint, ...filtered]));
+  } catch {}
+
+  // 4. Sync to Firestore site_content/complaints_registry for real-time cross-client updates
+  try {
+    const regRef = doc(db, 'site_content', 'complaints_registry');
+    const regSnap = await getDoc(regRef);
+    const currentItems: OrderComplaint[] =
+      regSnap.exists() && Array.isArray(regSnap.data()?.items) ? regSnap.data().items : [];
+    const filtered = currentItems.filter((c) => c.id !== savedComplaint.id);
+    await setDoc(
+      regRef,
+      stripUndefined({
+        id: 'complaints_registry',
+        items: [savedComplaint, ...filtered],
+        updatedAt: Date.now(),
+      }),
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Firestore complaints_registry write notice:', err);
+  }
+
+  // 5. Generate and save notifications for the customer & admin
+  try {
+    const customerNotif = buildComplaintNotificationForCustomer(savedComplaint, 'submitted');
+    const adminNotif = buildComplaintNotificationForAdmin(savedComplaint);
+    await saveNotificationApi(customerNotif);
+    await saveNotificationApi(adminNotif);
+  } catch (notifErr) {
+    console.warn('Complaint submission notification notice:', notifErr);
+  }
+
+  return savedComplaint;
+}
+
+export async function updateComplaintStatusApi(
+  complaintId: string,
+  update: {
+    status?: ComplaintStatus;
+    adminResponse?: string;
+    respondedBy?: string;
+  },
+  existingComplaint?: OrderComplaint
+): Promise<OrderComplaint> {
+  let targetComplaint = existingComplaint;
+  if (!targetComplaint) {
+    const all = await getComplaintsApi();
+    targetComplaint = all.find((c) => c.id === complaintId);
+  }
+  if (!targetComplaint) {
+    throw new Error('Complaint record not found.');
+  }
+
+  const localRes = applyAdminComplaintUpdate(targetComplaint, update);
+  if (!localRes.valid || !localRes.complaint) {
+    throw new Error(localRes.error || 'Invalid complaint update.');
+  }
+
+  let updatedComplaint: OrderComplaint = stripUndefined(localRes.complaint);
+
+  // 1. Update on Express server (/api/complaints/:id)
+  try {
+    const res = await fetch(`/api/complaints/${encodeURIComponent(complaintId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...update,
+        complaintSnapshot: stripUndefined(targetComplaint),
+      }),
+    });
+    if (res.ok) {
+      const serverData = await res.json();
+      if (serverData && serverData.id) {
+        updatedComplaint = stripUndefined(serverData as OrderComplaint);
+      }
+    }
+  } catch (err) {
+    console.warn('Backend /api/complaints PATCH notice:', err);
+  }
+
+  // 2. Update localStorage
+  try {
+    const cached = localStorage.getItem('cotton_nest_complaints');
+    const list: OrderComplaint[] = cached ? JSON.parse(cached) : [];
+    if (Array.isArray(list)) {
+      const nextList = list.some((c) => c.id === updatedComplaint.id)
+        ? list.map((c) => (c.id === updatedComplaint.id ? updatedComplaint : c))
+        : [updatedComplaint, ...list];
+      localStorage.setItem('cotton_nest_complaints', JSON.stringify(nextList));
+    }
+  } catch {}
+
+  // 3. Update Firestore site_content/complaints_registry so customer tracking updates in real time
+  try {
+    const regRef = doc(db, 'site_content', 'complaints_registry');
+    const regSnap = await getDoc(regRef);
+    const currentItems: OrderComplaint[] =
+      regSnap.exists() && Array.isArray(regSnap.data()?.items) ? regSnap.data().items : [];
+    const nextItems = currentItems.some((c) => c.id === updatedComplaint.id)
+      ? currentItems.map((c) => (c.id === updatedComplaint.id ? updatedComplaint : c))
+      : [updatedComplaint, ...currentItems];
+    await setDoc(
+      regRef,
+      stripUndefined({
+        id: 'complaints_registry',
+        items: nextItems,
+        updatedAt: Date.now(),
+      }),
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Firestore complaints_registry update notice:', err);
+  }
+
+  // 4. Send real-time notification to the customer that Cotton Nest responded or updated status
+  try {
+    const eventType =
+      update.adminResponse && update.adminResponse.trim().length > 0
+        ? 'admin_responded'
+        : 'status_updated';
+    const customerNotif = buildComplaintNotificationForCustomer(updatedComplaint, eventType);
+    await saveNotificationApi(customerNotif);
+    triggerLocalPushNotification(customerNotif.title, customerNotif.message, { url: '/#orders' }).catch(() => {});
+  } catch (notifErr) {
+    console.warn('Complaint status update notification notice:', notifErr);
+  }
+
+  return updatedComplaint;
+}
+
 // ---------------- LOYALTY POINTS & REWARDS ---------------- //
 export * from './loyaltyApi';
 export * from '../data/loyalty';
+export * from '../data/complaints';
+
 

@@ -253,6 +253,189 @@ export async function uploadToCloudinary(
 }
 
 /**
+ * Uploads a customer defect/damage photo directly to Cloudinary under cotton_nest/complaints
+ * linked to its original orderId and specific productId.
+ * Returns only the permanent URL and Cloudinary publicId (never base64).
+ */
+export async function uploadComplaintPhotoToCloudinary(
+  fileInput: File | string,
+  orderId: string,
+  productId: string
+): Promise<{
+  url: string;
+  publicId: string;
+  orderId: string;
+  productId: string;
+  uploadedAt: number;
+  width?: number;
+  height?: number;
+  format?: string;
+}> {
+  const safeOrder = (orderId || 'order').replace(/[^a-zA-Z0-9-_]/g, '_');
+  const safeProd = (productId || 'product').replace(/[^a-zA-Z0-9-_]/g, '_');
+  const ts = Date.now();
+  const randSuffix = Math.random().toString(36).slice(2, 6);
+  const generatedPublicId = `complaint_${safeOrder}_${safeProd}_${Math.round(ts / 1000)}_${randSuffix}`;
+  const fileName = `${generatedPublicId}.jpg`;
+
+  // Compress customer photo client-side to max 1600px / 0.85 quality
+  let dataUrl: string;
+  let uploadBlob: Blob;
+
+  if (typeof fileInput === 'string' && fileInput.startsWith('data:image/')) {
+    dataUrl = fileInput;
+    try {
+      const fetchBlobRes = await fetch(dataUrl);
+      uploadBlob = await fetchBlobRes.blob();
+    } catch {
+      uploadBlob = new Blob([dataUrl], { type: 'image/jpeg' });
+    }
+  } else if (fileInput instanceof File && fileInput.size <= 1024 * 1024) {
+    uploadBlob = fileInput;
+    dataUrl = await compressImage(fileInput, 1600, 1600, 0.85);
+  } else {
+    dataUrl = await compressImage(fileInput, 1600, 1600, 0.85);
+    try {
+      const fetchBlobRes = await fetch(dataUrl);
+      uploadBlob = await fetchBlobRes.blob();
+    } catch {
+      if (fileInput instanceof File) {
+        uploadBlob = fileInput;
+      } else {
+        uploadBlob = new Blob([dataUrl], { type: 'image/jpeg' });
+      }
+    }
+  }
+
+  let errorMsg = '';
+
+  // 1. Primary Method: Secure Signed Direct Upload to Cloudinary (/api/cloudinary-sign)
+  try {
+    const signParams = new URLSearchParams({
+      folder: 'cotton_nest/complaints',
+      orderId,
+      productId,
+      public_id: generatedPublicId,
+    });
+    const signRes = await fetch(`/api/cloudinary-sign?${signParams.toString()}`, {
+      headers: { 'Cache-Control': 'no-cache' },
+    });
+    const signData = await signRes.json().catch(() => null);
+
+    if (signRes.ok && signData?.configured && signData?.signature && signData?.apiKey && signData?.cloudName) {
+      const formData = new FormData();
+      formData.append('file', uploadBlob, fileName);
+      formData.append('api_key', signData.apiKey);
+      formData.append('timestamp', String(signData.timestamp));
+      formData.append('signature', signData.signature);
+      if (signData.folder) {
+        formData.append('folder', signData.folder);
+      }
+      if (signData.public_id) {
+        formData.append('public_id', signData.public_id);
+      }
+
+      const endpoint = `https://api.cloudinary.com/v1_1/${signData.cloudName}/image/upload`;
+      const cloudRes = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (cloudRes.ok) {
+        const cloudData = await cloudRes.json();
+        if (cloudData.secure_url && cloudData.public_id) {
+          return {
+            url: cloudData.secure_url,
+            publicId: cloudData.public_id,
+            orderId,
+            productId,
+            uploadedAt: Date.now(),
+            width: cloudData.width,
+            height: cloudData.height,
+            format: cloudData.format,
+          };
+        }
+      } else {
+        const errJson = await cloudRes.json().catch(() => null);
+        errorMsg = errJson?.error?.message || `Cloudinary direct upload failed (${cloudRes.status})`;
+      }
+    }
+  } catch (err: any) {
+    errorMsg = err.message || 'Signed direct upload error';
+  }
+
+  // 2. Secondary Method: Server-side binary upload endpoint (/api/upload-binary)
+  try {
+    const queryParams = new URLSearchParams({
+      orderId,
+      productId,
+      folder: 'cotton_nest/complaints',
+      public_id: generatedPublicId,
+      resource_type: 'image',
+      ext: 'jpg',
+      filename: fileName,
+    });
+    const binRes = await fetch(`/api/upload-binary?${queryParams.toString()}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': uploadBlob.type || 'image/jpeg',
+      },
+      body: uploadBlob,
+    });
+    const binData = await binRes.json().catch(() => null);
+    if (binRes.ok && binData?.url && !binData.url.startsWith('data:')) {
+      return {
+        url: binData.url,
+        publicId: binData.public_id || `cotton_nest/complaints/${generatedPublicId}`,
+        orderId,
+        productId,
+        uploadedAt: Date.now(),
+        width: binData.width,
+        height: binData.height,
+        format: binData.format || 'jpg',
+      };
+    }
+  } catch (binErr: any) {
+    console.warn('Complaint binary upload fallback notice:', binErr.message);
+  }
+
+  // 3. Tertiary Method: Server-side /api/upload endpoint
+  try {
+    const uploadRes = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        media: dataUrl,
+        orderId,
+        productId,
+        folder: 'cotton_nest/complaints',
+        public_id: generatedPublicId,
+        resource_type: 'image',
+      }),
+    });
+    const uploadData = await uploadRes.json().catch(() => null);
+    if (uploadRes.ok && uploadData?.url && !uploadData.url.startsWith('data:')) {
+      return {
+        url: uploadData.url,
+        publicId: uploadData.public_id || `cotton_nest/complaints/${generatedPublicId}`,
+        orderId,
+        productId,
+        uploadedAt: Date.now(),
+        width: uploadData.width,
+        height: uploadData.height,
+        format: uploadData.format || 'jpg',
+      };
+    } else if (uploadData?.error) {
+      errorMsg = uploadData.error;
+    }
+  } catch (upErr: any) {
+    errorMsg = upErr.message || errorMsg;
+  }
+
+  throw new Error(errorMsg || 'Failed to upload product defect photo to Cloudinary.');
+}
+
+/**
  * Safely deletes an old image from Cloudinary via server-side endpoint
  */
 export async function deleteFromCloudinary(publicId: string): Promise<boolean> {
@@ -269,3 +452,4 @@ export async function deleteFromCloudinary(publicId: string): Promise<boolean> {
     return false;
   }
 }
+
