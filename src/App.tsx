@@ -1819,6 +1819,7 @@ export default function App() {
                       setActiveTab('catalogue');
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
+                    activeThemeId={themeConfig.activeThemeId}
                   />
                 )}
 

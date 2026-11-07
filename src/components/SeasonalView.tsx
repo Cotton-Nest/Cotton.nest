@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { BedsheetProduct, COMPANY_DETAILS } from '../data/products';
 import { SeasonalConfig, SeasonalItemDiscount } from '../data/seasonal';
 import { resolveBedsheetImage } from '../utils/imageUrl';
@@ -21,6 +21,7 @@ import {
   Percent
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { FestiveAnimationOverlay, FestiveType } from './FestiveAnimationOverlay';
 
 interface SeasonalViewProps {
   products: BedsheetProduct[];
@@ -31,6 +32,7 @@ interface SeasonalViewProps {
   isOwnerMode?: boolean;
   onOpenAdmin?: () => void;
   onExploreFullCatalogue?: () => void;
+  activeThemeId?: string;
 }
 
 export const SeasonalView: React.FC<SeasonalViewProps> = ({
@@ -42,10 +44,34 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
   isOwnerMode = false,
   onOpenAdmin,
   onExploreFullCatalogue,
+  activeThemeId,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'under1000' | 'bigDiscount' | 'inStock'>('all');
   const [sortBy, setSortBy] = useState<'default' | 'priceAsc' | 'priceDesc' | 'discountDesc'>('default');
+
+  // Auto-detect festival type from seasonal config name/badge or active theme
+  const detectedFestival: FestiveType = useMemo(() => {
+    const combined = `${seasonalConfig?.name || ''} ${seasonalConfig?.badge || ''} ${activeThemeId || ''}`.toLowerCase();
+    if (combined.includes('christmas') || combined.includes('xmas') || combined.includes('winter') || combined.includes('holiday')) {
+      return 'christmas';
+    }
+    if (/\b(holi|gulal|rang|dhuleti)\b/i.test(combined) || combined.includes('colors of joy')) {
+      return 'holi';
+    }
+    if (combined.includes('eid') || combined.includes('mubarak') || combined.includes('ramadan')) {
+      return 'eid';
+    }
+    return 'diwali'; // default celebratory festive theme for Cotton Nest
+  }, [seasonalConfig?.name, seasonalConfig?.badge, activeThemeId]);
+
+  const [currentFestival, setCurrentFestival] = useState<FestiveType>(detectedFestival);
+  const [isAnimationActive, setIsAnimationActive] = useState<boolean>(true);
+
+  // Sync if config or theme changes
+  useEffect(() => {
+    setCurrentFestival(detectedFestival);
+  }, [detectedFestival]);
 
   // Match products with seasonal item discounts
   const seasonalProductsWithPricing = useMemo(() => {
@@ -149,6 +175,30 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
 
       {/* Hero Header Section */}
       <section className="relative overflow-hidden pt-8 pb-12 sm:pt-14 sm:pb-16 border-b border-[var(--color-border,#EAE2D5)]">
+        
+        {/* Dynamic Festive Atmospheric Backdrop Aura */}
+        {currentFestival === 'diwali' && (
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/15 via-orange-400/5 to-transparent pointer-events-none transition-opacity duration-700" />
+        )}
+        {currentFestival === 'holi' && (
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-pink-400/15 via-amber-300/10 to-purple-400/15 pointer-events-none transition-opacity duration-700" />
+        )}
+        {currentFestival === 'christmas' && (
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-400/10 via-teal-300/5 to-rose-400/10 pointer-events-none transition-opacity duration-700" />
+        )}
+        {currentFestival === 'eid' && (
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/12 via-amber-300/8 to-transparent pointer-events-none transition-opacity duration-700" />
+        )}
+
+        {/* Festive Canvas Animation Overlay (Diwali Crackers / Holi Colours) */}
+        <FestiveAnimationOverlay
+          festivalType={currentFestival}
+          isActive={isAnimationActive}
+          onFestivalChange={(type) => setCurrentFestival(type)}
+          showControls={true}
+          enableInteraction={true}
+        />
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           
           <div className="max-w-3xl mx-auto text-center space-y-4">
@@ -157,15 +207,27 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase border shadow-2xs"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase border shadow-2xs backdrop-blur-xs"
               style={{
                 backgroundColor: 'var(--color-surface, #FFFFFF)',
                 borderColor: 'var(--color-accent, #C29E57)',
                 color: 'var(--color-primary, #70252D)',
               }}
             >
-              <Gift className="w-3.5 h-3.5 text-amber-600" />
-              <span>{seasonalConfig.badge || 'Seasonal Special'}</span>
+              {currentFestival === 'diwali' ? (
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+              ) : currentFestival === 'holi' ? (
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-pink-500 via-amber-400 to-purple-500 animate-pulse" />
+              ) : (
+                <Gift className="w-3.5 h-3.5 text-amber-600" />
+              )}
+              <span>
+                {currentFestival === 'diwali' && (!seasonalConfig.badge || seasonalConfig.badge === 'Seasonal Special')
+                  ? 'Diwali Festival of Lights'
+                  : currentFestival === 'holi' && (!seasonalConfig.badge || seasonalConfig.badge === 'Seasonal Special')
+                  ? 'Holi Colors of Joy'
+                  : seasonalConfig.badge || 'Seasonal Special'}
+              </span>
               {seasonalConfig.discountLabel && (
                 <>
                   <span className="opacity-30">·</span>
@@ -174,15 +236,47 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
               )}
             </motion.div>
 
-            {/* Dynamic Page Title */}
+            {/* Dynamic Page Title with Festive Accents */}
             <motion.h1
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="font-serif-luxury text-3xl sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-tight"
+              className="font-serif-luxury text-3xl sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-tight flex items-center justify-center gap-2 sm:gap-3 flex-wrap"
               style={{ color: 'var(--color-text, #2C2420)' }}
             >
-              {seasonalConfig.name || 'Festive Offers & Deals'}
+              {currentFestival === 'diwali' && (
+                <span className="text-amber-500 drop-shadow-xs animate-pulse text-2xl sm:text-4xl" title="Diwali Diya Flame">
+                  🪔
+                </span>
+              )}
+              {currentFestival === 'holi' && (
+                <span className="text-pink-500 drop-shadow-xs text-2xl sm:text-4xl animate-bounce" title="Holi Gulal Colors">
+                  🎨
+                </span>
+              )}
+              {currentFestival === 'christmas' && (
+                <span className="text-emerald-600 drop-shadow-xs text-2xl sm:text-4xl" title="Winter Holiday Star">
+                  🎄
+                </span>
+              )}
+              {currentFestival === 'eid' && (
+                <span className="text-emerald-700 drop-shadow-xs text-2xl sm:text-4xl" title="Crescent Moon">
+                  🌙
+                </span>
+              )}
+
+              <span>{seasonalConfig.name || 'Festive Offers & Deals'}</span>
+
+              {currentFestival === 'diwali' && (
+                <span className="text-amber-500 drop-shadow-xs animate-pulse text-2xl sm:text-4xl" title="Diwali Sparkler">
+                  ✨
+                </span>
+              )}
+              {currentFestival === 'holi' && (
+                <span className="text-amber-500 drop-shadow-xs text-2xl sm:text-4xl animate-pulse" title="Gulal Marigold">
+                  🌸
+                </span>
+              )}
             </motion.h1>
 
             {/* Tagline */}

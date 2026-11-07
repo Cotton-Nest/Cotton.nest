@@ -4216,6 +4216,100 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 1. Page Details &amp; Branding
               </h4>
 
+              {/* Quick Festive Presets & Animations */}
+              <div className="p-3.5 bg-[var(--color-surface,#FFFFFF)] rounded-2xl border border-[var(--color-border,#EAE2D5)] space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs font-bold text-[var(--color-primary,#70252D)] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Quick Festive Presets &amp; Animations</span>
+                  </span>
+                  <span className="text-[10px] text-[var(--color-text-secondary,#6B5D55)]">
+                    Auto-populates page copy &amp; triggers festive animations (crackers for Diwali, gulal for Holi)
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditableSeasonal((prev) => ({
+                        ...prev,
+                        name: 'Diwali Fest',
+                        badge: 'Diwali Dhamaka',
+                        discountLabel: 'Up to 35% OFF',
+                        tagline: 'Festive Lights & Luxury Bedsheets - 100% Pure Combed Natural Cotton',
+                        bannerNotice: '🪔 Happy Diwali! Special Celebratory Prices & Free Same-Day Delivery in Gurgaon',
+                        description: 'Celebrate the Festival of Lights with handcrafted pure combed cotton bedsheets, woven to bring royal festive elegance and serene comfort to your home.',
+                      }));
+                      showToast('Loaded "Diwali Fest" preset with crackers & sparklers animation');
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100/80 text-amber-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
+                  >
+                    <span>🪔</span>
+                    <span>Diwali Dhamaka (Crackers)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditableSeasonal((prev) => ({
+                        ...prev,
+                        name: 'Holi Colors of Joy',
+                        badge: 'Holi Utsav',
+                        discountLabel: 'Flat 25% OFF',
+                        tagline: 'Colors of Joy & Handcrafted Luxury Bedsheets - Festive Cotton Collection',
+                        bannerNotice: '🎨 Happy Holi! Vibrant Celebratory Savings & Complimentary Delivery in Gurgaon',
+                        description: 'Immerse your bedroom in joyful celebrations with our skin-friendly, breathable natural combed cotton bedsheets. Stain-resistant, 100% colorfast and super soft.',
+                      }));
+                      showToast('Loaded "Holi Colors" preset with vibrant gulal splash animation');
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-pink-300 bg-pink-50/80 hover:bg-pink-100/80 text-pink-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
+                  >
+                    <span>🎨</span>
+                    <span>Holi Colors (Gulal Splashes)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditableSeasonal((prev) => ({
+                        ...prev,
+                        name: 'Christmas & Winter Joy',
+                        badge: 'Holiday Exclusive',
+                        discountLabel: 'Up to 30% OFF',
+                        tagline: 'Cozy Winter Bedding & Holiday Warmth - Pure Natural Cotton King Sheets',
+                        bannerNotice: '🎄 Winter Holiday Special: Handcrafted Bedding Gifts & Express Delivery',
+                        description: 'Warm, cozy and wonderfully breathable combed cotton bedsheets designed for chilly winter evenings and festive holiday gifting.',
+                      }));
+                      showToast('Loaded "Christmas & Winter" preset with snow & starlight animation');
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50/80 hover:bg-emerald-100/80 text-emerald-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
+                  >
+                    <span>🎄</span>
+                    <span>Christmas &amp; Winter (Snow)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditableSeasonal((prev) => ({
+                        ...prev,
+                        name: 'Eid Mubarak Celebration',
+                        badge: 'Regal Festive',
+                        discountLabel: 'Up to 30% OFF',
+                        tagline: 'Regal Elegance for Eid Celebrations - 100% Combed Cotton Bedding',
+                        bannerNotice: '🌙 Eid Mubarak! Festive Luxury Savings & Free Delivery in Gurgaon',
+                        description: 'Bring imperial palace luxury to your bedroom with our masterfully finished cotton sheets, featuring lustrous thread density and sublime comfort.',
+                      }));
+                      showToast('Loaded "Eid Mubarak" preset with crescent starlight animation');
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-emerald-400 bg-emerald-50/80 hover:bg-emerald-100/80 text-emerald-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
+                  >
+                    <span>🌙</span>
+                    <span>Eid Mubarak (Starlight)</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {/* Seasonal Page Name */}
                 <div className="space-y-1.5">
