@@ -115,12 +115,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       }`}
     >
       {/* Top 24K Champagne Gold Luxury Accent Hairline */}
-      <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#C5A059] to-transparent opacity-70 group-hover:opacity-100 transition-opacity shrink-0" />
+      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#C5A059] to-transparent opacity-70 group-hover:opacity-100 transition-opacity z-20 pointer-events-none" />
       {/* Product Image / Video Slot */}
       <div
         className={`relative bg-[#F4EFE6] overflow-hidden shrink-0 ${
           viewMode === 'list'
-            ? 'w-full sm:w-72 md:w-80 aspect-[4/3] sm:aspect-auto sm:min-h-[240px]'
+            ? 'w-full sm:w-64 md:w-72 lg:w-80 aspect-[4/3] sm:aspect-auto sm:self-stretch min-h-[200px] sm:min-h-[240px]'
             : viewMode === 'single'
             ? 'aspect-[4/3] sm:aspect-[16/10]'
             : 'aspect-[4/3]'
@@ -146,7 +146,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             autoPlay
             playsInline
             preload="metadata"
-            className="w-full h-full object-cover object-center relative z-[1]"
+            className="absolute inset-0 w-full h-full object-cover object-center z-[1]"
           />
         ) : (
           <img
@@ -166,7 +166,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               setImageLoaded(true);
               handleImageFallback(e, product.id);
             }}
-            className={`w-full h-full object-cover object-center transition-all duration-500 ease-out group-hover:scale-105 relative z-[1] ${
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-all duration-500 ease-out group-hover:scale-105 z-[1] ${
               imageLoaded ? 'opacity-100 scale-100' : 'opacity-90 scale-[1.01]'
             }`}
           />
@@ -270,7 +270,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Card Content & Metadata */}
       <div
-        className={`relative z-10 flex-1 flex flex-col justify-between bg-white ${
+        className={`relative z-10 flex-1 min-w-0 flex flex-col justify-between bg-white ${
           viewMode === 'list'
             ? 'p-4 sm:p-5 space-y-3'
             : viewMode === 'single'
