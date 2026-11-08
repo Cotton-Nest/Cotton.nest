@@ -20,7 +20,6 @@ import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OwnerAuthModal } from './components/OwnerAuthModal';
-import { WhatsAppPhotoHelperModal, WhatsAppHelperData } from './components/WhatsAppPhotoHelperModal';
 import { LiveOrdersView } from './components/LiveOrdersView';
 import { TermsAndConditionsView } from './components/TermsAndConditionsView';
 import { SeasonalView } from './components/SeasonalView';
@@ -42,7 +41,6 @@ import { initPushNotifications, triggerLocalPushNotification } from './utils/pus
 import { useAuth, isOwnerEmail } from './context/AuthContext';
 import { useLoyalty } from './context/LoyaltyContext';
 import { LoyaltyRewardsModal } from './components/LoyaltyRewardsModal';
-import { setWhatsAppListener } from './utils/whatsappOrder';
 import { Order, INITIAL_ORDERS } from './data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from './data/siteContent';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from './data/seasonal';
@@ -147,7 +145,6 @@ export default function App() {
     variantOrCustomPrice?: any;
     optionalCustomPrice?: number;
   } | null>(null);
-  const [whatsAppHelperData, setWhatsAppHelperData] = useState<WhatsAppHelperData | null>(null);
 
   // Customer Wishlist State with local caching and backend sync
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile>(() => {
@@ -1106,14 +1103,6 @@ export default function App() {
     };
   }, []);
 
-  // Listen for WhatsApp order events to show photo helper modal
-  useEffect(() => {
-    setWhatsAppListener((data) => {
-      setWhatsAppHelperData(data);
-    });
-    return () => setWhatsAppListener(null);
-  }, []);
-
   // Secret Owner Access Listeners: ?admin=true in URL & Ctrl+Shift+A shortcut (always requires PIN page first)
   useEffect(() => {
     try {
@@ -2068,12 +2057,6 @@ export default function App() {
         isOpen={isOwnerAuthOpen}
         onClose={() => setIsOwnerAuthOpen(false)}
         onAuthenticate={handleOwnerAuthenticate}
-      />
-
-      {/* WhatsApp Photo Helper & Preview Modal */}
-      <WhatsAppPhotoHelperModal
-        data={whatsAppHelperData}
-        onClose={() => setWhatsAppHelperData(null)}
       />
 
       {/* Customer Notification Center Drawer Modal */}

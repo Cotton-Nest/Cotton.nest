@@ -22,7 +22,7 @@ import {
   sanitizeLoyaltyKey,
 } from './src/data/loyalty.ts';
 import { generateProductDescription } from './api/ai-description.ts';
-import { sendOtpEmail, verifyOtp } from './api/otp-service.ts';
+import { sendOtpEmail, verifyOtp, sendOrderInvoiceEmail } from './api/otp-service.ts';
 import {
   OrderComplaint,
   validateComplaintSubmission,
@@ -773,7 +773,52 @@ async function startServer() {
 
     db.orders.unshift(newOrder);
     saveDatabase();
+
+    // Trigger automated email invoice to Gmail
+    try {
+      sendOrderInvoiceEmail({
+        orderId: newOrder.id,
+        customerName: newOrder.customerName || 'Valued Customer',
+        customerEmail: newOrder.customerEmail,
+        customerPhone: newOrder.customerPhone,
+        customerAddress: newOrder.customerAddress,
+        shippingMethod: newOrder.shippingMethod,
+        subtotal: Number(newOrder.subtotal) || Number(newOrder.totalAmount) || 0,
+        couponCode: newOrder.couponCode,
+        couponDiscount: Number(newOrder.couponDiscount) || 0,
+        pointsUsed: Number(newOrder.pointsUsed) || 0,
+        pointsDiscount: Number(newOrder.pointsDiscount) || 0,
+        shippingCost: Number(newOrder.shippingCost) || 0,
+        finalTotal: Number(newOrder.totalAmount) || 0,
+        items: Array.isArray(newOrder.items)
+          ? newOrder.items.map((it: any) => ({
+              name: it.product?.name || it.name || 'Pure Cotton Bedsheet',
+              variantName: it.selectedVariant?.name || it.variantName,
+              dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
+              quantity: Number(it.quantity) || 1,
+              price: Number(it.product?.price) || Number(it.price) || 0,
+              imageUrl: it.selectedVariant?.image || it.product?.image || it.imageUrl || '',
+            }))
+          : [],
+        createdAt: newOrder.createdAt,
+      }).catch(() => {});
+    } catch {}
+
     res.status(201).json(newOrder);
+  });
+
+  app.post('/api/send-invoice', async (req, res) => {
+    try {
+      const payload = req.body;
+      if (!payload || !payload.orderId) {
+        return res.status(400).json({ success: false, error: 'Invalid invoice payload' });
+      }
+      const result = await sendOrderInvoiceEmail(payload);
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (err: any) {
+      console.error('Error sending invoice on server:', err);
+      res.status(500).json({ success: false, error: err.message || 'Failed to send invoice' });
+    }
   });
 
   app.put('/api/orders', (req, res) => {

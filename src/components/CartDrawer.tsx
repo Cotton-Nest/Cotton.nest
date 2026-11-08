@@ -154,6 +154,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [checkoutStep, setCheckoutStep] = React.useState<'cart' | 'checkout' | 'success'>('cart');
   const [customerName, setCustomerName] = React.useState('');
   const [customerPhone, setCustomerPhone] = React.useState('');
+  const [customerEmail, setCustomerEmail] = React.useState('');
   const [customerAddress, setCustomerAddress] = React.useState('');
   const [shippingOption, setShippingOption] = React.useState<'india' | 'sector46' | 'gurgaon'>('india');
   const [lastOrderDetails, setLastOrderDetails] = React.useState<{
@@ -295,8 +296,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     if (user) {
       if (user.name && !customerName) setCustomerName(user.name);
       if (user.phone && !customerPhone) setCustomerPhone(user.phone);
+      if (user.email && !customerEmail) setCustomerEmail(user.email);
+    } else if (customerProfile) {
+      if (customerProfile.email && !customerEmail) setCustomerEmail(customerProfile.email);
     }
-  }, [user]);
+  }, [user, customerProfile]);
 
   // Load available coupons on drawer open
   useEffect(() => {
@@ -528,6 +532,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       orderId,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
+      customerEmail: customerEmail.trim() || user?.email || customerProfile?.email || undefined,
       customerAddress: customerAddress.trim(),
       subtotal,
       totalSavings,
@@ -555,7 +560,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       createdAt: new Date().toISOString(),
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
-      customerEmail: user?.email || undefined,
+      customerEmail: customerEmail.trim() || user?.email || customerProfile?.email || undefined,
       userId: user?.id || undefined,
       customerAddress: customerAddress.trim(),
       paymentMethod: 'whatsapp',
@@ -1127,6 +1132,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#2C2420] mb-1">
+                    Email Address (for Instant Invoice &amp; Receipt)
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="e.g. radhika@gmail.com"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
+                  />
+                  <p className="text-[10px] text-[#7A6458] mt-1">
+                    Order invoice receipt with product images and itemized billing will be sent to this email.
+                  </p>
                 </div>
 
                 {/* Selected Delivery Option Summary (Chosen in Bag) */}

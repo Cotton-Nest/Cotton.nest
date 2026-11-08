@@ -10,6 +10,7 @@ import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl, isVideoMedia
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
 import { CouponOffer } from '../data/coupons';
 import { ProductRecommendations } from './ProductRecommendations';
+import { useAuth } from '../context/AuthContext';
 
 interface ProductModalProps {
   product: BedsheetProduct | null;
@@ -52,6 +53,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   onNotifyStock,
   shippingFee = 29,
 }) => {
+  const { user } = useAuth();
   const [quantity, setQuantity] = React.useState(1);
   const [added, setAdded] = React.useState(false);
   const [selectedVariantId, setSelectedVariantId] = React.useState<string | null>(null);
@@ -362,6 +364,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       quantity,
       price: product.price,
       imageUrl: displayImage,
+      customerName: user?.name || undefined,
+      customerEmail: user?.email || undefined,
+      customerPhone: user?.phone || undefined,
     });
   };
 

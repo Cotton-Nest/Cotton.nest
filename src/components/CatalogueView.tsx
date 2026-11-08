@@ -383,6 +383,12 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   const toggleColor = (color: string) => toggleArrayFilter(selectedColors, color, setSelectedColors);
   const toggleQuickFilter = (qId: string) => toggleArrayFilter(selectedQuickFilters, qId, setSelectedQuickFilters);
 
+  // Select stock availability filter & automatically reset category selection to All Categories
+  const handleStockFilterSelect = (status: 'all' | 'in-stock' | 'out-of-stock') => {
+    setSelectedStockFilter(status);
+    setSelectedProductTypes([]); // Automatically reset category selection to "All Categories" so the customer sees all items immediately
+  };
+
   // Clear all filters
   const handleClearAllFilters = () => {
     setSelectedStockFilter('all');
@@ -624,6 +630,11 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     const cleanVal = String(value).toLowerCase().trim();
     return (products || []).filter((p) => {
       if (!p) return false;
+
+      // Filter by stock status if stock filter is active
+      const isOut = !p.inStock || (p.stockQuantity !== undefined && p.stockQuantity <= 0);
+      if (selectedStockFilter === 'in-stock' && isOut) return false;
+      if (selectedStockFilter === 'out-of-stock' && !isOut) return false;
       if (type === 'size') {
         return checkProductMatchesSizeFilter(cleanVal, p.size, p.dimensions);
       }
@@ -811,7 +822,11 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                     selectedProductTypes.length === 0 ? 'bg-white/25 text-white' : 'bg-[#F4EFE6]/90 text-[#7A6458]'
                   }`}
                 >
-                  {products.length}
+                  {selectedStockFilter === 'in-stock'
+                    ? stockCounts.inStock
+                    : selectedStockFilter === 'out-of-stock'
+                    ? stockCounts.outOfStock
+                    : stockCounts.total}
                 </span>
               </button>
 
@@ -944,7 +959,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             <div className="flex items-center gap-1 shrink-0 bg-[#FAF7F2] p-1 rounded-xl border border-[#EAE2D5]">
               <button
                 type="button"
-                onClick={() => setSelectedStockFilter('all')}
+                onClick={() => handleStockFilterSelect('all')}
                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
                   selectedStockFilter === 'all'
                     ? 'bg-[#2C2420] text-white shadow-2xs font-bold'
@@ -955,7 +970,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedStockFilter('in-stock')}
+                onClick={() => handleStockFilterSelect('in-stock')}
                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
                   selectedStockFilter === 'in-stock'
                     ? 'bg-emerald-800 text-white shadow-2xs font-bold'
@@ -967,7 +982,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedStockFilter('out-of-stock')}
+                onClick={() => handleStockFilterSelect('out-of-stock')}
                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
                   selectedStockFilter === 'out-of-stock'
                     ? 'bg-amber-900 text-white shadow-2xs font-bold'
@@ -1022,7 +1037,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                       <span>Availability: Out of Stock</span>
                     </>
                   )}
-                  <button type="button" onClick={() => setSelectedStockFilter('all')} className="cursor-pointer hover:font-bold ml-0.5">✕</button>
+                  <button type="button" onClick={() => handleStockFilterSelect('all')} className="cursor-pointer hover:font-bold ml-0.5">✕</button>
                 </span>
               )}
 
@@ -1379,7 +1394,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                     {/* All Items */}
                     <button
                       type="button"
-                      onClick={() => setSelectedStockFilter('all')}
+                      onClick={() => handleStockFilterSelect('all')}
                       className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                         selectedStockFilter === 'all'
                           ? 'bg-[#2C2420] text-white border-[#2C2420] font-bold shadow-xs'
@@ -1405,7 +1420,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                     {/* Available / In Stock Only */}
                     <button
                       type="button"
-                      onClick={() => setSelectedStockFilter('in-stock')}
+                      onClick={() => handleStockFilterSelect('in-stock')}
                       className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                         selectedStockFilter === 'in-stock'
                           ? 'bg-emerald-800 text-white border-emerald-800 font-bold shadow-xs'
@@ -1431,7 +1446,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                     {/* Out of Stock / Sold Out */}
                     <button
                       type="button"
-                      onClick={() => setSelectedStockFilter('out-of-stock')}
+                      onClick={() => handleStockFilterSelect('out-of-stock')}
                       className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                         selectedStockFilter === 'out-of-stock'
                           ? 'bg-amber-900 text-white border-amber-900 font-bold shadow-xs'

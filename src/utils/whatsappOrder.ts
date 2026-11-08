@@ -1,4 +1,5 @@
 import { COMPANY_DETAILS } from '../data/products';
+import { sendInvoiceEmailApi } from '../services/api';
 
 type WhatsAppListener = (data: {
   productName: string;
@@ -51,128 +52,6 @@ export function getProductSku(productName: string, variantName?: string): string
 }
 
 /**
- * On mobile devices (Android / iOS), shares the actual image file natively to WhatsApp.
- * (Only triggers if on a genuine mobile device where the native OS share sheet opens).
- */
-export async function shareImageOnMobile(
-  imageUrl: string,
-  messageText: string,
-  fileName: string = 'bedsheet'
-): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.share || !isMobileDevice()) {
-    return false;
-  }
-
-  try {
-    const res = await fetch(imageUrl, { mode: 'cors' });
-    if (!res.ok) return false;
-    const blob = await res.blob();
-    const mimeType = blob.type || 'image/jpeg';
-    const ext = mimeType.includes('png') ? 'png' : 'jpg';
-    const cleanFileName = fileName.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const file = new File([blob], `${cleanFileName}.${ext}`, { type: mimeType });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title: 'Cotton Nest Bedsheet Order',
-        text: messageText,
-        files: [file],
-      });
-      return true;
-    }
-  } catch (err: any) {
-    if (err && err.name === 'AbortError') return true;
-    console.warn('Mobile native share failed:', err);
-  }
-
-  return false;
-}
-
-/**
- * Copies an image directly into the system clipboard for desktop users.
- */
-export async function copyImageBlobToClipboard(imageUrl: string): Promise<boolean> {
-  if (typeof window === 'undefined' || !navigator.clipboard || typeof ClipboardItem === 'undefined') {
-    return false;
-  }
-
-  try {
-    const res = await fetch(imageUrl, { mode: 'cors' });
-    if (!res.ok) return false;
-    const blob = await res.blob();
-
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    const blobUrl = URL.createObjectURL(blob);
-
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-      img.src = blobUrl;
-    });
-
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width || 800;
-    canvas.height = img.height || 600;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      URL.revokeObjectURL(blobUrl);
-      return false;
-    }
-
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(blobUrl);
-
-    const pngBlob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/png')
-    );
-
-    if (pngBlob) {
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': pngBlob }),
-      ]);
-      return true;
-    }
-  } catch (err) {
-    console.warn('Could not copy image to clipboard:', err);
-  }
-  return false;
-}
-
-/**
- * Downloads the actual bedsheet photo directly to the device as a .jpg file.
- */
-export function downloadJpgFile(imageUrl: string, productName: string) {
-  try {
-    const safeName = productName.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${safeName}.jpg`;
-
-    fetch(imageUrl)
-      .then((res) => res.blob())
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
-      })
-      .catch(() => {
-        const link = document.createElement('a');
-        link.href = imageUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      });
-  } catch (err) {
-    console.warn('Could not download image:', err);
-  }
-}
-
-/**
  * Opens WhatsApp directly using the official wa.me universal URL.
  */
 export function openWhatsAppDirectly(message: string): void {
@@ -192,14 +71,16 @@ export interface SingleProductOrderPayload {
   quantity?: number;
   price: number;
   imageUrl: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
 }
 
 /**
  * Sends a single product or variant order to WhatsApp:
- * 1. Generates the exact SKU so no photo paste is strictly required by the client.
+ * 1. Generates the exact SKU.
  * 2. Pre-fills clean order specifications in WhatsApp.
- * 3. Copies photo to clipboard and downloads JPG.
- * 4. Displays the helper modal with 1-click options.
+ * 3. Triggers automated purchase invoice email to store admin & buyer email.
  */
 export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayload): Promise<void> {
   const sku = getProductSku(payload.productName, payload.variantName);
@@ -224,22 +105,28 @@ export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayloa
 
   const fullMessage = messageLines.join('\n');
 
-  // Background helper actions
-  downloadJpgFile(payload.imageUrl, payload.productName);
-  const isCopied = await copyImageBlobToClipboard(payload.imageUrl);
+  // Automatically dispatch beautiful invoice email to buyer email and store admin
+  const invoicePayload = {
+    orderId: `CN-ENQ-${Math.floor(100000 + Math.random() * 900000)}`,
+    customerName: payload.customerName || 'Valued Store Visitor',
+    customerEmail: payload.customerEmail,
+    customerPhone: payload.customerPhone,
+    subtotal: totalAmount,
+    finalTotal: totalAmount,
+    items: [
+      {
+        name: payload.productName,
+        variantName: payload.variantName,
+        dimensions: size,
+        quantity: qty,
+        price: payload.price,
+        imageUrl: payload.imageUrl,
+      },
+    ],
+    createdAt: new Date().toISOString(),
+  };
 
-  // Notify UI
-  if (globalWhatsAppListener) {
-    globalWhatsAppListener({
-      productName: payload.productName,
-      variantName: payload.variantName,
-      sku,
-      imageUrl: payload.imageUrl,
-      messageText: fullMessage,
-      isCopied,
-      canMobileShare: isMobileDevice(),
-    });
-  }
+  sendInvoiceEmailApi(invoicePayload).catch(() => {});
 
   // Open WhatsApp directly
   openWhatsAppDirectly(fullMessage);
@@ -250,6 +137,7 @@ export interface CartOrderPayload {
   customerName: string;
   customerPhone: string;
   customerAddress: string;
+  customerEmail?: string;
   subtotal: number;
   totalSavings?: number;
   couponCode?: string;
@@ -270,7 +158,8 @@ export interface CartOrderPayload {
 }
 
 /**
- * Sends complete cart order directly to WhatsApp with SKU references for every single item.
+ * Sends complete cart order directly to WhatsApp with SKU references for every item,
+ * and automatically dispatches a styled purchase invoice email via Gmail.
  */
 export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<string> {
   const itemsText = payload.items.map((item, idx) => {
@@ -343,25 +232,29 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
 
   const fullMessage = messageLines.join('\n');
 
-  if (payload.items.length > 0 && payload.items[0].imageUrl) {
-    const firstItem = payload.items[0];
-    const sku = getProductSku(firstItem.name, firstItem.variantName);
-    downloadJpgFile(firstItem.imageUrl, firstItem.name);
-    const isCopied = await copyImageBlobToClipboard(firstItem.imageUrl);
+  // Send automated purchase invoice email to store admin & customer
+  const invoicePayload = {
+    orderId: refId,
+    customerName: payload.customerName,
+    customerEmail: payload.customerEmail,
+    customerPhone: payload.customerPhone,
+    customerAddress: payload.customerAddress,
+    shippingMethod: payload.shippingMethod,
+    subtotal: payload.subtotal,
+    totalSavings: payload.totalSavings,
+    couponCode: payload.couponCode,
+    couponDiscount,
+    pointsUsed: payload.pointsUsed,
+    pointsDiscount,
+    shippingCost: payload.shippingCost,
+    finalTotal,
+    items: payload.items,
+    createdAt: new Date().toISOString(),
+  };
 
-    if (globalWhatsAppListener) {
-      globalWhatsAppListener({
-        productName: firstItem.name,
-        variantName: firstItem.variantName,
-        sku,
-        imageUrl: firstItem.imageUrl,
-        messageText: fullMessage,
-        isCopied,
-        canMobileShare: isMobileDevice(),
-      });
-    }
-  }
+  sendInvoiceEmailApi(invoicePayload).catch(() => {});
 
   openWhatsAppDirectly(fullMessage);
   return fullMessage;
 }
+
