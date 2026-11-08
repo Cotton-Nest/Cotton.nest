@@ -346,6 +346,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [orderSearch, setOrderSearch] = useState('');
   const [deleteConfirmationProduct, setDeleteConfirmationProduct] = useState<BedsheetProduct | null>(null);
   const [isFactoryResetModalOpen, setIsFactoryResetModalOpen] = useState(false);
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [pastedJsonInput, setPastedJsonInput] = useState('');
 
   // AI Description Generator Modal State
   const [isAiDescModalOpen, setIsAiDescModalOpen] = useState(false);
@@ -1274,285 +1276,320 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     showToast('Complete store & Firestore backup downloaded successfully!');
   };
 
-  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      isImportingBackupRef.current = true;
-      setSaveStatus('saving');
-      showToast('Uploading & syncing JSON data to Cloud Firestore...');
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        let productsToRestore: BedsheetProduct[] | null = null;
-        let imagesToRestore: Record<string, string> = {};
-        let ordersToRestore: Order[] | null = null;
-        let contentToRestore: SiteContent | null = null;
-        let seasonalToRestore: SeasonalConfig | null = null;
-        let themeToRestore: WebsiteThemeConfig | null = null;
-        let reviewsToRestore: ProductReview[] | null = null;
-        let couponsToRestore: any[] | null = null;
+  const processAndRestoreJson = async (jsonString: string): Promise<boolean> => {
+    isImportingBackupRef.current = true;
+    setSaveStatus('saving');
+    showToast('Parsing & syncing JSON data to Cloud Firestore...');
+    try {
+      const parsed = JSON.parse(jsonString);
+      let productsToRestore: BedsheetProduct[] | null = null;
+      let imagesToRestore: Record<string, string> = {};
+      let ordersToRestore: Order[] | null = null;
+      let contentToRestore: SiteContent | null = null;
+      let seasonalToRestore: SeasonalConfig | null = null;
+      let themeToRestore: WebsiteThemeConfig | null = null;
+      let reviewsToRestore: ProductReview[] | null = null;
+      let couponsToRestore: any[] | null = null;
 
-        const safeParsePrice = (val: any, fallback: number = 1320): number => {
-          if (typeof val === 'number') return isNaN(val) ? fallback : Math.max(0, Math.round(val));
-          if (typeof val === 'string') {
-            const cleaned = val.replace(/[^0-9.]/g, '');
-            const num = parseFloat(cleaned);
-            return isNaN(num) ? fallback : Math.max(0, Math.round(num));
+      const safeParsePrice = (val: any, fallback: number = 1320): number => {
+        if (typeof val === 'number') return isNaN(val) ? fallback : Math.max(0, Math.round(val));
+        if (typeof val === 'string') {
+          const cleaned = val.replace(/[^0-9.]/g, '');
+          const num = parseFloat(cleaned);
+          return isNaN(num) ? fallback : Math.max(0, Math.round(num));
+        }
+        return fallback;
+      };
+
+      const isProdLike = (obj: any): boolean => {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+        const keys = Object.keys(obj).map((k) => k.toLowerCase());
+        return keys.some((k) =>
+          k.includes('name') ||
+          k.includes('title') ||
+          k.includes('product') ||
+          k.includes('item') ||
+          k.includes('id') ||
+          k.includes('price') ||
+          k.includes('sku') ||
+          k.includes('code') ||
+          k.includes('image') ||
+          k.includes('img') ||
+          k.includes('sheet')
+        );
+      };
+
+      const isOrderLike = (obj: any): boolean => {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+        const keys = Object.keys(obj).map((k) => k.toLowerCase());
+        return keys.some((k) =>
+          k.includes('customer') ||
+          k.includes('order') ||
+          k.includes('total') ||
+          k.includes('amount') ||
+          k.includes('status') ||
+          k.includes('buyer')
+        );
+      };
+
+      const isProdArray = (arr: any[]): boolean => {
+        return Array.isArray(arr) && arr.length > 0 && arr.some(isProdLike);
+      };
+
+      const isOrderArray = (arr: any[]): boolean => {
+        return Array.isArray(arr) && arr.length > 0 && arr.some(isOrderLike);
+      };
+
+      // Standard root check first
+      if (Array.isArray(parsed)) {
+        if (isProdArray(parsed)) {
+          productsToRestore = parsed;
+        } else if (isOrderArray(parsed)) {
+          ordersToRestore = parsed;
+        } else if (parsed.length > 0) {
+          productsToRestore = parsed;
+        }
+      } else if (parsed && typeof parsed === 'object') {
+        const root = parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data) ? parsed.data : parsed;
+
+        // Tier 1: Check standard object fields
+        for (const key of ['products', 'catalog', 'bedsheets', 'items', 'inventory', 'goods', 'store', 'sheets', 'list', 'data']) {
+          if (isProdArray(root[key])) {
+            productsToRestore = root[key];
+            break;
           }
-          return fallback;
-        };
+        }
 
-        const isProdLike = (obj: any): boolean => {
-          if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
-          const nameVal = obj.name || obj.title || obj.productName || obj.item_name || obj.label || obj.id;
-          return Boolean(nameVal && typeof nameVal === 'string' && nameVal.trim().length > 0);
-        };
+        if (!productsToRestore && root.products && typeof root.products === 'object' && !Array.isArray(root.products)) {
+          const vals = Object.entries(root.products)
+            .map(([k, v]: [string, any]) => ({ ...v, id: v?.id || k }))
+            .filter(isProdLike);
+          if (vals.length > 0) productsToRestore = vals;
+        }
 
-        const isOrderLike = (obj: any): boolean => {
-          if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
-          return Boolean(obj.customerName || obj.customerPhone || obj.totalAmount || obj.items || obj.orderId || obj.order_id);
-        };
-
-        const isProdArray = (arr: any[]): boolean => {
-          return Array.isArray(arr) && arr.length > 0 && arr.some(isProdLike);
-        };
-
-        const isOrderArray = (arr: any[]): boolean => {
-          return Array.isArray(arr) && arr.length > 0 && arr.some(isOrderLike);
-        };
-
-        // Standard root check first
-        if (Array.isArray(parsed)) {
-          if (isProdArray(parsed)) {
-            productsToRestore = parsed;
-          } else if (isOrderArray(parsed)) {
-            ordersToRestore = parsed;
-          }
-        } else if (parsed && typeof parsed === 'object') {
-          const root = parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data) ? parsed.data : parsed;
-
-          // Tier 1: Check standard object fields
-          if (isProdArray(root.products)) productsToRestore = root.products;
-          else if (isProdArray(root.catalog)) productsToRestore = root.catalog;
-          else if (isProdArray(root.bedsheets)) productsToRestore = root.bedsheets;
-          else if (isProdArray(root.items)) productsToRestore = root.items;
-          else if (isProdArray(root.inventory)) productsToRestore = root.inventory;
-          else if (isProdArray(root.goods)) productsToRestore = root.goods;
-          else if (isProdArray(root.store)) productsToRestore = root.store;
-          else if (root.products && typeof root.products === 'object') {
-            const vals = Object.entries(root.products)
-              .map(([k, v]: [string, any]) => ({ ...v, id: v?.id || k }))
-              .filter(isProdLike);
-            if (vals.length > 0) productsToRestore = vals;
-          }
-
-          if (root.customImages && typeof root.customImages === 'object' && !Array.isArray(root.customImages)) {
-            imagesToRestore = root.customImages;
-          } else if (root.custom_images && typeof root.custom_images === 'object' && !Array.isArray(root.custom_images)) {
+        for (const key of ['customImages', 'custom_images', 'images', 'photos']) {
+          if (root[key] && typeof root[key] === 'object' && !Array.isArray(root[key])) {
             const map: Record<string, string> = {};
-            for (const [k, v] of Object.entries(root.custom_images as Record<string, any>)) {
+            for (const [k, v] of Object.entries(root[key] as Record<string, any>)) {
               if (typeof v === 'string') map[k] = v;
               else if (v && typeof v.imageUrl === 'string') map[k] = v.imageUrl;
               else if (v && typeof v.url === 'string') map[k] = v.url;
+              else if (v && typeof v.src === 'string') map[k] = v.src;
             }
             imagesToRestore = map;
-          } else if (root.images && typeof root.images === 'object' && !Array.isArray(root.images)) {
-            imagesToRestore = root.images;
+            break;
           }
+        }
 
-          if (isOrderArray(root.orders)) ordersToRestore = root.orders;
-          if (root.siteContent && typeof root.siteContent === 'object') contentToRestore = root.siteContent;
-          else if (root.site_content && typeof root.site_content === 'object') contentToRestore = root.site_content.main || root.site_content;
-
-          if (root.seasonalConfig && typeof root.seasonalConfig === 'object') seasonalToRestore = root.seasonalConfig;
-          else if (root.seasonal && typeof root.seasonal === 'object') seasonalToRestore = root.seasonal.active || root.seasonal;
-
-          if (root.currentTheme && typeof root.currentTheme === 'object') themeToRestore = root.currentTheme;
-          else if (root.theme && typeof root.theme === 'object') themeToRestore = root.theme.active || root.theme;
-
-          if (Array.isArray(root.reviews)) reviewsToRestore = root.reviews;
-          if (Array.isArray(root.coupons)) couponsToRestore = root.coupons;
-
-          // Tier 2: Dictionary of product objects e.g. { "gulabi-bagh": { name: "...", price: ... } }
-          if (!productsToRestore) {
-            const dictionaryCandidates = Object.entries(root)
-              .filter(([, v]) => isProdLike(v))
-              .map(([k, v]: [string, any]) => ({ ...v, id: v.id || k }));
-            if (dictionaryCandidates.length > 0) {
-              productsToRestore = dictionaryCandidates;
-            }
+        for (const key of ['orders', 'customerOrders', 'sales']) {
+          if (isOrderArray(root[key])) {
+            ordersToRestore = root[key];
+            break;
           }
+        }
 
-          // Tier 3: Deep Breadth-First Search for any nested array of products
-          if (!productsToRestore) {
-            const queue: any[] = [parsed];
-            const visited = new Set();
-            while (queue.length > 0 && !productsToRestore) {
-              const current = queue.shift();
-              if (!current || typeof current !== 'object' || visited.has(current)) continue;
-              visited.add(current);
+        if (root.siteContent && typeof root.siteContent === 'object') contentToRestore = root.siteContent;
+        else if (root.site_content && typeof root.site_content === 'object') contentToRestore = root.site_content.main || root.site_content;
 
-              if (Array.isArray(current)) {
-                if (isProdArray(current)) {
-                  productsToRestore = current;
+        if (root.seasonalConfig && typeof root.seasonalConfig === 'object') seasonalToRestore = root.seasonalConfig;
+        else if (root.seasonal && typeof root.seasonal === 'object') seasonalToRestore = root.seasonal.active || root.seasonal;
+
+        if (root.currentTheme && typeof root.currentTheme === 'object') themeToRestore = root.currentTheme;
+        else if (root.theme && typeof root.theme === 'object') themeToRestore = root.theme.active || root.theme;
+
+        if (Array.isArray(root.reviews)) reviewsToRestore = root.reviews;
+        if (Array.isArray(root.coupons)) couponsToRestore = root.coupons;
+
+        // Tier 2: Dictionary of product objects e.g. { "gulabi-bagh": { name: "...", price: ... } }
+        if (!productsToRestore) {
+          const dictionaryCandidates = Object.entries(root)
+            .filter(([, v]) => isProdLike(v))
+            .map(([k, v]: [string, any]) => ({ ...v, id: v.id || k }));
+          if (dictionaryCandidates.length > 0) {
+            productsToRestore = dictionaryCandidates;
+          }
+        }
+
+        // Tier 3: Deep Breadth-First Search for any nested array of products
+        if (!productsToRestore) {
+          const queue: any[] = [parsed];
+          const visited = new Set();
+          while (queue.length > 0 && !productsToRestore) {
+            const current = queue.shift();
+            if (!current || typeof current !== 'object' || visited.has(current)) continue;
+            visited.add(current);
+
+            if (Array.isArray(current)) {
+              if (isProdArray(current)) {
+                productsToRestore = current;
+                break;
+              }
+            } else {
+              for (const [k, v] of Object.entries(current)) {
+                if (Array.isArray(v) && isProdArray(v)) {
+                  productsToRestore = v;
                   break;
-                }
-              } else {
-                for (const [k, v] of Object.entries(current)) {
-                  if (Array.isArray(v) && isProdArray(v)) {
-                    productsToRestore = v;
-                    break;
-                  } else if (v && typeof v === 'object') {
-                    queue.push(v);
-                  }
+                } else if (v && typeof v === 'object') {
+                  queue.push(v);
                 }
               }
             }
           }
         }
-
-        let restoredSummary: string[] = [];
-
-        // 1. First persist customImages to Firestore
-        let resolvedCustomImages: Record<string, string> = { ...customImages, ...imagesToRestore };
-        if (imagesToRestore && Object.keys(imagesToRestore).length > 0) {
-          if (onUpdateCustomImages) {
-            await onUpdateCustomImages(imagesToRestore, false);
-          } else {
-            resolvedCustomImages = await saveCustomImagesMapApi(imagesToRestore, false);
-          }
-          restoredSummary.push(`${Object.keys(imagesToRestore).length} custom photos`);
-        }
-
-        // 2. Normalize and persist products to Firestore & LocalStorage & Server
-        if (productsToRestore && productsToRestore.length > 0) {
-          const importTimestamp = Date.now();
-          const normalizedProducts: BedsheetProduct[] = productsToRestore
-            .filter((p: any) => p && (p.name || p.title || p.productName || p.item_name || p.id))
-            .map((p: any, idx: number) => {
-              const rawName = String(p.name || p.title || p.productName || p.item_name || p.label || 'Cotton Nest Bedsheet').trim();
-              const safeId = String(
-                p.id ||
-                  `bedsheet-${rawName
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/(^-|-$)/g, '') || idx}`
-              );
-              const customImgForProd = imagesToRestore[safeId] || resolvedCustomImages[safeId];
-              const rawImage = p.image || p.imageUrl || p.img || p.photo || p.picture || p.image_url || p.src || p.cover || '/images/exact_sheet1_pink_rose_1790997736396.jpg';
-              const chosenImage =
-                customImgForProd && typeof customImgForProd === 'string' && customImgForProd.trim() !== ''
-                  ? customImgForProd
-                  : rawImage;
-
-              const parsedPrice = safeParsePrice(p.price ?? p.sale_price ?? p.selling_price, 1320);
-              const parsedOriginalPrice = safeParsePrice(p.originalPrice ?? p.mrp ?? p.list_price ?? p.price, parsedPrice);
-
-              return {
-                id: safeId,
-                name: rawName,
-                collection: p.collection || 'Signature Collection',
-                size: p.size || 'King',
-                productType: p.productType || p.category || 'Bedsheet',
-                brand: p.brand || 'Cotton Nest',
-                price: parsedPrice,
-                originalPrice: parsedOriginalPrice,
-                dimensions: p.dimensions || '108 x 108 inches (274 x 274 cm)',
-                pillowCovers: p.pillowCovers || '2 Pillow Covers (45 x 70 cm)',
-                threadCount: p.threadCount || '350 Thread Count',
-                fabric: p.fabric || '100% Pure Percale Cotton',
-                pattern: p.pattern || 'Botanical Jaal',
-                colorTone: p.colorTone || 'Ivory & Pastels',
-                description: p.description || 'Pristine 100% pure cotton bedsheet.',
-                image: resolveBedsheetImage(chosenImage, safeId),
-                additionalImages: Array.isArray(p.additionalImages) ? p.additionalImages : [],
-                videos: Array.isArray(p.videos) ? p.videos : [],
-                videoUrl: p.videoUrl || '',
-                variants: Array.isArray(p.variants) ? p.variants : [],
-                badge: p.badge || '',
-                availabilityType: normalizeAvailabilityType(p.availabilityType),
-                inStock: p.inStock !== false,
-                stockQuantity: typeof p.stockQuantity === 'number' ? p.stockQuantity : 10,
-                features: Array.isArray(p.features)
-                  ? p.features
-                  : [
-                      'Expansive King size drop',
-                      'Includes 2 matching pillow shams',
-                      '100% pure breathable cotton',
-                    ],
-                updatedAt: importTimestamp,
-                order: typeof p.order === 'number' ? p.order : idx,
-              };
-            });
-
-          setEditableProducts(normalizedProducts);
-          latestProductsRef.current = normalizedProducts;
-
-          // Save to LocalStorage immediately
-          try {
-            localStorage.setItem('cotton_nest_products', JSON.stringify(normalizedProducts));
-          } catch {}
-
-          await onUpdateProducts(normalizedProducts, { replaceAll: true });
-          restoredSummary.push(`${normalizedProducts.length} bedsheets`);
-        }
-
-        // 3. Persist orders to Firestore
-        if (ordersToRestore && ordersToRestore.length > 0) {
-          setEditableOrders(ordersToRestore);
-          await onUpdateOrders(ordersToRestore);
-          restoredSummary.push(`${ordersToRestore.length} orders`);
-        }
-
-        // 4. Persist site content to Firestore
-        if (contentToRestore) {
-          setEditableContent(contentToRestore);
-          await onUpdateSiteContent(contentToRestore);
-          restoredSummary.push('site content');
-        }
-
-        // 5. Persist seasonal config to Firestore
-        if (seasonalToRestore && onUpdateSeasonalConfig) {
-          setEditableSeasonal(seasonalToRestore);
-          await onUpdateSeasonalConfig(seasonalToRestore);
-          restoredSummary.push('seasonal offers');
-        }
-
-        // 6. Persist theme config to Firestore
-        if (themeToRestore && onThemePublished) {
-          await onThemePublished(themeToRestore);
-          restoredSummary.push('theme');
-        }
-
-        // 7. Persist reviews & coupons if included
-        if (reviewsToRestore && reviewsToRestore.length > 0) {
-          await Promise.all(reviewsToRestore.map((r) => saveReviewApi(r).catch(() => {})));
-          restoredSummary.push(`${reviewsToRestore.length} reviews`);
-        }
-        if (couponsToRestore && couponsToRestore.length > 0) {
-          await Promise.all(couponsToRestore.map((c) => saveCouponApi(c).catch(() => {})));
-          restoredSummary.push(`${couponsToRestore.length} coupons`);
-        }
-
-        setSaveStatus('saved');
-        if (restoredSummary.length > 0) {
-          showToast(`✓ Restored & Synced: ${restoredSummary.join(', ')}!`);
-        } else {
-          showToast('Invalid backup file. Could not find bedsheets or store records in JSON.');
-        }
-      } catch (err) {
-        console.error('Failed to parse backup:', err);
-        setSaveStatus('saved');
-        showToast('Failed to parse backup JSON file.');
-      } finally {
-        setTimeout(() => {
-          isImportingBackupRef.current = false;
-        }, 4500);
       }
+
+      let restoredSummary: string[] = [];
+
+      // 1. First persist customImages to Firestore
+      let resolvedCustomImages: Record<string, string> = { ...customImages, ...imagesToRestore };
+      if (imagesToRestore && Object.keys(imagesToRestore).length > 0) {
+        if (onUpdateCustomImages) {
+          await onUpdateCustomImages(imagesToRestore, false);
+        } else {
+          resolvedCustomImages = await saveCustomImagesMapApi(imagesToRestore, false);
+        }
+        restoredSummary.push(`${Object.keys(imagesToRestore).length} custom photos`);
+      }
+
+      // 2. Normalize and persist products to Firestore & LocalStorage & Server
+      if (productsToRestore && productsToRestore.length > 0) {
+        const importTimestamp = Date.now();
+        const normalizedProducts: BedsheetProduct[] = productsToRestore
+          .filter((p: any) => p && (p.name || p.title || p.productName || p.item_name || p.id))
+          .map((p: any, idx: number) => {
+            const rawName = String(p.name || p.title || p.productName || p.item_name || p.label || 'Cotton Nest Bedsheet').trim();
+            const safeId = String(
+              p.id ||
+                `bedsheet-${rawName
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, '-')
+                  .replace(/(^-|-$)/g, '') || idx}`
+            );
+            const customImgForProd = imagesToRestore[safeId] || resolvedCustomImages[safeId];
+            const rawImage = p.image || p.imageUrl || p.img || p.photo || p.picture || p.image_url || p.src || p.cover || '/images/exact_sheet1_pink_rose_1790997736396.jpg';
+            const chosenImage =
+              customImgForProd && typeof customImgForProd === 'string' && customImgForProd.trim() !== ''
+                ? customImgForProd
+                : rawImage;
+
+            const parsedPrice = safeParsePrice(p.price ?? p.sale_price ?? p.selling_price, 1320);
+            const parsedOriginalPrice = safeParsePrice(p.originalPrice ?? p.mrp ?? p.list_price ?? p.price, parsedPrice);
+
+            return {
+              id: safeId,
+              name: rawName,
+              collection: p.collection || 'Signature Collection',
+              size: p.size || 'King',
+              productType: p.productType || p.category || 'Bedsheet',
+              brand: p.brand || 'Cotton Nest',
+              price: parsedPrice,
+              originalPrice: parsedOriginalPrice,
+              dimensions: p.dimensions || '108 x 108 inches (274 x 274 cm)',
+              pillowCovers: p.pillowCovers || '2 Pillow Covers (45 x 70 cm)',
+              threadCount: p.threadCount || '350 Thread Count',
+              fabric: p.fabric || '100% Pure Percale Cotton',
+              pattern: p.pattern || 'Botanical Jaal',
+              colorTone: p.colorTone || 'Ivory & Pastels',
+              description: p.description || 'Pristine 100% pure cotton bedsheet.',
+              image: resolveBedsheetImage(chosenImage, safeId),
+              additionalImages: Array.isArray(p.additionalImages) ? p.additionalImages : [],
+              videos: Array.isArray(p.videos) ? p.videos : [],
+              videoUrl: p.videoUrl || '',
+              variants: Array.isArray(p.variants) ? p.variants : [],
+              badge: p.badge || '',
+              availabilityType: normalizeAvailabilityType(p.availabilityType),
+              inStock: p.inStock !== false,
+              stockQuantity: typeof p.stockQuantity === 'number' ? p.stockQuantity : 10,
+              features: Array.isArray(p.features)
+                ? p.features
+                : [
+                    'Expansive King size drop',
+                    'Includes 2 matching pillow shams',
+                    '100% pure breathable cotton',
+                  ],
+              updatedAt: importTimestamp,
+              order: typeof p.order === 'number' ? p.order : idx,
+            };
+          });
+
+        setEditableProducts(normalizedProducts);
+        latestProductsRef.current = normalizedProducts;
+
+        // Save to LocalStorage immediately
+        try {
+          localStorage.setItem('cotton_nest_products', JSON.stringify(normalizedProducts));
+        } catch {}
+
+        await onUpdateProducts(normalizedProducts, { replaceAll: true });
+        restoredSummary.push(`${normalizedProducts.length} bedsheets`);
+      }
+
+      // 3. Persist orders to Firestore
+      if (ordersToRestore && ordersToRestore.length > 0) {
+        setEditableOrders(ordersToRestore);
+        await onUpdateOrders(ordersToRestore);
+        restoredSummary.push(`${ordersToRestore.length} orders`);
+      }
+
+      // 4. Persist site content to Firestore
+      if (contentToRestore) {
+        setEditableContent(contentToRestore);
+        await onUpdateSiteContent(contentToRestore);
+        restoredSummary.push('site content');
+      }
+
+      // 5. Persist seasonal config to Firestore
+      if (seasonalToRestore && onUpdateSeasonalConfig) {
+        setEditableSeasonal(seasonalToRestore);
+        await onUpdateSeasonalConfig(seasonalToRestore);
+        restoredSummary.push('seasonal offers');
+      }
+
+      // 6. Persist theme config to Firestore
+      if (themeToRestore && onThemePublished) {
+        await onThemePublished(themeToRestore);
+        restoredSummary.push('theme');
+      }
+
+      // 7. Persist reviews & coupons if included
+      if (reviewsToRestore && reviewsToRestore.length > 0) {
+        await Promise.all(reviewsToRestore.map((r) => saveReviewApi(r).catch(() => {})));
+        restoredSummary.push(`${reviewsToRestore.length} reviews`);
+      }
+      if (couponsToRestore && couponsToRestore.length > 0) {
+        await Promise.all(couponsToRestore.map((c) => saveCouponApi(c).catch(() => {})));
+        restoredSummary.push(`${couponsToRestore.length} coupons`);
+      }
+
+      setSaveStatus('saved');
+      if (restoredSummary.length > 0) {
+        showToast(`✓ Restored & Synced: ${restoredSummary.join(', ')}!`);
+        return true;
+      } else {
+        showToast('Invalid backup file. Could not find bedsheets or store records in JSON.');
+        return false;
+      }
+    } catch (err: any) {
+      console.error('Failed to parse backup:', err);
+      setSaveStatus('saved');
+      showToast(`Failed to parse JSON data: ${err.message || 'Syntax error'}`);
+      return false;
+    } finally {
+      setTimeout(() => {
+        isImportingBackupRef.current = false;
+      }, 4500);
+    }
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      await processAndRestoreJson(text);
     };
     reader.readAsText(file);
-    // Reset file input value so user can re-upload if needed
     e.target.value = '';
   };
 
@@ -2541,13 +2578,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="file"
                   ref={backupFileInputRef}
                   onChange={handleImportBackup}
-                  accept=".json,application/json"
+                  accept="*/*,.json,.txt,application/json"
                   className="hidden"
                 />
                 <button
-                  onClick={() => backupFileInputRef.current?.click()}
+                  onClick={() => setIsRestoreModalOpen(true)}
                   className="px-3.5 py-1.5 bg-[#2C2420] hover:bg-[#433731] text-[#FAF7F2] text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
-                  title="Restore store data and uploaded images from JSON backup file"
+                  title="Restore store data and uploaded images from JSON backup file or raw text"
                 >
                   <Upload className="w-3.5 h-3.5 text-[#DEC89B]" />
                   <span>Restore from JSON</span>
@@ -6260,14 +6297,87 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* AI Bedsheet Description Generator Modal */}
-      {isAiDescModalOpen && aiDescTarget && (
-        <AiDescriptionModal
-          isOpen={isAiDescModalOpen}
-          onClose={() => setIsAiDescModalOpen(false)}
-          productContext={aiDescTarget.context}
-          onInsertDescription={handleInsertAiDescription}
-        />
+      {/* Restore JSON Backup Modal with dual File Upload & Raw Text Paste */}
+      {isRestoreModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setIsRestoreModalOpen(false)} />
+          <div className="relative bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 space-y-5 border border-[#DEC89B] shadow-2xl z-10 text-[#2C2420]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8DFD8]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#FAF7F2] border border-[#DEC89B] flex items-center justify-center text-[#C29E57]">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif-luxury text-lg font-bold text-[#2C2420]">Restore Store from JSON</h3>
+                  <p className="text-xs text-[#7A6458]">Upload a JSON backup file or paste your raw JSON data below</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRestoreModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-[#7A6458] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Option 1: File Upload */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-[#2C2420] block">Option 1: Choose JSON Backup File</label>
+              <div className="flex items-center gap-3 p-3 bg-[#FAF7F2] border border-dashed border-[#DEC89B] rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => backupFileInputRef.current?.click()}
+                  className="px-4 py-2.5 bg-[#2C2420] hover:bg-[#433731] text-[#FAF7F2] text-xs font-semibold rounded-xl transition-colors cursor-pointer flex items-center gap-2 shrink-0 shadow-xs"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#DEC89B]" />
+                  <span>Select JSON File</span>
+                </button>
+                <span className="text-xs text-[#7A6458] truncate">Pick any `.json` or `.txt` file from your device</span>
+              </div>
+            </div>
+
+            {/* Option 2: Paste Raw JSON */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-[#2C2420] block">Option 2: Or Paste Raw JSON Text</label>
+              <textarea
+                rows={6}
+                value={pastedJsonInput}
+                onChange={(e) => setPastedJsonInput(e.target.value)}
+                placeholder={'[{ "name": "Gulabi Rose Bedsheet", "price": 1899 }, ...]'}
+                className="w-full p-3 text-xs font-mono bg-neutral-50 border border-[#DEC89B] rounded-2xl focus:ring-2 focus:ring-[#C29E57] focus:outline-hidden text-[#2C2420] resize-y"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsRestoreModalOpen(false)}
+                className="px-4 py-2.5 text-xs font-semibold text-[#6B5D55] hover:text-[#2C2420] hover:bg-neutral-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!pastedJsonInput.trim()) {
+                    showToast('Please select a JSON file or paste raw JSON text.');
+                    return;
+                  }
+                  const ok = await processAndRestoreJson(pastedJsonInput);
+                  if (ok) {
+                    setPastedJsonInput('');
+                    setIsRestoreModalOpen(false);
+                  }
+                }}
+                className="px-5 py-2.5 text-xs font-bold bg-[#8C2E46] hover:bg-[#722337] text-white rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-2"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Restore & Sync Store Data</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
