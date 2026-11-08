@@ -233,47 +233,70 @@ export function saveAddressToBook(
   const addressLine = newAddr.addressLine.trim();
   if (!addressLine) return current;
 
-  const id = newAddr.id || `addr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const label = newAddr.label?.trim() || 'Home';
   const city = newAddr.city?.trim() || 'Gurgaon, Haryana';
   const pincode = newAddr.pincode?.trim() || '122003';
   const isDefault = Boolean(newAddr.isDefault);
+
+  // Normalize address fields (trim spaces and handle case differences) before comparison
+  const normAddressLine = addressLine.toLowerCase().replace(/\s+/g, ' ').trim();
+  const normCity = city.toLowerCase().replace(/\s+/g, ' ').trim();
+  const normPincode = pincode.trim();
+
+  // Check if identical address already exists for that user's UID / identifier
+  const existingIndex = current.findIndex((item) => {
+    const itemLine = item.addressLine.toLowerCase().replace(/\s+/g, ' ').trim();
+    const itemCity = (item.city || 'Gurgaon, Haryana').toLowerCase().replace(/\s+/g, ' ').trim();
+    const itemPin = (item.pincode || '122003').trim();
+    return itemLine === normAddressLine && itemCity === normCity && itemPin === normPincode;
+  });
+
+  if (existingIndex !== -1) {
+    // Reuse existing record instead of creating a duplicate
+    const existing = current[existingIndex];
+    const updatedList = current.map((item, idx) => ({
+      ...item,
+      name: newAddr.name?.trim() ? newAddr.name.trim() : item.name,
+      phone: newAddr.phone?.trim() ? newAddr.phone.trim() : item.phone,
+      label: newAddr.label?.trim() ? newAddr.label.trim() : item.label,
+      isDefault: isDefault ? idx === existingIndex : item.isDefault,
+    }));
+    persistAddressesToStorage(updatedList, resolvedUserKey);
+    return updatedList;
+  }
+
+  const id = newAddr.id || `addr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const label = newAddr.label?.trim() || 'Home';
+  const name = newAddr.name.trim() || 'Customer';
+  const phone = newAddr.phone.trim() || '';
 
   const updatedList: SavedAddress[] = current.map((item) => ({
     ...item,
     isDefault: isDefault ? false : item.isDefault,
   }));
 
-  // Ensure strict uniqueness: remove any existing address with the same normalized addressLine or id
-  const filteredList = updatedList.filter(
-    (item) =>
-      item.id !== id &&
-      item.addressLine.toLowerCase().trim() !== addressLine.toLowerCase()
-  );
-
   const entry: SavedAddress = {
     id,
     label,
-    name: newAddr.name.trim() || 'Customer',
-    phone: newAddr.phone.trim() || '',
+    name,
+    phone,
     addressLine,
     city,
     pincode,
-    isDefault: isDefault || filteredList.length === 0,
+    isDefault: isDefault || updatedList.length === 0,
     createdAt: Date.now(),
     userId: resolvedUserKey || undefined,
   };
 
   if (entry.isDefault) {
-    filteredList.forEach((item) => {
+    updatedList.forEach((item) => {
       item.isDefault = false;
     });
   }
 
-  filteredList.unshift(entry);
-  persistAddressesToStorage(filteredList, resolvedUserKey);
+  updatedList.unshift(entry);
+  persistAddressesToStorage(updatedList, resolvedUserKey);
 
-  return filteredList;
+  return updatedList;
 }
 
 /**
