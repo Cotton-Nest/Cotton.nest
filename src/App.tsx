@@ -37,7 +37,13 @@ import {
   getStoredNotificationPreferences,
   saveStoredNotificationPreferences,
 } from './data/notifications';
-import { initPushNotifications, triggerLocalPushNotification } from './utils/pushNotifications';
+import {
+  initPushNotifications,
+  triggerLocalPushNotification,
+  requestWebPushPermission,
+  isPushNotificationSupported,
+  getPushPermissionStatus,
+} from './utils/pushNotifications';
 import { useAuth, isOwnerEmail } from './context/AuthContext';
 import { useLoyalty } from './context/LoyaltyContext';
 import { LoyaltyRewardsModal } from './components/LoyaltyRewardsModal';
@@ -102,7 +108,7 @@ import {
   isValidHex,
 } from './data/theme';
 import { resolveBedsheetImage, isVideoMedia } from './utils/imageUrl';
-import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star } from 'lucide-react';
+import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star, Bell, X } from 'lucide-react';
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -761,10 +767,50 @@ export default function App() {
 
   const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
 
-  // Initialize service worker once on mount
+  // Chrome-style "Allow Notifications" prompt state
+  const [showChromePushPrompt, setShowChromePushPrompt] = useState<boolean>(false);
+
+  // Initialize service worker & automatic Chrome notification permission prompt on mount
   useEffect(() => {
     initPushNotifications().catch(() => {});
+
+    if (isPushNotificationSupported() && getPushPermissionStatus() === 'default') {
+      const dismissed = sessionStorage.getItem('cn_push_prompt_dismissed');
+      if (!dismissed) {
+        const t = setTimeout(() => {
+          if (getPushPermissionStatus() === 'default') {
+            setShowChromePushPrompt(true);
+          }
+        }, 600);
+        return () => clearTimeout(t);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    const handlePermChange = () => {
+      if (getPushPermissionStatus() !== 'default') {
+        setShowChromePushPrompt(false);
+      }
+    };
+    window.addEventListener('cotton-nest-push-permission-changed', handlePermChange);
+    return () => window.removeEventListener('cotton-nest-push-permission-changed', handlePermChange);
+  }, []);
+
+  const handleAllowChromeNotifications = async () => {
+    setShowChromePushPrompt(false);
+    const res = await requestWebPushPermission(user?.email || user?.phone || customerProfile.email || customerProfile.phone || 'guest');
+    if (res.granted) {
+      setNotificationPreferences((prev) => ({ ...prev, pushEnabled: true }));
+    }
+  };
+
+  const handleDismissChromeNotifications = () => {
+    setShowChromePushPrompt(false);
+    try {
+      sessionStorage.setItem('cn_push_prompt_dismissed', '1');
+    } catch {}
+  };
 
   // Real-time authoritative subscriptions to Cloud Firestore
   useEffect(() => {
@@ -2213,6 +2259,54 @@ export default function App() {
           >
             <ChevronUp className="w-5 h-5 text-[#A8823B] group-hover:text-[#B83F60] transition-colors" />
           </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Chrome-Style Top-Left "Allow Notifications" Prompt */}
+      <AnimatePresence>
+        {showChromePushPrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: -16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.96 }}
+            transition={{ duration: 0.2 }}
+            className="fixed top-3 left-3 sm:left-6 z-[9999] w-[calc(100vw-1.5rem)] max-w-[340px] bg-white text-[#202124] rounded-xl shadow-[0_8px_30px_ rgba(0,0,0,0.22)] border border-[#dadce0] p-4 font-sans"
+            role="dialog"
+            aria-label="Notification permission request"
+          >
+            <div className="flex items-start justify-between gap-2 mb-2.5">
+              <div className="text-[13px] leading-snug text-[#202124]">
+                <span className="font-semibold">{typeof window !== 'undefined' ? window.location.host : 'Cotton Nest'}</span> wants to
+              </div>
+              <button
+                data-dismiss-push-prompt="true"
+                onClick={handleDismissChromeNotifications}
+                className="text-[#5f6368] hover:text-[#202124] p-0.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+                aria-label="Close notification prompt"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2.5 text-[14px] text-[#3c4043] mb-4">
+              <Bell className="w-4 h-4 text-[#5f6368] shrink-0" />
+              <span>Show notifications</span>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                data-dismiss-push-prompt="true"
+                onClick={handleDismissChromeNotifications}
+                className="px-4 py-1.5 rounded-full border border-[#dadce0] text-[#1a73e8] hover:bg-[#f8fbff] text-[13px] font-medium transition-colors cursor-pointer"
+              >
+                Block
+              </button>
+              <button
+                onClick={handleAllowChromeNotifications}
+                className="px-4 py-1.5 rounded-full bg-[#1a73e8] hover:bg-[#1557b0] text-white text-[13px] font-medium shadow-xs transition-colors cursor-pointer"
+              >
+                Allow
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 

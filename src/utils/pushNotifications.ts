@@ -61,7 +61,48 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 }
 
-export const initPushNotifications = registerServiceWorker;
+export async function initPushNotifications(): Promise<ServiceWorkerRegistration | null> {
+  const reg = await registerServiceWorker();
+
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+    const triggerNativePrompt = async () => {
+      if (Notification.permission !== 'default') return;
+      try {
+        const res = await requestWebPushPermission();
+        window.dispatchEvent(new CustomEvent('cotton-nest-push-permission-changed', { detail: res.status }));
+      } catch {}
+    };
+
+    // 1. Attempt to trigger Chrome's native permission prompt shortly after page load
+    const timer = setTimeout(() => {
+      triggerNativePrompt();
+    }, 1000);
+
+    // 2. Chrome 80+ often requires a user gesture (click/tap) to pop up the full native
+    // "wants to Show notifications [Allow] [Block]" dialog under the address bar.
+    // Attach a one-time gesture listener so the very first tap/click triggers it if still 'default'.
+    const onFirstGesture = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest && target.closest('[data-dismiss-push-prompt="true"]')) {
+        window.removeEventListener('click', onFirstGesture, true);
+        window.removeEventListener('touchstart', onFirstGesture, true);
+        return;
+      }
+      if (Notification.permission === 'default') {
+        triggerNativePrompt();
+      }
+      window.removeEventListener('click', onFirstGesture, true);
+      window.removeEventListener('touchstart', onFirstGesture, true);
+    };
+
+    window.addEventListener('click', onFirstGesture, { capture: true, once: true });
+    window.addEventListener('touchstart', onFirstGesture, { capture: true, once: true });
+
+    return reg;
+  }
+
+  return reg;
+}
 
 /**
  * Helper to show a native OS notification immediately (in the device's system notification bar)
