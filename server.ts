@@ -1254,10 +1254,15 @@ async function startServer() {
     }
 
     const isBecomingConfirmed = newStatus === 'confirmed' && (previousOrder.status !== 'confirmed' || !previousOrder.invoiceSent);
+    const deliveredAtTimestamp =
+      newStatus === 'delivered'
+        ? updated.deliveredAt || previousOrder.deliveredAt || new Date().toISOString()
+        : previousOrder.deliveredAt;
 
     db.orders[index] = {
       ...previousOrder,
       ...updated,
+      ...(deliveredAtTimestamp ? { deliveredAt: deliveredAtTimestamp } : {}),
       pointsCredited: pointsCreditedFlag,
       timeline: updatedTimeline,
     };

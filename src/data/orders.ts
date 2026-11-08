@@ -39,6 +39,8 @@ export interface Order {
   pointsEarned?: number;
   pointsCredited?: boolean;
   status: OrderStatus;
+  deliveredAt?: string;
+  updatedAt?: number;
   invoiceSent?: boolean;
   invoiceSentAt?: string;
   invoiceStatus?: 'pending_confirmation' | 'generated' | 'failed';

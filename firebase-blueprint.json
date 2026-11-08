@@ -56,6 +56,7 @@
         "totalAmount": { "type": "number", "description": "Total order amount in INR" },
         "paymentMethod": { "type": "string", "description": "Payment mode" },
         "status": { "type": "string", "description": "Order processing status" },
+        "deliveredAt": { "type": "string", "description": "ISO timestamp when order was delivered" },
         "createdAt": { "type": "string", "description": "Order timestamp" }
       },
       "required": ["id", "customerName", "phone", "totalAmount", "status"]

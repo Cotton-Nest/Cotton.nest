@@ -28,6 +28,8 @@ import {
   ComplaintPhoto,
   COMPLAINT_REQUEST_TYPES,
   extractProductSizeAndVariant,
+  getOrderExchangeEligibility,
+  formatRemainingExchangeTime,
 } from '../data/complaints';
 import {
   getComplaintsApi,
@@ -123,7 +125,19 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
     };
   }, [order.id]);
 
+  // Live clock to evaluate the 48-hour post-delivery exchange window in real time
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const exchangeEligibility = getOrderExchangeEligibility(order, nowMs);
+
   const handleOpenModal = () => {
+    if (!exchangeEligibility.canRequestExchange) return;
     setFormError(null);
     setSubmitSuccess(null);
     setRequestType('Exchange');
@@ -358,21 +372,85 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FAF6F0] p-3.5 rounded-2xl border border-[#DEC89B]">
         <div className="flex items-start sm:items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#5E1924]/10 border border-[#C5A059]/40 flex items-center justify-center text-[#5E1924] shrink-0">
-            <RefreshCw className="w-4 h-4 text-[#C5A059]" />
+            {exchangeEligibility.canRequestExchange ? (
+              <RefreshCw className="w-4 h-4 text-[#C5A059]" />
+            ) : (
+              <Clock className="w-4 h-4 text-[#8C7A70]" />
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-[#2C2420]">
                 Defect Exchange &amp; Complaint Desk
               </span>
+              {exchangeEligibility.reason === 'not_delivered' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100/80 text-amber-900 border border-amber-300 flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" />
+                  <span>Activates on Delivery</span>
+                </span>
+              )}
+              {exchangeEligibility.reason === 'active' && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" />
+                  <span>Active · {formatRemainingExchangeTime(exchangeEligibility.remainingMs)} left</span>
+                </span>
+              )}
+              {exchangeEligibility.reason === 'expired' && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300 flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" />
+                  <span>48h Window Closed</span>
+                </span>
+              )}
               {complaints.length > 0 && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#5E1924] text-[#FAF6F0]">
                   {complaints.length} Submitted
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-[#6B5D55]">
-              Received a damaged or defective bedsheet in Order #{order.id}? Request an exchange under our 48-Hour Guarantee.
+            <p className="text-[11px] text-[#6B5D55] mt-0.5">
+              {exchangeEligibility.reason === 'not_delivered' && (
+                <>
+                  Exchange requests activate once Order #{order.id} is marked as <strong>Delivered</strong>, and remain active for 48 hours from the date &amp; time of delivery.
+                </>
+              )}
+              {exchangeEligibility.reason === 'active' && exchangeEligibility.deliveredAtMs && exchangeEligibility.expiresAtMs && (
+                <>
+                  Delivered on{' '}
+                  <strong>
+                    {new Date(exchangeEligibility.deliveredAtMs).toLocaleString('en-IN', {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </strong>
+                  . Active until{' '}
+                  <strong>
+                    {new Date(exchangeEligibility.expiresAtMs).toLocaleString('en-IN', {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </strong>{' '}
+                  (48-Hour Guarantee).
+                </>
+              )}
+              {exchangeEligibility.reason === 'expired' && exchangeEligibility.deliveredAtMs && exchangeEligibility.expiresAtMs && (
+                <>
+                  Delivered on{' '}
+                  <strong>
+                    {new Date(exchangeEligibility.deliveredAtMs).toLocaleString('en-IN', {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </strong>
+                  . The 48-hour exchange window closed on{' '}
+                  <strong>
+                    {new Date(exchangeEligibility.expiresAtMs).toLocaleString('en-IN', {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </strong>
+                  .
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -381,10 +459,32 @@ export const OrderComplaintSection: React.FC<OrderComplaintSectionProps> = ({
           type="button"
           data-testid={`return-exchange-btn-${order.id}`}
           onClick={handleOpenModal}
-          className="w-full sm:w-auto px-4 py-2.5 bg-[#5E1924] hover:bg-[#48121B] text-[#FAF6F0] text-xs font-semibold rounded-xl border border-[#C5A059]/50 shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          disabled={!exchangeEligibility.canRequestExchange}
+          title={
+            exchangeEligibility.canRequestExchange
+              ? 'Request an exchange within 48 hours of delivery'
+              : exchangeEligibility.message
+          }
+          className={`w-full sm:w-auto px-4 py-2.5 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-2 shrink-0 ${
+            exchangeEligibility.canRequestExchange
+              ? 'bg-[#5E1924] hover:bg-[#48121B] text-[#FAF6F0] border-[#C5A059]/50 shadow-xs cursor-pointer'
+              : 'bg-[#EAE2D5]/80 text-[#8C7A70] border-[#D6CAB8] cursor-not-allowed opacity-80'
+          }`}
         >
-          <RefreshCw className="w-3.5 h-3.5 text-[#C5A059]" />
-          <span>{complaints.length > 0 ? 'New Exchange / Complaint' : 'Request Exchange'}</span>
+          {exchangeEligibility.canRequestExchange ? (
+            <RefreshCw className="w-3.5 h-3.5 text-[#C5A059]" />
+          ) : (
+            <Clock className="w-3.5 h-3.5 text-[#8C7A70]" />
+          )}
+          <span>
+            {exchangeEligibility.reason === 'not_delivered'
+              ? 'Request Exchange (After Delivery)'
+              : exchangeEligibility.reason === 'expired'
+              ? 'Exchange Window Closed (48h)'
+              : complaints.length > 0
+              ? 'New Exchange / Complaint'
+              : 'Request Exchange'}
+          </span>
         </button>
       </div>
 

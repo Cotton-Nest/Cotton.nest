@@ -874,7 +874,53 @@ export async function saveAllOrdersApi(orders: Order[]): Promise<void> {
 
 export async function updateOrderStatus(orderId: string, status: string, orderData?: Partial<Order>): Promise<void> {
   const path = `orders/${orderId}`;
+  const nowIso = new Date().toISOString();
   let targetOrder: Order | undefined = orderData as Order | undefined;
+
+  const buildUpdatedTimeline = (existingTimeline?: Order['timeline'], nextStatus?: string) => {
+    const base = Array.isArray(existingTimeline) ? [...existingTimeline] : [];
+    if (!nextStatus) return base;
+    const lastStep = base[base.length - 1];
+    if (lastStep && lastStep.status === nextStatus) return base;
+
+    const titles: Record<string, { title: string; description: string }> = {
+      pending: {
+        title: 'Order Received',
+        description: 'Order queued for verification. Sale invoice will generate once confirmed.',
+      },
+      confirmed: {
+        title: 'Order Confirmed & Sale Invoice Generated',
+        description: 'Inspected and confirmed by Cotton Nest Atelier. Official sale invoice dispatched to customer email.',
+      },
+      dispatched: {
+        title: 'Dispatched & In Transit',
+        description: 'Handed over to express courier. Out for delivery.',
+      },
+      delivered: {
+        title: 'Delivered Successfully',
+        description: 'Package delivered to the customer. 48-hour exchange window is now active.',
+      },
+      cancelled: {
+        title: 'Order Cancelled',
+        description: 'This order was cancelled.',
+      },
+    };
+
+    const stepInfo = titles[nextStatus] || {
+      title: `Status: ${nextStatus}`,
+      description: 'Order status updated by Cotton Nest Atelier.',
+    };
+
+    return [
+      ...base,
+      {
+        status: nextStatus as any,
+        timestamp: nowIso,
+        title: stepInfo.title,
+        description: stepInfo.description,
+      },
+    ];
+  };
 
   // 1. Update local storage
   try {
@@ -884,11 +930,18 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       if (Array.isArray(list)) {
         const updated = list.map((o) => {
           if (o.id === orderId) {
-            targetOrder = { ...o, ...(orderData || {}), status: status as any };
-            return {
+            const nextTimeline = buildUpdatedTimeline(orderData?.timeline || o.timeline, status);
+            const nextDeliveredAt =
+              status === 'delivered' ? o.deliveredAt || orderData?.deliveredAt || nowIso : o.deliveredAt;
+            targetOrder = {
               ...o,
               ...(orderData || {}),
               status: status as any,
+              ...(nextDeliveredAt ? { deliveredAt: nextDeliveredAt } : {}),
+              timeline: nextTimeline,
+            };
+            return {
+              ...targetOrder,
               pointsCredited: status === 'delivered' ? true : o.pointsCredited,
             };
           }
@@ -921,13 +974,35 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     } catch {}
   }
 
+  const resolvedDeliveredAt =
+    status === 'delivered'
+      ? targetOrder?.deliveredAt || orderData?.deliveredAt || nowIso
+      : targetOrder?.deliveredAt;
+  const resolvedTimeline = buildUpdatedTimeline(
+    orderData?.timeline || targetOrder?.timeline,
+    status
+  );
+  if (targetOrder) {
+    targetOrder = {
+      ...targetOrder,
+      status: status as any,
+      ...(resolvedDeliveredAt ? { deliveredAt: resolvedDeliveredAt } : {}),
+      timeline: resolvedTimeline,
+    };
+  }
+
   // 2. Update Express server backend (or fallback to Vercel serverless /api/send-invoice when confirmed)
   let serverHandledInvoice = false;
   try {
     const putRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, order: targetOrder }),
+      body: JSON.stringify({
+        status,
+        ...(resolvedDeliveredAt ? { deliveredAt: resolvedDeliveredAt } : {}),
+        timeline: resolvedTimeline,
+        order: targetOrder,
+      }),
     });
     if (putRes.ok) {
       const contentType = putRes.headers.get('content-type') || '';
@@ -1024,11 +1099,17 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       ...(status === 'confirmed'
         ? {
             invoiceSent: true,
-            invoiceSentAt: new Date().toISOString(),
+            invoiceSentAt: nowIso,
             invoiceStatus: 'generated',
           }
         : {}),
-      ...(status === 'delivered' ? { pointsCredited: true } : {}),
+      ...(status === 'delivered'
+        ? {
+            pointsCredited: true,
+            deliveredAt: resolvedDeliveredAt || nowIso,
+          }
+        : {}),
+      ...(resolvedTimeline.length > 0 ? { timeline: resolvedTimeline } : {}),
       updatedAt: Date.now(),
     });
   } catch (error) {

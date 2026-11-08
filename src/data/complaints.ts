@@ -290,6 +290,112 @@ export function verifyProductMembershipInOrder(
   return { valid: true, matchedItem: candidates[0] };
 }
 
+export const EXCHANGE_WINDOW_HOURS = 48;
+export const EXCHANGE_WINDOW_MS = EXCHANGE_WINDOW_HOURS * 60 * 60 * 1000;
+
+export interface ExchangeEligibilityResult {
+  canRequestExchange: boolean;
+  reason: 'not_delivered' | 'active' | 'expired';
+  deliveredAtIso: string | null;
+  deliveredAtMs: number | null;
+  expiresAtMs: number | null;
+  remainingMs: number;
+  message: string;
+}
+
+/**
+ * Resolves the exact delivery timestamp for an order and evaluates whether the order
+ * is currently within the 48-hour exchange window from the date & time of delivery.
+ * Exchange requests activate ONLY once order.status === 'delivered' and remain active for 48 hours.
+ */
+export function getOrderExchangeEligibility(
+  order: Order | null | undefined,
+  nowMs: number = Date.now()
+): ExchangeEligibilityResult {
+  if (!order || order.status !== 'delivered') {
+    return {
+      canRequestExchange: false,
+      reason: 'not_delivered',
+      deliveredAtIso: null,
+      deliveredAtMs: null,
+      expiresAtMs: null,
+      remainingMs: 0,
+      message:
+        'Exchange requests activate once your order is delivered, and remain active for 48 hours from the date and time of delivery.',
+    };
+  }
+
+  // 1. Check explicit order.deliveredAt
+  let rawDeliveredAt: string | undefined = order.deliveredAt;
+
+  // 2. Fallback: check timeline for the 'delivered' status entry (latest match)
+  if (!rawDeliveredAt && Array.isArray(order.timeline)) {
+    for (let i = order.timeline.length - 1; i >= 0; i--) {
+      const step = order.timeline[i];
+      if (step && step.status === 'delivered' && step.timestamp) {
+        rawDeliveredAt = step.timestamp;
+        break;
+      }
+    }
+  }
+
+  // 3. Fallback: check order.updatedAt if valid
+  if (!rawDeliveredAt && order.updatedAt) {
+    const parsedUpdated = new Date(order.updatedAt).getTime();
+    if (!Number.isNaN(parsedUpdated) && parsedUpdated > 0) {
+      rawDeliveredAt = new Date(parsedUpdated).toISOString();
+    }
+  }
+
+  // 4. Final fallback: order.createdAt
+  if (!rawDeliveredAt && order.createdAt) {
+    rawDeliveredAt = order.createdAt;
+  }
+
+  const parsedMs = rawDeliveredAt ? new Date(rawDeliveredAt).getTime() : NaN;
+  const deliveredAtMs = !Number.isNaN(parsedMs) && parsedMs > 0 ? parsedMs : nowMs;
+  const deliveredAtIso = new Date(deliveredAtMs).toISOString();
+  const expiresAtMs = deliveredAtMs + EXCHANGE_WINDOW_MS;
+  const remainingMs = Math.max(0, expiresAtMs - nowMs);
+
+  if (nowMs > expiresAtMs) {
+    return {
+      canRequestExchange: false,
+      reason: 'expired',
+      deliveredAtIso,
+      deliveredAtMs,
+      expiresAtMs,
+      remainingMs: 0,
+      message:
+        'The 48-hour exchange window from the date and time of delivery has expired.',
+    };
+  }
+
+  return {
+    canRequestExchange: true,
+    reason: 'active',
+    deliveredAtIso,
+    deliveredAtMs,
+    expiresAtMs,
+    remainingMs,
+    message: 'Order is eligible for exchange under the 48-hour post-delivery guarantee.',
+  };
+}
+
+/**
+ * Formats remaining milliseconds in the 48-hour window into a concise human-readable countdown.
+ */
+export function formatRemainingExchangeTime(remainingMs: number): string {
+  if (remainingMs <= 0) return '0m';
+  const totalMinutes = Math.ceil(remainingMs / (60 * 1000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+}
+
 /**
  * Validates a full complaint submission payload against the original order and returns
  * a sanitized OrderComplaint ready for persistence.
@@ -311,6 +417,15 @@ export function validateComplaintSubmission(
   });
   if (!ownershipCheck.valid || !order) {
     return { valid: false, error: ownershipCheck.error || 'Order verification failed.' };
+  }
+
+  // 1b. Verify order has been delivered and is within the 48-hour exchange window from delivery date & time
+  const exchangeEligibility = getOrderExchangeEligibility(order);
+  if (!exchangeEligibility.canRequestExchange) {
+    return {
+      valid: false,
+      error: exchangeEligibility.message,
+    };
   }
 
   // 2. Verify request type (Cotton Nest policy: Exchange or Product Complaint only; returns not accepted)
