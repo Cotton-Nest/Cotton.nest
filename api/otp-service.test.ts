@@ -42,20 +42,23 @@ test('buildCottonNestOtpText produces matching plain-text alternative', () => {
 test('getGmailConfig strips whitespace from app password and handles missing env', () => {
   const origUser = process.env.GMAIL_USER;
   const origPass = process.env.GMAIL_APP_PASSWORD;
+  const origGmailPass = process.env.GMAIL_PASS;
 
   try {
     delete process.env.GMAIL_USER;
     delete process.env.GMAIL_APP_PASSWORD;
+    delete process.env.GMAIL_PASS;
     assert.equal(getGmailConfig(), null);
 
     process.env.GMAIL_USER = ' cottonnest.atelier@gmail.com ';
-    process.env.GMAIL_APP_PASSWORD = ' abcd efgh ijkl mnop ';
+    process.env.GMAIL_PASS = ' abcd efgh ijkl mnop ';
     const config = getGmailConfig();
     assert.notEqual(config, null);
     assert.equal(config?.user, 'cottonnest.atelier@gmail.com');
     assert.equal(config?.pass, 'abcdefghijklmnop');
 
     // Test hyphenated password stripping (e.g. abcd-efgh-ijkl-mnop)
+    delete process.env.GMAIL_PASS;
     process.env.GMAIL_APP_PASSWORD = 'abcd-efgh-ijkl-mnop';
     const configHyphens = getGmailConfig();
     assert.equal(configHyphens?.pass, 'abcdefghijklmnop');
@@ -66,6 +69,8 @@ test('getGmailConfig strips whitespace from app password and handles missing env
     else delete process.env.GMAIL_USER;
     if (origPass) process.env.GMAIL_APP_PASSWORD = origPass;
     else delete process.env.GMAIL_APP_PASSWORD;
+    if (origGmailPass) process.env.GMAIL_PASS = origGmailPass;
+    else delete process.env.GMAIL_PASS;
   }
 });
 
@@ -93,12 +98,14 @@ test('verifyOtp returns error when no active OTP exists', async () => {
 test('sendOtpEmail returns 503 configuration error when credentials are not set', async () => {
   const origUser = process.env.GMAIL_USER;
   const origPass = process.env.GMAIL_APP_PASSWORD;
+  const origGmailPass = process.env.GMAIL_PASS;
 
   try {
     delete process.env.GMAIL_USER;
     delete process.env.GMAIL_APP_PASSWORD;
+    delete process.env.GMAIL_PASS;
 
-    const res = await sendOtpEmail('test-config-unconfigured-unique@gmail.com');
+    const res = await sendOtpEmail(`test-unconfigured-${Date.now()}@gmail.com`);
     assert.equal(res.success, false);
     assert.equal(res.status, 503);
     assert.ok(res.error?.includes('Gmail SMTP credentials are not configured'));
@@ -107,6 +114,8 @@ test('sendOtpEmail returns 503 configuration error when credentials are not set'
     else delete process.env.GMAIL_USER;
     if (origPass) process.env.GMAIL_APP_PASSWORD = origPass;
     else delete process.env.GMAIL_APP_PASSWORD;
+    if (origGmailPass) process.env.GMAIL_PASS = origGmailPass;
+    else delete process.env.GMAIL_PASS;
   }
 });
 

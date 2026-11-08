@@ -127,7 +127,8 @@ export function getGmailConfig(): {
   }
   user = user.toLowerCase();
 
-  const rawPass = cleanEnvVal(process.env.GMAIL_APP_PASSWORD);
+  // Support both process.env.GMAIL_PASS and process.env.GMAIL_APP_PASSWORD
+  const rawPass = cleanEnvVal(process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD);
   // Google App Passwords are 16 letters (e.g. 'abcd efgh ijkl mnop' or 'abcd-efgh-ijkl-mnop').
   // Remove all whitespace, hyphens, and quotes:
   const pass = rawPass.replace(/[\s-]+/g, '').replace(/["'`]/g, '');
@@ -144,11 +145,12 @@ export function getGmailConfig(): {
 }
 
 /**
- * Creates a Nodemailer transporter for Gmail SMTP with SSL (465) or STARTTLS (587).
+ * Creates a Nodemailer transporter specifically configured for Gmail with an App Password.
  */
 export function createGmailTransporter(config: { user: string; pass: string }, port = 465) {
   if (port === 587) {
     return nodemailer.createTransport({
+      service: 'gmail',
       host: 'smtp.gmail.com',
       port: 587,
       secure: false, // STARTTLS
@@ -166,8 +168,9 @@ export function createGmailTransporter(config: { user: string; pass: string }, p
     });
   }
 
-  // Default: Direct SSL port 465
+  // Default: Gmail SMTP with App Password over Direct SSL port 465
   return nodemailer.createTransport({
+    service: 'gmail',
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
@@ -346,10 +349,10 @@ export async function sendOtpEmail(email: string): Promise<{
   // 3. Verify Gmail SMTP credentials
   const config = getGmailConfig();
   if (!config) {
-    console.error('OTP Send Error: GMAIL_USER or GMAIL_APP_PASSWORD is not set in backend environment.');
+    console.error('[OTP Runtime Error] Gmail SMTP credentials missing: process.env.GMAIL_USER and process.env.GMAIL_PASS (or GMAIL_APP_PASSWORD) are not set.');
     return {
       success: false,
-      error: 'Gmail SMTP credentials are not configured on the server. Please set GMAIL_USER and GMAIL_APP_PASSWORD in your backend environment variables.',
+      error: 'Gmail SMTP credentials are not configured on the server. Please set GMAIL_USER and GMAIL_PASS in your backend environment variables.',
       status: 503,
     };
   }
@@ -375,6 +378,7 @@ export async function sendOtpEmail(email: string): Promise<{
       await transporter465.sendMail(mailOptions);
     } catch (primaryErr: any) {
       sendError = primaryErr;
+      console.error('[OTP SMTP Port 465 Error]:', primaryErr.message || primaryErr);
       // If network/connection error on port 465, retry on port 587 STARTTLS
       if (
         primaryErr.code === 'ECONNREFUSED' ||
@@ -387,6 +391,7 @@ export async function sendOtpEmail(email: string): Promise<{
           await transporter587.sendMail(mailOptions);
           sendError = null;
         } catch (fallbackErr: any) {
+          console.error('[OTP SMTP Port 587 Fallback Error]:', fallbackErr.message || fallbackErr);
           sendError = fallbackErr;
         }
       }
@@ -418,7 +423,14 @@ export async function sendOtpEmail(email: string): Promise<{
       status: 200,
     };
   } catch (err: any) {
-    console.error('Failed to send OTP via Gmail SMTP:', err.message || err);
+    console.error('[Vercel Runtime OTP Email Error] Exact failure reason:', {
+      message: err?.message,
+      code: err?.code,
+      response: err?.response,
+      responseCode: err?.responseCode,
+      command: err?.command,
+      stack: err?.stack,
+    });
 
     const isAuthError =
       err.code === 'EAUTH' ||

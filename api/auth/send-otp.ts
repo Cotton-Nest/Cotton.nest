@@ -1,4 +1,10 @@
-import { sendOtpEmail } from '../otp-service.ts';
+import nodemailer from 'nodemailer';
+import crypto from 'crypto';
+import {
+  buildCottonNestOtpHtml,
+  buildCottonNestOtpText,
+  generateVerificationToken,
+} from '../otp-service.ts';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,13 +32,72 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'Email address is required.' });
     }
 
-    const result = await sendOtpEmail(email);
-    return res.status(result.status).json(result);
-  } catch (err: any) {
-    console.error('API send-otp error:', err);
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Read environment variables (GMAIL_USER and GMAIL_PASS, with fallback to GMAIL_APP_PASSWORD)
+    const gmailUser = (process.env.GMAIL_USER || '').trim();
+    const rawPass = (process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
+    const gmailPass = rawPass.replace(/\s+/g, ''); // Strip spaces from 16-char Google App Password
+
+    if (!gmailUser || !gmailPass) {
+      const missingErr = 'Missing Gmail SMTP environment variables: GMAIL_USER or GMAIL_PASS is not set.';
+      console.error('[Vercel Runtime OTP Error]:', missingErr);
+      return res.status(503).json({
+        success: false,
+        error: missingErr,
+      });
+    }
+
+    // 2. Configure Nodemailer transporter specifically for Gmail using an App Password
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: {
+        user: gmailUser,
+        pass: gmailPass,
+      },
+    });
+
+    // 3. Generate cryptographically secure 6-digit OTP
+    const otp = String(crypto.randomInt(100000, 1000000));
+
+    // 4. Send the OTP email
+    await transporter.sendMail({
+      from: `"Cotton Nest" <${gmailUser}>`,
+      to: cleanEmail,
+      subject: 'Cotton Nest OTP',
+      text: buildCottonNestOtpText(otp),
+      html: buildCottonNestOtpHtml(otp),
+    });
+
+    // 5. Generate stateless verification token for serverless verification across Vercel lambdas
+    const verificationToken = generateVerificationToken(cleanEmail, otp);
+
+    console.log(`[Vercel Runtime OTP Success]: OTP dispatched to ${cleanEmail} via ${gmailUser}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent! Look for an email from Cotton Nest with the subject Cotton Nest OTP.',
+      verificationToken,
+      cooldownSeconds: 60,
+    });
+  } catch (error: any) {
+    // Log exact error details so they are immediately visible in Vercel Runtime Logs
+    console.error('[Vercel Runtime OTP Error] Failed to send OTP email:', {
+      message: error?.message,
+      code: error?.code,
+      response: error?.response,
+      responseCode: error?.responseCode,
+      command: error?.command,
+      stack: error?.stack,
+    });
+
     return res.status(500).json({
       success: false,
-      error: 'An unexpected error occurred while sending the verification code. Please try again.',
+      error: error?.message || 'Failed to send OTP email.',
+      details: error?.response || error?.code || null,
     });
   }
 }
