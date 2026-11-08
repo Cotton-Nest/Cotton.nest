@@ -720,15 +720,56 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     } catch {}
   }
 
-  // 2. Update Express server backend (server handles points crediting and dispatches sale invoice when confirmed)
+  // 2. Update Express server backend (or fallback to Vercel serverless /api/send-invoice when confirmed)
+  let serverHandledInvoice = false;
   try {
-    await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+    const putRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, order: targetOrder }),
     });
+    if (putRes.ok) {
+      serverHandledInvoice = true;
+    }
   } catch (err) {
     console.warn('Failed to update order status on server:', err);
+  }
+
+  // 2b. On Vercel serverless where /api/orders/:id does not exist, automatically call /api/send-invoice when confirmed
+  if (status === 'confirmed' && targetOrder && !serverHandledInvoice) {
+    try {
+      await fetch('/api/send-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: targetOrder.id || orderId,
+          customerName: targetOrder.customerName || 'Valued Customer',
+          customerEmail: targetOrder.customerEmail,
+          customerPhone: targetOrder.customerPhone,
+          customerAddress: targetOrder.customerAddress,
+          shippingMethod: targetOrder.shippingCost ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
+          subtotal: Number(targetOrder.totalAmount) || 0,
+          couponCode: targetOrder.couponCode,
+          couponDiscount: Number(targetOrder.couponDiscount) || 0,
+          pointsUsed: Number(targetOrder.pointsUsed) || 0,
+          pointsDiscount: Number(targetOrder.pointsDiscount) || 0,
+          shippingCost: Number(targetOrder.shippingCost) || 0,
+          finalTotal: Number(targetOrder.totalAmount) || 0,
+          pointsEarned: targetOrder.pointsEarned,
+          items: (targetOrder.items || []).map((it: any) => ({
+            name: it.productName || it.name || 'Pure Cotton Bedsheet',
+            variantName: it.variantName,
+            dimensions: it.dimensions || '108 x 108 inches',
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.price) || 0,
+            imageUrl: it.productImage || it.imageUrl || '',
+          })),
+          createdAt: targetOrder.createdAt,
+        }),
+      });
+    } catch (invErr) {
+      console.warn('Serverless invoice dispatch fallback notice:', invErr);
+    }
   }
 
   // 3. If order is marked delivered and points were not credited yet, credit Nest Points now across customer keys

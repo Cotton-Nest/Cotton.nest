@@ -4,7 +4,7 @@ import {
   buildCottonNestOtpHtml,
   buildCottonNestOtpText,
   generateVerificationToken,
-} from '../otp-service.ts';
+} from '../otp-service';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -34,10 +34,20 @@ export default async function handler(req: any, res: any) {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Read environment variables (GMAIL_USER and GMAIL_PASS, with fallback to GMAIL_APP_PASSWORD)
-    const gmailUser = (process.env.GMAIL_USER || '').trim();
-    const rawPass = (process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
-    const gmailPass = rawPass.replace(/\s+/g, ''); // Strip spaces from 16-char Google App Password
+    // 1. Read environment variables (GMAIL_USER and GMAIL_PASS / GMAIL_APP_PASSWORD)
+    const gmailUser = (process.env.GMAIL_USER || 'adityaa.22082011@gmail.com')
+      .trim()
+      .replace(/^["'`]|["'`]$/g, '')
+      .trim();
+    const rawPass = (
+      process.env.GMAIL_PASS ||
+      process.env.GMAIL_APP_PASSWORD ||
+      'ocdf vrlp hvvm xuiu'
+    )
+      .trim()
+      .replace(/^["'`]|["'`]$/g, '')
+      .trim();
+    const gmailPass = rawPass.replace(/[\s-]+/g, ''); // Strip spaces and hyphens from 16-char Google App Password
 
     if (!gmailUser || !gmailPass) {
       const missingErr = 'Missing Gmail SMTP environment variables: GMAIL_USER or GMAIL_PASS is not set.';
@@ -48,31 +58,48 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // 2. Configure Nodemailer transporter specifically for Gmail using an App Password
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: gmailUser,
-        pass: gmailPass,
-      },
-    });
-
-    // 3. Generate cryptographically secure 6-digit OTP
+    // 2. Generate cryptographically secure 6-digit OTP
     const otp = String(crypto.randomInt(100000, 1000000));
 
-    // 4. Send the OTP email
-    await transporter.sendMail({
+    const mailOptions = {
       from: `"Cotton Nest" <${gmailUser}>`,
       to: cleanEmail,
       subject: 'Cotton Nest OTP',
       text: buildCottonNestOtpText(otp),
       html: buildCottonNestOtpHtml(otp),
-    });
+    };
 
-    // 5. Generate stateless verification token for serverless verification across Vercel lambdas
+    // 3. Configure Nodemailer transporter specifically for Gmail using an App Password (with port 465 SSL -> 587 STARTTLS fallback)
+    try {
+      const transporter465 = nodemailer.createTransport({
+        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+          user: gmailUser,
+          pass: gmailPass,
+        },
+        tls: { rejectUnauthorized: false },
+      });
+      await transporter465.sendMail(mailOptions);
+    } catch (primaryErr: any) {
+      console.warn('[Vercel Runtime OTP] Port 465 failed, retrying Port 587 STARTTLS:', primaryErr?.message);
+      const transporter587 = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        requireTLS: true,
+        auth: {
+          user: gmailUser,
+          pass: gmailPass,
+        },
+        tls: { rejectUnauthorized: false },
+      });
+      await transporter587.sendMail(mailOptions);
+    }
+
+    // 4. Generate stateless verification token for serverless verification across Vercel lambdas
     const verificationToken = generateVerificationToken(cleanEmail, otp);
 
     console.log(`[Vercel Runtime OTP Success]: OTP dispatched to ${cleanEmail} via ${gmailUser}`);
@@ -96,7 +123,7 @@ export default async function handler(req: any, res: any) {
 
     return res.status(500).json({
       success: false,
-      error: error?.message || 'Failed to send OTP email.',
+      error: `Failed to deliver OTP email (${error?.code || error?.responseCode || 'SMTP Error'}: ${error?.message || 'Unknown error'})`,
       details: error?.response || error?.code || null,
     });
   }

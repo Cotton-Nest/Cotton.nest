@@ -26,7 +26,7 @@ import {
 import { Order, OrderStatus } from '../data/orders';
 import { COMPANY_DETAILS } from '../data/products';
 import { useAuth } from '../context/AuthContext';
-import { getOrders } from '../services/api';
+import { getOrders, updateOrderStatus } from '../services/api';
 import { normalizePhoneDigits } from '../data/complaints';
 import { OrderComplaintSection } from './OrderComplaintSection';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
@@ -64,38 +64,25 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
     setIsConfirmingOrder(order.id);
     setEmailSendFeedback(null);
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(order.id)}/confirm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order }),
-      });
-      const data = await res.json();
-      if (data && data.success) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === order.id ? { ...o, status: 'confirmed' as const, invoiceSent: true } : o
-          )
-        );
-        if (searchedOrder && searchedOrder.id === order.id) {
-          setSearchedOrder({ ...searchedOrder, status: 'confirmed', invoiceSent: true });
-        }
-        setEmailSendFeedback({
-          id: order.id,
-          success: true,
-          message: '✓ Order confirmed & official sale invoice dispatched from adityaa.22082011@gmail.com!',
-        });
-      } else {
-        setEmailSendFeedback({
-          id: order.id,
-          success: false,
-          message: data?.error || 'Could not confirm order.',
-        });
+      await updateOrderStatus(order.id, 'confirmed', { ...order, status: 'confirmed' });
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id ? { ...o, status: 'confirmed' as const, invoiceSent: true } : o
+        )
+      );
+      if (searchedOrder && searchedOrder.id === order.id) {
+        setSearchedOrder({ ...searchedOrder, status: 'confirmed', invoiceSent: true });
       }
+      setEmailSendFeedback({
+        id: order.id,
+        success: true,
+        message: '✓ Order confirmed & official sale invoice dispatched from adityaa.22082011@gmail.com!',
+      });
     } catch (err: any) {
       setEmailSendFeedback({
         id: order.id,
         success: false,
-        message: 'Network error confirming order.',
+        message: 'Could not confirm order.',
       });
     } finally {
       setIsConfirmingOrder(null);

@@ -1,4 +1,4 @@
-import { verifyOtp } from '../otp-service.ts';
+import { verifyOtp } from '../otp-service';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
