@@ -768,17 +768,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
 
             {/* Store Availability Callout (Hidden when Blank / 'none' is selected) */}
-            {normalizeAvailabilityType(product.availabilityType, product.inStock) === 'out_of_stock' || isOutOfStock ? (
-              <div className="p-3.5 bg-amber-950/10 rounded-xl border border-amber-300 flex items-center gap-3 text-xs text-amber-900 shadow-2xs">
-                <div className="w-8 h-8 rounded-xl bg-amber-200/60 flex items-center justify-center shrink-0 text-sm">
-                  🚫
-                </div>
-                <div>
-                  <p className="font-bold text-amber-950">Out of Stock</p>
-                  <p className="text-[11px] text-amber-900">This item is currently sold out. You can click "Notify Me" to get informed when it is available again.</p>
-                </div>
-              </div>
-            ) : normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' ? (
+            {normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' ? (
               <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#DEC89B] flex items-center gap-3 text-xs text-[#8C2E46] shadow-2xs">
                 <div className="w-8 h-8 rounded-xl bg-[#8C2E46]/10 text-[#8C2E46] flex items-center justify-center shrink-0">
                   <Sparkles className="w-4 h-4 text-[#C29E57]" />
@@ -786,16 +776,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 <div>
                   <p className="font-bold text-[#8C2E46]">Available for Touch &amp; Feel in Sector 46 Atelier</p>
                   <p className="text-[11px] text-[#6B5D55]">Visit our atelier store in Sector 46 Gurgaon to feel the pure cotton fabric before buying.</p>
-                </div>
-              </div>
-            ) : normalizeAvailabilityType(product.availabilityType) === 'on_order' ? (
-              <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 flex items-center gap-3 text-xs text-amber-900 shadow-2xs">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-sm">
-                  🧵
-                </div>
-                <div>
-                  <p className="font-bold text-amber-900">On Order Basis</p>
-                  <p className="text-[11px] text-amber-800">Handcrafted to order at our atelier. Custom finished &amp; delivered in 3-5 business days.</p>
                 </div>
               </div>
             ) : null}
@@ -974,17 +954,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </label>
                     <select
                       value={editAvailabilityType}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEditAvailabilityType(val);
-                        if (val === 'out_of_stock') {
-                          setEditInStock(false);
-                          setEditStockQuantity(0);
-                        } else if (editAvailabilityType === 'out_of_stock' || !editInStock) {
-                          setEditInStock(true);
-                          if (editStockQuantity === 0) setEditStockQuantity(10);
-                        }
-                      }}
+                      onChange={(e) => setEditAvailabilityType(e.target.value)}
                       className="w-full px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
                     >
                       {AVAILABILITY_OPTIONS.map((opt) => (
@@ -1130,20 +1100,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 <span className={isOutOfStock ? "text-amber-800" : "text-[#3E7D5A]"}>
                   {isOutOfStock ? "Out of Stock" : "In Stock"}
                 </span>
-                {normalizeAvailabilityType(product.availabilityType, product.inStock) === 'out_of_stock' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case tracking-normal bg-[#2C2420] text-amber-300 border border-amber-400/40">
-                    <span>🚫 Out of Stock</span>
-                  </span>
-                )}
                 {normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case tracking-normal bg-[#FAF7F2] text-[#8C2E46] border border-[#DEC89B]">
                     <Sparkles className="w-2.5 h-2.5 text-[#C29E57]" />
                     <span>Available at Sec 46 Atelier</span>
-                  </span>
-                )}
-                {normalizeAvailabilityType(product.availabilityType) === 'on_order' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case tracking-normal bg-amber-50 text-amber-900 border border-amber-200">
-                    <span>🧵 On Order Basis</span>
                   </span>
                 )}
               </div>

@@ -28,7 +28,10 @@ import {
   Feather,
   Flame,
   ShieldCheck,
-  LayoutGrid
+  LayoutGrid,
+  CheckCircle2,
+  AlertTriangle,
+  Boxes
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -183,7 +186,7 @@ export function checkProductMatchesSizeFilter(filterLabel: string, itemSize?: st
   return sz.includes(cleanS) || d.includes(cleanS);
 }
 
-type FilterCategoryTab = 'size' | 'material' | 'pattern' | 'productType' | 'price' | 'color' | 'brand' | 'quick';
+type FilterCategoryTab = 'stock' | 'size' | 'material' | 'pattern' | 'productType' | 'price' | 'color' | 'brand' | 'quick';
 
 export const CatalogueView: React.FC<CatalogueViewProps> = ({
   products = BEDSHEETS_CATALOG,
@@ -231,6 +234,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   };
 
   // Multi-select Filters State - Keeping Material & Pattern strictly separated
+  const [selectedStockFilter, setSelectedStockFilter] = useState<'all' | 'in-stock' | 'out-of-stock'>('all');
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
   const [selectedPatterns, setSelectedPatterns] = useState<string[]>([]);
@@ -244,8 +248,28 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
   // Myntra-style 2-column Filter Modal State
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [activeFilterTab, setActiveFilterTab] = useState<FilterCategoryTab>('size');
+  const [activeFilterTab, setActiveFilterTab] = useState<FilterCategoryTab>('stock');
   const [categorySearch, setCategorySearch] = useState('');
+
+  // Calculate stock counts for instant filter tabs & badges
+  const stockCounts = useMemo(() => {
+    let inStockCount = 0;
+    let outOfStockCount = 0;
+    (products || []).forEach((p) => {
+      if (!p) return;
+      const isOut = !p.inStock || (p.stockQuantity !== undefined && p.stockQuantity <= 0);
+      if (isOut) {
+        outOfStockCount++;
+      } else {
+        inStockCount++;
+      }
+    });
+    return {
+      total: (products || []).length,
+      inStock: inStockCount,
+      outOfStock: outOfStockCount,
+    };
+  }, [products]);
 
   // Extract distinct dynamic filter choices and counts from actual products data
   const availableFilterData = useMemo(() => {
@@ -361,6 +385,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
   // Clear all filters
   const handleClearAllFilters = () => {
+    setSelectedStockFilter('all');
     setSelectedSizes([]);
     setSelectedMaterials([]);
     setSelectedPatterns([]);
@@ -377,6 +402,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   // Count active filter conditions
   const activeFiltersCount = useMemo(() => {
     let count = 0;
+    if (selectedStockFilter !== 'all') count += 1;
     count += selectedSizes.length;
     count += selectedMaterials.length;
     count += selectedPatterns.length;
@@ -388,6 +414,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     if (searchQuery.trim()) count += 1;
     return count;
   }, [
+    selectedStockFilter,
     selectedSizes,
     selectedMaterials,
     selectedPatterns,
@@ -414,6 +441,11 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         const dims = String(product.dimensions || '');
         const prodName = String(product.name || '');
         const prodColl = String(product.collection || '');
+
+        // 0. Stock availability constraint
+        const isOutOfStockItem = !product.inStock || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+        if (selectedStockFilter === 'in-stock' && isOutOfStockItem) return false;
+        if (selectedStockFilter === 'out-of-stock' && !isOutOfStockItem) return false;
         const prodPatt = String(product.pattern || '');
         const prodColor = String(product.colorTone || '');
         const prodFabric = String(product.fabric || '');
@@ -862,8 +894,14 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               <span>Sort</span>
             </button>
 
-            {/* Quick Attribute Filter Triggers (Size, Material, Pattern, Color, Price, Brand) */}
+            {/* Quick Attribute Filter Triggers (Stock, Size, Material, Pattern, Color, Price, Brand) */}
             {[
+              {
+                id: 'stock' as FilterCategoryTab,
+                label: selectedStockFilter === 'in-stock' ? 'In Stock' : selectedStockFilter === 'out-of-stock' ? 'Out of Stock' : 'Stock',
+                count: selectedStockFilter !== 'all' ? 1 : 0,
+                icon: Boxes,
+              },
               { id: 'size' as FilterCategoryTab, label: 'Size', count: selectedSizes.length, icon: Box },
               { id: 'material' as FilterCategoryTab, label: 'Material', count: selectedMaterials.length, icon: Feather },
               { id: 'pattern' as FilterCategoryTab, label: 'Pattern', count: selectedPatterns.length, icon: LayoutGrid },
@@ -902,6 +940,45 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
             <div className="h-4 w-px bg-[#DEC89B]/50 shrink-0 mx-0.5" />
 
+            {/* Quick Stock Status Toggle Pills */}
+            <div className="flex items-center gap-1 shrink-0 bg-[#FAF7F2] p-1 rounded-xl border border-[#EAE2D5]">
+              <button
+                type="button"
+                onClick={() => setSelectedStockFilter('all')}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                  selectedStockFilter === 'all'
+                    ? 'bg-[#2C2420] text-white shadow-2xs font-bold'
+                    : 'text-[#6B5D55] hover:text-[#2C2420]'
+                }`}
+              >
+                All ({stockCounts.total})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedStockFilter('in-stock')}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                  selectedStockFilter === 'in-stock'
+                    ? 'bg-emerald-800 text-white shadow-2xs font-bold'
+                    : 'text-emerald-800 hover:bg-emerald-100/50'
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                <span>In Stock ({stockCounts.inStock})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedStockFilter('out-of-stock')}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                  selectedStockFilter === 'out-of-stock'
+                    ? 'bg-amber-900 text-white shadow-2xs font-bold'
+                    : 'text-amber-900 hover:bg-amber-100/50'
+                }`}
+              >
+                <AlertTriangle className="w-3 h-3 text-amber-500" />
+                <span>Out of Stock ({stockCounts.outOfStock})</span>
+              </button>
+            </div>
+
             {/* Quick Refinement Chips */}
             {quickFilterDefs.map((chip) => {
               const isSelected = selectedQuickFilters.includes(chip.id);
@@ -931,6 +1008,23 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           <div className="flex items-center justify-between flex-wrap gap-2 py-2.5 px-3.5 mb-4 liquid-glass-surface rounded-2xl text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[11px] font-semibold text-[#8C7A70] uppercase">Active:</span>
+
+              {selectedStockFilter !== 'all' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] shadow-2xs">
+                  {selectedStockFilter === 'in-stock' ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>Availability: In Stock Only</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-3 h-3 text-amber-600" />
+                      <span>Availability: Out of Stock</span>
+                    </>
+                  )}
+                  <button type="button" onClick={() => setSelectedStockFilter('all')} className="cursor-pointer hover:font-bold ml-0.5">✕</button>
+                </span>
+              )}
 
               {selectedSizes.map((s) => (
                 <span
@@ -1229,6 +1323,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
               {/* Left Column: Categories List (~35% width, light gray background) */}
               <div className="w-[36%] sm:w-[32%] bg-[#F7F4EF] border-r border-[#EAE2D5] overflow-y-auto no-scrollbar">
                 {[
+                  { id: 'stock', label: 'Availability', count: selectedStockFilter !== 'all' ? 1 : 0, sub: 'In Stock / Sold Out' },
                   { id: 'size', label: 'Size', count: selectedSizes.length, sub: 'Mattress fit' },
                   { id: 'material', label: 'Material', count: selectedMaterials.length, sub: 'Fabric & Weave' },
                   { id: 'pattern', label: 'Pattern', count: selectedPatterns.length, sub: 'Prints & Motifs' },
@@ -1273,6 +1368,93 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
               {/* Right Column: Options List (~65% width, white background) */}
               <div className="flex-1 bg-white overflow-y-auto p-4 sm:p-5 flex flex-col">
+                
+                {/* 0. Stock Availability Tab */}
+                {activeFilterTab === 'stock' && (
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider mb-2">
+                      Filter Bedsheet Availability Status
+                    </p>
+
+                    {/* All Items */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStockFilter('all')}
+                      className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                        selectedStockFilter === 'all'
+                          ? 'bg-[#2C2420] text-white border-[#2C2420] font-bold shadow-xs'
+                          : 'bg-white text-[#2C2420] border-[#EAE2D5] hover:bg-[#FAF7F2]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                          selectedStockFilter === 'all' ? 'bg-white/20 text-amber-300' : 'bg-[#FAF7F2] text-[#8C2E46]'
+                        }`}>
+                          <Boxes className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs block font-bold">All Bedsheets</span>
+                          <span className={`text-[10px] block ${selectedStockFilter === 'all' ? 'text-[#EAE2D5]' : 'text-[#7A6458]'}`}>
+                            Show full catalogue (both available and sold out items)
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold tabular-nums">({stockCounts.total})</span>
+                    </button>
+
+                    {/* Available / In Stock Only */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStockFilter('in-stock')}
+                      className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                        selectedStockFilter === 'in-stock'
+                          ? 'bg-emerald-800 text-white border-emerald-800 font-bold shadow-xs'
+                          : 'bg-emerald-50/50 text-emerald-950 border-emerald-200 hover:bg-emerald-100/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                          selectedStockFilter === 'in-stock' ? 'bg-white/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs block font-bold">Available / In Stock</span>
+                          <span className={`text-[10px] block ${selectedStockFilter === 'in-stock' ? 'text-emerald-100' : 'text-emerald-800'}`}>
+                            Ready for immediate purchase &amp; fast dispatch
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold tabular-nums">({stockCounts.inStock})</span>
+                    </button>
+
+                    {/* Out of Stock / Sold Out */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStockFilter('out-of-stock')}
+                      className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                        selectedStockFilter === 'out-of-stock'
+                          ? 'bg-amber-900 text-white border-amber-900 font-bold shadow-xs'
+                          : 'bg-amber-50/60 text-amber-950 border-amber-300 hover:bg-amber-100/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                          selectedStockFilter === 'out-of-stock' ? 'bg-white/20 text-amber-300' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          <AlertTriangle className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs block font-bold">Out of Stock / Sold Out</span>
+                          <span className={`text-[10px] block ${selectedStockFilter === 'out-of-stock' ? 'text-amber-100' : 'text-amber-800'}`}>
+                            View sold out items to request restock alerts
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold tabular-nums">({stockCounts.outOfStock})</span>
+                    </button>
+                  </div>
+                )}
                 
                 {/* 1. Quick Filters Tab */}
                 {activeFilterTab === 'quick' && (

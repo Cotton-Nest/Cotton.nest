@@ -202,18 +202,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         {/* Status Badges */}
-        {normalizeAvailabilityType(product.availabilityType, product.inStock) === 'out_of_stock' || isOutOfStock ? (
-          <div className="absolute top-2.5 left-12 z-10 bg-[#2C2420] px-3 py-1 rounded-full text-[11px] font-bold text-amber-300 border border-amber-400/40 shadow-xs flex items-center gap-1">
-            <span>🚫 Out of Stock</span>
+        {isOutOfStock ? (
+          <div className="absolute top-2.5 left-12 z-10 bg-[#2C2420] px-3 py-1 rounded-full text-[11px] font-medium text-amber-300 border border-amber-400/35 shadow-xs">
+            Sold Out
           </div>
         ) : normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' ? (
           <div className="absolute top-2.5 left-12 z-10 bg-[#FAF7F2] text-[#8C2E46] px-2.5 py-1 rounded-full text-[10px] font-bold border border-[#DEC89B] shadow-xs flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-[#C29E57]" />
             <span>Available at Sec 46</span>
-          </div>
-        ) : normalizeAvailabilityType(product.availabilityType) === 'on_order' ? (
-          <div className="absolute top-2.5 left-12 z-10 bg-amber-950/90 text-amber-200 px-2.5 py-1 rounded-full text-[10px] font-bold border border-amber-400/40 shadow-xs flex items-center gap-1">
-            <span>🧵 On Order Basis</span>
           </div>
         ) : product.badge ? (
           <div className="absolute top-2.5 left-12 z-10 bg-white px-3 py-1 rounded-full text-[11px] font-semibold text-[#8C2E46] border border-[#EAE2D5] shadow-xs">
@@ -389,18 +385,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
           {/* Clean Editorial Availability & Exchange Strip */}
           <div className="flex items-center justify-between text-[11px] text-[#6B5D55] py-1.5 px-2.5 rounded-lg bg-[#FAF7F2] border border-[#EAE2D5]">
-            {normalizeAvailabilityType(product.availabilityType, product.inStock) === 'out_of_stock' || isOutOfStock ? (
-              <span className="text-amber-800 font-bold flex items-center gap-1.5 truncate">
-                <span>🚫 Out of Stock</span>
-              </span>
-            ) : normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' ? (
+            {normalizeAvailabilityType(product.availabilityType) === 'atelier_touch' ? (
               <span className="text-[#8C2E46] font-bold flex items-center gap-1.5 truncate">
                 <Sparkles className="w-3.5 h-3.5 text-[#C29E57] shrink-0" />
                 <span>Available at Sec 46</span>
-              </span>
-            ) : normalizeAvailabilityType(product.availabilityType) === 'on_order' ? (
-              <span className="text-amber-800 font-bold flex items-center gap-1.5 truncate">
-                <span>🧵 On Order Basis</span>
               </span>
             ) : (
               <span className="truncate" />
