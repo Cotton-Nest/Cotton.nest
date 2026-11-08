@@ -29,6 +29,9 @@ import {
   getOrders,
   updateOrderStatus,
   deleteOrder,
+  saveCustomImagesMapApi,
+  saveReviewApi,
+  saveCouponApi,
 } from '../services/api';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -116,21 +119,22 @@ import {
 
 interface AdminPanelProps {
   products: BedsheetProduct[];
-  onUpdateProducts: (updatedProducts: BedsheetProduct[]) => void;
+  onUpdateProducts: (updatedProducts: BedsheetProduct[], options?: { replaceAll?: boolean }) => Promise<void> | void;
   onResetDefaults: () => void;
   onExitAdmin: () => void;
   customImages: Record<string, string>;
+  onUpdateCustomImages?: (customImages: Record<string, string>, replaceAll?: boolean) => Promise<void> | void;
   onUploadImage: (productId: string, dataUrl: string) => void;
   orders: Order[];
-  onUpdateOrders: (orders: Order[]) => void;
+  onUpdateOrders: (orders: Order[]) => Promise<void> | void;
   siteContent: SiteContent;
-  onUpdateSiteContent: (content: SiteContent) => void;
+  onUpdateSiteContent: (content: SiteContent) => Promise<void> | void;
   onResetAllImages?: () => void;
   onUpdateSingleProduct?: (updatedProduct: BedsheetProduct) => void;
   currentTheme?: WebsiteThemeConfig;
-  onThemePublished?: (theme: WebsiteThemeConfig) => void;
+  onThemePublished?: (theme: WebsiteThemeConfig) => Promise<void> | void;
   seasonalConfig?: SeasonalConfig;
-  onUpdateSeasonalConfig?: (config: SeasonalConfig) => void;
+  onUpdateSeasonalConfig?: (config: SeasonalConfig) => Promise<void> | void;
   reviews?: ProductReview[];
 }
 
@@ -140,6 +144,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onResetDefaults,
   onExitAdmin,
   customImages,
+  onUpdateCustomImages,
   onUploadImage,
   orders,
   onUpdateOrders,
@@ -486,6 +491,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Safely persist product changes with debouncing to avoid race conditions
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isImportingBackupRef = useRef<boolean>(false);
   const latestProductsRef = useRef(editableProducts);
   latestProductsRef.current = editableProducts;
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
@@ -557,7 +563,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, [orders]);
 
   React.useEffect(() => {
-    if (!saveTimeoutRef.current && !galleryUploadingId && !replacingProductId && products && products.length > 0) {
+    if (
+      !isImportingBackupRef.current &&
+      !saveTimeoutRef.current &&
+      !galleryUploadingId &&
+      !replacingProductId &&
+      products &&
+      products.length > 0
+    ) {
       setEditableProducts(products);
       latestProductsRef.current = products;
     }
@@ -1241,12 +1254,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleExportBackup = () => {
     const backupData = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       products: editableProducts,
       customImages,
       orders: editableOrders,
-      siteContent,
+      siteContent: editableContent,
+      seasonalConfig: editableSeasonal,
+      currentTheme,
+      reviews,
     };
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1255,7 +1271,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     a.download = `cotton_nest_store_backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Store & images backup downloaded successfully!');
+    showToast('Complete store & Firestore backup downloaded successfully!');
   };
 
   const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1263,85 +1279,197 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (event) => {
+      isImportingBackupRef.current = true;
+      setSaveStatus('saving');
+      showToast('Uploading & syncing JSON data to Cloud Firestore...');
       try {
         const parsed = JSON.parse(event.target?.result as string);
         let productsToRestore: BedsheetProduct[] | null = null;
         let imagesToRestore: Record<string, string> = {};
         let ordersToRestore: Order[] | null = null;
         let contentToRestore: SiteContent | null = null;
+        let seasonalToRestore: SeasonalConfig | null = null;
+        let themeToRestore: WebsiteThemeConfig | null = null;
+        let reviewsToRestore: ProductReview[] | null = null;
+        let couponsToRestore: any[] | null = null;
 
-        // Support array of products directly OR structured JSON object
+        // Support array of products directly OR structured JSON object OR map of products
         if (Array.isArray(parsed)) {
           productsToRestore = parsed;
         } else if (parsed && typeof parsed === 'object') {
-          if (Array.isArray(parsed.products)) {
-            productsToRestore = parsed.products;
-          } else if (Array.isArray(parsed.catalog)) {
-            productsToRestore = parsed.catalog;
-          } else if (Array.isArray(parsed.items)) {
-            productsToRestore = parsed.items;
+          const root = parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data) ? parsed.data : parsed;
+
+          if (Array.isArray(root.products)) {
+            productsToRestore = root.products;
+          } else if (Array.isArray(root.catalog)) {
+            productsToRestore = root.catalog;
+          } else if (Array.isArray(root.bedsheets)) {
+            productsToRestore = root.bedsheets;
+          } else if (Array.isArray(root.items)) {
+            productsToRestore = root.items;
+          } else if (root.products && typeof root.products === 'object') {
+            productsToRestore = Object.entries(root.products).map(([id, val]: [string, any]) => ({
+              ...val,
+              id: val?.id || id,
+            }));
           }
 
-          if (parsed.customImages && typeof parsed.customImages === 'object') {
-            imagesToRestore = parsed.customImages;
-          } else if (parsed.images && typeof parsed.images === 'object') {
-            imagesToRestore = parsed.images;
+          if (root.customImages && typeof root.customImages === 'object') {
+            imagesToRestore = root.customImages;
+          } else if (root.custom_images && typeof root.custom_images === 'object') {
+            const map: Record<string, string> = {};
+            for (const [k, v] of Object.entries(root.custom_images as Record<string, any>)) {
+              if (typeof v === 'string') map[k] = v;
+              else if (v && typeof v.imageUrl === 'string') map[k] = v.imageUrl;
+            }
+            imagesToRestore = map;
+          } else if (root.images && typeof root.images === 'object') {
+            imagesToRestore = root.images;
           }
 
-          if (Array.isArray(parsed.orders)) {
-            ordersToRestore = parsed.orders;
+          if (Array.isArray(root.orders)) {
+            ordersToRestore = root.orders;
           }
-          if (parsed.siteContent) {
-            contentToRestore = parsed.siteContent;
+          if (root.siteContent && typeof root.siteContent === 'object') {
+            contentToRestore = root.siteContent;
+          } else if (root.site_content && typeof root.site_content === 'object') {
+            contentToRestore = root.site_content.main || root.site_content;
+          }
+          if (root.seasonalConfig && typeof root.seasonalConfig === 'object') {
+            seasonalToRestore = root.seasonalConfig;
+          } else if (root.seasonal && typeof root.seasonal === 'object') {
+            seasonalToRestore = root.seasonal.active || root.seasonal;
+          }
+          if (root.currentTheme && typeof root.currentTheme === 'object') {
+            themeToRestore = root.currentTheme;
+          } else if (root.theme && typeof root.theme === 'object') {
+            themeToRestore = root.theme.active || root.theme;
+          }
+          if (Array.isArray(root.reviews)) {
+            reviewsToRestore = root.reviews;
+          }
+          if (Array.isArray(root.coupons)) {
+            couponsToRestore = root.coupons;
+          }
+
+          // If the JSON object itself is a dictionary of product objects (e.g. { "gulabi-bagh-rose": { name: ... } })
+          if (
+            !productsToRestore &&
+            !ordersToRestore &&
+            !contentToRestore &&
+            Object.keys(root).length > 0
+          ) {
+            const candidateValues = Object.entries(root)
+              .filter(([, v]) => v && typeof v === 'object' && typeof (v as any).name === 'string' && (v as any).price !== undefined)
+              .map(([k, v]: [string, any]) => ({ ...v, id: v.id || k }));
+            if (candidateValues.length > 0) {
+              productsToRestore = candidateValues;
+            }
           }
         }
 
+        let restoredSummary: string[] = [];
+
+        // 1. First persist customImages to Firestore (and resolve any base64 data URLs to Cloudinary HTTPS URLs)
+        let resolvedCustomImages: Record<string, string> = { ...customImages, ...imagesToRestore };
+        if (imagesToRestore && Object.keys(imagesToRestore).length > 0) {
+          if (onUpdateCustomImages) {
+            await onUpdateCustomImages(imagesToRestore, false);
+          } else {
+            resolvedCustomImages = await saveCustomImagesMapApi(imagesToRestore, false);
+          }
+          restoredSummary.push(`${Object.keys(imagesToRestore).length} custom photos`);
+        }
+
+        // 2. Normalize and persist products to Firestore
         if (productsToRestore && productsToRestore.length > 0) {
           const importTimestamp = Date.now();
-          // Normalize image paths on each product so they render cleanly and give them fresh current timestamp
-          const normalizedProducts = productsToRestore.map((p, idx) => ({
-            ...p,
-            order: typeof (p as any).order === 'number' ? (p as any).order : idx,
-            image: resolveBedsheetImage(p.image, p.id),
-            updatedAt: importTimestamp,
-          }));
+          const normalizedProducts: BedsheetProduct[] = productsToRestore
+            .filter((p) => p && (p.name || p.id))
+            .map((p, idx) => {
+              const safeId = String(
+                p.id ||
+                  `bedsheet-${String(p.name || idx)
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/(^-|-$)/g, '')}`
+              );
+              const customImgForProd = imagesToRestore[safeId] || resolvedCustomImages[safeId];
+              const chosenImage =
+                customImgForProd && typeof customImgForProd === 'string' && customImgForProd.trim() !== ''
+                  ? customImgForProd
+                  : p.image;
+              return {
+                ...p,
+                id: safeId,
+                name: String(p.name || 'Cotton Nest Bedsheet').trim(),
+                price: Number(p.price) || 1320,
+                originalPrice: Number(p.originalPrice) || Number(p.price) || 1320,
+                order: typeof (p as any).order === 'number' ? (p as any).order : idx,
+                image: resolveBedsheetImage(chosenImage, safeId),
+                inStock: p.inStock !== false,
+                stockQuantity: typeof p.stockQuantity === 'number' ? p.stockQuantity : 10,
+                updatedAt: importTimestamp,
+              };
+            });
 
-          // 1. Immediately update AdminPanel state
           setEditableProducts(normalizedProducts);
           latestProductsRef.current = normalizedProducts;
-          setSaveStatus('saved');
+          await onUpdateProducts(normalizedProducts, { replaceAll: true });
+          restoredSummary.push(`${normalizedProducts.length} bedsheets`);
+        }
 
-          // 2. Persist custom images directly without firing concurrent background upload cascades
-          if (imagesToRestore && Object.keys(imagesToRestore).length > 0) {
-            try {
-              localStorage.setItem('cotton_nest_custom_images', JSON.stringify(imagesToRestore));
-            } catch {}
-            for (const [k, v] of Object.entries(imagesToRestore)) {
-              if (v && typeof v === 'string') {
-                // Resolved custom image in Firestore
-              }
-            }
-          }
+        // 3. Persist orders to Firestore
+        if (ordersToRestore && ordersToRestore.length > 0) {
+          setEditableOrders(ordersToRestore);
+          await onUpdateOrders(ordersToRestore);
+          restoredSummary.push(`${ordersToRestore.length} orders`);
+        }
 
-          // 3. Atomically update parent state & sync to server and storage
-          onUpdateProducts(normalizedProducts);
+        // 4. Persist site content to Firestore
+        if (contentToRestore) {
+          setEditableContent(contentToRestore);
+          await onUpdateSiteContent(contentToRestore);
+          restoredSummary.push('site content');
+        }
 
-          if (ordersToRestore) {
-            setEditableOrders(ordersToRestore);
-            onUpdateOrders(ordersToRestore);
-          }
-          if (contentToRestore) {
-            setEditableContent(contentToRestore);
-            onUpdateSiteContent(contentToRestore);
-          }
+        // 5. Persist seasonal config to Firestore
+        if (seasonalToRestore && onUpdateSeasonalConfig) {
+          setEditableSeasonal(seasonalToRestore);
+          await onUpdateSeasonalConfig(seasonalToRestore);
+          restoredSummary.push('seasonal offers');
+        }
 
-          showToast(`Successfully restored ${normalizedProducts.length} bedsheets from your backup file!`);
+        // 6. Persist theme config to Firestore
+        if (themeToRestore && onThemePublished) {
+          await onThemePublished(themeToRestore);
+          restoredSummary.push('theme');
+        }
+
+        // 7. Persist reviews & coupons if included
+        if (reviewsToRestore && reviewsToRestore.length > 0) {
+          await Promise.all(reviewsToRestore.map((r) => saveReviewApi(r).catch(() => {})));
+          restoredSummary.push(`${reviewsToRestore.length} reviews`);
+        }
+        if (couponsToRestore && couponsToRestore.length > 0) {
+          await Promise.all(couponsToRestore.map((c) => saveCouponApi(c).catch(() => {})));
+          restoredSummary.push(`${couponsToRestore.length} coupons`);
+        }
+
+        setSaveStatus('saved');
+        if (restoredSummary.length > 0) {
+          showToast(`✓ Saved to Cloud Firestore: ${restoredSummary.join(', ')}!`);
         } else {
-          showToast('Invalid backup file. Could not find bedsheets in JSON.');
+          showToast('Invalid backup file. Could not find bedsheets or store records in JSON.');
         }
       } catch (err) {
         console.error('Failed to parse backup:', err);
+        setSaveStatus('saved');
         showToast('Failed to parse backup JSON file.');
+      } finally {
+        setTimeout(() => {
+          isImportingBackupRef.current = false;
+        }, 3500);
       }
     };
     reader.readAsText(file);

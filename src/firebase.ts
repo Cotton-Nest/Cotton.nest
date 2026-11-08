@@ -110,8 +110,19 @@ export async function resolveAuthForCurrentDomain(forceRefresh = false): Promise
 }
 
 export function getBestSyncAuthInstance(): Auth {
-  if (cachedResolution) {
+  if (cachedResolution && cachedResolution.isAuthorized) {
     return cachedResolution.authInstance;
+  }
+  if (typeof window !== 'undefined') {
+    const h = window.location.hostname.toLowerCase();
+    if (
+      h.includes('vercel.app') ||
+      h.includes('cottonnest') ||
+      h.includes('river-fusion-rz0s9') ||
+      h.includes('21454338513')
+    ) {
+      return primaryAuth;
+    }
   }
   return previewAuth;
 }

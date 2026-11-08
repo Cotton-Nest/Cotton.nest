@@ -450,7 +450,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Trigger Google Account Chooser popup synchronously on user click
+  // Trigger Google Account Chooser popup synchronously on user click via Firebase Auth
   const loginWithGoogleGis = (): Promise<FirebaseUser | null> => {
     setIsLoading(true);
     setAuthError(null);
@@ -461,6 +461,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     provider.setCustomParameters({ prompt: 'select_account' });
 
     const targetAuth = getBestSyncAuthInstance();
+    const fallbackAuth = targetAuth === previewAuth ? primaryAuth : previewAuth;
 
     return signInWithPopup(targetAuth, provider)
       .then((result) => {
@@ -476,22 +477,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
-        if (err?.code === 'auth/unauthorized-domain' && currentHost) {
-          // Refresh domain check in case the user just added the domain to one of the two Firebase projects
-          const refreshed = await resolveAuthForCurrentDomain(true);
-          if (refreshed.isAuthorized) {
-            setAuthError(
-              `Domain ${currentHost} is now authorized! Please click "Sign in with Google" once more to open the popup.`
-            );
+        if (err?.code === 'auth/unauthorized-domain') {
+          try {
+            const altResult = await signInWithPopup(fallbackAuth, provider);
+            setUnauthorizedHostInfo(null);
             setIsLoading(false);
-            return null;
+            return altResult.user;
+          } catch (altErr: any) {
+            if (altErr?.code === 'auth/popup-closed-by-user' || altErr?.code === 'auth/cancelled-popup-request') {
+              setIsLoading(false);
+              return null;
+            }
           }
 
-          return openGmailOtpVerificationModal({
-            hostname: currentHost,
-            projectId: GOOGLE_AUTH_FIREBASE_CONFIG.projectId,
-            consoleUrl: `https://console.firebase.google.com/project/${GOOGLE_AUTH_FIREBASE_CONFIG.projectId}/authentication/settings`,
-          });
+          if (currentHost) {
+            const refreshed = await resolveAuthForCurrentDomain(true);
+            if (refreshed.isAuthorized) {
+              setAuthError(
+                `Domain ${currentHost} is now authorized! Please click "Sign in with Google" once more to open the popup.`
+              );
+              setIsLoading(false);
+              return null;
+            }
+
+            return openGmailOtpVerificationModal({
+              hostname: currentHost,
+              projectId: firebaseConfig.projectId,
+              consoleUrl: `https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings`,
+            });
+          }
         }
 
         return openGmailOtpVerificationModal();

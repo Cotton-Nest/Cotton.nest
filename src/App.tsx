@@ -57,11 +57,13 @@ import {
   updateSingleProduct,
   getOrders,
   saveOrder,
+  saveAllOrdersApi,
   updateOrderStatus,
   deleteOrder,
   getSiteContent,
   saveSiteContentApi,
   uploadImageApi,
+  saveCustomImagesMapApi,
   addProductGalleryImageApi,
   getPublishedThemeApi,
   savePublishedThemeApi,
@@ -821,6 +823,10 @@ export default function App() {
     const unsubProducts = onSnapshot(
       collection(db, 'products'),
       (snapshot) => {
+        // Do not overwrite local/admin state while an active Admin or JSON restore save is in flight
+        if (Date.now() - lastAdminSaveRef.current < 4500) {
+          return;
+        }
         if (!snapshot.empty) {
           const loadedProducts: BedsheetProduct[] = [];
           snapshot.forEach((docSnap) => {
@@ -847,12 +853,12 @@ export default function App() {
             const cleanOrigPrice = Number(data.originalPrice) || cleanPrice;
             const safeAdditional = Array.isArray(data.additionalImages)
               ? data.additionalImages.filter(
-                  (u) => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('data:') && !u.startsWith('blob:')
+                  (u) => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('blob:')
                 )
               : [];
             const safeVideos = Array.isArray(data.videos)
               ? data.videos.filter(
-                  (u) => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('data:') && !u.startsWith('blob:')
+                  (u) => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('blob:')
                 )
               : [];
             loadedProducts.push({
@@ -877,7 +883,7 @@ export default function App() {
               additionalImages: safeAdditional,
               videos: safeVideos,
               videoUrl:
-                typeof data.videoUrl === 'string' && !data.videoUrl.startsWith('data:') && !data.videoUrl.startsWith('blob:')
+                typeof data.videoUrl === 'string' && !data.videoUrl.startsWith('blob:')
                   ? data.videoUrl
                   : safeVideos[0] || '',
               inStock: data.inStock !== false,
@@ -908,6 +914,7 @@ export default function App() {
     // Also run a direct one-shot fetch of products on mount as an immediate guarantee
     getProducts()
       .then((fetched) => {
+        if (Date.now() - lastAdminSaveRef.current < 4500) return;
         if (Array.isArray(fetched) && fetched.length > 0) {
           setProducts(fetched);
           try {
@@ -1101,6 +1108,9 @@ export default function App() {
     const unsubCustomImages = onSnapshot(
       collection(db, 'custom_images'),
       (snapshot) => {
+        if (Date.now() - lastAdminSaveRef.current < 4500) {
+          return;
+        }
         if (!snapshot.empty) {
           const imageMap: Record<string, string> = {};
           snapshot.forEach((d) => {
@@ -1118,7 +1128,6 @@ export default function App() {
               data &&
               data.imageUrl &&
               typeof data.imageUrl === 'string' &&
-              !data.imageUrl.startsWith('data:') &&
               !data.imageUrl.startsWith('blob:')
             ) {
               imageMap[d.id] = data.imageUrl;
@@ -1254,29 +1263,60 @@ export default function App() {
   }, [cartItems]);
 
   // Admin: Update all products & persist to Firestore
-  const handleUpdateProducts = async (updatedProducts: BedsheetProduct[]) => {
+  const handleUpdateProducts = async (
+    updatedProducts: BedsheetProduct[],
+    options?: { replaceAll?: boolean }
+  ) => {
     lastAdminSaveRef.current = Date.now();
     setProducts(updatedProducts);
     try {
-      await saveAllProducts(updatedProducts);
+      localStorage.setItem('cotton_nest_products', JSON.stringify(updatedProducts));
+    } catch {}
+    try {
+      const savedList = await saveAllProducts(updatedProducts, options);
+      lastAdminSaveRef.current = Date.now();
+      if (Array.isArray(savedList) && savedList.length > 0) {
+        setProducts(savedList);
+      }
     } catch (err) {
       console.warn('Failed to persist all products to Firestore:', err);
     }
   };
 
+  // Admin: Update custom images map & persist to Firestore
+  const handleUpdateCustomImages = async (
+    nextCustomImages: Record<string, string>,
+    replaceAll: boolean = false
+  ) => {
+    lastAdminSaveRef.current = Date.now();
+    setCustomImages((prev) => (replaceAll ? nextCustomImages : { ...prev, ...nextCustomImages }));
+    try {
+      const resolved = await saveCustomImagesMapApi(nextCustomImages, replaceAll);
+      lastAdminSaveRef.current = Date.now();
+      setCustomImages((prev) => (replaceAll ? resolved : { ...prev, ...resolved }));
+    } catch (err) {
+      console.warn('Failed to persist custom images map to Firestore:', err);
+    }
+  };
+
   const handleUpdateSingleProduct = async (updatedProduct: BedsheetProduct) => {
+    lastAdminSaveRef.current = Date.now();
     setProducts((prev) => {
       const exists = prev.some((p) => p.id === updatedProduct.id);
-      if (exists) {
-        return prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
-      }
-      return [updatedProduct, ...prev];
+      const next = exists
+        ? prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
+        : [updatedProduct, ...prev];
+      try {
+        localStorage.setItem('cotton_nest_products', JSON.stringify(next));
+      } catch {}
+      return next;
     });
     if (selectedProduct && selectedProduct.id === updatedProduct.id) {
       setSelectedProduct(updatedProduct);
     }
     try {
       await updateSingleProduct(updatedProduct.id, updatedProduct);
+      lastAdminSaveRef.current = Date.now();
     } catch (err) {
       console.warn('Failed to persist single product edit to Firestore:', err);
     }
@@ -1284,7 +1324,14 @@ export default function App() {
 
   // Admin: Update Orders & persist to Firestore
   const handleUpdateOrders = async (updatedOrders: Order[]) => {
+    lastAdminSaveRef.current = Date.now();
     setOrders(updatedOrders);
+    try {
+      await saveAllOrdersApi(updatedOrders);
+      lastAdminSaveRef.current = Date.now();
+    } catch (err) {
+      console.warn('Failed to persist orders to Firestore:', err);
+    }
   };
 
   // Admin: Update Site Content & persist to Firestore
@@ -1662,6 +1709,7 @@ export default function App() {
             onResetDefaults={handleResetProducts}
             onExitAdmin={() => setIsAdminOpen(false)}
             customImages={customImages}
+            onUpdateCustomImages={handleUpdateCustomImages}
             onUploadImage={handleUploadImage}
             orders={orders}
             onUpdateOrders={handleUpdateOrders}

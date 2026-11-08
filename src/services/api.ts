@@ -76,23 +76,29 @@ export function stripUndefined<T>(obj: T): T {
 }
 
 /**
- * Ensures Firestore documents only store clean URL links (HTTPS or relative public paths),
- * strictly preventing bloated base64 data URIs or temporary blob URLs from entering database records.
+ * Ensures Firestore documents store clean URL links (HTTPS, relative public paths, or safe bounded data URIs),
+ * preventing ephemeral blob URLs or oversized >750KB base64 blobs from breaking Firestore's 1MB document limit.
  */
 export function cleanLinkOnly(url?: string | null, fallbackId?: string): string {
   if (!url || typeof url !== 'string' || url.trim() === '') {
     return resolveBedsheetImage('', fallbackId);
   }
   const trimmed = url.trim();
-  // Never persist raw base64 data blobs or ephemeral object URLs in Firestore
-  if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+  if (trimmed.startsWith('blob:')) {
+    return resolveBedsheetImage('', fallbackId);
+  }
+  if (trimmed.startsWith('data:')) {
+    // Allow bounded data URLs (<700KB) so JSON backups with embedded images never get wiped to default image
+    if (trimmed.length < 700000) {
+      return trimmed;
+    }
     return resolveBedsheetImage('', fallbackId);
   }
   return trimmed;
 }
 
 /**
- * Filters an array of media URLs (additionalImages / videos) so only clean HTTP(S) or server /uploads/ /images/ links are stored.
+ * Filters an array of media URLs (additionalImages / videos) so clean HTTP(S), server /uploads/ /images/ links, or bounded data URIs are stored.
  */
 export function cleanMediaArray(urls?: string[]): string[] {
   if (!Array.isArray(urls)) return [];
@@ -101,7 +107,7 @@ export function cleanMediaArray(urls?: string[]): string[] {
       urls
         .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
         .map((u) => u.trim())
-        .filter((u) => !u.startsWith('data:') && !u.startsWith('blob:'))
+        .filter((u) => !u.startsWith('blob:') && (!u.startsWith('data:') || u.length < 700000))
     )
   );
 }
@@ -199,6 +205,64 @@ export async function getCustomImagesApi(): Promise<Record<string, string>> {
     console.warn('Could not fetch custom_images from Firestore:', error);
     return {};
   }
+}
+
+export async function saveCustomImagesMapApi(
+  imagesMap: Record<string, string>,
+  replaceAll: boolean = false
+): Promise<Record<string, string>> {
+  const resolvedMap: Record<string, string> = {};
+  const entries = Object.entries(imagesMap || {}).filter(
+    ([k, v]) => k && !isSubkeyDocumentId(k) && typeof v === 'string' && v.trim() !== '' && !v.startsWith('blob:')
+  );
+
+  await Promise.all(
+    entries.map(async ([productId, rawUrl]) => {
+      let finalUrl = rawUrl.trim();
+      if (finalUrl.startsWith('data:')) {
+        try {
+          const uploaded = await uploadToCloudinary(finalUrl, productId);
+          if (uploaded && uploaded.url) {
+            finalUrl = uploaded.url;
+          }
+        } catch {}
+      }
+      resolvedMap[productId] = finalUrl;
+      try {
+        await setDoc(
+          doc(db, 'custom_images', productId),
+          {
+            productId,
+            imageUrl: finalUrl,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn(`Failed to save custom_image ${productId} to Firestore:`, err);
+      }
+    })
+  );
+
+  if (replaceAll) {
+    try {
+      const existingSnap = await getDocs(collection(db, 'custom_images'));
+      const validIds = new Set(Object.keys(resolvedMap));
+      const deletions: Promise<void>[] = [];
+      existingSnap.forEach((d) => {
+        if (!isSubkeyDocumentId(d.id) && !validIds.has(d.id)) {
+          deletions.push(deleteDoc(doc(db, 'custom_images', d.id)).catch(() => {}));
+        }
+      });
+      await Promise.all(deletions);
+    } catch {}
+  }
+
+  try {
+    localStorage.setItem('cotton_nest_custom_images', JSON.stringify(resolvedMap));
+  } catch {}
+
+  return resolvedMap;
 }
 
 // ---------------- IMAGE & VIDEO STATS & MEMORY PERSISTENCE ---------------- //
@@ -507,49 +571,104 @@ export async function reorderProductsApi(orderedIds: string[]): Promise<void> {
   }
 }
 
-export async function saveAllProducts(products: BedsheetProduct[]): Promise<void> {
+export async function saveAllProducts(
+  products: BedsheetProduct[],
+  options?: { replaceAll?: boolean }
+): Promise<BedsheetProduct[]> {
   const path = 'products';
   const sanitizedList: BedsheetProduct[] = [];
+  const nowTs = Date.now();
 
-  (products || []).forEach((p, idx) => {
-    if (!p || !p.id || isSubkeyDocumentId(p.id) || !p.name) return;
+  for (let idx = 0; idx < (products || []).length; idx++) {
+    const p = products[idx];
+    if (!p || (!p.id && !p.name)) continue;
+    const safeId = String(
+      p.id ||
+        `bedsheet-${String(p.name || idx)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '')}`
+    );
+    if (isSubkeyDocumentId(safeId) || !p.name) continue;
+
+    let primaryImage = p.image || '';
+    if (typeof primaryImage === 'string' && primaryImage.startsWith('data:')) {
+      try {
+        const up = await uploadToCloudinary(primaryImage, safeId);
+        if (up && up.url) {
+          primaryImage = up.url;
+        }
+      } catch {}
+    }
+
     const cleanProd: BedsheetProduct = stripUndefined({
       ...p,
+      id: safeId,
+      name: String(p.name).trim(),
       order: typeof p.order === 'number' ? p.order : idx,
-      updatedAt: Date.now(),
-      image: cleanLinkOnly(p.image, p.id),
+      updatedAt: p.updatedAt || nowTs,
+      image: cleanLinkOnly(primaryImage, safeId),
       additionalImages: cleanMediaArray(p.additionalImages),
       videos: cleanMediaArray(p.videos),
       videoUrl:
-        p.videoUrl && !p.videoUrl.startsWith('data:') && !p.videoUrl.startsWith('blob:')
+        p.videoUrl && !p.videoUrl.startsWith('blob:')
           ? p.videoUrl
           : '',
-      variants: p.variants
-        ? p.variants.map((v) => ({ ...v, image: cleanLinkOnly(v.image, p.id) }))
+      variants: Array.isArray(p.variants)
+        ? p.variants.map((v) => ({ ...v, image: cleanLinkOnly(v.image, safeId) }))
         : [],
     });
     sanitizedList.push(cleanProd);
-  });
+  }
 
-  // Mirror to server in background
+  // 1. Immediately update localStorage cache so refresh never loses data
+  try {
+    if (sanitizedList.length > 0) {
+      localStorage.setItem('cotton_nest_products', JSON.stringify(sanitizedList));
+    }
+  } catch {}
+
+  // 2. Mirror to Express server in background
   fetch('/api/products', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(sanitizedList),
   }).catch(() => {});
 
+  // 3. Persist each product to Firestore individually so one large document never aborts the entire catalog
   try {
-    const batch = writeBatch(db);
-    sanitizedList.forEach((cleanProd) => {
-      const productRef = doc(db, 'products', cleanProd.id);
-      batch.set(productRef, cleanProd, { merge: true });
-    });
-    await batch.commit();
+    await Promise.all(
+      sanitizedList.map(async (cleanProd) => {
+        try {
+          const productRef = doc(db, 'products', cleanProd.id);
+          await setDoc(productRef, cleanProd);
+        } catch (docErr) {
+          console.warn(`Firestore setDoc error for product ${cleanProd.id}:`, docErr);
+        }
+      })
+    );
+
+    // If replacing the entire catalog (e.g. from JSON backup restore), remove old Firestore docs not in the new list
+    if (options?.replaceAll && sanitizedList.length > 0) {
+      const keepIds = new Set(sanitizedList.map((p) => p.id));
+      const existingSnap = await getDocs(collection(db, 'products'));
+      const deletions: Promise<void>[] = [];
+      existingSnap.forEach((docSnap) => {
+        if (!keepIds.has(docSnap.id)) {
+          deletions.push(deleteDoc(doc(db, 'products', docSnap.id)).catch(() => {}));
+        }
+      });
+      if (deletions.length > 0) {
+        await Promise.all(deletions);
+      }
+    }
   } catch (error) {
     try {
       handleFirestoreError(error, OperationType.WRITE, path);
     } catch {}
   }
+
+  return sanitizedList;
 }
 
 // ---------------- ORDERS API (FIRESTORE & BACKEND AUTHORITATIVE) ---------------- //
@@ -696,6 +815,36 @@ export async function saveOrder(order: Order): Promise<void> {
   } catch (notifErr) {
     console.warn('Order placement notification notice:', notifErr);
   }
+}
+
+export async function saveAllOrdersApi(orders: Order[]): Promise<void> {
+  if (!Array.isArray(orders)) return;
+  try {
+    localStorage.setItem('cotton_nest_orders', JSON.stringify(orders));
+  } catch {}
+
+  await Promise.all(
+    orders.map(async (order) => {
+      if (!order || !order.id) return;
+      const safeOrder = stripUndefined({
+        ...order,
+        customerPhone: order.customerPhone?.trim() || '',
+        customerAddress: order.customerAddress?.trim() || '',
+        status: order.status || 'pending',
+        createdAt: order.createdAt || new Date().toISOString(),
+      });
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(safeOrder),
+      }).catch(() => {});
+      try {
+        await setDoc(doc(db, 'orders', String(safeOrder.id)), safeOrder, { merge: true });
+      } catch (err) {
+        console.warn(`Firestore order save notice for ${safeOrder.id}:`, err);
+      }
+    })
+  );
 }
 
 export async function updateOrderStatus(orderId: string, status: string, orderData?: Partial<Order>): Promise<void> {
