@@ -36,7 +36,7 @@ export interface BedsheetProduct {
   availabilityType?: 'none' | 'atelier_touch' | 'on_order' | 'standard' | string; // 'none' (Blank) | 'atelier_touch' | 'on_order'
 }
 
-export type AvailabilityType = 'none' | 'atelier_touch' | 'on_order';
+export type AvailabilityType = 'none' | 'atelier_touch' | 'on_order' | 'out_of_stock';
 
 export const AVAILABILITY_OPTIONS: { value: AvailabilityType; label: string; badgeText: string }[] = [
   {
@@ -54,10 +54,16 @@ export const AVAILABILITY_OPTIONS: { value: AvailabilityType; label: string; bad
     label: 'On Order Basis',
     badgeText: 'On Order Basis',
   },
+  {
+    value: 'out_of_stock',
+    label: 'Out of Stock / Sold Out',
+    badgeText: 'Out of Stock',
+  },
 ];
 
-export function normalizeAvailabilityType(raw?: string | null): AvailabilityType {
+export function normalizeAvailabilityType(raw?: string | null, inStock?: boolean): AvailabilityType {
   const val = String(raw || '').trim().toLowerCase();
+  if (val === 'out_of_stock' || val === 'sold_out' || inStock === false) return 'out_of_stock';
   if (val === 'atelier_touch') return 'atelier_touch';
   if (val === 'on_order') return 'on_order';
   return 'none';

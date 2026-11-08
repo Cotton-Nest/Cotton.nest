@@ -641,10 +641,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleProductFieldChange = (id: string, field: keyof BedsheetProduct, value: any) => {
-    const isImmediateField = field === 'productType' || field === 'size';
-    updateProductItem(id, (p) => ({ ...p, [field]: value }), isImmediateField);
+    const isImmediateField = field === 'productType' || field === 'size' || field === 'availabilityType';
+    updateProductItem(
+      id,
+      (p) => {
+        if (field === 'availabilityType') {
+          if (value === 'out_of_stock') {
+            return { ...p, availabilityType: value, inStock: false, stockQuantity: 0 };
+          } else {
+            return { ...p, availabilityType: value, inStock: true, stockQuantity: p.stockQuantity && p.stockQuantity > 0 ? p.stockQuantity : 10 };
+          }
+        }
+        return { ...p, [field]: value };
+      },
+      isImmediateField
+    );
     if (field === 'productType') {
       showToast(`Category synced: "${value}"`);
+    } else if (field === 'availabilityType') {
+      const optLabel = value === 'out_of_stock' ? 'Out of Stock' : value === 'atelier_touch' ? 'Atelier Touch & Feel' : value === 'on_order' ? 'On Order Basis' : 'Blank';
+      showToast(`Store availability set to "${optLabel}"`);
     }
   };
 
@@ -5502,8 +5518,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Store Availability Status
                   </label>
                   <select
-                    value={normalizeAvailabilityType(newProduct.availabilityType)}
-                    onChange={(e) => setNewProduct({ ...newProduct, availabilityType: e.target.value })}
+                    value={normalizeAvailabilityType(newProduct.availabilityType, newProduct.inStock)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'out_of_stock') {
+                        setNewProduct({ ...newProduct, availabilityType: val, inStock: false, stockQuantity: 0 });
+                      } else {
+                        setNewProduct({ ...newProduct, availabilityType: val, inStock: true, stockQuantity: newProduct.stockQuantity || 10 });
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
                   >
                     {AVAILABILITY_OPTIONS.map((opt) => (
@@ -5512,7 +5535,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </option>
                     ))}
                   </select>
-                  <p className="text-[10px] text-[#8C7A70] mt-1">Choose Blank (no tag), "Touch &amp; Feel in Sector 46 Atelier", or "On Order Basis".</p>
+                  <p className="text-[10px] text-[#8C7A70] mt-1">Choose Blank (no tag), "Touch &amp; Feel in Sector 46 Atelier", "On Order Basis", or "Out of Stock / Sold Out".</p>
                 </div>
 
                 {/* Brand - Backend Only */}
