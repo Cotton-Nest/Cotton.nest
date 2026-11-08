@@ -4,7 +4,12 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { calculateEarnedPoints } from '../src/data/loyalty';
+
+const EARN_POINTS_PER_100_INR = 5;
+function calculateEarnedPoints(orderSubtotalInr: number): number {
+  const safeSubtotal = Math.max(0, Number(orderSubtotalInr) || 0);
+  return Math.floor((safeSubtotal / 100) * EARN_POINTS_PER_100_INR);
+}
 
 export interface OtpRecord {
   hashedOtp: string;

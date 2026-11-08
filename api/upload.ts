@@ -1,5 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
-import { getCloudinaryConfig } from './cloudinary-sign.ts';
+import { getCloudinaryConfig } from './cloudinary-sign';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');

@@ -1824,12 +1824,22 @@ export async function sendEmailOtpApi(email: string): Promise<SendEmailOtpResult
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim().toLowerCase() }),
     });
-    const data = await res.json().catch(() => ({}));
+    const rawText = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      // If Vercel returned a plain-text or HTML crash page instead of JSON, surface it
+      const snippet = rawText ? rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180) : '';
+      data = {
+        error: `Server returned HTTP ${res.status}${snippet ? `: ${snippet}` : ''}`,
+      };
+    }
     return {
       success: res.ok && data.success !== false,
       message: data.message,
       verificationToken: data.verificationToken,
-      error: data.error,
+      error: data.error || (!res.ok ? `Server HTTP ${res.status} error` : undefined),
       authErrorDetails: data.authErrorDetails,
       cooldownSeconds: data.cooldownSeconds,
       status: res.status,
@@ -1837,7 +1847,7 @@ export async function sendEmailOtpApi(email: string): Promise<SendEmailOtpResult
   } catch (err: any) {
     return {
       success: false,
-      error: 'Unable to reach the email verification server. Please check your network and try again.',
+      error: `Unable to reach the email verification server (${err?.message || 'network error'}).`,
       status: 0,
     };
   }
