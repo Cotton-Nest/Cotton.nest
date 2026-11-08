@@ -678,6 +678,24 @@ export async function saveOrder(order: Order): Promise<void> {
     // Don't throw if server or localStorage already has it
     console.warn('Firestore order save error (saved to backend):', error);
   }
+
+  // 4. Create in-app + device notification bar alert for newly placed order
+  try {
+    const recipient = safeOrder.customerEmail || safeOrder.customerPhone || safeOrder.userId || 'all';
+    const orderNotif = buildOrderStatusNotification(
+      safeOrder.id,
+      safeOrder.customerName || 'Valued Customer',
+      recipient,
+      safeOrder.status || 'pending'
+    );
+    await saveNotificationApi(orderNotif);
+    triggerLocalPushNotification(orderNotif.title, orderNotif.message, {
+      url: '/#orders',
+      tag: `cotton-nest-order-${safeOrder.id}-pending`,
+    }).catch(() => {});
+  } catch (notifErr) {
+    console.warn('Order placement notification notice:', notifErr);
+  }
 }
 
 export async function updateOrderStatus(orderId: string, status: string, orderData?: Partial<Order>): Promise<void> {
@@ -707,7 +725,16 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     }
   } catch {}
 
-  // If not found in localStorage, fetch targetOrder from server so loyalty calculation has order metadata
+  // If not found in localStorage, fetch targetOrder from Firestore or server so invoice & loyalty have full order details
+  if (!targetOrder) {
+    try {
+      const snap = await getDoc(doc(db, 'orders', orderId));
+      if (snap.exists()) {
+        targetOrder = { ...(snap.data() as Order), id: snap.id };
+      }
+    } catch {}
+  }
+
   if (!targetOrder) {
     try {
       const oRes = await fetch(`/api/orders?orderId=${encodeURIComponent(orderId)}`);
@@ -729,13 +756,19 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       body: JSON.stringify({ status, order: targetOrder }),
     });
     if (putRes.ok) {
-      serverHandledInvoice = true;
+      const contentType = putRes.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const putData = await putRes.json().catch(() => null);
+        if (putData && putData.id && putData.invoiceSent) {
+          serverHandledInvoice = true;
+        }
+      }
     }
   } catch (err) {
     console.warn('Failed to update order status on server:', err);
   }
 
-  // 2b. On Vercel serverless where /api/orders/:id does not exist, automatically call /api/send-invoice when confirmed
+  // 2b. When status is 'confirmed', guarantee the Sale Invoice email is dispatched via /api/send-invoice if not already sent by Express
   if (status === 'confirmed' && targetOrder && !serverHandledInvoice) {
     try {
       await fetch('/api/send-invoice', {
@@ -813,6 +846,13 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
   try {
     await updateDoc(doc(db, 'orders', orderId), {
       status,
+      ...(status === 'confirmed'
+        ? {
+            invoiceSent: true,
+            invoiceSentAt: new Date().toISOString(),
+            invoiceStatus: 'generated',
+          }
+        : {}),
       ...(status === 'delivered' ? { pointsCredited: true } : {}),
       updatedAt: Date.now(),
     });

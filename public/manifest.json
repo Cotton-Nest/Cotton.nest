@@ -1,0 +1,37 @@
+{
+  "id": "/",
+  "name": "Cotton Nest — Luxury Bed Linens",
+  "short_name": "Cotton Nest",
+  "description": "Premium 100% pure cotton bedsheets crafted for everyday comfort and modern luxury in Gurgaon, Haryana.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#8C2E46",
+  "background_color": "#FAF7F2",
+  "icons": [
+    {
+      "src": "https://res.cloudinary.com/ys2sgydi/image/upload/w_192,h_192,c_pad,b_rgb:FAF7F2/logo-removebg-preview.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://res.cloudinary.com/ys2sgydi/image/upload/w_512,h_512,c_pad,b_rgb:FAF7F2/logo-removebg-preview.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://res.cloudinary.com/ys2sgydi/image/upload/w_512,h_512,c_pad,b_rgb:FAF7F2/logo-removebg-preview.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

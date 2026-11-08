@@ -23,6 +23,7 @@ import {
   requestWebPushPermission,
   disableWebPush,
   saveStoredNotificationPreferences,
+  triggerLocalPushNotification,
 } from '../utils/pushNotifications';
 
 interface NotificationCenterModalProps {
@@ -308,25 +309,49 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
               </div>
 
               {isPushNotificationSupported() ? (
-                <button
-                  type="button"
-                  disabled={pushLoading}
-                  onClick={handleTogglePush}
-                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs ${
-                    preferences.pushEnabled
-                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300'
-                      : 'bg-[#70252D] hover:bg-[#5b1e24] text-white'
-                  }`}
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  <span>
-                    {pushLoading
-                      ? 'Updating...'
-                      : preferences.pushEnabled
-                      ? 'Turn Off Web Push Notifications'
-                      : 'Enable Browser Web Push'}
-                  </span>
-                </button>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    disabled={pushLoading}
+                    onClick={handleTogglePush}
+                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs ${
+                      preferences.pushEnabled
+                        ? 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300'
+                        : 'bg-[#70252D] hover:bg-[#5b1e24] text-white'
+                    }`}
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span>
+                      {pushLoading
+                        ? 'Updating...'
+                        : preferences.pushEnabled
+                        ? 'Turn Off Device Notification Bar Alerts'
+                        : 'Enable Device Notification Bar Alerts'}
+                    </span>
+                  </button>
+
+                  {pushStatus === 'granted' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await triggerLocalPushNotification(
+                          'Cotton Nest Atelier',
+                          '✓ Test Alert: Your device notification bar is connected to Cotton Nest!',
+                          { url: '/#orders', tag: `test-${Date.now()}` }
+                        );
+                        setPushMessage(
+                          ok
+                            ? '✓ Sent! Check the notification bar at the top of your device.'
+                            : '⚠️ Could not show notification. Check if Do Not Disturb or OS browser notifications are muted.'
+                        );
+                      }}
+                      className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-[#FAF7F2] hover:bg-[#F3ECE1] text-[#8C2E46] border border-[#DEC89B] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+                      <span>Send Test Notification to Device Bar</span>
+                    </button>
+                  )}
+                </div>
               ) : (
                 <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-1.5">
                   <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
@@ -343,6 +368,51 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
           </div>
         ) : (
           <>
+            {/* Top Banner to Enable Device Notification Bar Alerts if not yet granted */}
+            {isPushNotificationSupported() && pushStatus !== 'granted' && (
+              <div className="mx-4 mt-3 p-3 rounded-2xl bg-gradient-to-r from-[#8C2E46] to-[#6E2236] text-white flex items-center justify-between gap-3 shadow-xs">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold flex items-center gap-1.5">
+                    <Bell className="w-3.5 h-3.5 text-[#E6CA65] shrink-0" />
+                    <span>Get Alerts in Your Device Notification Bar</span>
+                  </p>
+                  <p className="text-[11px] text-white/85 mt-0.5 leading-snug">
+                    Allow browser notifications so order confirmations &amp; dispatches pop up on your phone or desktop bar.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={pushLoading}
+                  onClick={handleTogglePush}
+                  className="px-3 py-1.5 bg-[#E6CA65] hover:bg-[#d9bc55] text-[#2C2420] font-bold text-xs rounded-xl shrink-0 cursor-pointer transition-colors shadow-2xs"
+                >
+                  {pushLoading ? 'Enabling...' : 'Allow Now'}
+                </button>
+              </div>
+            )}
+
+            {isPushNotificationSupported() && pushStatus === 'granted' && (
+              <div className="mx-4 mt-2.5 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2 text-[11px] text-emerald-900">
+                <span className="font-medium flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Device Notification Bar Active</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerLocalPushNotification(
+                      'Cotton Nest Atelier',
+                      '✓ Live Order & Offer notifications are active on your device bar!',
+                      { url: '/#orders', tag: `test-${Date.now()}` }
+                    );
+                  }}
+                  className="font-bold text-[#8C2E46] hover:underline cursor-pointer shrink-0"
+                >
+                  Test Device Bar
+                </button>
+              </div>
+            )}
+
             {/* Category Tabs & Quick Action Bar */}
             <div className="px-4 py-2.5 bg-white/70 border-b border-[#EAE2D5] flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">

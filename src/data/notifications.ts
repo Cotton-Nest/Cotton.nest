@@ -161,14 +161,34 @@ export function buildOrderStatusNotification(
   status: string
 ): AppNotification {
   const now = Date.now();
-  const statusLabel = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Updated';
+  const normalized = (status || '').toLowerCase();
+  let title = `Order #${orderId} Update`;
+  let message = `Hi ${customerName || 'Valued Customer'}, your Cotton Nest order #${orderId} status has been updated.`;
+
+  if (normalized === 'pending') {
+    title = `Order #${orderId} Received — Order Confirmation Pending`;
+    message = `Hi ${customerName || 'Valued Customer'}, we received your order #${orderId}. Order confirmation is pending — your Sale Invoice will be emailed once confirmed.`;
+  } else if (normalized === 'confirmed') {
+    title = `Order #${orderId} Confirmed — Sale Invoice Sent`;
+    message = `Hi ${customerName || 'Valued Customer'}, your Cotton Nest order #${orderId} is confirmed! Your official Sale Invoice has been generated and sent to your email.`;
+  } else if (normalized === 'dispatched') {
+    title = `Order #${orderId} Dispatched — Out for Delivery`;
+    message = `Hi ${customerName || 'Valued Customer'}, your Cotton Nest order #${orderId} has been dispatched via Express Courier.`;
+  } else if (normalized === 'delivered') {
+    title = `Order #${orderId} Delivered — Enjoy Your Cotton Nest!`;
+    message = `Hi ${customerName || 'Valued Customer'}, your Cotton Nest order #${orderId} has been delivered. Thank you for shopping with us!`;
+  } else if (normalized === 'cancelled') {
+    title = `Order #${orderId} Cancelled`;
+    message = `Hi ${customerName || 'Valued Customer'}, your Cotton Nest order #${orderId} has been cancelled.`;
+  }
+
   return {
     id: `notif-ord-${orderId}-${status}-${now}`,
     recipientId: recipientId || 'all',
     type: 'order_status',
     category: 'orders',
-    title: `Order #${orderId} Update: ${statusLabel}`,
-    message: `Hi ${customerName || 'Valued Customer'}, your Cotton Nest order #${orderId} status is now "${statusLabel}".`,
+    title,
+    message,
     timestamp: now,
     isRead: false,
     linkTarget: {
@@ -193,7 +213,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   orderUpdates: true,
   promotionalOffers: true,
   stockAlerts: true,
-  pushEnabled: false,
+  pushEnabled: true,
 };
 
 export interface StockSubscription {

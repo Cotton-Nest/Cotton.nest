@@ -2,16 +2,13 @@ import { NotificationPreferences, DEFAULT_NOTIFICATION_PREFERENCES, PushSubscrip
 import { savePushSubscriptionApi } from '../services/api';
 
 const PREFS_STORAGE_KEY = 'cotton_nest_notification_prefs';
+export const COTTON_NEST_NOTIF_ICON = 'https://res.cloudinary.com/ys2sgydi/image/upload/w_192,h_192,c_pad,b_rgb:FAF7F2/logo-removebg-preview.png';
 
 /**
- * Checks if Notification API and Service Worker are supported in current browser
+ * Checks if Notification API is supported in the current browser
  */
 export function isPushNotificationSupported(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    'Notification' in window &&
-    'serviceWorker' in navigator
-  );
+  return typeof window !== 'undefined' && 'Notification' in window;
 }
 
 /**
@@ -46,7 +43,7 @@ export function saveStoredNotificationPreferences(prefs: NotificationPreferences
 }
 
 /**
- * Registers the Service Worker if supported
+ * Registers the Service Worker if supported and returns the active registration with a short timeout
  */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -67,7 +64,69 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 export const initPushNotifications = registerServiceWorker;
 
 /**
- * Request Web Push permission from the customer only on deliberate user action
+ * Helper to show a native OS notification immediately (in the device's system notification bar)
+ * using ServiceWorkerRegistration first (required on mobile Android/iOS), with a fast fallback
+ * to `new Notification()` on desktop browsers.
+ */
+async function showSystemNotification(
+  title: string,
+  body: string,
+  targetUrl: string = '/',
+  tag?: string
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  if (Notification.permission !== 'granted') return false;
+
+  const notifTag = tag || `cotton-nest-${Date.now()}`;
+
+  // 1. Try Service Worker registration (with a 1500ms timeout so it never hangs)
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await Promise.race([
+        navigator.serviceWorker.getRegistration('/'),
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+      ]);
+
+      if (reg && 'showNotification' in reg) {
+        await reg.showNotification(title, {
+          body,
+          icon: COTTON_NEST_NOTIF_ICON,
+          badge: COTTON_NEST_NOTIF_ICON,
+          tag: notifTag,
+          renotify: true,
+          vibrate: [200, 100, 200],
+          data: { url: targetUrl },
+        } as any);
+        return true;
+      }
+    } catch (swErr) {
+      console.warn('SW showNotification fallback to native Notification:', swErr);
+    }
+  }
+
+  // 2. Fallback to standard Desktop Notification API
+  try {
+    const n = new Notification(title, {
+      body,
+      icon: COTTON_NEST_NOTIF_ICON,
+      tag: notifTag,
+    });
+    n.onclick = () => {
+      try {
+        window.focus();
+      } catch {}
+      n.close();
+    };
+    return true;
+  } catch (err) {
+    console.warn('Native Notification error:', err);
+    return false;
+  }
+}
+
+/**
+ * Request Web Push permission from the customer and trigger an immediate test notification on the device notification bar
  */
 export async function requestWebPushPermission(customerIdentifier: string = 'guest'): Promise<{
   granted: boolean;
@@ -78,7 +137,7 @@ export async function requestWebPushPermission(customerIdentifier: string = 'gue
     return {
       granted: false,
       status: 'denied',
-      error: 'Push notifications are not supported in this browser.',
+      error: 'System notifications are not supported in this browser.',
     };
   }
 
@@ -87,29 +146,21 @@ export async function requestWebPushPermission(customerIdentifier: string = 'gue
     if (permission === 'granted') {
       const registration = await registerServiceWorker();
 
-      // Show welcome notification
-      if (registration && 'showNotification' in registration) {
-        registration.showNotification('Cotton Nest Atelier', {
-          body: '✓ Web Push Enabled: You will receive live order updates & atelier offers.',
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-        });
-      } else {
-        new Notification('Cotton Nest Atelier', {
-          body: '✓ Notifications Enabled: Live updates will appear here.',
-          icon: '/favicon.ico',
-        });
-      }
+      const currentPrefs = getStoredNotificationPreferences();
+      saveStoredNotificationPreferences({ ...currentPrefs, pushEnabled: true });
 
-      // Try subscribing to push manager if PushManager available
+      // Show immediate welcome notification in the device's actual notification bar
+      await showSystemNotification(
+        'Cotton Nest Atelier',
+        '✓ Device Notifications Active: Live order updates & atelier offers will appear in your notification bar.',
+        '/',
+        `cn-welcome-${Date.now()}`
+      );
+
+      // Try subscribing to pushManager if available
       try {
         if (registration && 'pushManager' in registration) {
-          let sub = await registration.pushManager.getSubscription();
-          if (!sub) {
-            // Note: In development/self-hosted environments without VAPID keys,
-            // local service worker showNotification acts as the instantaneous push mechanism.
-            // When custom VAPID public key is configured on server, it will bind pushManager.
-          }
+          const sub = await registration.pushManager.getSubscription();
           if (sub) {
             const rawSub = sub.toJSON();
             const subData: PushSubscriptionData = {
@@ -124,12 +175,7 @@ export async function requestWebPushPermission(customerIdentifier: string = 'gue
             savePushSubscriptionApi(subData).catch(() => {});
           }
         }
-      } catch (pushErr) {
-        console.info('Push manager notice (local browser notifications active):', pushErr);
-      }
-
-      const currentPrefs = getStoredNotificationPreferences();
-      saveStoredNotificationPreferences({ ...currentPrefs, pushEnabled: true });
+      } catch {}
 
       return { granted: true, status: 'granted' };
     } else {
@@ -167,51 +213,44 @@ export async function disableWebPush(): Promise<void> {
 }
 
 /**
- * Triggers a local browser notification if permitted and enabled by preferences
+ * Triggers a native device/OS notification in the device's notification bar.
+ * If permission is still 'default', automatically prompts once if triggered by a user action.
  */
 export async function triggerLocalPushNotification(
   title: string,
   body: string,
-  categoryOrOptions?: 'orders' | 'promotions' | 'stock' | { url?: string },
+  categoryOrOptions?: 'orders' | 'promotions' | 'stock' | { url?: string; tag?: string },
   dataUrl?: string
 ): Promise<boolean> {
   if (!isPushNotificationSupported()) return false;
 
   let category: 'orders' | 'promotions' | 'stock' = 'orders';
-  let targetUrl = dataUrl;
+  let targetUrl = dataUrl || '/';
+  let customTag: string | undefined;
 
   if (typeof categoryOrOptions === 'string') {
     category = categoryOrOptions;
   } else if (categoryOrOptions && typeof categoryOrOptions === 'object') {
-    targetUrl = categoryOrOptions.url;
+    targetUrl = categoryOrOptions.url || targetUrl;
+    customTag = categoryOrOptions.tag;
   }
 
   const prefs = getStoredNotificationPreferences();
   if (category === 'promotions' && !prefs.promotionalOffers) return false;
   if (category === 'stock' && !prefs.stockAlerts) return false;
   if (category === 'orders' && !prefs.orderUpdates) return false;
+
+  // If permission has not been requested yet ('default'), try requesting it
+  if (Notification.permission === 'default') {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        saveStoredNotificationPreferences({ ...prefs, pushEnabled: true });
+      }
+    } catch {}
+  }
+
   if (Notification.permission !== 'granted') return false;
 
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    if (reg && 'showNotification' in reg) {
-      await reg.showNotification(title, {
-        body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        data: { url: targetUrl || '/' },
-      });
-      return true;
-    }
-  } catch {}
-
-  try {
-    new Notification(title, {
-      body,
-      icon: '/favicon.ico',
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  return showSystemNotification(title, body, targetUrl, customTag);
 }

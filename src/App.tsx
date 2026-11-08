@@ -1070,20 +1070,52 @@ export default function App() {
       }
     );
 
-    // 8. Authoritative Notifications listener from Firestore
+    // 8. Authoritative Notifications listener from Firestore (also triggers real OS notification bar alerts for new notifications)
+    let isFirstNotifSnapshot = true;
+    const seenNotifIds = new Set<string>();
+    try {
+      const existingRaw = localStorage.getItem('cotton_nest_notifications');
+      if (existingRaw) {
+        const parsed: AppNotification[] = JSON.parse(existingRaw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((n) => {
+            if (n && n.id) seenNotifIds.add(n.id);
+          });
+        }
+      }
+    } catch {}
+
     const unsubNotifications = onSnapshot(
       collection(db, 'notifications'),
       (snapshot) => {
         if (!snapshot.empty) {
           const loaded: AppNotification[] = [];
           snapshot.forEach((d) => {
-            loaded.push({ ...(d.data() as AppNotification), id: d.id });
+            const item = { ...(d.data() as AppNotification), id: d.id };
+            loaded.push(item);
+
+            // If this is a newly arrived notification after initial load (and created within the last 2 minutes), show in device OS notification bar
+            if (!isFirstNotifSnapshot && !seenNotifIds.has(item.id)) {
+              seenNotifIds.add(item.id);
+              const ageMs = Date.now() - (item.timestamp || 0);
+              if (ageMs < 120000) {
+                triggerLocalPushNotification(item.title, item.message, {
+                  url: item.linkTarget?.view === 'orders' ? '/#orders' : '/',
+                  tag: item.id,
+                }).catch(() => {});
+              }
+            } else {
+              seenNotifIds.add(item.id);
+            }
           });
+          isFirstNotifSnapshot = false;
           loaded.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
           setNotifications(loaded);
           try {
             localStorage.setItem('cotton_nest_notifications', JSON.stringify(loaded));
           } catch {}
+        } else {
+          isFirstNotifSnapshot = false;
         }
       },
       (error) => {

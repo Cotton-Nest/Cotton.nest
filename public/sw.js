@@ -1,5 +1,6 @@
-// Cotton Nest Atelier Service Worker for Web Push & Local Notifications
-const CACHE_NAME = 'cotton-nest-v1';
+// Cotton Nest Atelier Service Worker for Web Push & Device OS Notification Bar
+const CACHE_NAME = 'cotton-nest-v2';
+const DEFAULT_ICON = 'https://res.cloudinary.com/ys2sgydi/image/upload/w_192,h_192,c_pad,b_rgb:FAF7F2/logo-removebg-preview.png';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -14,8 +15,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'Cotton Nest Atelier',
     body: 'You have a new update on your bedsheet order.',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: DEFAULT_ICON,
+    badge: DEFAULT_ICON,
     data: { url: '/' },
   };
 
@@ -30,10 +31,12 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/favicon.ico',
-    badge: data.badge || '/favicon.ico',
+    icon: data.icon || DEFAULT_ICON,
+    badge: data.badge || DEFAULT_ICON,
+    tag: data.tag || `cotton-nest-${Date.now()}`,
+    renotify: true,
+    vibrate: [200, 100, 200],
     data: data.data || { url: '/' },
-    vibrate: [100, 50, 100],
     actions: [
       { action: 'open', title: 'View Update' },
       { action: 'close', title: 'Dismiss' },
@@ -43,6 +46,26 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, options)
   );
+});
+
+// Also allow page clients to postMessage a SHOW_NOTIFICATION command to the service worker
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_OS_NOTIFICATION') {
+    const { title, body, url, tag, icon } = event.data.payload || {};
+    if (title) {
+      event.waitUntil(
+        self.registration.showNotification(title, {
+          body: body || '',
+          icon: icon || DEFAULT_ICON,
+          badge: DEFAULT_ICON,
+          tag: tag || `cn-notif-${Date.now()}`,
+          renotify: true,
+          vibrate: [200, 100, 200],
+          data: { url: url || '/' },
+        })
+      );
+    }
+  }
 });
 
 // Notification click event

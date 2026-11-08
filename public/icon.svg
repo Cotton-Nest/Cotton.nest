@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#8C2E46"/>
+  <rect x="28" y="28" width="456" height="456" rx="88" fill="#FAF7F2" stroke="#C29E57" stroke-width="8"/>
+  <text x="256" y="295" font-family="Georgia, serif" font-size="180" font-weight="bold" fill="#8C2E46" text-anchor="middle">CN</text>
+  <text x="256" y="385" font-family="Georgia, serif" font-size="36" font-weight="600" letter-spacing="8" fill="#C29E57" text-anchor="middle">ATELIER</text>
+</svg>
