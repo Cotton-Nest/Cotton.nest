@@ -776,6 +776,7 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: targetOrder.id || orderId,
+          status: 'confirmed',
           customerName: targetOrder.customerName || 'Valued Customer',
           customerEmail: targetOrder.customerEmail,
           customerPhone: targetOrder.customerPhone,
@@ -2277,6 +2278,9 @@ export * from '../data/complaints';
 
 // ---------------- ORDER INVOICE EMAIL API ---------------- //
 export async function sendInvoiceEmailApi(payload: any): Promise<void> {
+  if (!payload || payload.status === 'pending' || payload.status === 'cancelled') {
+    return;
+  }
   try {
     await fetch('/api/send-invoice', {
       method: 'POST',

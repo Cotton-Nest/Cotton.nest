@@ -107,6 +107,14 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   };
 
   const handleSendOrderEmail = async (order: Order) => {
+    if (order.status === 'pending' || order.status === 'cancelled') {
+      setEmailSendFeedback({
+        id: order.id,
+        success: false,
+        message: 'Your invoice will be published and emailed once your order is confirmed.',
+      });
+      return;
+    }
     setIsSendingEmail(order.id);
     setEmailSendFeedback(null);
     try {
@@ -115,6 +123,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: order.id,
+          status: order.status,
           customerName: order.customerName,
           customerEmail: order.customerEmail,
           customerPhone: order.customerPhone,
@@ -964,9 +973,11 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                           <span>Official Sale Invoice</span>
                         </div>
                         <p className="text-[11px] text-[#7A6458] mt-0.5">
-                          {currentSelectedOrder.status === 'pending'
-                            ? `Sale invoice will be generated and emailed once your order is confirmed by our atelier.`
-                            : `Itemized printable sale invoice with bedsheet photos. Sent to ${currentSelectedOrder.customerEmail || 'buyer'}.`}
+                          {currentSelectedOrder.status === 'confirmed' ||
+                          currentSelectedOrder.status === 'dispatched' ||
+                          currentSelectedOrder.status === 'delivered'
+                            ? `Itemized printable sale invoice with bedsheet photos. Sent to ${currentSelectedOrder.customerEmail || 'buyer'}.`
+                            : 'Your invoice will be published and emailed once your order is confirmed.'}
                         </p>
                         {emailSendFeedback && emailSendFeedback.id === currentSelectedOrder.id && (
                           <p
@@ -979,49 +990,40 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        {currentSelectedOrder.status === 'pending' && (
+                      {(currentSelectedOrder.status === 'confirmed' ||
+                        currentSelectedOrder.status === 'dispatched' ||
+                        currentSelectedOrder.status === 'delivered') && (
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => handleConfirmOrder(currentSelectedOrder)}
-                            disabled={isConfirmingOrder === currentSelectedOrder.id}
-                            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-                            title="Confirm this order and automatically dispatch the official sale invoice via Gmail SMTP"
+                            onClick={() => setInvoiceModalOrder(currentSelectedOrder)}
+                            className="px-3.5 py-2 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
-                            <span>{isConfirmingOrder === currentSelectedOrder.id ? 'Confirming...' : 'Confirm Order & Send Invoice'}</span>
+                            <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
+                            <span>View Invoice</span>
                           </button>
-                        )}
 
-                        <button
-                          type="button"
-                          onClick={() => setInvoiceModalOrder(currentSelectedOrder)}
-                          className="px-3.5 py-2 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
-                          <span>View Invoice</span>
-                        </button>
+                          <a
+                            href={buildOrderGmailUrl(currentSelectedOrder)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3.5 py-2 bg-[#8C2E46] hover:bg-[#722338] text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>Open in Gmail</span>
+                          </a>
 
-                        <a
-                          href={buildOrderGmailUrl(currentSelectedOrder)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3.5 py-2 bg-[#8C2E46] hover:bg-[#722338] text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          <span>Open in Gmail</span>
-                        </a>
-
-                        <button
-                          type="button"
-                          onClick={() => handleSendOrderEmail(currentSelectedOrder)}
-                          disabled={isSendingEmail === currentSelectedOrder.id}
-                          className="p-2 bg-white hover:bg-[#FAF7F2] text-[#7A6458] hover:text-[#2C2420] border border-[#DEC89B] rounded-xl text-xs transition-colors cursor-pointer disabled:opacity-50"
-                          title="Resend email receipt via server"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isSendingEmail === currentSelectedOrder.id ? 'animate-spin text-[#8C2E46]' : ''}`} />
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => handleSendOrderEmail(currentSelectedOrder)}
+                            disabled={isSendingEmail === currentSelectedOrder.id}
+                            className="p-2 bg-white hover:bg-[#FAF7F2] text-[#7A6458] hover:text-[#2C2420] border border-[#DEC89B] rounded-xl text-xs transition-colors cursor-pointer disabled:opacity-50"
+                            title="Resend email receipt via server"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isSendingEmail === currentSelectedOrder.id ? 'animate-spin text-[#8C2E46]' : ''}`} />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* ITEMS LIST */}

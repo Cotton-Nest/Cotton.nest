@@ -90,6 +90,50 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
 
   if (!isOpen || !order) return null;
 
+  const isOrderConfirmed =
+    order.status === 'confirmed' ||
+    order.status === 'dispatched' ||
+    order.status === 'delivered';
+
+  if (!isOrderConfirmed) {
+    return (
+      <AnimatePresence>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl z-10 border border-[#DEC89B] p-6 text-center space-y-4"
+          >
+            <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-[#C29E57]">
+              <FileText className="w-6 h-6" />
+            </div>
+            <h3 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+              Order #{order.id}
+            </h3>
+            <p className="text-xs text-[#7A6458] leading-relaxed">
+              Your invoice will be published and emailed once your order is confirmed.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-2.5 bg-[#2C2420] text-white text-xs font-semibold rounded-xl cursor-pointer"
+            >
+              Close
+            </button>
+          </motion.div>
+        </div>
+      </AnimatePresence>
+    );
+  }
+
   const handlePrint = () => {
     window.print();
   };
@@ -103,6 +147,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: order.id,
+          status: order.status,
           customerName: order.customerName,
           customerEmail: order.customerEmail,
           customerPhone: order.customerPhone,

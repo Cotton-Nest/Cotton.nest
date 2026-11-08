@@ -258,6 +258,13 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'Invalid invoice payload' });
     }
 
+    if (payload.status === 'pending' || payload.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        error: 'Your invoice will be published and emailed once your order is confirmed.',
+      });
+    }
+
     const gmailUser = cleanEnvVal(process.env.GMAIL_USER || 'adityaa.22082011@gmail.com');
     const rawPass = cleanEnvVal(
       process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || 'ocdf vrlp hvvm xuiu'

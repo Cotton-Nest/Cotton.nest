@@ -962,16 +962,13 @@ async function startServer() {
     }
 
     // Invoice generation logic:
-    // Only dispatch immediately if order was created with status 'confirmed'.
-    // Otherwise, mark pending confirmation and dispatch when confirmed.
-    if (newOrder.status === 'confirmed') {
-      await dispatchOrderSaleInvoice(newOrder);
-    } else {
-      newOrder.invoiceSent = false;
-      newOrder.invoiceStatus = 'pending_confirmation';
-      newOrder.invoiceMessage = 'Official sale invoice will be generated and emailed once your order is confirmed by Cotton Nest Atelier.';
-      console.log(`[ORDER CREATED] Order #${newOrder.id} placed (${newOrder.status || 'pending'}). Sale invoice will generate upon confirmation.`);
-    }
+    // Never dispatch invoice upon initial order creation/checkout while status is pending.
+    // Invoice is generated and emailed strictly when order status transitions to 'confirmed'.
+    newOrder.status = 'pending';
+    newOrder.invoiceSent = false;
+    newOrder.invoiceStatus = 'pending_confirmation';
+    newOrder.invoiceMessage = 'Your invoice will be published and emailed once your order is confirmed.';
+    console.log(`[ORDER CREATED] Order #${newOrder.id} placed (pending). Sale invoice will generate upon confirmation.`);
 
     db.orders.unshift(newOrder);
     saveDatabase();
@@ -984,6 +981,12 @@ async function startServer() {
       const payload = req.body;
       if (!payload || !payload.orderId) {
         return res.status(400).json({ success: false, error: 'Invalid invoice payload' });
+      }
+      if (payload.status === 'pending' || payload.status === 'cancelled') {
+        return res.status(400).json({
+          success: false,
+          error: 'Your invoice will be published and emailed once your order is confirmed.',
+        });
       }
       const result = await sendOrderInvoiceEmail(payload);
       res.status(result.success ? 200 : 500).json(result);

@@ -570,6 +570,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       customerAddress: customerAddress.trim(),
       paymentMethod: 'whatsapp',
       status: 'pending',
+      invoiceSent: false,
+      invoiceStatus: 'pending_confirmation',
       totalAmount: finalTotal,
       shippingCost,
       totalSavings,
@@ -656,8 +658,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       onOrderPlaced(createdOrder);
     }
 
-    const gmailUrl = buildOrderGmailUrl(createdOrder);
-
     setLastOrderDetails({
       orderId,
       total: finalTotal,
@@ -667,7 +667,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       pointsUsed: pointsToRedeem,
       pointsDiscount: effectivePointsDiscount,
       order: createdOrder,
-      gmailComposeUrl: gmailUrl,
     });
 
     onClearCart();
@@ -1526,42 +1525,56 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 )}
               </div>
 
-              {/* Sale Invoice Generation Notice upon Order Creation */}
-              <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-left text-xs flex items-start gap-2.5">
-                <FileText className="w-4 h-4 text-[#C29E57] shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-[#2C2420]">Sale Invoice Status</p>
-                  <p className="text-[11px] text-[#7A6458] mt-0.5 leading-relaxed">
-                    Your official sale invoice will be generated and emailed to{' '}
-                    <strong>{customerEmail.trim() || user?.email || 'your email'}</strong> once your order is verified &amp; confirmed by Cotton Nest Atelier.
-                  </p>
-                </div>
-              </div>
+              {/* Sale Invoice Section: Hidden until order is confirmed */}
+              {(() => {
+                const liveOrder =
+                  (orders || []).find((o) => o.id === lastOrderDetails.orderId) ||
+                  lastOrderDetails.order;
+                const isOrderConfirmed =
+                  liveOrder?.status === 'confirmed' ||
+                  liveOrder?.status === 'dispatched' ||
+                  liveOrder?.status === 'delivered';
 
-              {/* Receipt & Invoice Quick Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                {lastOrderDetails.order && (
-                  <button
-                    type="button"
-                    onClick={() => setIsInvoiceModalOpen(true)}
-                    className="py-2.5 px-3 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
-                    <span>View Sale Invoice</span>
-                  </button>
-                )}
-                {lastOrderDetails.gmailComposeUrl && (
-                  <a
-                    href={lastOrderDetails.gmailComposeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#F3ECE0] text-[#8C2E46] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                    <span>Open in Gmail</span>
-                  </a>
-                )}
-              </div>
+                if (!isOrderConfirmed) {
+                  return (
+                    <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 text-left text-xs flex items-start gap-2.5">
+                      <FileText className="w-4 h-4 text-[#C29E57] shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-[#2C2420]">Official Sale Invoice</p>
+                        <p className="text-[11px] text-[#7A6458] mt-0.5 leading-relaxed">
+                          Your invoice will be published and emailed once your order is confirmed.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {liveOrder && (
+                      <button
+                        type="button"
+                        onClick={() => setIsInvoiceModalOpen(true)}
+                        className="py-2.5 px-3 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
+                        <span>View Sale Invoice</span>
+                      </button>
+                    )}
+                    {liveOrder && (
+                      <a
+                        href={buildOrderGmailUrl(liveOrder)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#F3ECE0] text-[#8C2E46] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Open in Gmail</span>
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
 
               <a
                 href={lastOrderDetails.whatsappUrl}
@@ -1899,7 +1912,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         </div>
       )}
       <InvoiceModal
-        order={lastOrderDetails?.order || null}
+        order={(orders || []).find((o) => o.id === lastOrderDetails?.orderId) || lastOrderDetails?.order || null}
         isOpen={isInvoiceModalOpen}
         onClose={() => setIsInvoiceModalOpen(false)}
       />
