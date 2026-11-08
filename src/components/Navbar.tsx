@@ -100,34 +100,34 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Main Header with Apple Liquid Glass */}
       <header className="sticky top-0 z-40 liquid-glass-nav transition-all">
-        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between">
+        <div className="max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6 py-2 min-h-16 flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
           
           {/* Zone 1: Logo and Brand Name */}
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => handleNavClick('home')}
-            className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-2.5 sm:gap-3 shrink-0 select-none"
+            className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-2 shrink-0 select-none"
           >
             <img
               src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
               alt="Cotton Nest Logo"
-              className="w-10 h-10 sm:w-12 sm:h-12 object-contain shrink-0 transition-transform group-hover:scale-105"
+              className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0 transition-transform group-hover:scale-105"
             />
             <div className="flex flex-col justify-center">
-              <span className="font-serif-luxury text-lg sm:text-2xl font-bold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors leading-tight">
+              <span className="font-serif-luxury text-base sm:text-xl font-bold tracking-tight text-[var(--color-text,#2C2420)] group-hover:text-[var(--color-primary,#70252D)] transition-colors leading-tight whitespace-nowrap">
                 {brandName}
               </span>
-              <span className="text-[9px] sm:text-[10px] tracking-widest text-[#7A6458] font-medium uppercase block">
+              <span className="text-[8px] sm:text-[9px] tracking-widest text-[#7A6458] font-medium uppercase block whitespace-nowrap">
                 Feel The Softness
               </span>
             </div>
           </motion.button>
 
           {/* Zone 2: Apple Liquid Glass Capsule Navigation Dock with Sliding Glass Pill */}
-          <nav className="hidden md:flex items-center gap-1.5 lg:gap-2 text-sm font-medium p-1.5 rounded-full liquid-glass-dock">
+          <nav className="hidden md:flex items-center flex-wrap justify-center gap-1 text-xs font-medium p-1 rounded-full liquid-glass-dock shrink-0">
             <button
               onClick={() => handleNavClick('home')}
-              className={`transition-colors relative px-4 py-1.5 rounded-full cursor-pointer whitespace-nowrap ${
+              className={`transition-colors relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'home'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -146,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Catalogue Tab */}
             <button
               onClick={() => handleNavClick('catalogue')}
-              className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+              className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 activeTab === 'catalogue'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -160,8 +160,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               )}
               <span className="relative z-10">Catalogue</span>
-              <span className="relative z-10 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/80 text-[var(--color-primary,#70252D)] border border-white/90 shadow-2xs">
-                {productsCount} Designs
+              <span className="relative z-10 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/80 text-[var(--color-primary,#70252D)] border border-white/90 shadow-2xs">
+                {productsCount}
               </span>
             </button>
 
@@ -169,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {seasonalConfig?.enabled && (
               <button
                 onClick={() => handleNavClick('seasonal')}
-                className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 group whitespace-nowrap ${
+                className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 group whitespace-nowrap shrink-0 ${
                   activeTab === 'seasonal'
                     ? 'text-[var(--color-primary,#70252D)] font-semibold'
                     : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -182,10 +182,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
                   />
                 )}
-                <Sparkles className="relative z-10 w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                <Sparkles className="relative z-10 w-3 h-3 text-amber-500 animate-pulse shrink-0" />
                 <span className="relative z-10">{seasonalConfig.name || 'Festive Sale'}</span>
                 <span
-                  className="relative z-10 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-2xs"
+                  className="relative z-10 text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full shadow-2xs"
                   style={{
                     backgroundColor: 'var(--color-primary, #70252D)',
                     color: 'var(--color-primary-contrast, #FFFFFF)',
@@ -199,7 +199,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Customer Reviews Tab */}
             <button
               onClick={() => handleNavClick('reviews')}
-              className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+              className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 activeTab === 'reviews'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -212,18 +212,38 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
                 />
               )}
-              <Star className="relative z-10 w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              <Star className="relative z-10 w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
               <span className="relative z-10">Reviews</span>
-              <span className="relative z-10 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50/90 text-amber-900 border border-amber-200/80">
-                4.9 ★
+              <span className="relative z-10 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50/90 text-amber-900 border border-amber-200/80">
+                4.9★
               </span>
+            </button>
+
+            {/* Live Orders Tab */}
+            <button
+              onClick={() => handleNavClick('orders')}
+              className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 whitespace-nowrap shrink-0 ${
+                activeTab === 'orders'
+                  ? 'text-[var(--color-primary,#70252D)] font-semibold'
+                  : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
+              }`}
+            >
+              {activeTab === 'orders' && (
+                <motion.span
+                  layoutId="desktop-nav-underline"
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
+                />
+              )}
+              <Package className="relative z-10 w-3 h-3 text-[#C29E57] shrink-0" />
+              <span className="relative z-10">Orders</span>
             </button>
 
             {/* Analysis Tab - STRICTLY FOR ADMIN ONLY */}
             {isAdmin && (
               <button
                 onClick={() => handleNavClick('analytics')}
-                className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 whitespace-nowrap shrink-0 ${
                   activeTab === 'analytics'
                     ? 'text-[var(--color-primary,#70252D)] font-semibold'
                     : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -237,18 +257,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="absolute inset-0 bg-white/90 rounded-full shadow-[0_2px_10px_rgba(44,36,32,0.08),inset_0_1px_0_rgba(255,255,255,1)] border border-white/95 -z-10"
                   />
                 )}
-                <BarChart3 className="relative z-10 w-3.5 h-3.5 text-[#70252D]" />
+                <BarChart3 className="relative z-10 w-3 h-3 text-[#70252D] shrink-0" />
                 <span className="relative z-10">Analysis</span>
-                <span className="relative z-10 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-[#70252D] text-white">
-                  Admin
-                </span>
               </button>
             )}
 
             {/* T&C Tab */}
             <button
               onClick={() => handleNavClick('tc')}
-              className={`relative px-4 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+              className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 activeTab === 'tc'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -265,23 +282,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Zone 3: Primary functional actions & User Profile */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
+          {/* Zone 3: All Action Buttons & User Profile — Aligned & Visible */}
+          <div className="flex items-center flex-wrap justify-end gap-1.5 sm:gap-2 shrink-0">
             
-            {/* Desktop Only: Owner Exclusive Controls */}
+            {/* Owner Exclusive Controls */}
             {isAdmin && (
-              <div className="hidden lg:flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-1.5 shrink-0">
                 {onOpenPhotoManager && (
                   <button
                     type="button"
                     onClick={onOpenPhotoManager}
-                    className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-[#1E3A8A] bg-[#EFF6FF] hover:bg-[#DBEAFE] border border-[#BFDBFE] rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-[#1E3A8A] bg-[#EFF6FF] hover:bg-[#DBEAFE] border border-[#BFDBFE] rounded-full transition-colors cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                     title="Open Bedsheet Photo Studio (Owner Mode)"
                   >
-                    <span className="text-sm">📸</span>
+                    <span className="text-xs">📸</span>
                     <span>Photo Studio</span>
                     {updatedImagesCount > 0 && (
-                      <span className="bg-[#2563EB] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      <span className="bg-[#2563EB] text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
                         {updatedImagesCount}
                       </span>
                     )}
@@ -292,24 +309,83 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     type="button"
                     onClick={onOpenAdmin}
-                    className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-[#8C2E46] bg-[#FDEAF0] hover:bg-[#F9D3DE] border border-[#FAD1DC] rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-[#8C2E46] bg-[#FDEAF0] hover:bg-[#F9D3DE] border border-[#FAD1DC] rounded-full transition-colors cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                     title="Open Store Admin Panel (Owner Mode)"
                   >
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#8C2E46]" />
-                    <span>Admin Panel</span>
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#8C2E46] shrink-0" />
+                    <span>Admin</span>
                   </button>
                 )}
               </div>
             )}
 
-            {/* Google Sign-In Card / User Profile Card (Visible in Mobile & Desktop Top Nav Bar) */}
+            {/* PWA Install App CTA */}
+            <PWAInstallButton variant="navbar" />
+
+            {/* Account Hub CTA */}
+            {onOpenAccount && (
+              <motion.button
+                whileHover={{ y: -1, scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
+                type="button"
+                onClick={onOpenAccount}
+                aria-label="My Account"
+                title="My Account & Saved Addresses"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-[#2C2420] hover:text-[#8C2E46] liquid-glass-badge hover:bg-white rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <User className="w-3.5 h-3.5 text-[#8C2E46] shrink-0" />
+                <span className="hidden sm:inline">Account</span>
+              </motion.button>
+            )}
+
+            {/* Saved Wishlist CTA */}
+            {onOpenWishlist && (
+              <motion.button
+                whileHover={{ scale: 1.06, y: -1 }}
+                whileTap={{ scale: 0.92 }}
+                type="button"
+                onClick={onOpenWishlist}
+                aria-label="Saved Wishlist"
+                title="Saved Wishlist"
+                className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-rose-600 transition-all rounded-full liquid-glass-badge hover:bg-white cursor-pointer shrink-0"
+              >
+                <Heart className="w-4 h-4 text-rose-500" />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs">
+                    {wishlistCount > 9 ? '9+' : wishlistCount}
+                  </span>
+                )}
+              </motion.button>
+            )}
+
+            {/* Notification Bell CTA */}
+            {onOpenNotifications && (
+              <motion.button
+                whileHover={{ scale: 1.06, y: -1 }}
+                whileTap={{ scale: 0.92 }}
+                type="button"
+                onClick={onOpenNotifications}
+                aria-label="Customer Notification Center"
+                title="Notifications & Updates"
+                className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-all rounded-full liquid-glass-badge hover:bg-white cursor-pointer shrink-0"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
+                )}
+              </motion.button>
+            )}
+
+            {/* Google Sign-In Card / User Profile Card */}
             <div className="flex items-center shrink-0">
               {isAuthenticated && user ? (
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    className="flex items-center gap-1.5 sm:gap-2 p-1.5 pr-2 sm:pr-2.5 rounded-xl border border-[#DEC89B] bg-white hover:bg-[#FAF7F2] transition-colors cursor-pointer shadow-2xs active:scale-95"
+                    className="flex items-center gap-1.5 py-1 pl-1.5 pr-2.5 rounded-full border border-[#DEC89B] bg-white hover:bg-[#FAF7F2] transition-colors cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
                     title="Account & Profile"
                   >
                     {user.avatar ? (
@@ -323,7 +399,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         {user.name.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span className="text-xs font-semibold text-[#2C2420] max-w-[65px] sm:max-w-[85px] truncate">
+                    <span className="text-xs font-semibold text-[#2C2420] max-w-[75px] truncate">
                       {user.name.split(' ')[0]}
                     </span>
                     {isAdmin && (
@@ -437,54 +513,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Desktop Only: PWA Install App CTA */}
-            <PWAInstallButton variant="navbar" />
-
-            {/* Desktop Only: Account Hub CTA */}
-            {onOpenAccount && (
-              <motion.button
-                whileHover={{ y: -1, scale: 1.02 }}
-                whileTap={{ scale: 0.95 }}
-                type="button"
-                onClick={onOpenAccount}
-                aria-label="My Account"
-                title="My Account"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#2C2420] hover:text-[#8C2E46] liquid-glass-badge hover:bg-white rounded-full transition-all cursor-pointer"
-              >
-                <User className="w-3.5 h-3.5 text-[#8C2E46]" />
-                <span>Account</span>
-              </motion.button>
-            )}
-
-            {/* Desktop Only: Notification Bell CTA */}
-            {onOpenNotifications && (
-              <motion.button
-                whileHover={{ scale: 1.06, y: -1 }}
-                whileTap={{ scale: 0.92 }}
-                type="button"
-                onClick={onOpenNotifications}
-                aria-label="Customer Notification Center"
-                title="Notifications & Updates"
-                className="hidden sm:inline-flex relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-all rounded-full liquid-glass-badge hover:bg-white cursor-pointer"
-              >
-                <Bell className="w-4.5 h-4.5" />
-                {unreadNotificationsCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs">
-                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-                  </span>
-                )}
-              </motion.button>
-            )}
-
             {/* Shopping Bag CTA - Optimized for both Mobile & Desktop */}
             <motion.button
               whileHover={{ scale: 1.06, y: -1 }}
               whileTap={{ scale: 0.92 }}
               onClick={openCart}
               aria-label="View Shopping Bag"
+              title="View Shopping Bag"
               className="relative p-2 text-[var(--color-text,#2C2420)] hover:text-[var(--color-primary,#70252D)] transition-all rounded-full liquid-glass-badge hover:bg-white cursor-pointer shrink-0"
             >
-              <ShoppingBag className="w-4.5 h-4.5" />
+              <ShoppingBag className="w-4 h-4" />
               <AnimatePresence mode="popLayout">
                 {cartCount > 0 && (
                   <motion.span

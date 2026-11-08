@@ -36,28 +36,18 @@ const WISHLIST_LOCAL_KEY = 'cotton_nest_local_wishlist';
 /**
  * Retrieves the current customer profile from localStorage or generates an initial guest profile.
  */
-const PROTECTED_ADMIN_EMAILS = [
-  'adityaa.451485@gmail.com',
-  'adityaa.22082011@gmail.com',
-  'cottonnest.atelier@gmail.com',
-];
-
 export function getCurrentCustomerProfile(): CustomerProfile {
   try {
     const raw = localStorage.getItem(CUSTOMER_PROFILE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.id) {
-        const cleanEmail = (parsed.email || '').trim().toLowerCase();
-        if (cleanEmail && PROTECTED_ADMIN_EMAILS.includes(cleanEmail)) {
-          // Purge any cached admin email from customer profile storage
-          const sanitizedGuest: CustomerProfile = {
-            id: 'guest_' + Math.random().toString(36).substring(2, 10),
-            name: 'Atelier Guest',
-            isGuest: true,
-          };
-          localStorage.setItem(CUSTOMER_PROFILE_KEY, JSON.stringify(sanitizedGuest));
-          return sanitizedGuest;
+        // Strip accidental hardcoded studio placeholder address if it was seeded in older versions
+        if (
+          parsed.address &&
+          parsed.address.toLowerCase().includes('house number 2508 ground floor')
+        ) {
+          delete parsed.address;
         }
         return parsed;
       }
@@ -66,7 +56,7 @@ export function getCurrentCustomerProfile(): CustomerProfile {
     console.warn('Error reading customer profile from localStorage:', err);
   }
 
-  // Generate anonymous guest customer profile
+  // Generate anonymous guest customer profile once and persist it
   const guestId = 'guest_' + Math.random().toString(36).substring(2, 10);
   const guestProfile: CustomerProfile = {
     id: guestId,

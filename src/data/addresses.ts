@@ -65,18 +65,19 @@ export function parseAddressString(raw: string): { addressLine: string; city: st
   };
 }
 
-function sanitizeName(n?: string): string {
-  if (!n) return 'Cotton Nest';
-  const lower = n.toLowerCase();
-  if (lower.includes('aditya') || lower.includes('adityaa')) {
-    return 'Cotton Nest';
-  }
-  return n;
+function isStudioPlaceholderAddress(addressLine?: string): boolean {
+  if (!addressLine) return true;
+  const norm = addressLine.toLowerCase().trim();
+  return (
+    norm === 'house number 2508 ground floor, sector 46' ||
+    norm === 'house 2508, ground floor, sector 46' ||
+    norm === 'house no. 2508, ground floor, sector 46'
+  );
 }
 
 /**
- * Retrieves saved addresses strictly scoped to an individual customer.
- * Previous orders from other customers are NEVER seeded or included.
+ * Retrieves saved addresses strictly scoped to the current user.
+ * Filters out any hardcoded studio placeholder addresses and ensures a default address is marked.
  */
 export function getSavedAddresses(
   profile?: CustomerProfile | null,
@@ -86,7 +87,6 @@ export function getSavedAddresses(
   const list: SavedAddress[] = [];
   const seenAddresses = new Set<string>();
 
-  // Determine user identifier for storage isolation
   const resolvedUserKey =
     typeof userIdentifier === 'string' && userIdentifier.trim()
       ? userIdentifier.trim()
@@ -94,35 +94,66 @@ export function getSavedAddresses(
       ? userIdentifierOrOrders.trim()
       : profile?.email || profile?.id || profile?.phone || null;
 
-  const storageKey = getUserAddressStorageKey(resolvedUserKey);
+  const primaryStorageKey = getUserAddressStorageKey(resolvedUserKey);
 
-  // 1. Load custom saved addresses from the customer's isolated localStorage partition
+  // Check primary key first; also check guest/legacy keys on this device so addresses saved before sign-in aren't lost
+  const candidateKeys = [
+    primaryStorageKey,
+    `${SAVED_ADDRESSES_STORAGE_KEY}_guest`,
+    SAVED_ADDRESSES_STORAGE_KEY,
+  ];
+  if (profile?.id) {
+    candidateKeys.push(getUserAddressStorageKey(profile.id));
+  }
+  if (profile?.email) {
+    candidateKeys.push(getUserAddressStorageKey(profile.email));
+  }
+
+  const uniqueKeys = Array.from(new Set(candidateKeys));
+
   try {
     if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((item) => {
-            if (item && item.id && item.addressLine) {
-              const normalized = item.addressLine.toLowerCase().trim();
-              if (!seenAddresses.has(normalized)) {
-                seenAddresses.add(normalized);
-                list.push({
-                  id: String(item.id),
-                  label: item.label || 'Home',
-                  name: sanitizeName(item.name || profile?.name || 'Cotton Nest'),
-                  phone: item.phone || profile?.phone || '',
-                  addressLine: item.addressLine.trim(),
-                  city: item.city?.trim() || 'Gurgaon, Haryana',
-                  pincode: item.pincode?.trim() || '122003',
-                  isDefault: Boolean(item.isDefault),
-                  createdAt: Number(item.createdAt) || Date.now(),
-                  userId: resolvedUserKey || undefined,
-                });
+      for (const key of uniqueKeys) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item) => {
+              if (
+                item &&
+                item.id &&
+                typeof item.addressLine === 'string' &&
+                item.addressLine.trim() &&
+                !isStudioPlaceholderAddress(item.addressLine)
+              ) {
+                const normalized = item.addressLine.toLowerCase().trim();
+                if (!seenAddresses.has(normalized)) {
+                  seenAddresses.add(normalized);
+                  const cleanName =
+                    item.name && item.name.trim() && item.name.trim() !== 'Cotton Nest' && item.name.trim() !== 'Atelier Guest'
+                      ? item.name.trim()
+                      : profile?.name && profile.name !== 'Atelier Guest'
+                      ? profile.name
+                      : item.name?.trim() || 'Customer';
+                  list.push({
+                    id: String(item.id),
+                    label: item.label || 'Home',
+                    name: cleanName,
+                    phone: item.phone || profile?.phone || '',
+                    addressLine: item.addressLine.trim(),
+                    city: item.city?.trim() || 'Gurgaon, Haryana',
+                    pincode: item.pincode?.trim() || '122003',
+                    isDefault: Boolean(item.isDefault),
+                    createdAt: Number(item.createdAt) || Date.now(),
+                    userId: resolvedUserKey || undefined,
+                  });
+                }
               }
-            }
-          });
+            });
+          }
+        } catch {
+          // ignore malformed entry
         }
       }
     }
@@ -130,15 +161,23 @@ export function getSavedAddresses(
     console.warn('Error reading customer saved addresses:', err);
   }
 
-  // 2. If profile address exists for this specific individual customer and not in list, seed it
-  if (profile && profile.address && profile.address.trim()) {
+  // If the user explicitly saved a custom profile address (not the studio placeholder), include it
+  if (
+    profile &&
+    profile.address &&
+    profile.address.trim() &&
+    !isStudioPlaceholderAddress(profile.address)
+  ) {
     const norm = profile.address.toLowerCase().trim();
     if (!seenAddresses.has(norm)) {
       seenAddresses.add(norm);
       list.unshift({
         id: 'addr_profile_primary',
         label: 'Home',
-        name: sanitizeName(profile.name || 'Cotton Nest'),
+        name:
+          profile.name && profile.name !== 'Atelier Guest'
+            ? profile.name
+            : 'Customer',
         phone: profile.phone || '',
         addressLine: profile.address.trim(),
         city: profile.city?.trim() || 'Gurgaon, Haryana',
@@ -150,13 +189,30 @@ export function getSavedAddresses(
     }
   }
 
-  // NOTE: Previous store orders are NEVER merged into saved addresses,
-  // guaranteeing that one customer's addresses are never visible to another.
+  // Ensure exactly one default address is marked when saved addresses exist
+  if (list.length > 0 && !list.some((a) => a.isDefault)) {
+    list[0].isDefault = true;
+  }
+
   return list;
 }
 
+function persistAddressesToStorage(list: SavedAddress[], resolvedUserKey?: string | null) {
+  const primaryKey = getUserAddressStorageKey(resolvedUserKey);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const serialized = JSON.stringify(list);
+      localStorage.setItem(primaryKey, serialized);
+      localStorage.setItem(`${SAVED_ADDRESSES_STORAGE_KEY}_guest`, serialized);
+      localStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, serialized);
+    }
+  } catch (err) {
+    console.warn('Error saving address book to localStorage:', err);
+  }
+}
+
 /**
- * Saves a new address or updates an existing address in the individual customer's address book.
+ * Saves a new address or updates an existing address in the customer's address book.
  */
 export function saveAddressToBook(
   newAddr: {
@@ -198,7 +254,7 @@ export function saveAddressToBook(
   const entry: SavedAddress = {
     id,
     label,
-    name: sanitizeName(newAddr.name.trim() || 'Cotton Nest'),
+    name: newAddr.name.trim() || 'Customer',
     phone: newAddr.phone.trim() || '',
     addressLine,
     city,
@@ -208,22 +264,14 @@ export function saveAddressToBook(
     userId: resolvedUserKey || undefined,
   };
 
-  if (isDefault) {
+  if (entry.isDefault) {
     filteredList.forEach((item) => {
       item.isDefault = false;
     });
   }
 
   filteredList.unshift(entry);
-
-  const storageKey = getUserAddressStorageKey(resolvedUserKey);
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(storageKey, JSON.stringify(filteredList));
-    }
-  } catch (err) {
-    console.warn('Error saving address to localStorage:', err);
-  }
+  persistAddressesToStorage(filteredList, resolvedUserKey);
 
   return filteredList;
 }
@@ -239,14 +287,7 @@ export function deleteSavedAddress(id: string, userIdentifier?: string | null): 
     updated[0].isDefault = true;
   }
 
-  const storageKey = getUserAddressStorageKey(userIdentifier);
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-    }
-  } catch (err) {
-    console.warn('Error deleting address from localStorage:', err);
-  }
+  persistAddressesToStorage(updated, userIdentifier);
 
   return updated;
 }
@@ -261,14 +302,7 @@ export function setDefaultAddress(id: string, userIdentifier?: string | null): S
     isDefault: a.id === id,
   }));
 
-  const storageKey = getUserAddressStorageKey(userIdentifier);
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-    }
-  } catch (err) {
-    console.warn('Error setting default address:', err);
-  }
+  persistAddressesToStorage(updated, userIdentifier);
 
   return updated;
 }

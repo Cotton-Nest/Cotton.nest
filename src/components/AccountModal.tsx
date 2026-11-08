@@ -109,10 +109,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   // Edit profile state
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [addressDraft, setAddressDraft] = useState({
-    name: customerProfile?.name || user?.name || 'Customer',
-    phone: customerProfile?.phone || user?.phone || '+91 7838625915',
+    name: customerProfile?.name || user?.name || '',
+    phone: customerProfile?.phone || user?.phone || '',
     email: customerProfile?.email || user?.email || '',
-    address: customerProfile?.address || 'House number 2508 Ground floor, Sector 46',
+    address: customerProfile?.address || '',
     city: customerProfile?.city || 'Gurgaon, Haryana',
     pincode: customerProfile?.pincode || '122003',
   });
@@ -589,12 +589,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
               </div>
 
-              {/* Delivery Address Preview Card */}
+              {/* Saved Delivery Address Preview Card */}
               <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-2 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#2C2420] flex items-center gap-1.5">
                     <MapPin className="w-4 h-4 text-[#8C2E46]" />
-                    <span>Gurgaon Delivery Address</span>
+                    <span>Saved Delivery Address</span>
                   </span>
                   <button
                     type="button"
@@ -602,15 +602,30 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     className="text-[11px] font-bold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
                   >
                     <Edit2 className="w-3 h-3" />
-                    <span>Edit Address</span>
+                    <span>{addressBook.length > 0 ? 'Manage Addresses' : 'Add Address'}</span>
                   </button>
                 </div>
-                <p className="text-xs text-[#2C2420] font-medium leading-relaxed">
-                  {customerProfile?.address || 'House number 2508 Ground floor, Sector 46'}, {customerProfile?.city || 'Gurgaon, Haryana'} – {customerProfile?.pincode || '122003'}
-                </p>
-                <p className="text-[11px] text-[#7A6458]">
-                  Contact: {customerProfile?.phone || user?.phone || '+91 7838625915'} · Same-day delivery in Sector 46
-                </p>
+                {addressBook.length > 0 ? (
+                  (() => {
+                    const primaryAddr = addressBook.find((a) => a.isDefault) || addressBook[0];
+                    return (
+                      <>
+                        <p className="text-xs text-[#2C2420] font-medium leading-relaxed">
+                          <span className="font-bold">{primaryAddr.name}</span> · {formatFullAddress(primaryAddr)}
+                        </p>
+                        {primaryAddr.phone && (
+                          <p className="text-[11px] text-[#7A6458]">
+                            Contact: {primaryAddr.phone}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()
+                ) : (
+                  <p className="text-xs text-[#8C7A70] italic">
+                    No saved delivery address yet. Click &ldquo;Add Address&rdquo; to save your delivery location.
+                  </p>
+                )}
               </div>
 
               {/* Active Coupons Banner */}
@@ -1185,99 +1200,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             </div>
           )}
 
-          {/* TAB 5: PROFILE & ADDRESS */}
+          {/* TAB 5: SAVED ADDRESS BOOK & PROFILE */}
           {activeTab === 'profile' && (
             <div className="space-y-4">
-              <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-4 shadow-2xs">
-                <div className="flex items-center justify-between border-b border-[#EAE2D5] pb-2">
-                  <span className="text-xs font-bold text-[#2C2420] uppercase tracking-wider flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4 text-[#8C2E46]" />
-                    <span>Customer Details &amp; Shipping Address</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingAddress(!isEditingAddress)}
-                    className="text-xs text-[#8C2E46] font-bold hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                    <span>{isEditingAddress ? 'Cancel' : 'Edit'}</span>
-                  </button>
-                </div>
-
-                {isEditingAddress ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-semibold text-[#8C7A70] uppercase block mb-1">Full Name</label>
-                        <input
-                          type="text"
-                          value={addressDraft.name}
-                          onChange={(e) => setAddressDraft({ ...addressDraft, name: e.target.value })}
-                          className="w-full px-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-[#8C7A70] uppercase block mb-1">Phone Number</label>
-                        <input
-                          type="text"
-                          value={addressDraft.phone}
-                          onChange={(e) => setAddressDraft({ ...addressDraft, phone: e.target.value })}
-                          className="w-full px-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-semibold text-[#8C7A70] uppercase block mb-1">Delivery Address</label>
-                      <input
-                        type="text"
-                        value={addressDraft.address}
-                        onChange={(e) => setAddressDraft({ ...addressDraft, address: e.target.value })}
-                        placeholder="House / Flat No, Street, Landmark"
-                        className="w-full px-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-semibold text-[#8C7A70] uppercase block mb-1">City / Region</label>
-                        <input
-                          type="text"
-                          value={addressDraft.city}
-                          onChange={(e) => setAddressDraft({ ...addressDraft, city: e.target.value })}
-                          className="w-full px-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-[#8C7A70] uppercase block mb-1">Pincode</label>
-                        <input
-                          type="text"
-                          value={addressDraft.pincode}
-                          onChange={(e) => setAddressDraft({ ...addressDraft, pincode: e.target.value })}
-                          className="w-full px-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleSaveProfile}
-                      className="px-4 py-2 bg-[#8C2E46] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>Save Address Changes</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2 text-xs">
-                    <p><strong>Name:</strong> {customerProfile?.name || addressDraft.name}</p>
-                    <p><strong>Phone:</strong> {customerProfile?.phone || addressDraft.phone}</p>
-                    <p><strong>Address:</strong> {customerProfile?.address || addressDraft.address}, {customerProfile?.city || addressDraft.city} – {customerProfile?.pincode || addressDraft.pincode}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* SAVED ADDRESS BOOK */}
+              {/* SAVED ADDRESS BOOK (Only Saved Addresses Visible) */}
               <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between border-b border-[#EAE2D5] pb-2">
                   <div>
@@ -1286,7 +1212,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       <span>Saved Delivery Addresses ({addressBook.length})</span>
                     </span>
                     <p className="text-[11px] text-[#7A6458] mt-0.5">
-                      Usable directly in your shopping bag during checkout.
+                      Your saved addresses are automatically selected at checkout.
                     </p>
                   </div>
                   <button
@@ -1303,7 +1229,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   <form onSubmit={handleAddNewAddress} className="p-3 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-[#2C2420] uppercase">Add New Address</span>
-                      {/* Label selector */}
                       <div className="flex gap-1">
                         {(['Home', 'Work', 'Other'] as const).map((lbl) => (
                           <button
@@ -1387,7 +1312,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
                 {addressBook.length === 0 ? (
                   <p className="text-xs text-[#7A6458] italic py-2">
-                    No addresses saved yet. They will automatically be saved as you place orders or add them here.
+                    No saved addresses yet. Add a delivery address above or save one during checkout.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -1419,7 +1344,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                                   )}
                                   {addr.isDefault && (
                                     <span className="text-[10px] px-1.5 py-0.2 bg-amber-50 text-amber-800 rounded border border-amber-200 font-bold">
-                                      DEFAULT
+                                      SAVED DEFAULT
                                     </span>
                                   )}
                                 </div>
@@ -1445,16 +1370,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                                   Make Default
                                 </button>
                               )}
-                              {addressBook.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteAddress(addr.id)}
-                                  title="Delete address"
-                                  className="p-1 text-[#8C7A70] hover:text-rose-600 rounded cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAddress(addr.id)}
+                                title="Delete address"
+                                className="p-1 text-[#8C7A70] hover:text-rose-600 rounded cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </div>
                         </div>

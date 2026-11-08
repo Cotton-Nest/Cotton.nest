@@ -17,7 +17,7 @@ import {
 } from '../data/loyalty';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
-import { SavedAddress, getSavedAddresses, saveAddressToBook, formatFullAddress } from '../data/addresses';
+import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, formatFullAddress } from '../data/addresses';
 import { CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
 
@@ -261,12 +261,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     if (isOpen) {
       const addrs = getSavedAddresses(customerProfile, userKey);
       setSavedAddresses(addrs);
-      setSelectedAddressId(null);
-      setCustomerAddress('');
-      if (addrs.length === 0) {
-        setIsAddingNewAddress(true);
-      } else {
+      setFormError(null);
+      if (addrs.length > 0) {
+        const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
+        setSelectedAddressId(defaultAddr.id);
         setIsAddingNewAddress(false);
+        const formatted = formatFullAddress(defaultAddr);
+        setCustomerAddress(formatted);
+        if (defaultAddr.name) setCustomerName(defaultAddr.name);
+        if (defaultAddr.phone) setCustomerPhone(defaultAddr.phone);
+      } else {
+        setSelectedAddressId(null);
+        setCustomerAddress('');
+        setIsAddingNewAddress(true);
       }
     }
   }, [isOpen, customerProfile, userKey]);
@@ -274,6 +281,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const handleSelectSavedAddress = (addr: SavedAddress) => {
     setSelectedAddressId(addr.id);
     setIsAddingNewAddress(false);
+    setFormError(null);
     const formatted = formatFullAddress(addr);
     setCustomerAddress(formatted);
     if (addr.name) setCustomerName(addr.name);
@@ -290,10 +298,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     }
   };
 
+  const handleDeleteSavedAddress = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const updated = deleteSavedAddress(id, userKey);
+    setSavedAddresses(updated);
+    if (updated.length > 0) {
+      const nextDefault = updated.find((a) => a.isDefault) || updated[0];
+      handleSelectSavedAddress(nextDefault);
+    } else {
+      setSelectedAddressId(null);
+      setCustomerAddress('');
+      setIsAddingNewAddress(true);
+    }
+  };
+
   const handleStartNewAddress = () => {
     setSelectedAddressId(null);
     setIsAddingNewAddress(true);
-    setCustomerAddress('');
+    setFormError(null);
   };
 
   // Auto-fill from authenticated Google or Phone session
@@ -1232,73 +1254,65 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     )}
                   </div>
 
-                  {/* List of Saved Addresses to Select From */}
+                  {/* List of Saved Addresses to Select From (Only Saved Addresses Visible) */}
                   {!isAddingNewAddress && savedAddresses.length > 0 && (
-                    <div className="space-y-2">
-                      {!customerAddress && (
-                        <div className="p-2.5 bg-amber-50/80 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                          <span>Please select a saved address below:</span>
-                        </div>
-                      )}
-                      <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
-                        {savedAddresses.map((addr) => {
-                          const isSelected = selectedAddressId === addr.id;
-                          return (
-                            <div
-                              key={addr.id}
-                              onClick={() => handleSelectSavedAddress(addr)}
-                              className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all ${
-                                isSelected
-                                  ? 'bg-[#FFFDF9] border-[#C29E57] ring-1.5 ring-[#C29E57] shadow-xs'
-                                  : 'bg-white border-[#EAE2D5] hover:border-[#DEC89B] hover:bg-[#FAF7F2]'
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                                      isSelected
-                                        ? 'border-[#8C2E46] bg-[#8C2E46]'
-                                        : 'border-[#DEC89B] bg-white'
-                                    }`}
-                                  >
-                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                                  </div>
-                                  <span className="font-bold text-[#2C2420] text-xs">{addr.name}</span>
-                                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-[#FAF7F2] text-[#8C7A70] border border-[#DEC89B]/60 flex items-center gap-1">
-                                    {addr.label === 'Work' ? <Briefcase className="w-2.5 h-2.5" /> : <Home className="w-2.5 h-2.5" />}
-                                    <span>{addr.label || 'Home'}</span>
-                                  </span>
-                                  {addr.isDefault && (
-                                    <span className="text-[10px] font-semibold text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded border border-[#FAD1DC]">
-                                      Default
-                                    </span>
-                                  )}
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
+                      {savedAddresses.map((addr) => {
+                        const isSelected = selectedAddressId === addr.id || (savedAddresses.length === 1);
+                        return (
+                          <div
+                            key={addr.id}
+                            onClick={() => handleSelectSavedAddress(addr)}
+                            className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-[#FFFDF9] border-[#C29E57] ring-1.5 ring-[#C29E57] shadow-xs'
+                                : 'bg-white border-[#EAE2D5] hover:border-[#DEC89B] hover:bg-[#FAF7F2]'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div
+                                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                                    isSelected
+                                      ? 'border-[#8C2E46] bg-[#8C2E46]'
+                                      : 'border-[#DEC89B] bg-white'
+                                  }`}
+                                >
+                                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                 </div>
-                                {addr.phone && (
-                                  <span className="text-[11px] text-[#7A6458] font-medium shrink-0">
-                                    {addr.phone}
+                                <span className="font-bold text-[#2C2420] text-xs">{addr.name}</span>
+                                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-[#FAF7F2] text-[#8C7A70] border border-[#DEC89B]/60 flex items-center gap-1">
+                                  {addr.label === 'Work' ? <Briefcase className="w-2.5 h-2.5" /> : <Home className="w-2.5 h-2.5" />}
+                                  <span>{addr.label || 'Home'}</span>
+                                </span>
+                                {addr.isDefault && (
+                                  <span className="text-[10px] font-semibold text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded border border-[#FAD1DC]">
+                                    Saved
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-1.5 text-[#6B5D55] text-xs leading-relaxed pl-6">
-                                {formatFullAddress(addr)}
-                              </p>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {addr.phone && (
+                                  <span className="text-[11px] text-[#7A6458] font-medium">
+                                    {addr.phone}
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteSavedAddress(e, addr.id)}
+                                  title="Remove saved address"
+                                  className="p-1 text-[#8C7A70] hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Deliver to different address button */}
-                      <button
-                        type="button"
-                        onClick={handleStartNewAddress}
-                        className="w-full py-2 px-3 border border-dashed border-[#DEC89B] hover:border-[#8C2E46] rounded-xl text-xs font-semibold text-[#8C2E46] bg-white hover:bg-[#FAF7F2] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Deliver to a Different / New Address</span>
-                      </button>
+                            <p className="mt-1.5 text-[#6B5D55] text-xs leading-relaxed pl-6">
+                              {formatFullAddress(addr)}
+                            </p>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
