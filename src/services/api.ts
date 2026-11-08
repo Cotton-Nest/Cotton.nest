@@ -88,8 +88,8 @@ export function cleanLinkOnly(url?: string | null, fallbackId?: string): string 
     return resolveBedsheetImage('', fallbackId);
   }
   if (trimmed.startsWith('data:')) {
-    // Allow bounded data URLs (<700KB) so JSON backups with embedded images never get wiped to default image
-    if (trimmed.length < 700000) {
+    // Retain clean bounded data URLs (<950KB) so JSON backups with embedded photos are never lost
+    if (trimmed.length < 950000) {
       return trimmed;
     }
     return resolveBedsheetImage('', fallbackId);
@@ -586,19 +586,32 @@ export async function saveAllProducts(
   const sanitizedList: BedsheetProduct[] = [];
   const nowTs = Date.now();
 
+  const parsePrice = (val: any, fallback: number = 1320): number => {
+    if (typeof val === 'number') return isNaN(val) ? fallback : Math.max(0, Math.round(val));
+    if (typeof val === 'string') {
+      const cleaned = val.replace(/[^0-9.]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? fallback : Math.max(0, Math.round(num));
+    }
+    return fallback;
+  };
+
   for (let idx = 0; idx < (products || []).length; idx++) {
-    const p = products[idx];
-    if (!p || (!p.id && !p.name)) continue;
+    const p = products[idx] as any;
+    if (!p) continue;
+    const rawName = String(p.name || p.title || p.productName || p.item_name || p.label || p.id || `bedsheet-${idx}`).trim();
+    if (!rawName) continue;
+
     const safeId = String(
       p.id ||
-        `bedsheet-${String(p.name || idx)
+        `bedsheet-${rawName
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '')}`
     );
-    if (isSubkeyDocumentId(safeId) || !p.name) continue;
+    if (isSubkeyDocumentId(safeId)) continue;
 
-    let primaryImage = p.image || '';
+    let primaryImage = p.image || p.imageUrl || p.img || p.photo || '';
     if (typeof primaryImage === 'string' && primaryImage.startsWith('data:')) {
       try {
         const up = await uploadToCloudinary(primaryImage, safeId);
@@ -608,10 +621,15 @@ export async function saveAllProducts(
       } catch {}
     }
 
+    const cleanPrice = parsePrice(p.price ?? p.sale_price ?? p.selling_price, 1320);
+    const cleanOrigPrice = parsePrice(p.originalPrice ?? p.mrp ?? p.list_price, cleanPrice);
+
     const cleanProd: BedsheetProduct = stripUndefined({
       ...p,
       id: safeId,
-      name: String(p.name).trim(),
+      name: rawName,
+      price: cleanPrice,
+      originalPrice: cleanOrigPrice,
       order: typeof p.order === 'number' ? p.order : idx,
       updatedAt: p.updatedAt || nowTs,
       image: cleanLinkOnly(primaryImage, safeId),
@@ -622,7 +640,7 @@ export async function saveAllProducts(
           ? p.videoUrl
           : '',
       variants: Array.isArray(p.variants)
-        ? p.variants.map((v) => ({ ...v, image: cleanLinkOnly(v.image, safeId) }))
+        ? p.variants.map((v: any) => ({ ...v, image: cleanLinkOnly(v.image, safeId) }))
         : [],
     });
     sanitizedList.push(cleanProd);

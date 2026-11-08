@@ -1293,16 +1293,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         let reviewsToRestore: ProductReview[] | null = null;
         let couponsToRestore: any[] | null = null;
 
+        const safeParsePrice = (val: any, fallback: number = 1320): number => {
+          if (typeof val === 'number') return isNaN(val) ? fallback : Math.max(0, Math.round(val));
+          if (typeof val === 'string') {
+            const cleaned = val.replace(/[^0-9.]/g, '');
+            const num = parseFloat(cleaned);
+            return isNaN(num) ? fallback : Math.max(0, Math.round(num));
+          }
+          return fallback;
+        };
+
         const isProdLike = (obj: any): boolean => {
-          return obj && typeof obj === 'object' && !Array.isArray(obj) && (
-            Boolean(obj.name || obj.title) && (obj.price !== undefined || obj.originalPrice !== undefined || obj.image || obj.imageUrl || obj.id)
-          );
+          if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+          const nameVal = obj.name || obj.title || obj.productName || obj.item_name || obj.label || obj.id;
+          return Boolean(nameVal && typeof nameVal === 'string' && nameVal.trim().length > 0);
         };
 
         const isOrderLike = (obj: any): boolean => {
-          return obj && typeof obj === 'object' && !Array.isArray(obj) && (
-            Boolean(obj.customerName || obj.customerPhone || obj.totalAmount || obj.items)
-          );
+          if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+          return Boolean(obj.customerName || obj.customerPhone || obj.totalAmount || obj.items || obj.orderId || obj.order_id);
         };
 
         const isProdArray = (arr: any[]): boolean => {
@@ -1329,6 +1338,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           else if (isProdArray(root.bedsheets)) productsToRestore = root.bedsheets;
           else if (isProdArray(root.items)) productsToRestore = root.items;
           else if (isProdArray(root.inventory)) productsToRestore = root.inventory;
+          else if (isProdArray(root.goods)) productsToRestore = root.goods;
+          else if (isProdArray(root.store)) productsToRestore = root.store;
           else if (root.products && typeof root.products === 'object') {
             const vals = Object.entries(root.products)
               .map(([k, v]: [string, any]) => ({ ...v, id: v?.id || k }))
@@ -1418,9 +1429,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         if (productsToRestore && productsToRestore.length > 0) {
           const importTimestamp = Date.now();
           const normalizedProducts: BedsheetProduct[] = productsToRestore
-            .filter((p: any) => p && (p.name || p.title || p.id))
+            .filter((p: any) => p && (p.name || p.title || p.productName || p.item_name || p.id))
             .map((p: any, idx: number) => {
-              const rawName = String(p.name || p.title || 'Cotton Nest Bedsheet').trim();
+              const rawName = String(p.name || p.title || p.productName || p.item_name || p.label || 'Cotton Nest Bedsheet').trim();
               const safeId = String(
                 p.id ||
                   `bedsheet-${rawName
@@ -1429,11 +1440,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     .replace(/(^-|-$)/g, '') || idx}`
               );
               const customImgForProd = imagesToRestore[safeId] || resolvedCustomImages[safeId];
-              const rawImage = p.image || p.imageUrl || p.img || p.photo || '/images/exact_sheet1_pink_rose_1790997736396.jpg';
+              const rawImage = p.image || p.imageUrl || p.img || p.photo || p.picture || p.image_url || p.src || p.cover || '/images/exact_sheet1_pink_rose_1790997736396.jpg';
               const chosenImage =
                 customImgForProd && typeof customImgForProd === 'string' && customImgForProd.trim() !== ''
                   ? customImgForProd
                   : rawImage;
+
+              const parsedPrice = safeParsePrice(p.price ?? p.sale_price ?? p.selling_price, 1320);
+              const parsedOriginalPrice = safeParsePrice(p.originalPrice ?? p.mrp ?? p.list_price ?? p.price, parsedPrice);
 
               return {
                 id: safeId,
@@ -1442,8 +1456,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 size: p.size || 'King',
                 productType: p.productType || p.category || 'Bedsheet',
                 brand: p.brand || 'Cotton Nest',
-                price: Number(p.price) || 1320,
-                originalPrice: Number(p.originalPrice) || Number(p.mrp) || Number(p.price) || 1320,
+                price: parsedPrice,
+                originalPrice: parsedOriginalPrice,
                 dimensions: p.dimensions || '108 x 108 inches (274 x 274 cm)',
                 pillowCovers: p.pillowCovers || '2 Pillow Covers (45 x 70 cm)',
                 threadCount: p.threadCount || '350 Thread Count',
@@ -1523,7 +1537,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         setSaveStatus('saved');
         if (restoredSummary.length > 0) {
-          showToast(`✓ Saved to Cloud Firestore & Server: ${restoredSummary.join(', ')}!`);
+          showToast(`✓ Restored & Synced: ${restoredSummary.join(', ')}!`);
         } else {
           showToast('Invalid backup file. Could not find bedsheets or store records in JSON.');
         }
@@ -1534,7 +1548,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       } finally {
         setTimeout(() => {
           isImportingBackupRef.current = false;
-        }, 3500);
+        }, 4500);
       }
     };
     reader.readAsText(file);
