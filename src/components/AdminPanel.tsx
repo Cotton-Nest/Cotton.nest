@@ -110,7 +110,8 @@ import {
   Video,
   Play,
   Film,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Mail,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -1351,17 +1352,79 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   /* ---------------- ORDER HANDLERS ---------------- */
 
   const handleUpdateOrderStatus = async (orderId: string, nextStatus: OrderStatus) => {
+    const targetOrder = editableOrders.find((o) => o.id === orderId);
     const updated = editableOrders.map((o) => {
-      if (o.id === orderId) return { ...o, status: nextStatus };
+      if (o.id === orderId) {
+        return {
+          ...o,
+          status: nextStatus,
+          invoiceSent: nextStatus === 'confirmed' ? true : o.invoiceSent,
+        };
+      }
       return o;
     });
     setEditableOrders(updated);
     onUpdateOrders(updated);
-    showToast(`Order #${orderId} status set to ${nextStatus.toUpperCase()}`);
+
+    if (nextStatus === 'confirmed') {
+      showToast(`Order #${orderId} Confirmed! Generating & emailing sale invoice...`);
+    } else {
+      showToast(`Order #${orderId} status set to ${nextStatus.toUpperCase()}`);
+    }
+
     try {
-      await updateOrderStatus(orderId, nextStatus);
+      await updateOrderStatus(
+        orderId,
+        nextStatus,
+        targetOrder ? { ...targetOrder, status: nextStatus } : undefined
+      );
+      if (nextStatus === 'confirmed') {
+        showToast(`✓ Sale invoice email dispatched from adityaa.22082011@gmail.com!`);
+      }
     } catch (err) {
       console.warn('Failed to persist status change:', err);
+    }
+  };
+
+  const handleResendInvoiceEmail = async (order: Order) => {
+    showToast(`Dispatching sale invoice email for Order #${order.id}...`);
+    try {
+      const res = await fetch('/api/send-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          customerPhone: order.customerPhone,
+          customerAddress: order.customerAddress,
+          shippingMethod: order.shippingCost ? 'Express Courier' : 'Sector 46 Complimentary Delivery',
+          subtotal: Number(order.totalAmount) || 0,
+          couponCode: order.couponCode,
+          couponDiscount: Number(order.couponDiscount) || 0,
+          pointsUsed: Number(order.pointsUsed) || 0,
+          pointsDiscount: Number(order.pointsDiscount) || 0,
+          shippingCost: Number(order.shippingCost) || 0,
+          finalTotal: Number(order.totalAmount) || 0,
+          items: (order.items || []).map((it) => ({
+            name: it.productName,
+            variantName: it.variantName,
+            dimensions: it.dimensions || '108 x 108 inches',
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.price) || 0,
+            imageUrl: it.productImage || '',
+          })),
+          createdAt: order.createdAt,
+        }),
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        showToast(`✓ Sale invoice sent to ${data.recipients?.join(', ') || 'customer & admin'}!`);
+      } else {
+        showToast(`⚠️ Could not send invoice: ${data.error || 'Server error'}`);
+      }
+    } catch (err: any) {
+      showToast(`⚠️ Error: ${err.message || 'Network error'}`);
     }
   };
 
@@ -3954,7 +4017,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         {/* Status Change Selector & Delete */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {safeStatus === 'pending' && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#8C2E46] hover:bg-[#722338] text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
+                              title="Confirm order and automatically email sale invoice to customer and atelier"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#E6CA65]" />
+                              <span>Confirm &amp; Send Invoice</span>
+                            </button>
+                          )}
+
+                          {(safeStatus === 'confirmed' || safeStatus === 'dispatched' || safeStatus === 'delivered') && (
+                            <button
+                              type="button"
+                              onClick={() => handleResendInvoiceEmail(order)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] text-[#8C2E46] text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                              title="Resend official sale invoice to customer email via Gmail SMTP"
+                            >
+                              <Mail className="w-3.5 h-3.5 text-[#8C2E46]" />
+                              <span>Resend Invoice</span>
+                            </button>
+                          )}
+
                           <label className="text-xs text-[#7A6458] font-medium">Status:</label>
                           <select
                             value={safeStatus}
@@ -3970,7 +4057,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           <button
                             onClick={() => handleDeleteOrder(order.id)}
-                            className="p-1.5 text-[#8C7A70] hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                            className="p-1.5 text-[#8C7A70] hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
                             title="Delete order"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

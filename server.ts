@@ -1077,13 +1077,37 @@ async function startServer() {
   app.put('/api/orders/:id', async (req, res) => {
     const { id } = req.params;
     const updated = req.body;
-    const index = db.orders.findIndex((o) => o.id === id);
+    let index = db.orders.findIndex(
+      (o) => o.id === id || o.id === `CN-${id}` || `CN-${o.id}` === id || (o.id && id && o.id.replace(/\D/g, '') === id.replace(/\D/g, ''))
+    );
     if (index === -1) {
-      return res.status(404).json({ error: 'Order not found' });
+      const payloadOrder = updated.order || updated;
+      const createdObj = {
+        id: id.startsWith('CN-') ? id : `CN-${id}`,
+        ...payloadOrder,
+        status: updated.status || payloadOrder.status || 'pending',
+        customerName: payloadOrder.customerName || 'Valued Customer',
+        customerEmail: payloadOrder.customerEmail || 'adityaa.451485@gmail.com',
+        customerPhone: payloadOrder.customerPhone || '',
+        customerAddress: payloadOrder.customerAddress || 'Sector 46, Gurgaon',
+        subtotal: Number(payloadOrder.subtotal) || Number(payloadOrder.totalAmount) || 0,
+        totalAmount: Number(payloadOrder.totalAmount) || 0,
+        couponCode: payloadOrder.couponCode,
+        couponDiscount: Number(payloadOrder.couponDiscount) || 0,
+        pointsUsed: Number(payloadOrder.pointsUsed) || 0,
+        pointsDiscount: Number(payloadOrder.pointsDiscount) || 0,
+        shippingCost: Number(payloadOrder.shippingCost) || 0,
+        pointsEarned: payloadOrder.pointsEarned,
+        items: payloadOrder.items || [],
+        createdAt: payloadOrder.createdAt || new Date().toISOString(),
+        timeline: payloadOrder.timeline || [],
+      };
+      db.orders.unshift(createdObj);
+      index = 0;
     }
 
     const previousOrder = db.orders[index];
-    const newStatus = updated.status;
+    const newStatus = updated.status || previousOrder.status;
 
     // If status has changed, automatically append to timeline if not already there
     let updatedTimeline = updated.timeline || previousOrder.timeline || [];
@@ -1251,6 +1275,46 @@ async function startServer() {
 
     saveDatabase();
     res.json(db.orders[index]);
+  });
+
+  app.post('/api/orders/:id/confirm', async (req, res) => {
+    const { id } = req.params;
+    let index = db.orders.findIndex(
+      (o) => o.id === id || o.id === `CN-${id}` || `CN-${o.id}` === id || (o.id && id && o.id.replace(/\D/g, '') === id.replace(/\D/g, ''))
+    );
+    if (index === -1) {
+      const payloadOrder = req.body?.order || req.body || {};
+      const createdObj = {
+        id: id.startsWith('CN-') ? id : `CN-${id}`,
+        ...payloadOrder,
+        status: 'confirmed',
+        customerName: payloadOrder.customerName || 'Valued Customer',
+        customerEmail: payloadOrder.customerEmail || 'adityaa.451485@gmail.com',
+        customerPhone: payloadOrder.customerPhone || '',
+        customerAddress: payloadOrder.customerAddress || 'Sector 46, Gurgaon',
+        subtotal: Number(payloadOrder.subtotal) || Number(payloadOrder.totalAmount) || 0,
+        totalAmount: Number(payloadOrder.totalAmount) || 0,
+        couponCode: payloadOrder.couponCode,
+        couponDiscount: Number(payloadOrder.couponDiscount) || 0,
+        pointsUsed: Number(payloadOrder.pointsUsed) || 0,
+        pointsDiscount: Number(payloadOrder.pointsDiscount) || 0,
+        shippingCost: Number(payloadOrder.shippingCost) || 0,
+        pointsEarned: payloadOrder.pointsEarned,
+        items: payloadOrder.items || [],
+        createdAt: payloadOrder.createdAt || new Date().toISOString(),
+      };
+      db.orders.unshift(createdObj);
+      index = 0;
+    }
+
+    db.orders[index].status = 'confirmed';
+    const invoiceResult = await dispatchOrderSaleInvoice(db.orders[index]);
+    saveDatabase();
+    res.json({
+      success: true,
+      order: db.orders[index],
+      invoiceResult,
+    });
   });
 
   app.delete('/api/orders/:id', (req, res) => {

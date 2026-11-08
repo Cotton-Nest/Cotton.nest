@@ -680,9 +680,9 @@ export async function saveOrder(order: Order): Promise<void> {
   }
 }
 
-export async function updateOrderStatus(orderId: string, status: string): Promise<void> {
+export async function updateOrderStatus(orderId: string, status: string, orderData?: Partial<Order>): Promise<void> {
   const path = `orders/${orderId}`;
-  let targetOrder: Order | undefined;
+  let targetOrder: Order | undefined = orderData as Order | undefined;
 
   // 1. Update local storage
   try {
@@ -692,9 +692,10 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
       if (Array.isArray(list)) {
         const updated = list.map((o) => {
           if (o.id === orderId) {
-            targetOrder = o;
+            targetOrder = { ...o, ...(orderData || {}), status: status as any };
             return {
               ...o,
+              ...(orderData || {}),
               status: status as any,
               pointsCredited: status === 'delivered' ? true : o.pointsCredited,
             };
@@ -719,12 +720,12 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
     } catch {}
   }
 
-  // 2. Update Express server backend (server handles points crediting logic upon delivered status)
+  // 2. Update Express server backend (server handles points crediting and dispatches sale invoice when confirmed)
   try {
     await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, order: targetOrder }),
     });
   } catch (err) {
     console.warn('Failed to update order status on server:', err);

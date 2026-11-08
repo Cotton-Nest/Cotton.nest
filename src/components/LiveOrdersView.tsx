@@ -58,6 +58,49 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState<string | null>(null);
   const [emailSendFeedback, setEmailSendFeedback] = useState<{ id: string; success: boolean; message: string } | null>(null);
+  const [isConfirmingOrder, setIsConfirmingOrder] = useState<string | null>(null);
+
+  const handleConfirmOrder = async (order: Order) => {
+    setIsConfirmingOrder(order.id);
+    setEmailSendFeedback(null);
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(order.id)}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order }),
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === order.id ? { ...o, status: 'confirmed' as const, invoiceSent: true } : o
+          )
+        );
+        if (searchedOrder && searchedOrder.id === order.id) {
+          setSearchedOrder({ ...searchedOrder, status: 'confirmed', invoiceSent: true });
+        }
+        setEmailSendFeedback({
+          id: order.id,
+          success: true,
+          message: '✓ Order confirmed & official sale invoice dispatched from adityaa.22082011@gmail.com!',
+        });
+      } else {
+        setEmailSendFeedback({
+          id: order.id,
+          success: false,
+          message: data?.error || 'Could not confirm order.',
+        });
+      }
+    } catch (err: any) {
+      setEmailSendFeedback({
+        id: order.id,
+        success: false,
+        message: 'Network error confirming order.',
+      });
+    } finally {
+      setIsConfirmingOrder(null);
+    }
+  };
 
   // Handle user explicitly clicking an order to view its details
   const handleSelectOrder = (orderId: string) => {
@@ -283,14 +326,14 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-200">
             <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin-slow" />
-            Order Received
+            Order Confirmation Pending
           </span>
         );
       case 'confirmed':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-900 border border-blue-200">
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-            Verified & Inspected
+            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+            Order Confirmed
           </span>
         );
       case 'dispatched':
@@ -831,7 +874,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                             </div>
                           </div>
 
-                          {/* Step 2: Confirmed & Inspected */}
+                          {/* Step 2: Order Confirmation Pending / Confirmed */}
                           <div className="flex sm:flex-col items-center sm:text-center gap-3 sm:gap-2">
                             <div
                               className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
@@ -842,11 +885,19 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                                   : 'bg-[#FAF7F2] border border-[#DEC89B] text-[#7A6458]'
                               }`}
                             >
-                              <Sparkles className="w-5 h-5" />
+                              {currentStep >= 2 ? (
+                                <CheckCircle2 className="w-5 h-5" />
+                              ) : (
+                                <Clock className="w-5 h-5" />
+                              )}
                             </div>
                             <div>
-                              <p className="text-xs font-bold text-[#2C2420]">Quality Inspected</p>
-                              <p className="text-[11px] text-[#7A6458]">Sector 46 Store</p>
+                              <p className="text-xs font-bold text-[#2C2420]">
+                                {currentStep >= 2 ? 'Order Confirmed' : 'Order Confirmation Pending'}
+                              </p>
+                              <p className="text-[11px] text-[#7A6458]">
+                                {currentStep >= 2 ? 'Confirmed at Atelier' : 'Sector 46 Store'}
+                              </p>
                             </div>
                           </div>
 
@@ -900,8 +951,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                                 : currentSelectedOrder.status === 'dispatched'
                                 ? 'Package on the way with courier partner'
                                 : currentSelectedOrder.status === 'confirmed'
-                                ? 'Handcrafted bedsheet inspected & packed at Sector 46 Gurgaon Atelier'
-                                : 'Atelier verifying stock and thread count'}
+                                ? 'Order confirmed & bedsheet packed at Sector 46 Gurgaon Atelier'
+                                : 'Order confirmation pending from Sector 46 Atelier'}
                             </span>
                             {currentSelectedOrder.trackingNumber && (
                               <p className="text-[11px] text-[#7A6458] mt-0.5">
@@ -941,7 +992,20 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {currentSelectedOrder.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmOrder(currentSelectedOrder)}
+                            disabled={isConfirmingOrder === currentSelectedOrder.id}
+                            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                            title="Confirm this order and automatically dispatch the official sale invoice via Gmail SMTP"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
+                            <span>{isConfirmingOrder === currentSelectedOrder.id ? 'Confirming...' : 'Confirm Order & Send Invoice'}</span>
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => setInvoiceModalOrder(currentSelectedOrder)}

@@ -98,7 +98,7 @@ test('sendOtpEmail returns 503 configuration error when credentials are not set'
     delete process.env.GMAIL_USER;
     delete process.env.GMAIL_APP_PASSWORD;
 
-    const res = await sendOtpEmail('test@gmail.com');
+    const res = await sendOtpEmail('test-config-unconfigured-unique@gmail.com');
     assert.equal(res.success, false);
     assert.equal(res.status, 503);
     assert.ok(res.error?.includes('Gmail SMTP credentials are not configured'));

@@ -1106,8 +1106,28 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                             {new Date(order.createdAt).toLocaleDateString()}
                           </span>
                         </div>
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full capitalize bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          {order.status}
+                        <span
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                            order.status === 'pending'
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : order.status === 'confirmed'
+                              ? 'bg-blue-100 text-blue-900 border-blue-300'
+                              : order.status === 'dispatched'
+                              ? 'bg-purple-100 text-purple-900 border-purple-300'
+                              : order.status === 'cancelled'
+                              ? 'bg-neutral-200 text-neutral-800 border-neutral-300'
+                              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          }`}
+                        >
+                          {order.status === 'pending'
+                            ? 'Order Confirmation Pending'
+                            : order.status === 'confirmed'
+                            ? 'Order Confirmed'
+                            : order.status === 'dispatched'
+                            ? 'In Transit'
+                            : order.status === 'delivered'
+                            ? 'Delivered'
+                            : order.status}
                         </span>
                       </div>
 
