@@ -1293,84 +1293,117 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         let reviewsToRestore: ProductReview[] | null = null;
         let couponsToRestore: any[] | null = null;
 
-        // Support array of products directly OR structured JSON object OR map of products
+        const isProdLike = (obj: any): boolean => {
+          return obj && typeof obj === 'object' && !Array.isArray(obj) && (
+            Boolean(obj.name || obj.title) && (obj.price !== undefined || obj.originalPrice !== undefined || obj.image || obj.imageUrl || obj.id)
+          );
+        };
+
+        const isOrderLike = (obj: any): boolean => {
+          return obj && typeof obj === 'object' && !Array.isArray(obj) && (
+            Boolean(obj.customerName || obj.customerPhone || obj.totalAmount || obj.items)
+          );
+        };
+
+        const isProdArray = (arr: any[]): boolean => {
+          return Array.isArray(arr) && arr.length > 0 && arr.some(isProdLike);
+        };
+
+        const isOrderArray = (arr: any[]): boolean => {
+          return Array.isArray(arr) && arr.length > 0 && arr.some(isOrderLike);
+        };
+
+        // Standard root check first
         if (Array.isArray(parsed)) {
-          productsToRestore = parsed;
+          if (isProdArray(parsed)) {
+            productsToRestore = parsed;
+          } else if (isOrderArray(parsed)) {
+            ordersToRestore = parsed;
+          }
         } else if (parsed && typeof parsed === 'object') {
           const root = parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data) ? parsed.data : parsed;
 
-          if (Array.isArray(root.products)) {
-            productsToRestore = root.products;
-          } else if (Array.isArray(root.catalog)) {
-            productsToRestore = root.catalog;
-          } else if (Array.isArray(root.bedsheets)) {
-            productsToRestore = root.bedsheets;
-          } else if (Array.isArray(root.items)) {
-            productsToRestore = root.items;
-          } else if (root.products && typeof root.products === 'object') {
-            productsToRestore = Object.entries(root.products).map(([id, val]: [string, any]) => ({
-              ...val,
-              id: val?.id || id,
-            }));
+          // Tier 1: Check standard object fields
+          if (isProdArray(root.products)) productsToRestore = root.products;
+          else if (isProdArray(root.catalog)) productsToRestore = root.catalog;
+          else if (isProdArray(root.bedsheets)) productsToRestore = root.bedsheets;
+          else if (isProdArray(root.items)) productsToRestore = root.items;
+          else if (isProdArray(root.inventory)) productsToRestore = root.inventory;
+          else if (root.products && typeof root.products === 'object') {
+            const vals = Object.entries(root.products)
+              .map(([k, v]: [string, any]) => ({ ...v, id: v?.id || k }))
+              .filter(isProdLike);
+            if (vals.length > 0) productsToRestore = vals;
           }
 
-          if (root.customImages && typeof root.customImages === 'object') {
+          if (root.customImages && typeof root.customImages === 'object' && !Array.isArray(root.customImages)) {
             imagesToRestore = root.customImages;
-          } else if (root.custom_images && typeof root.custom_images === 'object') {
+          } else if (root.custom_images && typeof root.custom_images === 'object' && !Array.isArray(root.custom_images)) {
             const map: Record<string, string> = {};
             for (const [k, v] of Object.entries(root.custom_images as Record<string, any>)) {
               if (typeof v === 'string') map[k] = v;
               else if (v && typeof v.imageUrl === 'string') map[k] = v.imageUrl;
+              else if (v && typeof v.url === 'string') map[k] = v.url;
             }
             imagesToRestore = map;
-          } else if (root.images && typeof root.images === 'object') {
+          } else if (root.images && typeof root.images === 'object' && !Array.isArray(root.images)) {
             imagesToRestore = root.images;
           }
 
-          if (Array.isArray(root.orders)) {
-            ordersToRestore = root.orders;
-          }
-          if (root.siteContent && typeof root.siteContent === 'object') {
-            contentToRestore = root.siteContent;
-          } else if (root.site_content && typeof root.site_content === 'object') {
-            contentToRestore = root.site_content.main || root.site_content;
-          }
-          if (root.seasonalConfig && typeof root.seasonalConfig === 'object') {
-            seasonalToRestore = root.seasonalConfig;
-          } else if (root.seasonal && typeof root.seasonal === 'object') {
-            seasonalToRestore = root.seasonal.active || root.seasonal;
-          }
-          if (root.currentTheme && typeof root.currentTheme === 'object') {
-            themeToRestore = root.currentTheme;
-          } else if (root.theme && typeof root.theme === 'object') {
-            themeToRestore = root.theme.active || root.theme;
-          }
-          if (Array.isArray(root.reviews)) {
-            reviewsToRestore = root.reviews;
-          }
-          if (Array.isArray(root.coupons)) {
-            couponsToRestore = root.coupons;
+          if (isOrderArray(root.orders)) ordersToRestore = root.orders;
+          if (root.siteContent && typeof root.siteContent === 'object') contentToRestore = root.siteContent;
+          else if (root.site_content && typeof root.site_content === 'object') contentToRestore = root.site_content.main || root.site_content;
+
+          if (root.seasonalConfig && typeof root.seasonalConfig === 'object') seasonalToRestore = root.seasonalConfig;
+          else if (root.seasonal && typeof root.seasonal === 'object') seasonalToRestore = root.seasonal.active || root.seasonal;
+
+          if (root.currentTheme && typeof root.currentTheme === 'object') themeToRestore = root.currentTheme;
+          else if (root.theme && typeof root.theme === 'object') themeToRestore = root.theme.active || root.theme;
+
+          if (Array.isArray(root.reviews)) reviewsToRestore = root.reviews;
+          if (Array.isArray(root.coupons)) couponsToRestore = root.coupons;
+
+          // Tier 2: Dictionary of product objects e.g. { "gulabi-bagh": { name: "...", price: ... } }
+          if (!productsToRestore) {
+            const dictionaryCandidates = Object.entries(root)
+              .filter(([, v]) => isProdLike(v))
+              .map(([k, v]: [string, any]) => ({ ...v, id: v.id || k }));
+            if (dictionaryCandidates.length > 0) {
+              productsToRestore = dictionaryCandidates;
+            }
           }
 
-          // If the JSON object itself is a dictionary of product objects (e.g. { "gulabi-bagh-rose": { name: ... } })
-          if (
-            !productsToRestore &&
-            !ordersToRestore &&
-            !contentToRestore &&
-            Object.keys(root).length > 0
-          ) {
-            const candidateValues = Object.entries(root)
-              .filter(([, v]) => v && typeof v === 'object' && typeof (v as any).name === 'string' && (v as any).price !== undefined)
-              .map(([k, v]: [string, any]) => ({ ...v, id: v.id || k }));
-            if (candidateValues.length > 0) {
-              productsToRestore = candidateValues;
+          // Tier 3: Deep Breadth-First Search for any nested array of products
+          if (!productsToRestore) {
+            const queue: any[] = [parsed];
+            const visited = new Set();
+            while (queue.length > 0 && !productsToRestore) {
+              const current = queue.shift();
+              if (!current || typeof current !== 'object' || visited.has(current)) continue;
+              visited.add(current);
+
+              if (Array.isArray(current)) {
+                if (isProdArray(current)) {
+                  productsToRestore = current;
+                  break;
+                }
+              } else {
+                for (const [k, v] of Object.entries(current)) {
+                  if (Array.isArray(v) && isProdArray(v)) {
+                    productsToRestore = v;
+                    break;
+                  } else if (v && typeof v === 'object') {
+                    queue.push(v);
+                  }
+                }
+              }
             }
           }
         }
 
         let restoredSummary: string[] = [];
 
-        // 1. First persist customImages to Firestore (and resolve any base64 data URLs to Cloudinary HTTPS URLs)
+        // 1. First persist customImages to Firestore
         let resolvedCustomImages: Record<string, string> = { ...customImages, ...imagesToRestore };
         if (imagesToRestore && Object.keys(imagesToRestore).length > 0) {
           if (onUpdateCustomImages) {
@@ -1381,40 +1414,72 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           restoredSummary.push(`${Object.keys(imagesToRestore).length} custom photos`);
         }
 
-        // 2. Normalize and persist products to Firestore
+        // 2. Normalize and persist products to Firestore & LocalStorage & Server
         if (productsToRestore && productsToRestore.length > 0) {
           const importTimestamp = Date.now();
           const normalizedProducts: BedsheetProduct[] = productsToRestore
-            .filter((p) => p && (p.name || p.id))
-            .map((p, idx) => {
+            .filter((p: any) => p && (p.name || p.title || p.id))
+            .map((p: any, idx: number) => {
+              const rawName = String(p.name || p.title || 'Cotton Nest Bedsheet').trim();
               const safeId = String(
                 p.id ||
-                  `bedsheet-${String(p.name || idx)
+                  `bedsheet-${rawName
                     .toLowerCase()
                     .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/(^-|-$)/g, '')}`
+                    .replace(/(^-|-$)/g, '') || idx}`
               );
               const customImgForProd = imagesToRestore[safeId] || resolvedCustomImages[safeId];
+              const rawImage = p.image || p.imageUrl || p.img || p.photo || '/images/exact_sheet1_pink_rose_1790997736396.jpg';
               const chosenImage =
                 customImgForProd && typeof customImgForProd === 'string' && customImgForProd.trim() !== ''
                   ? customImgForProd
-                  : p.image;
+                  : rawImage;
+
               return {
-                ...p,
                 id: safeId,
-                name: String(p.name || 'Cotton Nest Bedsheet').trim(),
+                name: rawName,
+                collection: p.collection || 'Signature Collection',
+                size: p.size || 'King',
+                productType: p.productType || p.category || 'Bedsheet',
+                brand: p.brand || 'Cotton Nest',
                 price: Number(p.price) || 1320,
-                originalPrice: Number(p.originalPrice) || Number(p.price) || 1320,
-                order: typeof (p as any).order === 'number' ? (p as any).order : idx,
+                originalPrice: Number(p.originalPrice) || Number(p.mrp) || Number(p.price) || 1320,
+                dimensions: p.dimensions || '108 x 108 inches (274 x 274 cm)',
+                pillowCovers: p.pillowCovers || '2 Pillow Covers (45 x 70 cm)',
+                threadCount: p.threadCount || '350 Thread Count',
+                fabric: p.fabric || '100% Pure Percale Cotton',
+                pattern: p.pattern || 'Botanical Jaal',
+                colorTone: p.colorTone || 'Ivory & Pastels',
+                description: p.description || 'Pristine 100% pure cotton bedsheet.',
                 image: resolveBedsheetImage(chosenImage, safeId),
+                additionalImages: Array.isArray(p.additionalImages) ? p.additionalImages : [],
+                videos: Array.isArray(p.videos) ? p.videos : [],
+                videoUrl: p.videoUrl || '',
+                variants: Array.isArray(p.variants) ? p.variants : [],
+                badge: p.badge || '',
+                availabilityType: normalizeAvailabilityType(p.availabilityType),
                 inStock: p.inStock !== false,
                 stockQuantity: typeof p.stockQuantity === 'number' ? p.stockQuantity : 10,
+                features: Array.isArray(p.features)
+                  ? p.features
+                  : [
+                      'Expansive King size drop',
+                      'Includes 2 matching pillow shams',
+                      '100% pure breathable cotton',
+                    ],
                 updatedAt: importTimestamp,
+                order: typeof p.order === 'number' ? p.order : idx,
               };
             });
 
           setEditableProducts(normalizedProducts);
           latestProductsRef.current = normalizedProducts;
+
+          // Save to LocalStorage immediately
+          try {
+            localStorage.setItem('cotton_nest_products', JSON.stringify(normalizedProducts));
+          } catch {}
+
           await onUpdateProducts(normalizedProducts, { replaceAll: true });
           restoredSummary.push(`${normalizedProducts.length} bedsheets`);
         }
@@ -1458,7 +1523,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         setSaveStatus('saved');
         if (restoredSummary.length > 0) {
-          showToast(`✓ Saved to Cloud Firestore: ${restoredSummary.join(', ')}!`);
+          showToast(`✓ Saved to Cloud Firestore & Server: ${restoredSummary.join(', ')}!`);
         } else {
           showToast('Invalid backup file. Could not find bedsheets or store records in JSON.');
         }

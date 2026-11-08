@@ -448,6 +448,13 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
     try {
       handleFirestoreError(error, OperationType.LIST, path);
     } catch {}
+    try {
+      const saved = localStorage.getItem('cotton_nest_products');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
     return BEDSHEETS_CATALOG;
   }
 }

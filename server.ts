@@ -717,6 +717,17 @@ async function startServer() {
   });
 
   app.post('/api/products', (req, res) => {
+    if (Array.isArray(req.body)) {
+      const now = Date.now();
+      db.products = req.body.map((p: any, idx: number) => ({
+        ...p,
+        order: typeof p.order === 'number' ? p.order : idx,
+        updatedAt: p.updatedAt || now,
+      }));
+      (db as any).updatedAt = now;
+      saveDatabase();
+      return res.status(200).json(db.products);
+    }
     const newProduct = req.body;
     if (!newProduct || !newProduct.name) {
       return res.status(400).json({ error: 'Product name is required' });
@@ -727,7 +738,13 @@ async function startServer() {
     const now = Date.now();
     newProduct.updatedAt = now;
     (db as any).updatedAt = now;
-    db.products.unshift(newProduct);
+
+    const existingIdx = db.products.findIndex((p) => p.id === newProduct.id);
+    if (existingIdx >= 0) {
+      db.products[existingIdx] = newProduct;
+    } else {
+      db.products.unshift(newProduct);
+    }
     saveDatabase();
     res.status(201).json(newProduct);
   });
