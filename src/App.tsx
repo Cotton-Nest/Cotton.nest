@@ -1080,6 +1080,8 @@ export default function App() {
             const mergedContent: SiteContent = {
               ...INITIAL_SITE_CONTENT,
               ...content,
+              isMaintenanceMode: Boolean(content.isMaintenanceMode),
+              maintenanceNotice: content.maintenanceNotice || INITIAL_SITE_CONTENT.maintenanceNotice,
               shippingFeeIndia: normalizedFee,
               company: { ...INITIAL_SITE_CONTENT.company, ...(content.company || {}) },
               announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(content.announcement || {}) },
