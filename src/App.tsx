@@ -111,7 +111,7 @@ import {
   isValidHex,
 } from './data/theme';
 import { resolveBedsheetImage, isVideoMedia } from './utils/imageUrl';
-import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star, Bell, X } from 'lucide-react';
+import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star, Bell, X, Wrench, MapPin } from 'lucide-react';
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -1674,7 +1674,13 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-semibold text-[#EAE2D5]">Store Owner Mode Active</span>
-            <span className="text-[#A8988D] hidden sm:inline">· You can edit prices, stock, discounts &amp; sync photos</span>
+            {siteContent?.isMaintenanceMode ? (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white font-bold text-[10px] animate-pulse">
+                🛠️ MAINTENANCE MODE ACTIVE (Visitors see maintenance screen)
+              </span>
+            ) : (
+              <span className="text-[#A8988D] hidden sm:inline">· You can edit prices, stock, discounts &amp; sync photos</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1724,6 +1730,57 @@ export default function App() {
             reviews={reviews}
           />
         </ErrorBoundary>
+      ) : siteContent?.isMaintenanceMode && !isOwnerMode ? (
+        /* Maintenance Mode Full Page View for Visitors */
+        <div className="min-h-screen bg-[#FAF7F2] text-[#2C2420] flex flex-col items-center justify-center p-6 text-center space-y-6">
+          <div className="w-20 h-20 rounded-3xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shadow-lg">
+            <Wrench className="w-10 h-10 animate-bounce" />
+          </div>
+          <div className="max-w-md space-y-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-[#8C2E46] bg-[#FDEAF0] px-3 py-1 rounded-full border border-[#FAD1DC]">
+              Gurgaon Atelier Maintenance
+            </span>
+            <h1 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-[#2C2420] pt-2">
+              Cotton Nest Atelier Under Scheduled Maintenance
+            </h1>
+            <p className="text-xs sm:text-sm text-[#6B5D55] leading-relaxed">
+              {siteContent.maintenanceNotice ||
+                "Our online storefront is currently undergoing scheduled updates to bring you our latest pure cotton collections and improved experience. We will be back online shortly!"}
+            </p>
+          </div>
+
+          <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] max-w-md w-full text-xs space-y-2.5 text-left shadow-xs">
+            <p className="font-bold text-[#2C2420] uppercase tracking-wider text-[10px]">Direct Studio Inquiries:</p>
+            <div className="flex items-center gap-2 text-[#6B5D55]">
+              <Phone className="w-3.5 h-3.5 text-[#C29E57]" />
+              <span>Call / WhatsApp: <strong>{siteContent.company?.phone || '+91 7838625915'}</strong></span>
+            </div>
+            <div className="flex items-center gap-2 text-[#6B5D55]">
+              <MapPin className="w-3.5 h-3.5 text-[#C29E57]" />
+              <span>{siteContent.company?.address || 'House Number 2508, Ground Floor, Sector 46, Gurgaon'}</span>
+            </div>
+          </div>
+
+          <div className="pt-2 flex flex-col items-center gap-3">
+            <a
+              href={`https://wa.me/${siteContent.company?.rawPhone || '917838625915'}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Contact Us Directly on WhatsApp</span>
+            </a>
+
+            <button
+              type="button"
+              onClick={() => setIsOwnerAuthOpen(true)}
+              className="text-[11px] text-[#8C7A70] hover:text-[#2C2420] hover:underline cursor-pointer pt-2"
+            >
+              🔐 Boutique Owner / Admin Sign In
+            </button>
+          </div>
+        </div>
       ) : (
         <>
           {/* Top subtle golden luxury scroll progress indicator */}

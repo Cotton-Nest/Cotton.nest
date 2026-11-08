@@ -177,7 +177,8 @@ export async function getLoyaltyAccountApi(
       if (rawOrders) {
         const parsedOrders = JSON.parse(rawOrders);
         if (Array.isArray(parsedOrders)) {
-          let orderPoints = 0;
+          let orderEarned = 0;
+          let orderSpent = 0;
           parsedOrders.forEach((o) => {
             if (!o || o.status === 'cancelled') return;
             const oEmail = (o.customerEmail || '').toLowerCase().trim();
@@ -188,12 +189,17 @@ export async function getLoyaltyAccountApi(
             if (isMatch) {
               const ship = Number(o.shippingCost) || 0;
               const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
-              orderPoints += typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
+              orderEarned += typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
+              if (o.pointsUsed && Number(o.pointsUsed) > 0) {
+                orderSpent += Number(o.pointsUsed);
+              }
             }
           });
-          if (orderPoints > (account.pointsBalance || 0)) {
-            account.pointsBalance = orderPoints;
-            account.lifetimeEarned = Math.max(account.lifetimeEarned || 0, orderPoints);
+          const computedNet = Math.max(0, orderEarned - orderSpent);
+          if (computedNet > (account.pointsBalance || 0) && (account.lifetimeSpent || 0) === 0) {
+            account.pointsBalance = computedNet;
+            account.lifetimeEarned = Math.max(account.lifetimeEarned || 0, orderEarned);
+            account.lifetimeSpent = Math.max(account.lifetimeSpent || 0, orderSpent);
             saveLocalAccount(account);
           }
         }

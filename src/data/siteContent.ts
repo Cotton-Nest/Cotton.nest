@@ -37,6 +37,8 @@ export interface SiteContent {
   };
   termsAndConditions: string;
   shippingFeeIndia?: number;
+  isMaintenanceMode?: boolean;
+  maintenanceNotice?: string;
 }
 
 export const ACROSS_INDIA_SHIPPING_FEE_INR = 29;
@@ -50,6 +52,8 @@ export function normalizeShippingFee(rawFee?: unknown): number {
 }
 
 export const INITIAL_SITE_CONTENT: SiteContent = {
+  isMaintenanceMode: false,
+  maintenanceNotice: "Cotton Nest Atelier is currently undergoing scheduled system maintenance & upgrades. We will be back online shortly!",
   company: {
     name: "Cotton Nest",
     tagline: "Pure Cotton Comfort, Everyday Elegance",

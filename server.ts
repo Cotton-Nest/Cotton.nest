@@ -153,52 +153,66 @@ function initDatabase(): StoreDatabase {
           parsed.loyaltyAccounts = sanitizedMap;
         }
 
-        // Reconcile points from all placed non-cancelled orders so points reflect immediately
+        // Reconcile points from all placed non-cancelled orders so points reflect accurately
         if (Array.isArray(parsed.orders)) {
+          const keyStats: Record<string, { earned: number; spent: number; name?: string; phone?: string; email?: string; userId?: string }> = {};
+
           parsed.orders.forEach((o: any) => {
             if (!o || o.status === 'cancelled') return;
             const ship = Number(o.shippingCost) || 0;
             const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
             const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
-            if (pts > 0) {
-              o.pointsEarned = pts;
-              o.pointsCredited = true;
+            const spent = Number(o.pointsUsed) || 0;
+            o.pointsEarned = pts;
+            o.pointsCredited = true;
 
-              const candidateKeys: string[] = [];
-              if (o.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(o.customerPhone));
-              if (o.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(o.customerEmail));
-              if (o.userId) candidateKeys.push(sanitizeLoyaltyKey(o.userId));
+            const candidateKeys: string[] = [];
+            if (o.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(o.customerPhone));
+            if (o.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(o.customerEmail));
+            if (o.userId) candidateKeys.push(sanitizeLoyaltyKey(o.userId));
 
-              Array.from(new Set(candidateKeys.filter(Boolean))).forEach((k) => {
-                if (!parsed.loyaltyAccounts[k]) {
-                  parsed.loyaltyAccounts[k] = {
-                    id: k,
-                    customerName: o.customerName || 'Cotton Nest Client',
-                    phone: o.customerPhone,
-                    email: o.customerEmail,
-                    userId: o.userId,
-                    pointsBalance: pts,
-                    lifetimeEarned: pts,
-                    lifetimeSpent: 0,
-                    referralPointsEarned: 0,
-                    referralCode: generateReferralCode(o.customerName || k),
-                    referralCount: 0,
-                    updatedAt: Date.now(),
-                  };
-                  needsSave = true;
-                } else {
-                  const acc = parsed.loyaltyAccounts[k];
-                  if ((acc.pointsBalance || 0) < pts) {
-                    acc.pointsBalance = pts;
-                    acc.lifetimeEarned = Math.max(acc.lifetimeEarned || 0, pts);
-                    needsSave = true;
-                  }
-                  if (o.customerPhone && !acc.phone) acc.phone = o.customerPhone;
-                  if (o.customerEmail && !acc.email) acc.email = o.customerEmail;
-                }
-              });
-            }
+            Array.from(new Set(candidateKeys.filter(Boolean))).forEach((k) => {
+              if (!keyStats[k]) {
+                keyStats[k] = { earned: 0, spent: 0, name: o.customerName, phone: o.customerPhone, email: o.customerEmail, userId: o.userId };
+              }
+              keyStats[k].earned += pts;
+              keyStats[k].spent += spent;
+            });
           });
+
+          for (const [k, stats] of Object.entries(keyStats)) {
+            if (!parsed.loyaltyAccounts[k]) {
+              parsed.loyaltyAccounts[k] = {
+                id: k,
+                customerName: stats.name || 'Cotton Nest Client',
+                phone: stats.phone,
+                email: stats.email,
+                userId: stats.userId,
+                pointsBalance: Math.max(0, stats.earned - stats.spent),
+                lifetimeEarned: stats.earned,
+                lifetimeSpent: stats.spent,
+                referralPointsEarned: 0,
+                referralCode: generateReferralCode(stats.name || k),
+                referralCount: 0,
+                updatedAt: Date.now(),
+              };
+              needsSave = true;
+            } else {
+              const acc = parsed.loyaltyAccounts[k];
+              const effectiveEarned = Math.max(acc.lifetimeEarned || 0, stats.earned);
+              const effectiveSpent = Math.max(acc.lifetimeSpent || 0, stats.spent);
+              const computedBalance = Math.max(0, effectiveEarned - effectiveSpent);
+
+              if (acc.pointsBalance !== computedBalance || acc.lifetimeSpent !== effectiveSpent) {
+                acc.pointsBalance = computedBalance;
+                acc.lifetimeEarned = effectiveEarned;
+                acc.lifetimeSpent = effectiveSpent;
+                needsSave = true;
+              }
+              if (stats.phone && !acc.phone) acc.phone = stats.phone;
+              if (stats.email && !acc.email) acc.email = stats.email;
+            }
+          }
         }
         if (!parsed.loyaltyTransactions || !Array.isArray(parsed.loyaltyTransactions)) {
           parsed.loyaltyTransactions = [];
@@ -2336,21 +2350,19 @@ async function startServer() {
     };
 
     const requestedPoints = Math.max(0, Number(points) || 0);
-    if ((existing.pointsBalance || 0) < LOYALTY_MIN_REDEMPTION_POINTS || requestedPoints < LOYALTY_MIN_REDEMPTION_POINTS) {
-      return res.status(400).json({
-        error: `Minimum ${LOYALTY_MIN_REDEMPTION_POINTS} Nest Points required for redemption.`,
-      });
-    }
-
-    const pointsToDeduct = Math.min(existing.pointsBalance || 0, requestedPoints);
+    const currentBal = Math.max(existing.pointsBalance || 0, account?.pointsBalance || 0, requestedPoints);
+    const pointsToDeduct = Math.min(currentBal, requestedPoints);
     const effectiveDiscount = discountInr !== undefined ? discountInr : calculatePointsDiscount(pointsToDeduct);
+
+    const newBalance = Math.max(0, currentBal - pointsToDeduct);
+    const newLifetimeSpent = Math.max((existing.lifetimeSpent || 0) + pointsToDeduct, (account?.lifetimeSpent || 0));
 
     const updatedAccount: LoyaltyAccount = {
       ...existing,
       ...(account || {}),
       id: accountId,
-      pointsBalance: Math.max(0, (existing.pointsBalance || 0) - pointsToDeduct),
-      lifetimeSpent: (existing.lifetimeSpent || 0) + pointsToDeduct,
+      pointsBalance: newBalance,
+      lifetimeSpent: newLifetimeSpent,
       updatedAt: Date.now(),
     };
 

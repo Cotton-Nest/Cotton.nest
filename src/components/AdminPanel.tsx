@@ -65,6 +65,7 @@ import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
 import {
   Heart,
+  Wrench,
   Bell,
   Package,
   Percent,
@@ -1857,6 +1858,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
+  const handleToggleMaintenanceMode = async () => {
+    const nextMode = !editableContent.isMaintenanceMode;
+    const nextContent: SiteContent = {
+      ...editableContent,
+      isMaintenanceMode: nextMode,
+    };
+    setEditableContent(nextContent);
+    onUpdateSiteContent(nextContent);
+    try {
+      await saveSiteContentApi(nextContent);
+      showToast(
+        nextMode
+          ? '🛠️ Website Maintenance Mode is now ACTIVE! Visitors will see the maintenance screen.'
+          : '✓ Website Maintenance Mode is now TURNED OFF! Storefront is live.'
+      );
+    } catch (err: any) {
+      showToast('Maintenance status updated: ' + (err.message || 'Notice'));
+    }
+  };
+
   // Metrics
   const totalProducts = (editableProducts || []).length;
   const inStockCount = (editableProducts || []).filter((p) => p && p.inStock).length;
@@ -2360,6 +2381,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Website Maintenance Mode Control Button */}
+            <button
+              type="button"
+              onClick={handleToggleMaintenanceMode}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                editableContent.isMaintenanceMode
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-700 shadow-md animate-pulse'
+                  : 'bg-white hover:bg-stone-100 text-[#2C2420] border-[#EAE2D5]'
+              }`}
+              title="Click to initiate or disable Site Under Maintenance mode"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>{editableContent.isMaintenanceMode ? '🛠️ Maintenance: ON' : '🛠️ Maintenance: OFF'}</span>
+            </button>
+
             {/* Cloudinary Status Indicator */}
             {cloudinaryStatus?.configured ? (
               <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs font-semibold text-emerald-800">
@@ -5049,6 +5085,52 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <Save className="w-4 h-4" />
                 <span>Save All Changes</span>
               </button>
+            </div>
+
+            {/* Website Maintenance Control Card */}
+            <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50/60 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-amber-700" />
+                    <span>Website Maintenance Mode</span>
+                  </h4>
+                  <p className="text-xs text-amber-800">
+                    When enabled, regular site visitors will see a dedicated maintenance page while admins retain full access to manage the boutique.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleMaintenanceMode}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-2 ${
+                    editableContent.isMaintenanceMode
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white animate-pulse'
+                      : 'bg-white hover:bg-stone-100 text-[#2C2420] border border-amber-300'
+                  }`}
+                >
+                  <Wrench className="w-4 h-4" />
+                  <span>{editableContent.isMaintenanceMode ? '🛠️ Maintenance Mode ACTIVE' : 'Initiate Maintenance Mode'}</span>
+                </button>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block mb-1">
+                  Custom Maintenance Notice to Display to Visitors
+                </label>
+                <textarea
+                  rows={2}
+                  value={editableContent.maintenanceNotice || ''}
+                  onChange={(e) =>
+                    setEditableContent({
+                      ...editableContent,
+                      maintenanceNotice: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Cotton Nest Atelier is currently undergoing scheduled system updates. We will be back online shortly!"
+                  className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs text-[#2C2420] leading-relaxed focus:outline-hidden focus:border-amber-600"
+                />
+              </div>
             </div>
 
             {/* Announcement Banner */}
