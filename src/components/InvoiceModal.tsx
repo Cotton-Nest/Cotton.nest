@@ -32,10 +32,10 @@ export function buildOrderGmailUrl(order: Order): string {
     recipients.unshift(customerEmail);
   }
 
-  const subject = `Cotton Nest - Order #${order.id} Invoice`;
+  const subject = `Cotton Nest - Order #${order.id} Sale Invoice`;
 
   const lines: string[] = [];
-  lines.push(`COTTON NEST ATELIER - OFFICIAL ORDER RECEIPT`);
+  lines.push(`COTTON NEST ATELIER - OFFICIAL SALE INVOICE`);
   lines.push(`100% Pure Combed Cotton Bedding | Sector 46, Gurgaon`);
   lines.push(`====================================================`);
   lines.push(`Order ID: #${order.id}`);
@@ -228,10 +228,19 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
 
               <div className="sm:text-right bg-[#FAF7F2] p-3.5 rounded-2xl border border-[#EAE2D5] sm:min-w-[190px]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#8C2E46] block">
-                  Tax / Order Invoice
+                  Official Sale Invoice
                 </span>
                 <span className="font-mono text-base font-bold text-[#2C2420] block mt-0.5">
                   #{order.id}
+                </span>
+                <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider ${
+                  order.status === 'confirmed' || order.status === 'dispatched' || order.status === 'delivered'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {order.status === 'confirmed' || order.status === 'dispatched' || order.status === 'delivered'
+                    ? '✓ Confirmed Sale Invoice'
+                    : '⏳ Pending Confirmation'}
                 </span>
                 <span className="text-xs text-[#7A6458] block mt-1">
                   Date: {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date().toLocaleDateString('en-IN')}

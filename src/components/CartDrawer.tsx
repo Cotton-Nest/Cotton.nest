@@ -1526,8 +1526,30 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 )}
               </div>
 
+              {/* Sale Invoice Generation Notice upon Order Creation */}
+              <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-left text-xs flex items-start gap-2.5">
+                <FileText className="w-4 h-4 text-[#C29E57] shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-[#2C2420]">Sale Invoice Status</p>
+                  <p className="text-[11px] text-[#7A6458] mt-0.5 leading-relaxed">
+                    Your official sale invoice will be generated and emailed to{' '}
+                    <strong>{customerEmail.trim() || user?.email || 'your email'}</strong> once your order is verified &amp; confirmed by Cotton Nest Atelier.
+                  </p>
+                </div>
+              </div>
+
               {/* Receipt & Invoice Quick Actions */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {lastOrderDetails.order && (
+                  <button
+                    type="button"
+                    onClick={() => setIsInvoiceModalOpen(true)}
+                    className="py-2.5 px-3 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
+                    <span>View Sale Invoice</span>
+                  </button>
+                )}
                 {lastOrderDetails.gmailComposeUrl && (
                   <a
                     href={lastOrderDetails.gmailComposeUrl}
@@ -1536,18 +1558,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     className="py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#F3ECE0] text-[#8C2E46] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Mail className="w-3.5 h-3.5" />
-                    <span>Open Receipt in Gmail</span>
+                    <span>Open in Gmail</span>
                   </a>
-                )}
-                {lastOrderDetails.order && (
-                  <button
-                    type="button"
-                    onClick={() => setIsInvoiceModalOpen(true)}
-                    className="py-2.5 px-3 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
-                    <span>View &amp; Print Invoice</span>
-                  </button>
                 )}
               </div>
 

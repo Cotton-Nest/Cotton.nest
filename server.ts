@@ -823,6 +823,56 @@ async function startServer() {
     res.json(result);
   });
 
+  async function dispatchOrderSaleInvoice(order: any) {
+    try {
+      const invoiceResult = await sendOrderInvoiceEmail({
+        orderId: order.id,
+        customerName: order.customerName || 'Valued Customer',
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+        customerAddress: order.customerAddress,
+        shippingMethod: order.shippingCost ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
+        subtotal: Number(order.subtotal) || Number(order.totalAmount) || 0,
+        couponCode: order.couponCode,
+        couponDiscount: Number(order.couponDiscount) || 0,
+        pointsUsed: Number(order.pointsUsed) || 0,
+        pointsDiscount: Number(order.pointsDiscount) || 0,
+        shippingCost: Number(order.shippingCost) || 0,
+        finalTotal: Number(order.totalAmount) || 0,
+        pointsEarned: order.pointsEarned,
+        items: Array.isArray(order.items)
+          ? order.items.map((it: any) => ({
+              name: it.product?.name || it.productName || it.name || 'Pure Cotton Bedsheet',
+              variantName: it.selectedVariant?.name || it.variantName,
+              dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
+              quantity: Number(it.quantity) || 1,
+              price: Number(it.product?.price) || Number(it.price) || 0,
+              imageUrl: it.selectedVariant?.image || it.product?.image || it.productImage || it.imageUrl || '',
+            }))
+          : [],
+        createdAt: order.createdAt,
+      });
+
+      if (invoiceResult) {
+        order.invoiceSent = true;
+        order.invoiceSentAt = new Date().toISOString();
+        order.invoiceStatus = 'generated';
+        order.invoiceMessage = `Official sale invoice generated & dispatched to ${order.customerEmail || 'buyer and admin'}.`;
+        order.invoiceResult = {
+          success: invoiceResult.success,
+          sentViaSmtp: invoiceResult.sentViaSmtp,
+          recipients: invoiceResult.recipients,
+          gmailComposeUrl: invoiceResult.gmailComposeUrl,
+        };
+        console.log(`[SALE INVOICE] Generated and dispatched for confirmed Order #${order.id}`);
+      }
+      return invoiceResult;
+    } catch (err: any) {
+      console.warn(`[SALE INVOICE] Failed to dispatch sale invoice for Order #${order?.id}:`, err?.message || err);
+      return null;
+    }
+  }
+
   app.post('/api/orders', async (req, res) => {
     const newOrder = req.body;
     if (!newOrder || !newOrder.id) {
@@ -835,7 +885,7 @@ async function startServer() {
           status: newOrder.status || 'pending',
           timestamp: new Date().toISOString(),
           title: 'Order Placed',
-          description: 'Order received at Cotton Nest Atelier, Sector 46 Gurgaon.'
+          description: 'Order received at Cotton Nest Atelier, Sector 46 Gurgaon. Sale invoice will generate once confirmed.'
         }
       ];
     }
@@ -911,49 +961,20 @@ async function startServer() {
       });
     }
 
+    // Invoice generation logic:
+    // Only dispatch immediately if order was created with status 'confirmed'.
+    // Otherwise, mark pending confirmation and dispatch when confirmed.
+    if (newOrder.status === 'confirmed') {
+      await dispatchOrderSaleInvoice(newOrder);
+    } else {
+      newOrder.invoiceSent = false;
+      newOrder.invoiceStatus = 'pending_confirmation';
+      newOrder.invoiceMessage = 'Official sale invoice will be generated and emailed once your order is confirmed by Cotton Nest Atelier.';
+      console.log(`[ORDER CREATED] Order #${newOrder.id} placed (${newOrder.status || 'pending'}). Sale invoice will generate upon confirmation.`);
+    }
+
     db.orders.unshift(newOrder);
     saveDatabase();
-
-    // Trigger automated email invoice to Gmail with recipient to customer and admin
-    try {
-      const invoiceResult = await sendOrderInvoiceEmail({
-        orderId: newOrder.id,
-        customerName: newOrder.customerName || 'Valued Customer',
-        customerEmail: newOrder.customerEmail,
-        customerPhone: newOrder.customerPhone,
-        customerAddress: newOrder.customerAddress,
-        shippingMethod: newOrder.shippingMethod,
-        subtotal: Number(newOrder.subtotal) || Number(newOrder.totalAmount) || 0,
-        couponCode: newOrder.couponCode,
-        couponDiscount: Number(newOrder.couponDiscount) || 0,
-        pointsUsed: Number(newOrder.pointsUsed) || 0,
-        pointsDiscount: Number(newOrder.pointsDiscount) || 0,
-        shippingCost: Number(newOrder.shippingCost) || 0,
-        finalTotal: Number(newOrder.totalAmount) || 0,
-        items: Array.isArray(newOrder.items)
-          ? newOrder.items.map((it: any) => ({
-              name: it.product?.name || it.productName || it.name || 'Pure Cotton Bedsheet',
-              variantName: it.selectedVariant?.name || it.variantName,
-              dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
-              quantity: Number(it.quantity) || 1,
-              price: Number(it.product?.price) || Number(it.price) || 0,
-              imageUrl: it.selectedVariant?.image || it.product?.image || it.productImage || it.imageUrl || '',
-            }))
-          : [],
-        createdAt: newOrder.createdAt,
-      });
-
-      if (invoiceResult) {
-        newOrder.invoiceResult = {
-          success: invoiceResult.success,
-          sentViaSmtp: invoiceResult.sentViaSmtp,
-          recipients: invoiceResult.recipients,
-          gmailComposeUrl: invoiceResult.gmailComposeUrl,
-        };
-      }
-    } catch (err: any) {
-      console.warn('sendOrderInvoiceEmail warning:', err?.message);
-    }
 
     res.status(201).json(newOrder);
   });
@@ -1038,8 +1059,14 @@ async function startServer() {
     }
   });
 
-  app.put('/api/orders', (req, res) => {
+  app.put('/api/orders', async (req, res) => {
     if (Array.isArray(req.body)) {
+      for (const updated of req.body) {
+        const prev = db.orders.find((o) => o.id === updated.id);
+        if (prev && updated.status === 'confirmed' && (prev.status !== 'confirmed' || !prev.invoiceSent)) {
+          await dispatchOrderSaleInvoice(updated);
+        }
+      }
       db.orders = req.body;
       saveDatabase();
       return res.json(db.orders);
@@ -1047,7 +1074,7 @@ async function startServer() {
     res.status(400).json({ error: 'Invalid orders payload' });
   });
 
-  app.put('/api/orders/:id', (req, res) => {
+  app.put('/api/orders/:id', async (req, res) => {
     const { id } = req.params;
     const updated = req.body;
     const index = db.orders.findIndex((o) => o.id === id);
@@ -1064,11 +1091,11 @@ async function startServer() {
       const titles: Record<string, { title: string; description: string }> = {
         pending: {
           title: 'Order Received',
-          description: 'Order queued for verification.'
+          description: 'Order queued for verification. Sale invoice will generate once confirmed.'
         },
         confirmed: {
-          title: 'Verified & Inspected',
-          description: 'Inspected for thread count and quality at Sector 46 Gurgaon Atelier.'
+          title: 'Order Confirmed & Sale Invoice Generated',
+          description: 'Inspected and confirmed by Cotton Nest Atelier. Official sale invoice dispatched to customer email.'
         },
         dispatched: {
           title: 'Dispatched & In Transit',
@@ -1180,6 +1207,8 @@ async function startServer() {
       pointsCreditedFlag = true;
     }
 
+    const isBecomingConfirmed = newStatus === 'confirmed' && (previousOrder.status !== 'confirmed' || !previousOrder.invoiceSent);
+
     db.orders[index] = {
       ...previousOrder,
       ...updated,
@@ -1187,16 +1216,23 @@ async function startServer() {
       timeline: updatedTimeline,
     };
 
+    if (isBecomingConfirmed) {
+      await dispatchOrderSaleInvoice(db.orders[index]);
+    }
+
     // If status changed on order, record an order status notification
     if (newStatus && newStatus !== previousOrder.status) {
       if (!db.notifications) db.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
+      const isConfirmed = newStatus === 'confirmed';
       const orderNotif: AppNotification = {
         id: `notif-order-${id}-${newStatus}-${Date.now()}`,
         recipientId: previousOrder.customerEmail || previousOrder.customerPhone || 'all',
         type: 'order_status',
         category: 'orders',
-        title: `Order #${id} Updated: ${String(newStatus).toUpperCase()}`,
-        message: `Your Cotton Nest order #${id} is now ${newStatus}.`,
+        title: isConfirmed ? `Order #${id} Confirmed - Sale Invoice Generated` : `Order #${id} Updated: ${String(newStatus).toUpperCase()}`,
+        message: isConfirmed
+          ? `Your Cotton Nest order #${id} has been confirmed. Your official sale invoice has been generated and dispatched to your email.`
+          : `Your Cotton Nest order #${id} is now ${newStatus}.`,
         timestamp: Date.now(),
         isRead: false,
         linkTarget: {

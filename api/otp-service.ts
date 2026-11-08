@@ -718,7 +718,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cotton Nest Order Receipt #${refId}</title>
+  <title>Cotton Nest Sale Invoice #${refId}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2C2420;-webkit-font-smoothing:antialiased;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;padding:40px 16px;">
@@ -754,15 +754,15 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
           <!-- Main Body -->
           <tr>
             <td style="padding:32px 28px 24px;text-align:left;">
-              <h2 style="margin:0 0 14px;font-size:19px;color:#8C2E46;font-family:Georgia,serif;font-weight:600;">Your Order Receipt &amp; Invoice</h2>
+              <h2 style="margin:0 0 14px;font-size:19px;color:#8C2E46;font-family:Georgia,serif;font-weight:600;">Official Sale Invoice &amp; Order Receipt</h2>
               <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4A3B32;">Hello ${payload.customerName || 'Valued Customer'},</p>
               <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#4A3B32;">
-                Thank you for choosing Cotton Nest. Your order for 100% breathable pure cotton bedding has been successfully placed. Here is your official order receipt with purchased items and earned rewards.
+                Thank you for choosing Cotton Nest. Your order for 100% breathable pure cotton bedding has been confirmed by our atelier. Below is your official sale invoice with itemized details and earned Nest Points.
               </p>
 
               <!-- Order Number & Status Highlight Box -->
               <div style="background-color:#FAF7F2;border:2px dashed #C29E57;border-radius:16px;padding:22px 18px;text-align:center;margin:22px 0;">
-                <span style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#7A6458;display:block;margin-bottom:8px;font-weight:600;">Official Order Number</span>
+                <span style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#7A6458;display:block;margin-bottom:8px;font-weight:600;">Official Sale Invoice Number</span>
                 <span style="font-size:22px;font-weight:bold;letter-spacing:2px;color:#8C2E46;font-family:'Courier New',Courier,monospace;display:inline-block;padding:6px 18px;background:#FFFFFF;border-radius:10px;border:1px solid #DEC89B;">
                   #${refId}
                 </span>
@@ -770,7 +770,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
                   Total Amount Paid: ₹${payload.finalTotal.toLocaleString('en-IN')}
                 </div>
                 <div style="margin-top:6px;display:inline-block;padding:3px 10px;background-color:#E8F5E9;border:1px solid #C8E6C9;border-radius:20px;font-size:11px;color:#2E7D32;font-weight:600;">
-                  ✓ Payment Confirmed &amp; Dispatched for Processing
+                  ✓ Order Confirmed by Cotton Nest Atelier
                 </div>
               </div>
 
@@ -920,18 +920,18 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
   const pointsWorthInr = Math.floor(pointsEarned * 0.5);
 
   const lines = [
-    `COTTON NEST - OFFICIAL ORDER RECEIPT`,
+    `COTTON NEST - OFFICIAL SALE INVOICE`,
     `Feel The Softness · Sector 46, Gurgaon, Haryana`,
     `Logo: ${COTTON_NEST_LOGO_URL}`,
     ``,
     `Hello ${payload.customerName || 'Valued Customer'},`,
     ``,
-    `Thank you for choosing Cotton Nest. Your order has been placed successfully.`,
+    `Thank you for choosing Cotton Nest. Your order has been confirmed by our atelier.`,
     ``,
     `====================================================`,
-    `ORDER NUMBER: #${refId}`,
+    `SALE INVOICE NUMBER: #${refId}`,
     `Order Date & Time: ${dateStr}`,
-    `Payment Status: Confirmed & Dispatched for Processing`,
+    `Status: Confirmed by Cotton Nest Atelier`,
     `Total Amount: ₹${payload.finalTotal.toLocaleString('en-IN')}`,
     `====================================================`,
     `CUSTOMER & DELIVERY DETAILS:`,
@@ -1017,7 +1017,7 @@ export async function sendOrderInvoiceEmail(payload: InvoiceOrderPayload): Promi
     const htmlContent = buildCottonNestInvoiceHtml(payload);
     const textContent = buildCottonNestInvoiceText(payload);
     const recipientsList = Array.from(recipientEmails).join(', ');
-    const subject = `Cotton Nest - Order #${refId} Invoice`;
+    const subject = `Cotton Nest - Order #${refId} Sale Invoice`;
     const gmailComposeUrl = buildGmailComposeUrl(recipientsList, subject, textContent);
 
     if (config) {

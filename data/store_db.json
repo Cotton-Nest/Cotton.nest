@@ -366,6 +366,33 @@
   ],
   "orders": [
     {
+      "id": "TEST-ORDER-1794131662655",
+      "customerName": "Lifecycle Test User",
+      "customerEmail": "test.lifecycle@cottonnest.orders",
+      "customerPhone": "9999988888",
+      "customerAddress": "Sector 46, Gurgaon",
+      "totalAmount": 2999,
+      "status": "pending",
+      "items": [
+        {
+          "productName": "Heritage Rose Bedsheet",
+          "quantity": 1,
+          "price": 2999
+        }
+      ],
+      "timeline": [
+        {
+          "status": "pending",
+          "timestamp": "2026-11-08T09:54:22.774Z",
+          "title": "Order Placed",
+          "description": "Order received at Cotton Nest Atelier, Sector 46 Gurgaon."
+        }
+      ],
+      "trackingNumber": "CN-TRK-972735",
+      "pointsEarned": 149,
+      "pointsCredited": true
+    },
+    {
       "id": "CN-892410",
       "createdAt": "2026-11-05T06:00:49.216Z",
       "customerName": "Aarav Sharma",
@@ -1177,9 +1204,83 @@
       "referralCode": "NEST-ADIT624",
       "referralCount": 0,
       "updatedAt": 1794125777305
+    },
+    "phone_9999988888": {
+      "id": "phone_9999988888",
+      "customerName": "Lifecycle Test User",
+      "phone": "9999988888",
+      "email": "test.lifecycle@cottonnest.orders",
+      "pointsBalance": 298,
+      "lifetimeEarned": 298,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-LIFE895",
+      "referralCount": 0,
+      "updatedAt": 1794131676182
+    },
+    "email_test.lifecycle@cottonnest.orders": {
+      "id": "email_test.lifecycle@cottonnest.orders",
+      "customerName": "Lifecycle Test User",
+      "phone": "9999988888",
+      "email": "test.lifecycle@cottonnest.orders",
+      "pointsBalance": 298,
+      "lifetimeEarned": 298,
+      "lifetimeSpent": 0,
+      "referralPointsEarned": 0,
+      "referralCode": "NEST-LIFE895",
+      "referralCount": 0,
+      "updatedAt": 1794131676182
     }
   },
   "loyaltyTransactions": [
+    {
+      "id": "tx_earn_TEST-ORDER-1794131676070_email_test.lifecycle@cottonnest.orders_1794131676182",
+      "accountId": "email_test.lifecycle@cottonnest.orders",
+      "orderId": "TEST-ORDER-1794131676070",
+      "type": "earned",
+      "points": 149,
+      "amountInr": 2999,
+      "description": "Earned on Placed Order #TEST-ORDER-1794131676070 (5 pts / ₹100)",
+      "createdAt": 1794131676182,
+      "expiresAt": 1825667676182,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_TEST-ORDER-1794131676070_phone_9999988888_1794131676182",
+      "accountId": "phone_9999988888",
+      "orderId": "TEST-ORDER-1794131676070",
+      "type": "earned",
+      "points": 149,
+      "amountInr": 2999,
+      "description": "Earned on Placed Order #TEST-ORDER-1794131676070 (5 pts / ₹100)",
+      "createdAt": 1794131676182,
+      "expiresAt": 1825667676182,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_TEST-ORDER-1794131662655_email_test.lifecycle@cottonnest.orders_1794131662774",
+      "accountId": "email_test.lifecycle@cottonnest.orders",
+      "orderId": "TEST-ORDER-1794131662655",
+      "type": "earned",
+      "points": 149,
+      "amountInr": 2999,
+      "description": "Earned on Placed Order #TEST-ORDER-1794131662655 (5 pts / ₹100)",
+      "createdAt": 1794131662774,
+      "expiresAt": 1825667662774,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_TEST-ORDER-1794131662655_phone_9999988888_1794131662774",
+      "accountId": "phone_9999988888",
+      "orderId": "TEST-ORDER-1794131662655",
+      "type": "earned",
+      "points": 149,
+      "amountInr": 2999,
+      "description": "Earned on Placed Order #TEST-ORDER-1794131662655 (5 pts / ₹100)",
+      "createdAt": 1794131662774,
+      "expiresAt": 1825667662774,
+      "status": "credited"
+    },
     {
       "id": "tx_earn_CN-TEST-7286_email_adityaa.451485@gmail.com_1794125777305",
       "accountId": "email_adityaa.451485@gmail.com",
@@ -1494,6 +1595,26 @@
     }
   ],
   "notifications": [
+    {
+      "id": "notif-order-TEST-ORDER-1794131676070-confirmed-1794131676241",
+      "recipientId": "test.lifecycle@cottonnest.orders",
+      "type": "order_status",
+      "category": "orders",
+      "title": "Order #TEST-ORDER-1794131676070 Confirmed - Sale Invoice Generated",
+      "message": "Your Cotton Nest order #TEST-ORDER-1794131676070 has been confirmed. Your official sale invoice has been generated and dispatched to your email.",
+      "timestamp": 1794131676241,
+      "isRead": false,
+      "linkTarget": {
+        "view": "orders",
+        "targetId": "TEST-ORDER-1794131676070"
+      },
+      "metadata": {
+        "orderId": "TEST-ORDER-1794131676070",
+        "customerName": "Lifecycle Test User",
+        "customerPhone": "9999988888",
+        "customerEmail": "test.lifecycle@cottonnest.orders"
+      }
+    },
     {
       "id": "notif-cmp-CMP-621648-admin_update-1794040838152",
       "recipientId": "aarav@example.com",

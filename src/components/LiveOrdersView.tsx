@@ -923,10 +923,12 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                       <div>
                         <div className="flex items-center gap-2 font-bold text-[#2C2420]">
                           <FileText className="w-4 h-4 text-[#8C2E46]" />
-                          <span>Official Invoice &amp; Email Receipt</span>
+                          <span>Official Sale Invoice</span>
                         </div>
                         <p className="text-[11px] text-[#7A6458] mt-0.5">
-                          View itemized printable tax invoice with bedsheet photos or send receipt to {currentSelectedOrder.customerEmail || 'your email'}.
+                          {currentSelectedOrder.status === 'pending'
+                            ? `Sale invoice will be generated and emailed once your order is confirmed by our atelier.`
+                            : `Itemized printable sale invoice with bedsheet photos. Sent to ${currentSelectedOrder.customerEmail || 'buyer'}.`}
                         </p>
                         {emailSendFeedback && emailSendFeedback.id === currentSelectedOrder.id && (
                           <p
