@@ -23,7 +23,7 @@ import {
   sanitizeLoyaltyKey,
 } from './src/data/loyalty.ts';
 import { generateProductDescription } from './api/ai-description.ts';
-import { sendOtpEmail, verifyOtp, sendOrderInvoiceEmail } from './api/otp-service.ts';
+import { sendOtpEmail, verifyOtp, sendOrderInvoiceEmail, buildCottonNestInvoiceHtml } from './api/otp-service.ts';
 import {
   OrderComplaint,
   validateComplaintSubmission,
@@ -969,6 +969,72 @@ async function startServer() {
     } catch (err: any) {
       console.error('Error sending invoice on server:', err);
       res.status(500).json({ success: false, error: err.message || 'Failed to send invoice' });
+    }
+  });
+
+  app.get('/api/invoice-preview/:orderId?', (req, res) => {
+    try {
+      const orderId = req.params.orderId;
+      let order = orderId ? db.orders.find((o) => o.id === orderId) : db.orders[0];
+      if (!order) {
+        order = {
+          id: 'CN-894210',
+          customerName: 'Priya Sharma',
+          customerEmail: 'priya.sharma@example.com',
+          customerPhone: '9876543210',
+          customerAddress: 'Flat 402, Block C, DLF Phase 5, Golf Course Road, Gurgaon, Haryana - 122002',
+          totalAmount: 3999,
+          subtotal: 4499,
+          couponCode: 'FESTIVE500',
+          couponDiscount: 500,
+          shippingCost: 0,
+          pointsEarned: 199,
+          createdAt: new Date().toISOString(),
+          items: [
+            {
+              productName: 'Heritage Mughal Floral Bedsheet',
+              variantName: 'Royal Ruby & Gold',
+              dimensions: '108 x 108 inches (Super King)',
+              quantity: 1,
+              price: 4499,
+              productImage: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+            },
+          ],
+        };
+      }
+
+      const html = buildCottonNestInvoiceHtml({
+        orderId: order.id,
+        customerName: order.customerName || 'Valued Customer',
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+        customerAddress: order.customerAddress,
+        shippingMethod: order.shippingCost ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
+        subtotal: Number(order.subtotal) || Number(order.totalAmount) || 0,
+        couponCode: order.couponCode,
+        couponDiscount: Number(order.couponDiscount) || 0,
+        pointsUsed: Number(order.pointsUsed) || 0,
+        pointsDiscount: Number(order.pointsDiscount) || 0,
+        shippingCost: Number(order.shippingCost) || 0,
+        finalTotal: Number(order.totalAmount) || 0,
+        pointsEarned: order.pointsEarned,
+        items: Array.isArray(order.items)
+          ? order.items.map((it: any) => ({
+              name: it.product?.name || it.productName || it.name || 'Pure Cotton Bedsheet',
+              variantName: it.selectedVariant?.name || it.variantName,
+              dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
+              quantity: Number(it.quantity) || 1,
+              price: Number(it.product?.price) || Number(it.price) || 0,
+              imageUrl: it.selectedVariant?.image || it.product?.image || it.productImage || it.imageUrl || '',
+            }))
+          : [],
+        createdAt: order.createdAt,
+      });
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    } catch (err: any) {
+      res.status(500).send(`Failed to generate preview: ${err.message}`);
     }
   });
 

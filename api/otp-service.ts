@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { calculateEarnedPoints } from '../src/data/loyalty';
 
 export interface OtpRecord {
   hashedOtp: string;
@@ -627,6 +628,8 @@ export async function verifyOtp(
   };
 }
 
+export const COTTON_NEST_LOGO_URL = 'https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png';
+
 export interface InvoiceOrderPayload {
   orderId: string;
   customerName: string;
@@ -642,6 +645,7 @@ export interface InvoiceOrderPayload {
   pointsDiscount?: number;
   shippingCost?: number;
   finalTotal: number;
+  pointsEarned?: number;
   items: Array<{
     name: string;
     variantName?: string;
@@ -671,108 +675,128 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
       });
 
   const refId = payload.orderId.startsWith('CN-') ? payload.orderId : `CN-${payload.orderId}`;
+  const eligibleAmount = Math.max(0, payload.finalTotal - (payload.shippingCost || 0));
+  const pointsEarned = typeof payload.pointsEarned === 'number' && payload.pointsEarned > 0
+    ? payload.pointsEarned
+    : calculateEarnedPoints(eligibleAmount);
+  const pointsWorthInr = Math.floor(pointsEarned * 0.5);
+
+  const couponDiscount = payload.couponDiscount || 0;
+  const pointsDiscount = payload.pointsDiscount || 0;
+  const shippingCost = payload.shippingCost || 0;
 
   const itemRowsHtml = (payload.items || [])
     .map((item) => {
-      const lineTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
-      const imgUrl = item.imageUrl || 'https://res.cloudinary.com/demo/image/upload/v1/sample.jpg';
+      const qty = Number(item.quantity) || 1;
+      const price = Number(item.price) || 0;
+      const lineTotal = price * qty;
+      const imgUrl = item.imageUrl || 'https://res.cloudinary.com/demo/image/upload/sample.jpg';
       const variantText = item.variantName ? `<span style="color:#7A6458;font-size:12px;"> · ${item.variantName}</span>` : '';
       const dimsText = item.dimensions ? `<br/><span style="color:#8C7A70;font-size:11px;">Size: ${item.dimensions}</span>` : '';
 
       return `<tr>
-        <td style="padding:14px 12px;border-bottom:1px solid #EAE2D5;vertical-align:middle;width:80px;">
-          <img src="${imgUrl}" alt="${item.name}" width="72" height="72" style="object-fit:cover;border-radius:10px;border:1px solid #DEC89B;display:block;" />
+        <td style="padding:14px 12px;border-bottom:1px solid #EAE2D5;vertical-align:middle;width:68px;">
+          <img src="${imgUrl}" alt="${item.name}" width="60" height="60" style="object-fit:cover;border-radius:12px;border:1px solid #DEC89B;display:block;width:60px;height:60px;" />
         </td>
         <td style="padding:14px 12px;border-bottom:1px solid #EAE2D5;vertical-align:middle;">
-          <strong style="color:#2C2420;font-size:14px;display:block;">${item.name}${variantText}</strong>
+          <strong style="color:#2C2420;font-size:13px;line-height:1.4;display:block;">${item.name}${variantText}</strong>
           ${dimsText}
-          <div style="color:#C29E57;font-size:11px;margin-top:4px;font-weight:600;">☁️ 100% Pure Combed Cotton</div>
+          <div style="color:#C29E57;font-size:10px;margin-top:3px;font-weight:600;letter-spacing:0.3px;">☁️ 100% Pure Combed Cotton</div>
         </td>
         <td style="padding:14px 12px;border-bottom:1px solid #EAE2D5;vertical-align:middle;text-align:center;color:#2C2420;font-weight:600;font-size:13px;">
-          ${item.quantity || 1}
+          ${qty}
         </td>
-        <td style="padding:14px 12px;border-bottom:1px solid #EAE2D5;vertical-align:middle;text-align:right;color:#2C2420;font-weight:bold;font-size:14px;">
+        <td style="padding:14px 12px;border-bottom:1px solid #EAE2D5;vertical-align:middle;text-align:right;color:#2C2420;font-weight:bold;font-size:13px;">
           ₹${lineTotal.toLocaleString('en-IN')}
         </td>
       </tr>`;
     })
     .join('');
 
-  const couponDiscount = payload.couponDiscount || 0;
-  const pointsDiscount = payload.pointsDiscount || 0;
-  const shippingCost = payload.shippingCost || 0;
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cotton Nest Order Invoice #${refId}</title>
+  <title>Cotton Nest Order Receipt #${refId}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2C2420;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;padding:32px 12px;">
+<body style="margin:0;padding:0;background-color:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2C2420;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF7F2;padding:40px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" style="max-width:640px;background-color:#FFFFFF;border-radius:24px;border:1px solid #DEC89B;box-shadow:0 12px 40px rgba(44,36,32,0.08);overflow:hidden;" cellpadding="0" cellspacing="0">
+        <!-- Container Card -->
+        <table role="presentation" width="100%" style="max-width:540px;background-color:#FFFFFF;border-radius:24px;border:1px solid #DEC89B;box-shadow:0 8px 30px rgba(44,36,32,0.06);overflow:hidden;text-align:center;" cellpadding="0" cellspacing="0">
           
-          <!-- Header Bar with Burgundy & Gold Styling -->
+          <!-- Header Banner with Store Logo -->
           <tr>
-            <td style="padding:28px 32px;background-color:#2C2420;color:#FFFFFF;text-align:center;border-bottom:3px solid #C29E57;">
-              <div style="font-size:20px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:#DEC89B;font-family:Georgia,serif;margin-bottom:4px;">
-                🪷 COTTON NEST ATELIER
-              </div>
-              <div style="font-size:12px;color:#EAE2D5;letter-spacing:1px;text-transform:uppercase;font-weight:500;">
-                Sector 46 Gurgaon · Official Purchase Invoice
-              </div>
-            </td>
-          </tr>
-
-          <!-- Order Status Bar -->
-          <tr>
-            <td style="padding:16px 32px;background-color:#FAF7F2;border-bottom:1px solid #EAE2D5;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <td style="padding:32px 28px 24px;background-color:#FAF7F2;border-bottom:1px solid #EAE2D5;text-align:center;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 12px;">
                 <tr>
-                  <td>
-                    <span style="font-size:12px;color:#8C7A70;font-weight:600;text-transform:uppercase;display:block;">Order Reference</span>
-                    <strong style="font-size:18px;color:#70252D;font-family:monospace;">#${refId}</strong>
-                  </td>
-                  <td align="right">
-                    <span style="font-size:12px;color:#8C7A70;font-weight:600;text-transform:uppercase;display:block;">Date & Time</span>
-                    <span style="font-size:13px;color:#2C2420;font-weight:600;">${dateStr}</span>
+                  <td align="center">
+                    <a href="https://cottonnest.in" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <img
+                        src="${COTTON_NEST_LOGO_URL}"
+                        alt="Cotton Nest Logo"
+                        width="68"
+                        height="68"
+                        style="display:block;width:68px;height:68px;max-width:68px;object-fit:contain;margin:0 auto;border:0;outline:none;"
+                      />
+                    </a>
                   </td>
                 </tr>
               </table>
+              <p style="margin:0 0 4px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#C29E57;font-weight:700;">Handcrafted Luxury Bedding</p>
+              <h1 style="margin:0 0 4px;font-size:26px;font-family:Georgia,serif;color:#2C2420;font-weight:bold;letter-spacing:-0.5px;">Cotton Nest</h1>
+              <p style="margin:0;font-size:12px;color:#7A6458;letter-spacing:1px;text-transform:uppercase;">Feel The Softness · Sector 46 Gurgaon</p>
             </td>
           </tr>
 
-          <!-- Customer Info -->
+          <!-- Main Body -->
           <tr>
-            <td style="padding:24px 32px;border-bottom:1px solid #EAE2D5;">
-              <h4 style="margin:0 0 12px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#8C7A70;font-weight:bold;">
-                Customer & Delivery Details
-              </h4>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.6;color:#2C2420;">
-                <tr>
-                  <td style="padding-bottom:4px;"><strong>Customer Name:</strong> ${payload.customerName}</td>
-                </tr>
-                ${payload.customerEmail ? `<tr><td style="padding-bottom:4px;"><strong>Email:</strong> ${payload.customerEmail}</td></tr>` : ''}
-                ${payload.customerPhone ? `<tr><td style="padding-bottom:4px;"><strong>Phone / WhatsApp:</strong> ${payload.customerPhone}</td></tr>` : ''}
-                ${payload.customerAddress ? `<tr><td style="padding-bottom:4px;"><strong>Delivery Address:</strong> ${payload.customerAddress}</td></tr>` : ''}
-                ${payload.shippingMethod ? `<tr><td><strong>Shipping Speed:</strong> ${payload.shippingMethod}</td></tr>` : ''}
-              </table>
-            </td>
-          </tr>
+            <td style="padding:32px 28px 24px;text-align:left;">
+              <h2 style="margin:0 0 14px;font-size:19px;color:#8C2E46;font-family:Georgia,serif;font-weight:600;">Your Order Receipt &amp; Invoice</h2>
+              <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4A3B32;">Hello ${payload.customerName || 'Valued Customer'},</p>
+              <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#4A3B32;">
+                Thank you for choosing Cotton Nest. Your order for 100% breathable pure cotton bedding has been successfully placed. Here is your official order receipt with purchased items and earned rewards.
+              </p>
 
-          <!-- Product Items Table -->
-          <tr>
-            <td style="padding:24px 32px;">
-              <h4 style="margin:0 0 16px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#8C7A70;font-weight:bold;">
-                Bedsheets & Linens Ordered
-              </h4>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+              <!-- Order Number & Status Highlight Box -->
+              <div style="background-color:#FAF7F2;border:2px dashed #C29E57;border-radius:16px;padding:22px 18px;text-align:center;margin:22px 0;">
+                <span style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#7A6458;display:block;margin-bottom:8px;font-weight:600;">Official Order Number</span>
+                <span style="font-size:22px;font-weight:bold;letter-spacing:2px;color:#8C2E46;font-family:'Courier New',Courier,monospace;display:inline-block;padding:6px 18px;background:#FFFFFF;border-radius:10px;border:1px solid #DEC89B;">
+                  #${refId}
+                </span>
+                <div style="margin-top:10px;font-size:18px;font-weight:bold;color:#2C2420;">
+                  Total Amount Paid: ₹${payload.finalTotal.toLocaleString('en-IN')}
+                </div>
+                <div style="margin-top:6px;display:inline-block;padding:3px 10px;background-color:#E8F5E9;border:1px solid #C8E6C9;border-radius:20px;font-size:11px;color:#2E7D32;font-weight:600;">
+                  ✓ Payment Confirmed &amp; Dispatched for Processing
+                </div>
+              </div>
+
+              <!-- Customer & Delivery Details -->
+              <div style="background-color:#FAF7F2;border:1px solid #EAE2D5;border-radius:14px;padding:16px 18px;margin-bottom:22px;">
+                <span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#8C7A70;font-weight:700;display:block;margin-bottom:8px;">
+                  Customer &amp; Delivery Details
+                </span>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.7;color:#4A3B32;">
+                  <tr><td style="padding-bottom:3px;"><strong>Date &amp; Time:</strong> ${dateStr}</td></tr>
+                  <tr><td style="padding-bottom:3px;"><strong>Recipient Name:</strong> ${payload.customerName}</td></tr>
+                  ${payload.customerPhone ? `<tr><td style="padding-bottom:3px;"><strong>Phone / WhatsApp:</strong> +91 ${payload.customerPhone}</td></tr>` : ''}
+                  ${payload.customerEmail ? `<tr><td style="padding-bottom:3px;"><strong>Email:</strong> ${payload.customerEmail}</td></tr>` : ''}
+                  ${payload.customerAddress ? `<tr><td style="padding-bottom:3px;"><strong>Delivery Address:</strong> ${payload.customerAddress}</td></tr>` : ''}
+                  ${payload.shippingMethod ? `<tr><td><strong>Shipping Speed:</strong> ${payload.shippingMethod}</td></tr>` : ''}
+                </table>
+              </div>
+
+              <!-- Summary of Purchased Items Table -->
+              <span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#8C7A70;font-weight:700;display:block;margin-bottom:8px;">
+                Summary of Purchased Items
+              </span>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:22px;border:1px solid #EAE2D5;border-radius:14px;overflow:hidden;width:100%;">
                 <thead>
-                  <tr style="background-color:#FAF7F2;border-bottom:2px solid #DEC89B;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8C7A70;">
-                    <th style="padding:10px 12px;" colspan="2">Product Details</th>
+                  <tr style="background-color:#FAF7F2;border-bottom:1px solid #DEC89B;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8C7A70;">
+                    <th style="padding:10px 12px;" colspan="2">Item Description</th>
                     <th style="padding:10px 12px;text-align:center;">Qty</th>
                     <th style="padding:10px 12px;text-align:right;">Total</th>
                   </tr>
@@ -781,54 +805,88 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
                   ${itemRowsHtml}
                 </tbody>
               </table>
-            </td>
-          </tr>
 
-          <!-- Financial Calculation Box -->
-          <tr>
-            <td style="padding:0 32px 28px;">
-              <div style="background-color:#FAF7F2;border:1px solid #DEC89B;border-radius:16px;padding:20px 24px;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:2;color:#2C2420;">
+              <!-- Financial Summary Box -->
+              <div style="background-color:#FAF7F2;border:1px solid #DEC89B;border-radius:16px;padding:18px 20px;margin-bottom:22px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.9;color:#4A3B32;">
                   <tr>
-                    <td>Subtotal</td>
-                    <td align="right" style="font-weight:600;">₹${payload.subtotal.toLocaleString('en-IN')}</td>
+                    <td>Bag Subtotal</td>
+                    <td align="right" style="font-weight:600;color:#2C2420;">₹${payload.subtotal.toLocaleString('en-IN')}</td>
                   </tr>
                   ${couponDiscount > 0 ? `<tr>
-                    <td style="color:#70252D;">🎟️ Coupon Discount (${payload.couponCode || 'Applied'})</td>
-                    <td align="right" style="color:#70252D;font-weight:bold;">-₹${couponDiscount.toLocaleString('en-IN')}</td>
+                    <td style="color:#8C2E46;">Coupon Discount (${payload.couponCode || 'Applied'})</td>
+                    <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${couponDiscount.toLocaleString('en-IN')}</td>
                   </tr>` : ''}
                   ${pointsDiscount > 0 ? `<tr>
-                    <td style="color:#70252D;">✨ Nest Loyalty Points Redeemed</td>
-                    <td align="right" style="color:#70252D;font-weight:bold;">-₹${pointsDiscount.toLocaleString('en-IN')}</td>
+                    <td style="color:#8C2E46;">Nest Points Redeemed</td>
+                    <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${pointsDiscount.toLocaleString('en-IN')}</td>
                   </tr>` : ''}
                   <tr>
-                    <td>🚚 Delivery & Shipping</td>
-                    <td align="right" style="font-weight:600;">${shippingCost > 0 ? `₹${shippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}</td>
+                    <td>Delivery &amp; Shipping</td>
+                    <td align="right" style="font-weight:600;color:#2C2420;">${shippingCost > 0 ? `₹${shippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}</td>
                   </tr>
-                  <tr style="border-top:2px solid #DEC89B;font-size:16px;font-weight:bold;">
-                    <td style="padding-top:10px;color:#70252D;">Grand Total Amount</td>
-                    <td align="right" style="padding-top:10px;color:#70252D;font-size:20px;">₹${payload.finalTotal.toLocaleString('en-IN')}</td>
+                  <tr style="border-top:1px solid #DEC89B;font-size:15px;font-weight:bold;">
+                    <td style="padding-top:10px;color:#8C2E46;">Grand Total Paid</td>
+                    <td align="right" style="padding-top:10px;color:#8C2E46;font-size:18px;">₹${payload.finalTotal.toLocaleString('en-IN')}</td>
                   </tr>
                 </table>
+              </div>
+
+              <!-- Loyalty Points Earned Feature Card -->
+              <div style="background-color:#FFFBF0;border:1.5px solid #DEC89B;border-radius:16px;padding:18px 20px;margin-bottom:22px;text-align:center;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center">
+                      <div style="display:inline-block;padding:6px 14px;background-color:#FAF7F2;border:1px solid #C29E57;border-radius:20px;font-size:11px;font-weight:700;color:#8C2E46;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">
+                        ✨ NEST REWARDS LOYALTY CLUB
+                      </div>
+                      <h3 style="margin:0 0 6px;font-size:18px;color:#8C2E46;font-family:Georgia,serif;font-weight:bold;">
+                        🎁 +${pointsEarned} Nest Points Earned!
+                      </h3>
+                      <p style="margin:0 0 8px;font-size:13px;color:#4A3B32;line-height:1.5;">
+                        You have earned <strong>5 Nest Points for every ₹100 spent</strong> on this purchase (excluding shipping).
+                      </p>
+                      <div style="display:inline-block;background-color:#FFFFFF;border:1px solid #DEC89B;border-radius:10px;padding:6px 14px;font-size:12px;color:#2C2420;font-weight:600;">
+                        Worth ₹${pointsWorthInr} discount on your next handcrafted bedsheet order
+                      </div>
+                      <p style="margin:8px 0 0;font-size:11px;color:#7A6458;">
+                        Points are credited instantly to your account and valid for 12 months.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- Fabric Reassurance & Care -->
+              <div style="background-color:#FAF7F2;border-radius:12px;padding:12px 16px;margin-bottom:20px;">
+                <p style="margin:0;font-size:12px;color:#4A3B32;line-height:1.6;">
+                  🌿 <strong>Atelier Quality Guarantee:</strong> Handcrafted with long-staple 100% breathable cotton at Sector 46 Gurgaon. Machine wash cold with mild detergent, avoid bleach.
+                </p>
+              </div>
+
+              <p style="margin:0 0 20px;font-size:13px;line-height:1.5;color:#8C7A70;">
+                For order tracking or exchange support, call or WhatsApp our atelier at <strong>+91 7838625915</strong> or reply directly to this email.
+              </p>
+
+              <!-- Sign-off -->
+              <div style="border-top:1px solid #EAE2D5;padding-top:20px;margin-top:20px;">
+                <p style="margin:0;font-size:14px;color:#2C2420;font-weight:600;">Thank you,</p>
+                <p style="margin:4px 0 0;font-size:14px;color:#8C2E46;font-weight:600;">Team Cotton Nest</p>
               </div>
             </td>
           </tr>
 
-          <!-- Reassurance Footer -->
+          <!-- Footer -->
           <tr>
-            <td style="padding:24px 32px;background-color:#2C2420;color:#FFFFFF;text-align:center;border-top:1px solid #DEC89B;">
-              <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#DEC89B;">
-                Thank you for shopping at Cotton Nest Atelier!
+            <td style="padding:20px 28px;background-color:#FAF7F2;border-top:1px solid #EAE2D5;text-align:center;">
+              <p style="margin:0 0 4px;font-size:11px;color:#7A6458;font-weight:600;">
+                Cotton Nest Atelier · Sector 46, Gurgaon, Haryana
               </p>
-              <p style="margin:0 0 12px;font-size:11px;color:#EAE2D5;line-height:1.5;">
-                100% Breathable Pure Cotton · 48h Defect Exchange Policy · Sector 46 Gurgaon
-              </p>
-              <p style="margin:0;font-size:11px;color:#A89890;">
-                For order support, call or WhatsApp +91 99100 24514 or email adityaa.451485@gmail.com
+              <p style="margin:0;font-size:11px;color:#A89890;line-height:1.5;">
+                100% Breathable Pure Cotton · Handcrafted in India · Helpline: +91 7838625915
               </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
@@ -855,23 +913,38 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
         minute: '2-digit',
       });
 
+  const eligibleAmount = Math.max(0, payload.finalTotal - (payload.shippingCost || 0));
+  const pointsEarned = typeof payload.pointsEarned === 'number' && payload.pointsEarned > 0
+    ? payload.pointsEarned
+    : calculateEarnedPoints(eligibleAmount);
+  const pointsWorthInr = Math.floor(pointsEarned * 0.5);
+
   const lines = [
-    `COTTON NEST ATELIER - OFFICIAL ORDER INVOICE`,
-    `Sector 46, Gurgaon, Haryana · 100% Breathable Pure Cotton`,
-    `Order Reference: #${refId}`,
-    `Date & Time: ${dateStr}`,
-    `----------------------------------------------------`,
+    `COTTON NEST - OFFICIAL ORDER RECEIPT`,
+    `Feel The Softness · Sector 46, Gurgaon, Haryana`,
+    `Logo: ${COTTON_NEST_LOGO_URL}`,
+    ``,
+    `Hello ${payload.customerName || 'Valued Customer'},`,
+    ``,
+    `Thank you for choosing Cotton Nest. Your order has been placed successfully.`,
+    ``,
+    `====================================================`,
+    `ORDER NUMBER: #${refId}`,
+    `Order Date & Time: ${dateStr}`,
+    `Payment Status: Confirmed & Dispatched for Processing`,
+    `Total Amount: ₹${payload.finalTotal.toLocaleString('en-IN')}`,
+    `====================================================`,
     `CUSTOMER & DELIVERY DETAILS:`,
     `Name: ${payload.customerName}`,
   ];
 
   if (payload.customerEmail) lines.push(`Email: ${payload.customerEmail}`);
-  if (payload.customerPhone) lines.push(`Phone / WhatsApp: ${payload.customerPhone}`);
+  if (payload.customerPhone) lines.push(`Phone / WhatsApp: +91 ${payload.customerPhone}`);
   if (payload.customerAddress) lines.push(`Delivery Address: ${payload.customerAddress}`);
   if (payload.shippingMethod) lines.push(`Shipping Speed: ${payload.shippingMethod}`);
 
   lines.push(`----------------------------------------------------`);
-  lines.push(`BEDSHEETS ORDERED:`);
+  lines.push(`SUMMARY OF PURCHASED ITEMS:`);
 
   (payload.items || []).forEach((item, idx) => {
     const qty = Number(item.quantity) || 1;
@@ -896,11 +969,18 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
   if (payload.pointsDiscount && payload.pointsDiscount > 0) {
     lines.push(`Nest Loyalty Points Redeemed: -₹${payload.pointsDiscount.toLocaleString('en-IN')}`);
   }
-  lines.push(`Delivery & Shipping: ${payload.shippingCost && payload.shippingCost > 0 ? `+₹${payload.shippingCost.toLocaleString('en-IN')}` : 'FREE'}`);
+  lines.push(`Delivery & Shipping: ${payload.shippingCost && payload.shippingCost > 0 ? `+₹${payload.shippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}`);
   lines.push(`GRAND TOTAL AMOUNT: ₹${payload.finalTotal.toLocaleString('en-IN')}`);
   lines.push(`----------------------------------------------------`);
-  lines.push(`Thank you for choosing Cotton Nest Atelier!`);
-  lines.push(`Support & Enquiries: +91 99100 24514 | adityaa.451485@gmail.com`);
+  lines.push(`🎁 NEST LOYALTY POINTS EARNED:`);
+  lines.push(`+${pointsEarned} Points Credited (worth ₹${pointsWorthInr} discount on future orders)`);
+  lines.push(`Earning Rate: 5 Nest Points per ₹100 spent (excluding shipping)`);
+  lines.push(`----------------------------------------------------`);
+  lines.push(``);
+  lines.push(`Thank you,`);
+  lines.push(`Team Cotton Nest`);
+  lines.push(``);
+  lines.push(`Cotton Nest Atelier · Sector 46, Gurgaon, Haryana · 100% Breathable Pure Cotton`);
 
   return lines.join('\n');
 }
@@ -933,21 +1013,51 @@ export async function sendOrderInvoiceEmail(payload: InvoiceOrderPayload): Promi
       recipientEmails.add(payload.customerEmail.trim().toLowerCase());
     }
 
+    const refId = payload.orderId.startsWith('CN-') ? payload.orderId : `CN-${payload.orderId}`;
     const htmlContent = buildCottonNestInvoiceHtml(payload);
     const textContent = buildCottonNestInvoiceText(payload);
     const recipientsList = Array.from(recipientEmails).join(', ');
-    const subject = `💐 Order Invoice #${payload.orderId} - Cotton Nest Atelier (₹${payload.finalTotal.toLocaleString('en-IN')})`;
+    const subject = `Cotton Nest - Order #${refId} Invoice`;
     const gmailComposeUrl = buildGmailComposeUrl(recipientsList, subject, textContent);
 
     if (config) {
-      const transporter = createGmailTransporter(config);
-      await transporter.sendMail({
-        from: `"Cotton Nest Atelier" <${config.user}>`,
+      const mailOptions = {
+        from: `"Cotton Nest" <${config.user}>`, // Identical sender identity as OTP email
         to: recipientsList,
         subject,
         text: textContent,
         html: htmlContent,
-      });
+      };
+
+      let sendError: any = null;
+      try {
+        // Primary port: 465 (SSL)
+        const transporter465 = createGmailTransporter(config, 465);
+        await transporter465.sendMail(mailOptions);
+      } catch (primaryErr: any) {
+        sendError = primaryErr;
+        console.warn('[INVOICE EMAIL] Primary Port 465 failed, attempting Port 587 STARTTLS fallback...', primaryErr.code || primaryErr.message);
+        if (
+          primaryErr.code === 'ECONNREFUSED' ||
+          primaryErr.code === 'ETIMEDOUT' ||
+          primaryErr.code === 'ESOCKETTIMEDOUT' ||
+          primaryErr.code === 'ENOTFOUND'
+        ) {
+          try {
+            const transporter587 = createGmailTransporter(config, 587);
+            await transporter587.sendMail(mailOptions);
+            sendError = null;
+            console.log('[INVOICE EMAIL] Port 587 STARTTLS fallback succeeded');
+          } catch (fallbackErr: any) {
+            sendError = fallbackErr;
+          }
+        }
+      }
+
+      if (sendError) {
+        throw sendError;
+      }
+
       console.log(`[INVOICE EMAIL] Sent successfully via Gmail SMTP to: ${recipientsList}`);
       return {
         success: true,

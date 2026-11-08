@@ -32,7 +32,7 @@ export function buildOrderGmailUrl(order: Order): string {
     recipients.unshift(customerEmail);
   }
 
-  const subject = `💐 Order Invoice #${order.id} - Cotton Nest Atelier (₹${Number(order.totalAmount || 0).toLocaleString('en-IN')})`;
+  const subject = `Cotton Nest - Order #${order.id} Invoice`;
 
   const lines: string[] = [];
   lines.push(`COTTON NEST ATELIER - OFFICIAL ORDER RECEIPT`);
@@ -199,24 +199,31 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
 
           {/* Printable Invoice Paper Area */}
           <div className="p-6 sm:p-8 overflow-y-auto print:overflow-visible space-y-6 text-[#2C2420]">
-            {/* Atelier Brand & Contact */}
+            {/* Atelier Brand & Contact with Store Logo */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#EAE2D5] pb-5">
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-[#8C2E46] block mb-1">
-                  100% Pure Long-Staple Cotton Bedding
-                </span>
-                <h1 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-[#2C2420]">
-                  Cotton Nest Atelier
-                </h1>
-                <p className="text-xs text-[#7A6458] mt-1 max-w-sm">
-                  {COMPANY_DETAILS.address}
-                </p>
-                <p className="text-xs text-[#7A6458] mt-0.5">
-                  Phone / WhatsApp: +91 7838625915 · Sector 46 Gurgaon
-                </p>
-                <p className="text-xs text-[#7A6458]">
-                  Official Email: adityaa.451485@gmail.com
-                </p>
+              <div className="flex items-start gap-3.5">
+                <img
+                  src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
+                  alt="Cotton Nest Logo"
+                  className="w-12 h-12 sm:w-14 sm:h-14 object-contain shrink-0 rounded-xl p-1 bg-[#FAF7F2] border border-[#DEC89B]"
+                />
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#8C2E46] block mb-0.5">
+                    100% Pure Long-Staple Cotton Bedding
+                  </span>
+                  <h1 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-[#2C2420]">
+                    Cotton Nest Atelier
+                  </h1>
+                  <p className="text-xs text-[#7A6458] mt-1 max-w-sm">
+                    {COMPANY_DETAILS.address}
+                  </p>
+                  <p className="text-xs text-[#7A6458] mt-0.5">
+                    Phone / WhatsApp: +91 7838625915 · Sector 46 Gurgaon
+                  </p>
+                  <p className="text-xs text-[#7A6458]">
+                    Official Email: adityaa.451485@gmail.com
+                  </p>
+                </div>
               </div>
 
               <div className="sm:text-right bg-[#FAF7F2] p-3.5 rounded-2xl border border-[#EAE2D5] sm:min-w-[190px]">
@@ -383,6 +390,17 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
                 <Mail className="w-3.5 h-3.5 text-[#8C2E46]" />
                 <span>{isSending ? 'Sending Email...' : 'Email Receipt to Buyer'}</span>
               </button>
+
+              <a
+                href={`/api/invoice-preview/${order.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="grow sm:grow-0 px-3.5 py-2.5 bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] text-[#2C2420] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#C29E57]" />
+                <span>View HTML Email</span>
+                <ExternalLink className="w-3 h-3 ml-0.5 opacity-70" />
+              </a>
             </div>
 
             {sendResult && (
