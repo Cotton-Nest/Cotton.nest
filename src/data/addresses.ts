@@ -29,16 +29,28 @@ export function formatFullAddress(addr: {
   city?: string;
   pincode?: string;
 }): string {
-  const parts: string[] = [];
-  if (addr.addressLine && addr.addressLine.trim()) {
-    parts.push(addr.addressLine.trim());
+  let line = (addr.addressLine || '').trim();
+  const city = (addr.city || 'Gurgaon, Haryana').trim();
+  const pincode = (addr.pincode || '122003').trim();
+
+  // Clean trailing repeated city/pincode if present in addressLine
+  line = line.replace(/,\s*Gurgaon,\s*Haryana\s*–\s*122003/gi, '').trim();
+
+  if (pincode && line.includes(pincode)) {
+    return line;
   }
-  if (addr.city && addr.city.trim()) {
-    parts.push(addr.city.trim());
+  if (city && line.toLowerCase().includes(city.toLowerCase())) {
+    if (pincode && !line.includes(pincode)) {
+      return `${line} – ${pincode}`;
+    }
+    return line;
   }
+
+  const parts = [line];
+  if (city) parts.push(city);
   let str = parts.join(', ');
-  if (addr.pincode && addr.pincode.trim()) {
-    str += str ? ` – ${addr.pincode.trim()}` : addr.pincode.trim();
+  if (pincode) {
+    str += ` – ${pincode}`;
   }
   return str;
 }
@@ -47,13 +59,11 @@ export function parseAddressString(raw: string): { addressLine: string; city: st
   const clean = raw.trim();
   if (!clean) return { addressLine: '', city: 'Gurgaon, Haryana', pincode: '122003' };
 
-  // Check if pincode is at end e.g. "..., Gurgaon - 122003" or "..., 122003"
   const pinMatch = clean.match(/(?:–|-|\s)\s*(\d{6})$/);
   const pincode = pinMatch ? pinMatch[1] : '122003';
   let withoutPin = pinMatch ? clean.slice(0, pinMatch.index).trim() : clean;
   withoutPin = withoutPin.replace(/,\s*$/, '').trim();
 
-  // Try extracting city
   const cityMatch = withoutPin.match(/,\s*([^,]+)$/);
   const city = cityMatch ? cityMatch[1].trim() : 'Gurgaon, Haryana';
   const addressLine = cityMatch ? withoutPin.slice(0, cityMatch.index).trim() : withoutPin;
@@ -76,8 +86,7 @@ function isStudioPlaceholderAddress(addressLine?: string): boolean {
 }
 
 /**
- * Retrieves saved addresses strictly scoped to the current user.
- * Filters out any hardcoded studio placeholder addresses and ensures a default address is marked.
+ * Retrieves saved addresses strictly scoped to the current user, with strict deduplication.
  */
 export function getSavedAddresses(
   profile?: CustomerProfile | null,
@@ -85,7 +94,7 @@ export function getSavedAddresses(
   userIdentifier?: string | null
 ): SavedAddress[] {
   const list: SavedAddress[] = [];
-  const seenAddresses = new Set<string>();
+  const seenNormAddresses = new Set<string>();
 
   const resolvedUserKey =
     typeof userIdentifier === 'string' && userIdentifier.trim()
@@ -95,18 +104,9 @@ export function getSavedAddresses(
       : profile?.email || profile?.id || profile?.phone || null;
 
   const primaryStorageKey = getUserAddressStorageKey(resolvedUserKey);
-
-  // Check primary key first; also check guest/legacy keys on this device so addresses saved before sign-in aren't lost
-  const candidateKeys = [
-    primaryStorageKey,
-    `${SAVED_ADDRESSES_STORAGE_KEY}_guest`,
-    SAVED_ADDRESSES_STORAGE_KEY,
-  ];
-  if (profile?.id) {
-    candidateKeys.push(getUserAddressStorageKey(profile.id));
-  }
-  if (profile?.email) {
-    candidateKeys.push(getUserAddressStorageKey(profile.email));
+  const candidateKeys = [primaryStorageKey];
+  if (!resolvedUserKey || resolvedUserKey.startsWith('guest_')) {
+    candidateKeys.push(`${SAVED_ADDRESSES_STORAGE_KEY}_guest`);
   }
 
   const uniqueKeys = Array.from(new Set(candidateKeys));
@@ -127,23 +127,28 @@ export function getSavedAddresses(
                 item.addressLine.trim() &&
                 !isStudioPlaceholderAddress(item.addressLine)
               ) {
-                const normalized = item.addressLine.toLowerCase().trim();
-                if (!seenAddresses.has(normalized)) {
-                  seenAddresses.add(normalized);
+                const cleanLine = item.addressLine.replace(/,\s*Gurgaon,\s*Haryana\s*–\s*122003/gi, '').trim();
+                const cleanCity = item.city?.trim() || 'Gurgaon, Haryana';
+                const cleanPin = item.pincode?.trim() || '122003';
+                const normKey = `${cleanLine.toLowerCase().replace(/\s+/g, ' ')}_${cleanCity.toLowerCase()}_${cleanPin}`;
+
+                if (!seenNormAddresses.has(normKey)) {
+                  seenNormAddresses.add(normKey);
                   const cleanName =
                     item.name && item.name.trim() && item.name.trim() !== 'Cotton Nest' && item.name.trim() !== 'Atelier Guest'
                       ? item.name.trim()
                       : profile?.name && profile.name !== 'Atelier Guest'
                       ? profile.name
                       : item.name?.trim() || 'Customer';
+
                   list.push({
                     id: String(item.id),
                     label: item.label || 'Home',
                     name: cleanName,
                     phone: item.phone || profile?.phone || '',
-                    addressLine: item.addressLine.trim(),
-                    city: item.city?.trim() || 'Gurgaon, Haryana',
-                    pincode: item.pincode?.trim() || '122003',
+                    addressLine: cleanLine,
+                    city: cleanCity,
+                    pincode: cleanPin,
                     isDefault: Boolean(item.isDefault),
                     createdAt: Number(item.createdAt) || Date.now(),
                     userId: resolvedUserKey || undefined,
@@ -153,43 +158,21 @@ export function getSavedAddresses(
             });
           }
         } catch {
-          // ignore malformed entry
+          // ignore
         }
       }
     }
   } catch (err) {
-    console.warn('Error reading customer saved addresses:', err);
+    console.warn('Error reading saved addresses:', err);
   }
 
-  // If the user explicitly saved a custom profile address (not the studio placeholder), include it
-  if (
-    profile &&
-    profile.address &&
-    profile.address.trim() &&
-    !isStudioPlaceholderAddress(profile.address)
-  ) {
-    const norm = profile.address.toLowerCase().trim();
-    if (!seenAddresses.has(norm)) {
-      seenAddresses.add(norm);
-      list.unshift({
-        id: 'addr_profile_primary',
-        label: 'Home',
-        name:
-          profile.name && profile.name !== 'Atelier Guest'
-            ? profile.name
-            : 'Customer',
-        phone: profile.phone || '',
-        addressLine: profile.address.trim(),
-        city: profile.city?.trim() || 'Gurgaon, Haryana',
-        pincode: profile.pincode?.trim() || '122003',
-        isDefault: list.length === 0,
-        createdAt: Date.now() - 100000,
-        userId: resolvedUserKey || undefined,
-      });
-    }
+  // Persist cleaned deduplicated list back to storage so duplicates are permanently removed
+  if (resolvedUserKey && list.length > 0) {
+    try {
+      localStorage.setItem(primaryStorageKey, JSON.stringify(list));
+    } catch {}
   }
 
-  // Ensure exactly one default address is marked when saved addresses exist
   if (list.length > 0 && !list.some((a) => a.isDefault)) {
     list[0].isDefault = true;
   }
@@ -203,8 +186,9 @@ function persistAddressesToStorage(list: SavedAddress[], resolvedUserKey?: strin
     if (typeof localStorage !== 'undefined') {
       const serialized = JSON.stringify(list);
       localStorage.setItem(primaryKey, serialized);
-      localStorage.setItem(`${SAVED_ADDRESSES_STORAGE_KEY}_guest`, serialized);
-      localStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, serialized);
+      if (!resolvedUserKey || resolvedUserKey.startsWith('guest_')) {
+        localStorage.setItem(`${SAVED_ADDRESSES_STORAGE_KEY}_guest`, serialized);
+      }
     }
   } catch (err) {
     console.warn('Error saving address book to localStorage:', err);
@@ -212,7 +196,7 @@ function persistAddressesToStorage(list: SavedAddress[], resolvedUserKey?: strin
 }
 
 /**
- * Saves a new address or updates an existing address in the customer's address book.
+ * Saves a new address or updates an existing address in the customer's address book with strict duplicate prevention.
  */
 export function saveAddressToBook(
   newAddr: {
@@ -230,7 +214,7 @@ export function saveAddressToBook(
 ): SavedAddress[] {
   const resolvedUserKey = userIdentifier || newAddr.userId || null;
   const current = getSavedAddresses(null, resolvedUserKey);
-  const addressLine = newAddr.addressLine.trim();
+  const addressLine = (newAddr.addressLine || '').replace(/,\s*Gurgaon,\s*Haryana\s*–\s*122003/gi, '').trim();
   if (!addressLine) return current;
 
   const city = newAddr.city?.trim() || 'Gurgaon, Haryana';
@@ -299,9 +283,6 @@ export function saveAddressToBook(
   return updatedList;
 }
 
-/**
- * Removes an address from the customer's saved address book.
- */
 export function deleteSavedAddress(id: string, userIdentifier?: string | null): SavedAddress[] {
   const current = getSavedAddresses(null, userIdentifier);
   const updated = current.filter((a) => a.id !== id);
@@ -315,9 +296,6 @@ export function deleteSavedAddress(id: string, userIdentifier?: string | null): 
   return updated;
 }
 
-/**
- * Sets a specific address as default for the customer.
- */
 export function setDefaultAddress(id: string, userIdentifier?: string | null): SavedAddress[] {
   const current = getSavedAddresses(null, userIdentifier);
   const updated = current.map((a) => ({
