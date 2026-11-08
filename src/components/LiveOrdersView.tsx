@@ -20,7 +20,8 @@ import {
   Phone,
   ShieldCheck,
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  Mail
 } from 'lucide-react';
 import { Order, OrderStatus } from '../data/orders';
 import { COMPANY_DETAILS } from '../data/products';
@@ -28,6 +29,7 @@ import { useAuth } from '../context/AuthContext';
 import { getOrders } from '../services/api';
 import { normalizePhoneDigits } from '../data/complaints';
 import { OrderComplaintSection } from './OrderComplaintSection';
+import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
 
 interface LiveOrdersViewProps {
   onExploreCatalogue: () => void;
@@ -53,6 +55,9 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   const [isSearchingDirect, setIsSearchingDirect] = useState<boolean>(false);
   const [isAutoSyncing, setIsAutoSyncing] = useState<boolean>(false);
   const [lastSyncedTime, setLastSyncedTime] = useState<Date>(new Date());
+  const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
+  const [isSendingEmail, setIsSendingEmail] = useState<string | null>(null);
+  const [emailSendFeedback, setEmailSendFeedback] = useState<{ id: string; success: boolean; message: string } | null>(null);
 
   // Handle user explicitly clicking an order to view its details
   const handleSelectOrder = (orderId: string) => {
@@ -68,6 +73,65 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 50);
+    }
+  };
+
+  const handleSendOrderEmail = async (order: Order) => {
+    setIsSendingEmail(order.id);
+    setEmailSendFeedback(null);
+    try {
+      const res = await fetch('/api/send-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          customerPhone: order.customerPhone,
+          customerAddress: order.customerAddress,
+          shippingMethod: order.shippingCost ? 'Standard Delivery' : 'Sector 46 Complimentary',
+          subtotal: Number(order.totalAmount) || 0,
+          couponCode: order.couponCode,
+          couponDiscount: Number(order.couponDiscount) || 0,
+          pointsUsed: Number(order.pointsUsed) || 0,
+          pointsDiscount: Number(order.pointsDiscount) || 0,
+          shippingCost: Number(order.shippingCost) || 0,
+          finalTotal: Number(order.totalAmount) || 0,
+          items: (order.items || []).map((it) => ({
+            name: it.productName,
+            variantName: it.variantName,
+            dimensions: it.dimensions || '108 x 108 inches',
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.price) || 0,
+            imageUrl: it.productImage || '',
+          })),
+          createdAt: order.createdAt,
+        }),
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        setEmailSendFeedback({
+          id: order.id,
+          success: true,
+          message: data.sentViaSmtp
+            ? `Receipt delivered via Gmail SMTP to ${data.recipients?.join(', ') || 'customer and admin'}.`
+            : `Invoice generated successfully. Use "Open in Gmail" button to dispatch.`,
+        });
+      } else {
+        setEmailSendFeedback({
+          id: order.id,
+          success: false,
+          message: data.error || 'Failed to dispatch email. Please use the Gmail compose link.',
+        });
+      }
+    } catch (err: any) {
+      setEmailSendFeedback({
+        id: order.id,
+        success: false,
+        message: err.message || 'Network error while sending email.',
+      });
+    } finally {
+      setIsSendingEmail(null);
     }
   };
 
@@ -854,6 +918,59 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
 
                     </div>
 
+                    {/* INVOICE & EMAIL RECEIPT ACTION BAR */}
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-[#FAF7F2] to-white border border-[#DEC89B] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                      <div>
+                        <div className="flex items-center gap-2 font-bold text-[#2C2420]">
+                          <FileText className="w-4 h-4 text-[#8C2E46]" />
+                          <span>Official Invoice &amp; Email Receipt</span>
+                        </div>
+                        <p className="text-[11px] text-[#7A6458] mt-0.5">
+                          View itemized printable tax invoice with bedsheet photos or send receipt to {currentSelectedOrder.customerEmail || 'your email'}.
+                        </p>
+                        {emailSendFeedback && emailSendFeedback.id === currentSelectedOrder.id && (
+                          <p
+                            className={`text-[11px] font-semibold mt-1 ${
+                              emailSendFeedback.success ? 'text-emerald-700' : 'text-amber-800'
+                            }`}
+                          >
+                            {emailSendFeedback.message}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setInvoiceModalOrder(currentSelectedOrder)}
+                          className="px-3.5 py-2 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
+                          <span>View Invoice</span>
+                        </button>
+
+                        <a
+                          href={buildOrderGmailUrl(currentSelectedOrder)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3.5 py-2 bg-[#8C2E46] hover:bg-[#722338] text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Open in Gmail</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSendOrderEmail(currentSelectedOrder)}
+                          disabled={isSendingEmail === currentSelectedOrder.id}
+                          className="p-2 bg-white hover:bg-[#FAF7F2] text-[#7A6458] hover:text-[#2C2420] border border-[#DEC89B] rounded-xl text-xs transition-colors cursor-pointer disabled:opacity-50"
+                          title="Resend email receipt via server"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isSendingEmail === currentSelectedOrder.id ? 'animate-spin text-[#8C2E46]' : ''}`} />
+                        </button>
+                      </div>
+                    </div>
+
                     {/* ITEMS LIST */}
                     <div className="space-y-4 pt-4 border-t border-[#EAE2D5]">
                       <p className="text-xs font-bold text-[#7A6458] uppercase tracking-wider">
@@ -1002,6 +1119,12 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
         )}
 
       </div>
+
+      <InvoiceModal
+        order={invoiceModalOrder}
+        isOpen={Boolean(invoiceModalOrder)}
+        onClose={() => setInvoiceModalOrder(null)}
+      />
 
     </div>
   );

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -836,7 +837,88 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
 </html>`;
 }
 
-export async function sendOrderInvoiceEmail(payload: InvoiceOrderPayload): Promise<{ success: boolean; message?: string; error?: string }> {
+export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string {
+  const refId = payload.orderId.startsWith('CN-') ? payload.orderId : `CN-${payload.orderId}`;
+  const dateStr = payload.createdAt
+    ? new Date(payload.createdAt).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : new Date().toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+  const lines = [
+    `COTTON NEST ATELIER - OFFICIAL ORDER INVOICE`,
+    `Sector 46, Gurgaon, Haryana · 100% Breathable Pure Cotton`,
+    `Order Reference: #${refId}`,
+    `Date & Time: ${dateStr}`,
+    `----------------------------------------------------`,
+    `CUSTOMER & DELIVERY DETAILS:`,
+    `Name: ${payload.customerName}`,
+  ];
+
+  if (payload.customerEmail) lines.push(`Email: ${payload.customerEmail}`);
+  if (payload.customerPhone) lines.push(`Phone / WhatsApp: ${payload.customerPhone}`);
+  if (payload.customerAddress) lines.push(`Delivery Address: ${payload.customerAddress}`);
+  if (payload.shippingMethod) lines.push(`Shipping Speed: ${payload.shippingMethod}`);
+
+  lines.push(`----------------------------------------------------`);
+  lines.push(`BEDSHEETS ORDERED:`);
+
+  (payload.items || []).forEach((item, idx) => {
+    const qty = Number(item.quantity) || 1;
+    const price = Number(item.price) || 0;
+    const total = qty * price;
+    const variantStr = item.variantName ? ` (${item.variantName})` : '';
+    const dimsStr = item.dimensions ? ` - Size: ${item.dimensions}` : '';
+    lines.push(`${idx + 1}. ${item.name}${variantStr}${dimsStr}`);
+    lines.push(`   Quantity: ${qty} Set(s) | Price: ₹${price.toLocaleString('en-IN')} | Total: ₹${total.toLocaleString('en-IN')}`);
+    if (item.imageUrl) {
+      lines.push(`   Photo: ${item.imageUrl}`);
+    }
+  });
+
+  lines.push(`----------------------------------------------------`);
+  lines.push(`FINANCIAL SUMMARY:`);
+  lines.push(`Bag Subtotal: ₹${payload.subtotal.toLocaleString('en-IN')}`);
+
+  if (payload.couponDiscount && payload.couponDiscount > 0) {
+    lines.push(`Coupon Discount (${payload.couponCode || 'Applied'}): -₹${payload.couponDiscount.toLocaleString('en-IN')}`);
+  }
+  if (payload.pointsDiscount && payload.pointsDiscount > 0) {
+    lines.push(`Nest Loyalty Points Redeemed: -₹${payload.pointsDiscount.toLocaleString('en-IN')}`);
+  }
+  lines.push(`Delivery & Shipping: ${payload.shippingCost && payload.shippingCost > 0 ? `+₹${payload.shippingCost.toLocaleString('en-IN')}` : 'FREE'}`);
+  lines.push(`GRAND TOTAL AMOUNT: ₹${payload.finalTotal.toLocaleString('en-IN')}`);
+  lines.push(`----------------------------------------------------`);
+  lines.push(`Thank you for choosing Cotton Nest Atelier!`);
+  lines.push(`Support & Enquiries: +91 99100 24514 | adityaa.451485@gmail.com`);
+
+  return lines.join('\n');
+}
+
+export function buildGmailComposeUrl(to: string, subject: string, body: string): string {
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+export async function sendOrderInvoiceEmail(payload: InvoiceOrderPayload): Promise<{
+  success: boolean;
+  sentViaSmtp: boolean;
+  message?: string;
+  recipients?: string[];
+  gmailComposeUrl?: string;
+  html?: string;
+  text?: string;
+  error?: string;
+}> {
   try {
     const config = getGmailConfig();
     const recipientEmails = new Set<string>();
@@ -846,32 +928,54 @@ export async function sendOrderInvoiceEmail(payload: InvoiceOrderPayload): Promi
     if (config?.user) {
       recipientEmails.add(config.user.toLowerCase());
     }
-    // Include customer email if valid
+    // Include customer/buyer email if provided
     if (payload.customerEmail && payload.customerEmail.includes('@') && !payload.customerEmail.endsWith('@cottonnest.orders')) {
       recipientEmails.add(payload.customerEmail.trim().toLowerCase());
     }
 
     const htmlContent = buildCottonNestInvoiceHtml(payload);
-    const textContent = `Cotton Nest Order Invoice #${payload.orderId}\nTotal: ₹${payload.finalTotal}\nItems: ${payload.items.map((i) => i.name).join(', ')}`;
+    const textContent = buildCottonNestInvoiceText(payload);
     const recipientsList = Array.from(recipientEmails).join(', ');
+    const subject = `💐 Order Invoice #${payload.orderId} - Cotton Nest Atelier (₹${payload.finalTotal.toLocaleString('en-IN')})`;
+    const gmailComposeUrl = buildGmailComposeUrl(recipientsList, subject, textContent);
 
     if (config) {
       const transporter = createGmailTransporter(config);
       await transporter.sendMail({
         from: `"Cotton Nest Atelier" <${config.user}>`,
         to: recipientsList,
-        subject: `💐 Order Invoice #${payload.orderId} - Cotton Nest Atelier (₹${payload.finalTotal.toLocaleString('en-IN')})`,
+        subject,
         text: textContent,
         html: htmlContent,
       });
-      console.log(`Invoice email sent successfully for Order #${payload.orderId} to ${recipientsList}`);
-      return { success: true, message: `Invoice email sent to ${recipientsList}` };
+      console.log(`[INVOICE EMAIL] Sent successfully via Gmail SMTP to: ${recipientsList}`);
+      return {
+        success: true,
+        sentViaSmtp: true,
+        message: `Invoice email dispatched to ${recipientsList}`,
+        recipients: Array.from(recipientEmails),
+        gmailComposeUrl,
+        html: htmlContent,
+        text: textContent,
+      };
     } else {
-      console.warn('Gmail SMTP config not set. Order invoice generated successfully for:', payload.orderId);
-      return { success: true, message: `Invoice generated for Order #${payload.orderId}` };
+      console.warn(`[INVOICE EMAIL] SMTP credentials not configured in environment. Generated invoice for #${payload.orderId} to: ${recipientsList}`);
+      return {
+        success: true,
+        sentViaSmtp: false,
+        message: `Invoice generated for Order #${payload.orderId}`,
+        recipients: Array.from(recipientEmails),
+        gmailComposeUrl,
+        html: htmlContent,
+        text: textContent,
+      };
     }
   } catch (err: any) {
     console.error('Failed to send order invoice email:', err);
-    return { success: false, error: err.message || 'Failed to send invoice email' };
+    return {
+      success: false,
+      sentViaSmtp: false,
+      error: err.message || 'Failed to send invoice email',
+    };
   }
 }

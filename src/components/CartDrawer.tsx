@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'motion/react';
-import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award, Plus, Home, Briefcase, Bookmark, CheckSquare, Square } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award, Plus, Home, Briefcase, Bookmark, CheckSquare, Square, Mail, FileText } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
 import { saveOrder, getCouponsApi, validateCouponApi, recordCouponUseApi, isVideoMedia } from '../services/api';
@@ -19,6 +19,7 @@ import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, formatFullAddress } from '../data/addresses';
 import { CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
+import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
 
 interface SwipeableCartItemProps {
   onRemove: () => void;
@@ -146,6 +147,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const { user } = useAuth();
   const {
     pointsBalance,
+    earnPoints,
     redeemPoints,
     openLoyaltyModal,
     preferRedeemAtCheckout,
@@ -165,7 +167,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     pointsEarned?: number;
     pointsUsed?: number;
     pointsDiscount?: number;
+    order?: Order;
+    gmailComposeUrl?: string;
   } | null>(null);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState<boolean>(false);
 
   // Loyalty Points State synced with Customer Account preference
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState<boolean>(false);
@@ -573,7 +578,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       pointsUsed: pointsToRedeem > 0 ? pointsToRedeem : undefined,
       pointsDiscount: effectivePointsDiscount > 0 ? effectivePointsDiscount : undefined,
       pointsEarned: pointsToEarn > 0 ? pointsToEarn : undefined,
-      pointsCredited: false,
+      pointsCredited: true,
       items: validItems.map((i) => {
         const pName = i?.product?.name || 'Handcrafted Bedsheet';
         const vName = i?.selectedVariant?.name;
@@ -619,12 +624,26 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     }
 
     // Process loyalty points redemption if applied (minimum 200 points enforced)
-    // Note: Earned points are credited ONLY after successful delivery and full payment (when order status becomes 'delivered')
     if (pointsToRedeem >= LOYALTY_MIN_REDEMPTION_POINTS) {
       try {
         await redeemPoints(pointsToRedeem, orderId, customerPhone.trim());
       } catch (err) {
         console.warn('Loyalty points redeem notice:', err);
+      }
+    }
+
+    // Immediately credit earned loyalty points (5 pts / ₹100 spent, excluding delivery)
+    if (pointsToEarn > 0) {
+      try {
+        await earnPoints(
+          netMerchandiseAmount,
+          orderId,
+          customerPhone.trim() || user?.phone || user?.email,
+          pointsToEarn
+        );
+        window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
+      } catch (err) {
+        console.warn('Loyalty points earn notice:', err);
       }
     }
 
@@ -637,6 +656,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       onOrderPlaced(createdOrder);
     }
 
+    const gmailUrl = buildOrderGmailUrl(createdOrder);
+
     setLastOrderDetails({
       orderId,
       total: finalTotal,
@@ -645,6 +666,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       pointsEarned: pointsToEarn,
       pointsUsed: pointsToRedeem,
       pointsDiscount: effectivePointsDiscount,
+      order: createdOrder,
+      gmailComposeUrl: gmailUrl,
     });
 
     onClearCart();
@@ -1487,18 +1510,44 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     onClick={openLoyaltyModal}
                     className="text-[11px] font-bold text-[#8C2E46] underline cursor-pointer"
                   >
-                    View Wallet &amp; Rules
+                    View Wallet ({pointsBalance} pts)
                   </button>
                 </div>
                 {Boolean(lastOrderDetails.pointsEarned && lastOrderDetails.pointsEarned > 0) && (
-                  <p className="text-[11px] text-amber-900 font-semibold">
-                    🎁 +{lastOrderDetails.pointsEarned} Nest Points ({LOYALTY_POINTS_PER_100_INR} pts / ₹100 · credited after successful delivery &amp; full payment)
+                  <p className="text-[11px] text-emerald-800 font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>🎁 +{lastOrderDetails.pointsEarned} Nest Points credited to your account! Available balance: <strong className="text-amber-950 font-bold">{pointsBalance} pts</strong> (₹{calculatePointsDiscount(pointsBalance)})</span>
                   </p>
                 )}
                 {Boolean(lastOrderDetails.pointsUsed && lastOrderDetails.pointsUsed > 0) && (
                   <p className="text-[11px] text-emerald-800 font-medium">
                     ✨ {lastOrderDetails.pointsUsed} Nest Points redeemed for ₹{lastOrderDetails.pointsDiscount} discount (100 pts = ₹50).
                   </p>
+                )}
+              </div>
+
+              {/* Receipt & Invoice Quick Actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {lastOrderDetails.gmailComposeUrl && (
+                  <a
+                    href={lastOrderDetails.gmailComposeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#F3ECE0] text-[#8C2E46] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Open Receipt in Gmail</span>
+                  </a>
+                )}
+                {lastOrderDetails.order && (
+                  <button
+                    type="button"
+                    onClick={() => setIsInvoiceModalOpen(true)}
+                    className="py-2.5 px-3 bg-white hover:bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
+                    <span>View &amp; Print Invoice</span>
+                  </button>
                 )}
               </div>
 
@@ -1837,6 +1886,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           </motion.div>
         </div>
       )}
+      <InvoiceModal
+        order={lastOrderDetails?.order || null}
+        isOpen={isInvoiceModalOpen}
+        onClose={() => setIsInvoiceModalOpen(false)}
+      />
     </AnimatePresence>
   );
 };

@@ -170,6 +170,35 @@ export async function getLoyaltyAccountApi(
         } catch {}
       }
     }
+
+    // 3b. Check local orders cache for uncredited purchases
+    try {
+      const rawOrders = localStorage.getItem('cotton_nest_orders');
+      if (rawOrders) {
+        const parsedOrders = JSON.parse(rawOrders);
+        if (Array.isArray(parsedOrders)) {
+          let orderPoints = 0;
+          parsedOrders.forEach((o) => {
+            if (!o || o.status === 'cancelled') return;
+            const oEmail = (o.customerEmail || '').toLowerCase().trim();
+            const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
+            const myEmail = (account.email || extra?.email || '').toLowerCase().trim();
+            const myPhone = (account.phone || extra?.phone || '').replace(/[^0-9]/g, '').slice(-10);
+            const isMatch = Boolean((myEmail && oEmail === myEmail) || (myPhone && oPhone === myPhone));
+            if (isMatch) {
+              const ship = Number(o.shippingCost) || 0;
+              const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
+              orderPoints += typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
+            }
+          });
+          if (orderPoints > (account.pointsBalance || 0)) {
+            account.pointsBalance = orderPoints;
+            account.lifetimeEarned = Math.max(account.lifetimeEarned || 0, orderPoints);
+            saveLocalAccount(account);
+          }
+        }
+      }
+    } catch {}
   }
 
   // 4. Fetch from Firestore (Authoritative)

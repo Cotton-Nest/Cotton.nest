@@ -121,17 +121,21 @@ export function generateReferralCode(seed?: string | null): string {
  * Sanitize loyalty account identifier (phone or email or userId).
  */
 export function sanitizeLoyaltyKey(rawKey?: string | null): string {
-  if (!rawKey) return 'guest_session';
-  const trimmed = rawKey.trim().toLowerCase();
-  // If already phone_... with 10 digits
+  if (!rawKey) return 'guest_default_wallet';
+  let trimmed = rawKey.trim().toLowerCase();
+
+  // Strip any repeated prefixes
+  trimmed = trimmed.replace(/^(email_|phone_)+/, '');
+
+  if (trimmed.includes('@')) {
+    const cleanEmail = trimmed.replace(/^email_+/, '');
+    return `email_${cleanEmail.replace(/[^a-z0-9@._-]/g, '_')}`;
+  }
+
   const digitsOnly = trimmed.replace(/[^0-9]/g, '');
   if (digitsOnly.length >= 10) {
     return `phone_${digitsOnly.slice(-10)}`;
   }
-  // If email
-  if (trimmed.includes('@')) {
-    const cleanEmail = trimmed.startsWith('email_') ? trimmed.replace(/^email_+/, '') : trimmed;
-    return `email_${cleanEmail.replace(/[^a-z0-9@._-]/g, '_')}`;
-  }
+
   return trimmed.replace(/[^a-z0-9_-]/g, '_');
 }

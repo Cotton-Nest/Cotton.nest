@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -119,6 +120,78 @@ function initDatabase(): StoreDatabase {
         if (!parsed.loyaltyAccounts || typeof parsed.loyaltyAccounts !== 'object') {
           parsed.loyaltyAccounts = {};
           needsSave = true;
+        } else {
+          // Sanitize legacy keys and merge duplicate accounts
+          const sanitizedMap: Record<string, LoyaltyAccount> = {};
+          for (const [k, acc] of Object.entries(parsed.loyaltyAccounts as Record<string, any>)) {
+            if (!acc || typeof acc !== 'object') continue;
+            const canonical = sanitizeLoyaltyKey(k);
+            if (!sanitizedMap[canonical]) {
+              sanitizedMap[canonical] = {
+                ...acc,
+                id: canonical,
+                referralCode: acc.referralCode || generateReferralCode(acc.customerName || canonical),
+              };
+            } else {
+              const cur = sanitizedMap[canonical];
+              cur.pointsBalance = Math.max(cur.pointsBalance || 0, acc.pointsBalance || 0);
+              cur.lifetimeEarned = Math.max(cur.lifetimeEarned || 0, acc.lifetimeEarned || 0);
+              cur.lifetimeSpent = Math.max(cur.lifetimeSpent || 0, acc.lifetimeSpent || 0);
+              if (acc.phone) cur.phone = cur.phone || acc.phone;
+              if (acc.email) cur.email = cur.email || acc.email;
+              if (acc.customerName) cur.customerName = cur.customerName || acc.customerName;
+            }
+            if (k !== canonical) needsSave = true;
+          }
+          parsed.loyaltyAccounts = sanitizedMap;
+        }
+
+        // Reconcile points from all placed non-cancelled orders so points reflect immediately
+        if (Array.isArray(parsed.orders)) {
+          parsed.orders.forEach((o: any) => {
+            if (!o || o.status === 'cancelled') return;
+            const ship = Number(o.shippingCost) || 0;
+            const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
+            const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
+            if (pts > 0) {
+              o.pointsEarned = pts;
+              o.pointsCredited = true;
+
+              const candidateKeys: string[] = [];
+              if (o.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(o.customerPhone));
+              if (o.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(o.customerEmail));
+              if (o.userId) candidateKeys.push(sanitizeLoyaltyKey(o.userId));
+
+              Array.from(new Set(candidateKeys.filter(Boolean))).forEach((k) => {
+                if (!parsed.loyaltyAccounts[k]) {
+                  parsed.loyaltyAccounts[k] = {
+                    id: k,
+                    customerName: o.customerName || 'Cotton Nest Client',
+                    phone: o.customerPhone,
+                    email: o.customerEmail,
+                    userId: o.userId,
+                    pointsBalance: pts,
+                    lifetimeEarned: pts,
+                    lifetimeSpent: 0,
+                    referralPointsEarned: 0,
+                    referralCode: generateReferralCode(o.customerName || k),
+                    referralCount: 0,
+                    updatedAt: Date.now(),
+                  };
+                  needsSave = true;
+                } else {
+                  const acc = parsed.loyaltyAccounts[k];
+                  if ((acc.pointsBalance || 0) < pts) {
+                    acc.pointsBalance = pts;
+                    acc.lifetimeEarned = Math.max(acc.lifetimeEarned || 0, pts);
+                    needsSave = true;
+                  }
+                  if (o.customerPhone && !acc.phone) acc.phone = o.customerPhone;
+                  if (o.customerEmail && !acc.email) acc.email = o.customerEmail;
+                }
+              });
+            }
+          });
         }
         if (!parsed.loyaltyTransactions || !Array.isArray(parsed.loyaltyTransactions)) {
           parsed.loyaltyTransactions = [];
@@ -750,7 +823,7 @@ async function startServer() {
     res.json(result);
   });
 
-  app.post('/api/orders', (req, res) => {
+  app.post('/api/orders', async (req, res) => {
     const newOrder = req.body;
     if (!newOrder || !newOrder.id) {
       return res.status(400).json({ error: 'Invalid order data' });
@@ -771,12 +844,79 @@ async function startServer() {
       newOrder.trackingNumber = `CN-TRK-${Math.floor(100000 + Math.random() * 900000)}`;
     }
 
+    // Calculate earned loyalty points (5 pts / ₹100 excluding delivery) and credit immediately
+    const shippingCostVal = Number(newOrder.shippingCost) || 0;
+    const eligibleOrderAmount = Math.max(0, (Number(newOrder.totalAmount) || Number(newOrder.subtotal) || 0) - shippingCostVal);
+    const earnedPts = typeof newOrder.pointsEarned === 'number' && newOrder.pointsEarned > 0
+      ? newOrder.pointsEarned
+      : calculateEarnedPoints(eligibleOrderAmount);
+
+    newOrder.pointsEarned = earnedPts;
+    newOrder.pointsCredited = true;
+
+    // Credit loyalty points immediately across all candidate keys (phone, email, userId)
+    if (earnedPts > 0) {
+      if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
+      if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
+
+      const candidateKeys: string[] = [];
+      if (newOrder.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(newOrder.customerPhone));
+      if (newOrder.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(newOrder.customerEmail));
+      if (newOrder.userId) candidateKeys.push(sanitizeLoyaltyKey(newOrder.userId));
+
+      const uniqueKeys = Array.from(new Set(candidateKeys.filter(Boolean)));
+      const now = Date.now();
+      const expiry = getTransactionExpiryDate(now);
+
+      uniqueKeys.forEach((accKey) => {
+        const existingAcc = db.loyaltyAccounts![accKey] || {
+          id: accKey,
+          customerName: newOrder.customerName || 'Cotton Nest Client',
+          phone: newOrder.customerPhone,
+          email: newOrder.customerEmail,
+          userId: newOrder.userId,
+          pointsBalance: 0,
+          lifetimeEarned: 0,
+          lifetimeSpent: 0,
+          referralPointsEarned: 0,
+          referralCode: generateReferralCode(newOrder.customerName || accKey),
+          referralCount: 0,
+          updatedAt: now,
+        };
+
+        const prevBal = existingAcc.pointsBalance || 0;
+        const prevLife = existingAcc.lifetimeEarned || 0;
+
+        db.loyaltyAccounts![accKey] = {
+          ...existingAcc,
+          pointsBalance: prevBal + earnedPts,
+          lifetimeEarned: prevLife + earnedPts,
+          phone: existingAcc.phone || newOrder.customerPhone,
+          email: existingAcc.email || newOrder.customerEmail,
+          updatedAt: now,
+        };
+
+        db.loyaltyTransactions!.unshift({
+          id: `tx_earn_${newOrder.id}_${accKey}_${now}`,
+          accountId: accKey,
+          orderId: newOrder.id,
+          type: 'earned',
+          points: earnedPts,
+          amountInr: eligibleOrderAmount,
+          description: `Earned on Placed Order #${newOrder.id} (5 pts / ₹100)`,
+          createdAt: now,
+          expiresAt: expiry,
+          status: 'credited',
+        });
+      });
+    }
+
     db.orders.unshift(newOrder);
     saveDatabase();
 
-    // Trigger automated email invoice to Gmail
+    // Trigger automated email invoice to Gmail with recipient to customer and admin
     try {
-      sendOrderInvoiceEmail({
+      const invoiceResult = await sendOrderInvoiceEmail({
         orderId: newOrder.id,
         customerName: newOrder.customerName || 'Valued Customer',
         customerEmail: newOrder.customerEmail,
@@ -792,17 +932,28 @@ async function startServer() {
         finalTotal: Number(newOrder.totalAmount) || 0,
         items: Array.isArray(newOrder.items)
           ? newOrder.items.map((it: any) => ({
-              name: it.product?.name || it.name || 'Pure Cotton Bedsheet',
+              name: it.product?.name || it.productName || it.name || 'Pure Cotton Bedsheet',
               variantName: it.selectedVariant?.name || it.variantName,
               dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
               quantity: Number(it.quantity) || 1,
               price: Number(it.product?.price) || Number(it.price) || 0,
-              imageUrl: it.selectedVariant?.image || it.product?.image || it.imageUrl || '',
+              imageUrl: it.selectedVariant?.image || it.product?.image || it.productImage || it.imageUrl || '',
             }))
           : [],
         createdAt: newOrder.createdAt,
-      }).catch(() => {});
-    } catch {}
+      });
+
+      if (invoiceResult) {
+        newOrder.invoiceResult = {
+          success: invoiceResult.success,
+          sentViaSmtp: invoiceResult.sentViaSmtp,
+          recipients: invoiceResult.recipients,
+          gmailComposeUrl: invoiceResult.gmailComposeUrl,
+        };
+      }
+    } catch (err: any) {
+      console.warn('sendOrderInvoiceEmail warning:', err?.message);
+    }
 
     res.status(201).json(newOrder);
   });
@@ -1686,27 +1837,30 @@ async function startServer() {
         }
       }
 
-      // 2. If still 0, check if this customer has delivered orders where points should be credited
-      if ((account.pointsBalance || 0) === 0 && Array.isArray(db.orders)) {
+      // 2. Check if this customer has placed orders where points should be credited
+      if (Array.isArray(db.orders)) {
         let earnedFromOrders = 0;
         let lifetimeEarnedOrders = 0;
         db.orders.forEach((o) => {
-          if (!o) return;
+          if (!o || o.status === 'cancelled') return;
           const oEmail = (o.customerEmail || '').toLowerCase().trim();
           const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
-          const isMatch = (extractedEmail && oEmail === extractedEmail) || (cleanPhoneDigits && oPhone === cleanPhoneDigits);
-          if (isMatch && o.status === 'delivered') {
+          const isMatch =
+            Boolean(extractedEmail && oEmail === extractedEmail) ||
+            Boolean(cleanPhoneDigits && oPhone === cleanPhoneDigits) ||
+            Boolean(cleanRaw && (o.userId === cleanRaw || o.userId === accountId));
+          if (isMatch) {
             const ship = Number(o.shippingCost) || 0;
-            const net = Math.max(0, (Number(o.totalAmount) || 0) - ship);
+            const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
             const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
             earnedFromOrders += pts;
             lifetimeEarnedOrders += pts;
           }
         });
 
-        if (earnedFromOrders > 0) {
+        if (earnedFromOrders > (account.pointsBalance || 0)) {
           account.pointsBalance = earnedFromOrders;
-          account.lifetimeEarned = lifetimeEarnedOrders;
+          account.lifetimeEarned = Math.max(account.lifetimeEarned || 0, lifetimeEarnedOrders);
           account.updatedAt = Date.now();
           db.loyaltyAccounts[accountId] = account;
           saveDatabase();
