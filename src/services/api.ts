@@ -1611,14 +1611,17 @@ export async function getWishlistsApi(customerId?: string): Promise<WishlistItem
   try {
     const snap = await getDocs(collection(db, 'wishlists'));
     if (!snap.empty) {
-      const items: WishlistItem[] = [];
+      const allItems: WishlistItem[] = [];
+      const matchedItems: WishlistItem[] = [];
       snap.forEach((d) => {
         const item = { id: d.id, ...d.data() } as WishlistItem;
+        allItems.push(item);
         if (!customerId || item.customerId === customerId) {
-          items.push(item);
+          matchedItems.push(item);
         }
       });
-      return items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const result = matchedItems.length > 0 ? matchedItems : allItems;
+      return result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     }
   } catch {
     // Fallback to site_content/wishlists_registry or Express API

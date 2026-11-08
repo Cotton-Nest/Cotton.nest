@@ -1,13 +1,81 @@
-// Cotton Nest Atelier Service Worker for Web Push & Device OS Notification Bar
-const CACHE_NAME = 'cotton-nest-v2';
-const DEFAULT_ICON = 'https://res.cloudinary.com/ys2sgydi/image/upload/w_192,h_192,c_pad,b_rgb:FAF7F2/logo-removebg-preview.png';
+// Cotton Nest Atelier Service Worker for PWA Installability, Offline Support & Device OS Notification Bar
+const CACHE_NAME = 'cotton-nest-pwa-v3';
+const DEFAULT_ICON = '/pwa-192x192.png';
+const PRECACHE_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon.svg',
+  '/pwa-192x192.png',
+  '/pwa-512x512.png',
+  '/apple-touch-icon.png',
+];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_URLS).catch(() => {});
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+          return Promise.resolve();
+        })
+      )
+    ).then(() => self.clients.claim())
+  );
+});
+
+// Fetch handler required by Chrome for PWA installability & offline support
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  // Skip API and Firestore/Google auth calls so live data is always fresh
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.hostname.includes('firestore.googleapis.com') ||
+    url.hostname.includes('accounts.google.com')
+  ) {
+    return;
+  }
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (
+          response &&
+          response.status === 200 &&
+          response.type === 'basic' &&
+          url.origin === self.location.origin
+        ) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone).catch(() => {});
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        return caches.match(request).then((cached) => {
+          if (cached) return cached;
+          if (request.mode === 'navigate') {
+            return caches.match('/index.html');
+          }
+          return new Response('Offline', { status: 503, statusText: 'Offline' });
+        });
+      })
+  );
 });
 
 // Handle incoming Web Push events
@@ -48,7 +116,7 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Also allow page clients to postMessage a SHOW_NOTIFICATION command to the service worker
+// Also allow page clients to postMessage a SHOW_OS_NOTIFICATION command to the service worker
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_OS_NOTIFICATION') {
     const { title, body, url, tag, icon } = event.data.payload || {};

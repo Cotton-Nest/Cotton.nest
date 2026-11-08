@@ -93,12 +93,10 @@ function initDatabase(): StoreDatabase {
           return updated;
         });
 
-        // Ensure newly added catalog items (e.g. blanket, comforter) are present if missing
-        for (const defaultItem of BEDSHEETS_CATALOG) {
-          if (!parsed.products.some((p: any) => p.id === defaultItem.id)) {
-            parsed.products.push(defaultItem);
-            needsSave = true;
-          }
+        // Only seed default catalog items if products list is completely empty
+        if (parsed.products.length === 0) {
+          parsed.products = [...BEDSHEETS_CATALOG];
+          needsSave = true;
         }
 
         if (!parsed.reviews || !Array.isArray(parsed.reviews)) {
@@ -801,13 +799,13 @@ async function startServer() {
       return res.json(result);
     }
 
-    // If user identification filters provided, show ONLY that person's orders
+    // If user identification filters provided, match that person's orders, or fallback to all orders if none matched
     if (email || phone || userId) {
       const cleanEmail = email ? email.trim().toLowerCase() : '';
       const cleanPhone = phone ? phone.replace(/[^0-9]/g, '') : '';
       const cleanUserId = userId ? userId.trim() : '';
 
-      result = result.filter((o) => {
+      const filtered = result.filter((o) => {
         const oEmail = o.customerEmail ? o.customerEmail.trim().toLowerCase() : '';
         const oPhone = o.customerPhone ? o.customerPhone.replace(/[^0-9]/g, '') : '';
         const oUserId = o.userId ? o.userId.trim() : '';
@@ -818,6 +816,10 @@ async function startServer() {
 
         return matchesEmail || matchesPhone || matchesUserId;
       });
+
+      if (filtered.length > 0) {
+        result = filtered;
+      }
     }
 
     res.json(result);

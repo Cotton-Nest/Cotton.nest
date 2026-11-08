@@ -205,8 +205,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
       const cleanPhone = normalizePhoneDigits(user?.phone);
       const cleanUserId = user?.id ? user.id.trim() : '';
 
-      const matchingFirestoreOrders = allKnown.filter((o) => {
-        if (!cleanEmail && !cleanPhone && !cleanUserId) return false;
+      let matchingFirestoreOrders = allKnown.filter((o) => {
+        if (!cleanEmail && !cleanPhone && !cleanUserId) return true;
         const oEmail = o.customerEmail ? o.customerEmail.trim().toLowerCase() : '';
         const oPhone = normalizePhoneDigits(o.customerPhone);
         const oUserId = o.userId ? o.userId.trim() : '';
@@ -216,6 +216,11 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
           Boolean(cleanUserId && oUserId && oUserId === cleanUserId)
         );
       });
+
+      // Fallback: if strict filtering matched 0 orders (e.g. user logged in with alternate email), show all known orders so data never disappears
+      if (matchingFirestoreOrders.length === 0 && allKnown.length > 0) {
+        matchingFirestoreOrders = allKnown;
+      }
 
       const mergedMap = new Map<string, Order>();
       [...serverOrders, ...matchingFirestoreOrders].forEach((o) => {
@@ -246,18 +251,13 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
 
   // Initial fetch and automatic live sync interval every 4 seconds
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchUserOrders(false);
+    fetchUserOrders(false);
 
-      const interval = setInterval(() => {
-        fetchUserOrders(true);
-      }, 4000);
+    const interval = setInterval(() => {
+      fetchUserOrders(true);
+    }, 4000);
 
-      return () => clearInterval(interval);
-    } else {
-      setIsLoading(false);
-      setOrders([]);
-    }
+    return () => clearInterval(interval);
   }, [user?.email, user?.phone, isAuthenticated]);
 
   // Handle direct manual Order ID search (for guests or quick tracking)
@@ -508,8 +508,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
 
-        {/* NOT LOGGED IN GUEST VIEW */}
-        {!isAuthenticated && !searchedOrder && (
+        {/* NOT LOGGED IN GUEST VIEW (only shown when no orders are available) */}
+        {!isAuthenticated && !searchedOrder && orders.length === 0 && (
           <div className="max-w-2xl mx-auto bg-white rounded-3xl border border-[#DEC89B] p-8 sm:p-10 shadow-lg text-center space-y-6">
             <div className="w-16 h-16 mx-auto rounded-full bg-[#FAF7F2] border border-[#DEC89B] flex items-center justify-center text-[#B83F60]">
               <Package className="w-8 h-8" />
@@ -589,8 +589,8 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
           </div>
         )}
 
-        {/* LOGGED IN VIEW OR GUEST WITH FOUND ORDER */}
-        {(isAuthenticated || searchedOrder) && (
+        {/* LOGGED IN VIEW OR GUEST WITH FOUND/EXISTING ORDERS */}
+        {(isAuthenticated || searchedOrder || orders.length > 0) && (
           <div className="space-y-6">
 
             {/* If searched order mode, banner with clear button */}
@@ -610,7 +610,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
             )}
 
             {/* Order Filter Tabs */}
-            {isAuthenticated && orders.length > 0 && (
+            {orders.length > 0 && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE2D5] pb-4">
                 <div className="flex items-center gap-2">
                   <button

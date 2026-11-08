@@ -30,6 +30,7 @@ import { ProductCompareModal } from './components/ProductCompareModal';
 import { ProductCompareBar } from './components/ProductCompareBar';
 import { StockAlertModal } from './components/StockAlertModal';
 import { CartToastNotification, CartToastInfo } from './components/CartToastNotification';
+import { ChromeInstallPopout, OfflineIndicator } from './components/PWAInstallPrompt';
 import {
   AppNotification,
   DEFAULT_NOTIFICATIONS,
@@ -891,6 +892,9 @@ export default function App() {
               return orderA - orderB;
             });
             setProducts(loadedProducts);
+            try {
+              localStorage.setItem('cotton_nest_products', JSON.stringify(loadedProducts));
+            } catch {}
           }
         }
       },
@@ -900,6 +904,18 @@ export default function App() {
         } catch {}
       }
     );
+
+    // Also run a direct one-shot fetch of products on mount as an immediate guarantee
+    getProducts()
+      .then((fetched) => {
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          setProducts(fetched);
+          try {
+            localStorage.setItem('cotton_nest_products', JSON.stringify(fetched));
+          } catch {}
+        }
+      })
+      .catch(() => {});
 
     // 2. Authoritative Theme listener from Firestore
     const unsubTheme = onSnapshot(
@@ -1108,7 +1124,13 @@ export default function App() {
               imageMap[d.id] = data.imageUrl;
             }
           });
-          setCustomImages((prev) => ({ ...prev, ...imageMap }));
+          setCustomImages((prev) => {
+            const merged = { ...prev, ...imageMap };
+            try {
+              localStorage.setItem('cotton_nest_custom_images', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
         }
       },
       (error) => {
@@ -2309,6 +2331,12 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Chrome-Style Top-Right "Install App?" Omnibox Pop-out */}
+      <ChromeInstallPopout />
+
+      {/* Offline Connectivity Indicator */}
+      <OfflineIndicator />
 
       {/* Subtle Cart Addition Toast Notification */}
       <CartToastNotification

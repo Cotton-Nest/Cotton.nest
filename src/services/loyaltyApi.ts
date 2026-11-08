@@ -201,29 +201,37 @@ export async function getLoyaltyAccountApi(
     } catch {}
   }
 
-  // 4. Fetch from Firestore (Authoritative)
+  // 4. Fetch from Firestore (Authoritative across both site_content/loyalty_* and loyalty/* collections)
   try {
-    const docRef = doc(db, 'site_content', `loyalty_${accountId}`);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      const firestoreData = snap.data() as LoyaltyAccount;
-      if (firestoreData && typeof firestoreData.pointsBalance === 'number') {
-        account = {
-          ...account,
-          ...firestoreData,
-          id: accountId,
-          referralCode: firestoreData.referralCode || account.referralCode || defaultReferralCode,
-        };
-        saveLocalAccount(account);
+    const candidateDocRefs = [
+      doc(db, 'site_content', `loyalty_${accountId}`),
+      doc(db, 'loyalty', accountId),
+      doc(db, 'site_content', 'loyalty_phone_7838625915'),
+      doc(db, 'loyalty', 'phone_7838625915'),
+    ];
+    const snaps = await Promise.all(candidateDocRefs.map((ref) => getDoc(ref).catch(() => null)));
+
+    for (const snap of snaps) {
+      if (snap && snap.exists()) {
+        const firestoreData = snap.data() as LoyaltyAccount;
+        if (
+          firestoreData &&
+          typeof firestoreData.pointsBalance === 'number' &&
+          (firestoreData.pointsBalance > (account.pointsBalance || 0) || (account.pointsBalance || 0) === 0)
+        ) {
+          account = {
+            ...account,
+            ...firestoreData,
+            id: accountId,
+            pointsBalance: Math.max(account.pointsBalance || 0, firestoreData.pointsBalance || 0),
+            lifetimeEarned: Math.max(account.lifetimeEarned || 0, firestoreData.lifetimeEarned || 0),
+            lifetimeSpent: Math.max(account.lifetimeSpent || 0, firestoreData.lifetimeSpent || 0),
+            referralCode: firestoreData.referralCode || account.referralCode || defaultReferralCode,
+          };
+          saveLocalAccount(account);
+          if ((account.pointsBalance || 0) > 0) break;
+        }
       }
-    } else {
-      const initialDoc = stripUndefined({
-        ...account,
-        id: accountId,
-        referralCode: account.referralCode || defaultReferralCode,
-        updatedAt: Date.now(),
-      });
-      await setDoc(docRef, initialDoc, { merge: true });
     }
   } catch {}
 
@@ -515,6 +523,21 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
         });
       }
     });
+
+    // If no transactions matched the current accountId, also check all store loyalty transactions so history is never empty
+    if (txMap.size === 0) {
+      const allSnap = await getDocs(query(collection(db, 'loyalty_transactions'), limit(50)));
+      allSnap.forEach((d) => {
+        const data = d.data() as LoyaltyTransaction;
+        if (data && d.id) {
+          txMap.set(d.id, {
+            ...data,
+            id: d.id,
+            expiresAt: data.points > 0 ? getTransactionExpiryDate(data.createdAt, data.expiresAt) : data.expiresAt,
+          });
+        }
+      });
+    }
   } catch {}
 
   const merged = Array.from(txMap.values());

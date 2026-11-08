@@ -16,10 +16,18 @@
     <meta name="apple-mobile-web-app-title" content="Cotton Nest" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="https://res.cloudinary.com/ys2sgydi/image/upload/w_180,h_180,c_pad,b_rgb:FAF7F2/logo-removebg-preview.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      window.__deferredPwaPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__deferredPwaPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-install-available'));
+      });
+    </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body class="antialiased selection:bg-[#F3D7DE] selection:text-[#38262B]">
@@ -27,4 +35,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

@@ -7,6 +7,7 @@ import { useAuth, isOwnerEmail } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
 import { SeasonalConfig } from '../data/seasonal';
 import { GoogleSignInButton } from './GoogleSignInButton';
+import { PWAInstallButton } from './PWAInstallPrompt';
 
 interface NavbarProps {
   activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics';
@@ -436,6 +437,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
+            {/* Desktop Only: PWA Install App CTA */}
+            <PWAInstallButton variant="navbar" />
+
             {/* Desktop Only: Account Hub CTA */}
             {onOpenAccount && (
               <motion.button
@@ -731,6 +735,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Card 4: Customer Services & Quick Tools */}
               <div className="bg-white rounded-2xl border border-[#EAE2D5] p-2 space-y-1 shadow-2xs">
+                <PWAInstallButton variant="mobile" />
                 <button
                   type="button"
                   onClick={() => handleNavClick('orders')}
