@@ -2550,5 +2550,88 @@ export async function sendInvoiceEmailApi(payload: any): Promise<void> {
   }
 }
 
+// ---------------- WISHLIST NOTIFICATION MANAGEMENT API ---------------- //
+export interface WishlistNotificationSettings {
+  enabled: boolean;
+  dailyLimit: number;
+  weeklyLimit: number;
+  quietHoursStart: number;
+  quietHoursEnd: number;
+  cooldownHours: number;
+}
+
+export async function getWishlistNotificationSettingsApi(): Promise<WishlistNotificationSettings> {
+  try {
+    const res = await fetch('/api/wishlist-notification-settings');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {}
+  return {
+    enabled: true,
+    dailyLimit: 1,
+    weeklyLimit: 3,
+    quietHoursStart: 21,
+    quietHoursEnd: 9,
+    cooldownHours: 48,
+  };
+}
+
+export async function saveWishlistNotificationSettingsApi(
+  settings: WishlistNotificationSettings
+): Promise<WishlistNotificationSettings> {
+  const res = await fetch('/api/wishlist-notification-settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  if (res.ok) {
+    return await res.json();
+  }
+  throw new Error('Failed to save wishlist notification settings');
+}
+
+export async function getWishlistNotificationHistoryApi(): Promise<Record<string, any>> {
+  try {
+    const res = await fetch('/api/wishlist-notification-history');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {}
+  return {};
+}
+
+export async function saveWishlistNotificationHistoryApi(payload: {
+  userId: string;
+  [key: string]: any;
+}): Promise<any> {
+  const res = await fetch('/api/wishlist-notification-history', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (res.ok) {
+    return await res.json();
+  }
+  throw new Error('Failed to save wishlist notification history');
+}
+
+export async function evaluateWishlistReminderApi(payload: {
+  userId: string;
+  wishlistItems: any[];
+  orders: any[];
+}): Promise<any> {
+  const res = await fetch('/api/wishlist-reminders/evaluate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (res.ok) {
+    return await res.json();
+  }
+  return { canSend: false, reason: 'Network error evaluating wishlist reminder' };
+}
+
+
 
 

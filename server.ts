@@ -60,6 +60,15 @@ interface StoreDatabase {
   wishlists?: WishlistItem[];
   loyaltyAccounts?: Record<string, LoyaltyAccount>;
   loyaltyTransactions?: LoyaltyTransaction[];
+  wishlistNotificationSettings?: {
+    enabled: boolean;
+    dailyLimit: number;
+    weeklyLimit: number;
+    quietHoursStart: number;
+    quietHoursEnd: number;
+    cooldownHours: number;
+  };
+  wishlistNotificationHistories?: Record<string, any>;
 }
 
 function initDatabase(): StoreDatabase {
@@ -1349,6 +1358,184 @@ async function startServer() {
     db.orders = db.orders.filter((o) => o.id !== id);
     saveDatabase();
     res.json({ success: true, id });
+  });
+
+  /* ------------------- SMART WISHLIST NOTIFICATIONS API ------------------- */
+  function getISTHour(timestamp: number = Date.now()): number {
+    const date = new Date(timestamp);
+    const utcMs = date.getTime() + date.getTimezoneOffset() * 60000;
+    const istMs = utcMs + 5.5 * 3600000;
+    return new Date(istMs).getHours();
+  }
+
+  function isQuietHours(timestamp: number = Date.now(), startHour = 21, endHour = 9): boolean {
+    const hour = getISTHour(timestamp);
+    if (startHour > endHour) {
+      return hour >= startHour || hour < endHour;
+    }
+    return hour >= startHour && hour < endHour;
+  }
+
+  app.get('/api/wishlist-notification-settings', (_req, res) => {
+    if (!db.wishlistNotificationSettings) {
+      db.wishlistNotificationSettings = {
+        enabled: true,
+        dailyLimit: 1,
+        weeklyLimit: 3,
+        quietHoursStart: 21, // 9 PM IST
+        quietHoursEnd: 9,   // 9 AM IST
+        cooldownHours: 48,
+      };
+    }
+    res.json(db.wishlistNotificationSettings);
+  });
+
+  app.put('/api/wishlist-notification-settings', (req, res) => {
+    const payload = req.body || {};
+    db.wishlistNotificationSettings = {
+      enabled: Boolean(payload.enabled ?? true),
+      dailyLimit: Number(payload.dailyLimit ?? 1),
+      weeklyLimit: Number(payload.weeklyLimit ?? 3),
+      quietHoursStart: Number(payload.quietHoursStart ?? 21),
+      quietHoursEnd: Number(payload.quietHoursEnd ?? 9),
+      cooldownHours: Number(payload.cooldownHours ?? 48),
+    };
+    saveDatabase();
+    res.json(db.wishlistNotificationSettings);
+  });
+
+  app.get('/api/wishlist-notification-history', (_req, res) => {
+    if (!db.wishlistNotificationHistories) db.wishlistNotificationHistories = {};
+    res.json(db.wishlistNotificationHistories);
+  });
+
+  app.post('/api/wishlist-notification-history', (req, res) => {
+    const payload = req.body || {};
+    const userId = payload.userId;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    if (!db.wishlistNotificationHistories) db.wishlistNotificationHistories = {};
+    const existing = db.wishlistNotificationHistories[userId] || {
+      userId,
+      lastNotificationTimestamp: 0,
+      notificationCountLast7Days: 0,
+      recentTimestamps: [],
+      lastNotificationType: 'wishlist_reminder',
+      status: 'pending',
+    };
+
+    db.wishlistNotificationHistories[userId] = {
+      ...existing,
+      ...payload,
+      userId,
+    };
+    saveDatabase();
+    res.json(db.wishlistNotificationHistories[userId]);
+  });
+
+  app.post('/api/wishlist-reminders/evaluate', (req, res) => {
+    const { userId, wishlistItems, orders } = req.body || {};
+    if (!userId) {
+      return res.status(400).json({ canSend: false, reason: 'userId is required' });
+    }
+
+    if (!db.wishlistNotificationSettings) {
+      db.wishlistNotificationSettings = {
+        enabled: true,
+        dailyLimit: 1,
+        weeklyLimit: 3,
+        quietHoursStart: 21,
+        quietHoursEnd: 9,
+        cooldownHours: 48,
+      };
+    }
+
+    const settings = db.wishlistNotificationSettings;
+    if (!settings.enabled) {
+      return res.json({ canSend: false, reason: 'Wishlist reminders are disabled in admin settings.' });
+    }
+
+    // 1. Quiet Hours check (9 PM to 9 AM IST)
+    const now = Date.now();
+    const isQuiet = isQuietHours(now, settings.quietHoursStart, settings.quietHoursEnd);
+    if (isQuiet) {
+      return res.json({ canSend: false, reason: 'Current time is within quiet hours (9 PM to 9 AM IST).' });
+    }
+
+    // 2. Wishlist validation: contains at least one valid product, in stock, not already purchased
+    const items = Array.isArray(wishlistItems) ? wishlistItems : [];
+    if (items.length === 0) {
+      return res.json({ canSend: false, reason: 'Wishlist is empty.' });
+    }
+
+    const purchasedProductIds = new Set<string>();
+    const allOrders = Array.isArray(orders) ? orders : (db.orders || []);
+    allOrders.forEach((o: any) => {
+      if (o && o.status !== 'cancelled' && Array.isArray(o.items)) {
+        o.items.forEach((it: any) => {
+          if (it && it.productId) purchasedProductIds.add(it.productId);
+        });
+      }
+    });
+
+    const validItems = items.filter((item: any) => {
+      if (!item || !item.productId) return false;
+      if (purchasedProductIds.has(item.productId)) return false; // already purchased
+      const product = (db.products || []).find((p: any) => p.id === item.productId);
+      if (!product) return false;
+      const inStock = product.inStock !== false && (product.stockQuantity === undefined || product.stockQuantity > 0);
+      return inStock;
+    });
+
+    if (validItems.length === 0) {
+      return res.json({ canSend: false, reason: 'No eligible in-stock unpurchased items in wishlist.' });
+    }
+
+    // 3. Frequency & Cooldown check
+    if (!db.wishlistNotificationHistories) db.wishlistNotificationHistories = {};
+    const history = db.wishlistNotificationHistories[userId] || {
+      userId,
+      lastNotificationTimestamp: 0,
+      notificationCountLast7Days: 0,
+      recentTimestamps: [],
+      lastNotificationType: 'wishlist_reminder',
+      status: 'pending',
+    };
+
+    const sevenDaysAgo = now - 7 * 24 * 3600 * 1000;
+    const oneDayAgo = now - 24 * 3600 * 1000;
+    const cooldownMs = (settings.cooldownHours || 48) * 3600 * 1000;
+
+    const recent7Days = (history.recentTimestamps || []).filter((t: number) => t > sevenDaysAgo);
+
+    if (recent7Days.length >= settings.weeklyLimit) {
+      return res.json({ canSend: false, reason: `Weekly limit of ${settings.weeklyLimit} reminders reached in the last 7 days.` });
+    }
+
+    if (history.lastNotificationTimestamp && history.lastNotificationTimestamp > oneDayAgo) {
+      return res.json({ canSend: false, reason: 'Daily limit of 1 reminder every 24 hours reached.' });
+    }
+
+    if (history.interactionTimestamp && now - history.interactionTimestamp < cooldownMs) {
+      return res.json({ canSend: false, reason: `Active ${settings.cooldownHours}-hour click cooldown in effect.` });
+    }
+
+    // Passes all checks! Record notification sent atomically
+    recent7Days.push(now);
+    const updatedHistory = {
+      ...history,
+      lastNotificationTimestamp: now,
+      notificationCountLast7Days: recent7Days.length,
+      recentTimestamps: recent7Days,
+      lastNotificationType: 'wishlist_reminder',
+      status: 'sent' as const,
+    };
+
+    db.wishlistNotificationHistories[userId] = updatedHistory;
+    saveDatabase();
+
+    return res.json({ canSend: true, history: updatedHistory, validItemsCount: validItems.length });
   });
 
   /* ------------------- NOTIFICATIONS API ------------------- */

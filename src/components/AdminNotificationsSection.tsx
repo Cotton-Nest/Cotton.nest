@@ -33,7 +33,11 @@ import { AppNotification } from '../data/notifications';
 import {
   saveNotificationApi,
   getNotificationsApi,
-  clearAllNotificationsApi
+  clearAllNotificationsApi,
+  getWishlistNotificationSettingsApi,
+  saveWishlistNotificationSettingsApi,
+  getWishlistNotificationHistoryApi,
+  WishlistNotificationSettings,
 } from '../services/api';
 
 interface AdminNotificationsSectionProps {
@@ -53,8 +57,18 @@ export const AdminNotificationsSection: React.FC<AdminNotificationsSectionProps>
   onUpdateProductStock,
   onToast,
 }) => {
-  const [filter, setFilter] = useState<'all' | 'push' | 'inventory' | 'orders' | 'reviews'>('push');
+  const [filter, setFilter] = useState<'all' | 'push' | 'inventory' | 'orders' | 'reviews' | 'wishlist-settings'>('push');
   const [isTestingPush, setIsTestingPush] = useState(false);
+  const [wishlistSettings, setWishlistSettings] = useState<WishlistNotificationSettings>({
+    enabled: true,
+    dailyLimit: 1,
+    weeklyLimit: 3,
+    quietHoursStart: 21,
+    quietHoursEnd: 9,
+    cooldownHours: 48,
+  });
+  const [wishlistHistoriesMap, setWishlistHistoriesMap] = useState<Record<string, any>>({});
+  const [isSavingWishlistSettings, setIsSavingWishlistSettings] = useState(false);
 
   // Push Notification Composer State
   const [pushAudience, setPushAudience] = useState<'all' | 'specific'>('all');
@@ -102,7 +116,23 @@ export const AdminNotificationsSection: React.FC<AdminNotificationsSectionProps>
 
   useEffect(() => {
     loadNotificationHistory();
+    getWishlistNotificationSettingsApi().then(setWishlistSettings).catch(() => {});
+    getWishlistNotificationHistoryApi().then(setWishlistHistoriesMap).catch(() => {});
   }, []);
+
+  const handleSaveWishlistSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingWishlistSettings(true);
+    try {
+      const updated = await saveWishlistNotificationSettingsApi(wishlistSettings);
+      setWishlistSettings(updated);
+      onToast('✓ Wishlist notification settings updated successfully!');
+    } catch (err: any) {
+      onToast('Failed to save wishlist settings: ' + (err.message || 'Error'));
+    } finally {
+      setIsSavingWishlistSettings(false);
+    }
+  };
 
   // Quick Preset Handlers
   const handleApplyPreset = (preset: 'wishlist5' | 'festive10' | 'newArrival' | 'freeDelivery') => {
@@ -340,6 +370,19 @@ export const AdminNotificationsSection: React.FC<AdminNotificationsSectionProps>
           }`}
         >
           Customer Reviews ({reviews.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilter('wishlist-settings')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 ${
+            filter === 'wishlist-settings'
+              ? 'bg-[#70252D] text-white'
+              : 'text-[#6B5D55] hover:text-[#2C2420] hover:bg-stone-100'
+          }`}
+        >
+          <Gift className="w-3.5 h-3.5" />
+          <span>Wishlist Notification Settings</span>
         </button>
       </div>
 
@@ -746,6 +789,191 @@ export const AdminNotificationsSection: React.FC<AdminNotificationsSectionProps>
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 5. WISHLIST NOTIFICATION SETTINGS & HISTORY SECTION */}
+      {(filter === 'all' || filter === 'wishlist-settings') && (
+        <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-7 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-[#EAE2D5] pb-4">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-[#2C2420] flex items-center gap-2">
+                <Gift className="w-5 h-5 text-[#C29E57]" />
+                <span>Smart Wishlist Notification Settings</span>
+              </h3>
+              <p className="text-xs text-[#7A6458]">
+                Configure frequency limits, quiet hours (IST), cooldown timers, and view per-user wishlist notification histories.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSaveWishlistSettings} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Enable/Disable Toggle */}
+              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5] flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-bold text-[#2C2420] block">Wishlist Reminders</label>
+                  <span className="text-[11px] text-[#7A6458]">Enable automated reminder pipeline</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={wishlistSettings.enabled}
+                  onChange={(e) => setWishlistSettings({ ...wishlistSettings, enabled: e.target.checked })}
+                  className="w-5 h-5 text-[#70252D] rounded-md accent-[#70252D] cursor-pointer"
+                />
+              </div>
+
+              {/* Daily Limit */}
+              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]">
+                <label className="text-xs font-bold text-[#2C2420] block mb-1">Max Daily Limit</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={wishlistSettings.dailyLimit}
+                  onChange={(e) => setWishlistSettings({ ...wishlistSettings, dailyLimit: parseInt(e.target.value) || 1 })}
+                  className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs font-bold text-[#2C2420]"
+                />
+                <span className="text-[10px] text-[#7A6458] mt-1 block">Max 1 reminder per 24h</span>
+              </div>
+
+              {/* Weekly Limit */}
+              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]">
+                <label className="text-xs font-bold text-[#2C2420] block mb-1">Max Weekly Limit (7 Days)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={wishlistSettings.weeklyLimit}
+                  onChange={(e) => setWishlistSettings({ ...wishlistSettings, weeklyLimit: parseInt(e.target.value) || 3 })}
+                  className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs font-bold text-[#2C2420]"
+                />
+                <span className="text-[10px] text-[#7A6458] mt-1 block">Max 3 reminders per rolling 7 days</span>
+              </div>
+
+              {/* Quiet Hours Start */}
+              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]">
+                <label className="text-xs font-bold text-[#2C2420] block mb-1">Quiet Hours Start (IST)</label>
+                <select
+                  value={wishlistSettings.quietHoursStart}
+                  onChange={(e) => setWishlistSettings({ ...wishlistSettings, quietHoursStart: parseInt(e.target.value) || 21 })}
+                  className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs font-bold text-[#2C2420]"
+                >
+                  {Array.from({ length: 24 }).map((_, h) => (
+                    <option key={h} value={h}>
+                      {h === 0 ? '12:00 AM' : h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`} ({h}:00)
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-[#7A6458] mt-1 block">Default: 9 PM (21:00) IST</span>
+              </div>
+
+              {/* Quiet Hours End */}
+              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]">
+                <label className="text-xs font-bold text-[#2C2420] block mb-1">Quiet Hours End (IST)</label>
+                <select
+                  value={wishlistSettings.quietHoursEnd}
+                  onChange={(e) => setWishlistSettings({ ...wishlistSettings, quietHoursEnd: parseInt(e.target.value) || 9 })}
+                  className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs font-bold text-[#2C2420]"
+                >
+                  {Array.from({ length: 24 }).map((_, h) => (
+                    <option key={h} value={h}>
+                      {h === 0 ? '12:00 AM' : h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`} ({h}:00)
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-[#7A6458] mt-1 block">Default: 9 AM (09:00) IST</span>
+              </div>
+
+              {/* Cooldown Hours */}
+              <div className="p-4 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]">
+                <label className="text-xs font-bold text-[#2C2420] block mb-1">Interaction Cooldown (Hours)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={wishlistSettings.cooldownHours}
+                  onChange={(e) => setWishlistSettings({ ...wishlistSettings, cooldownHours: parseInt(e.target.value) || 48 })}
+                  className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs font-bold text-[#2C2420]"
+                />
+                <span className="text-[10px] text-[#7A6458] mt-1 block">Cooldown after clicking reminder (default 48h)</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={isSavingWishlistSettings}
+                className="px-5 py-2.5 bg-[#70252D] hover:bg-[#5a1c22] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>{isSavingWishlistSettings ? 'Saving Settings...' : 'Save Wishlist Notification Settings'}</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Wishlist Notification History Table */}
+          <div className="space-y-3 pt-4 border-t border-[#EAE2D5]">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#7A6458] flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-[#C29E57]" />
+              <span>Per-User Wishlist Notification History ({Object.keys(wishlistHistoriesMap).length})</span>
+            </h4>
+
+            {Object.keys(wishlistHistoriesMap).length === 0 ? (
+              <div className="p-6 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5] text-center text-xs text-[#7A6458]">
+                No per-user wishlist notification history recorded yet. History entries are populated atomically when reminders are evaluated.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#FAF7F2] text-[#7A6458] uppercase font-bold text-[10px]">
+                    <tr>
+                      <th className="p-3 rounded-l-xl">User ID / UID</th>
+                      <th className="p-3">Last Notification</th>
+                      <th className="p-3">7-Day Count</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 rounded-r-xl">Interaction Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EAE2D5]">
+                    {Object.values(wishlistHistoriesMap).map((hist: any) => (
+                      <tr key={hist.userId} className="hover:bg-stone-50">
+                        <td className="p-3 font-mono font-bold text-[#2C2420]">{hist.userId}</td>
+                        <td className="p-3 text-[#6B5D55]">
+                          {hist.lastNotificationTimestamp
+                            ? new Date(hist.lastNotificationTimestamp).toLocaleString('en-IN', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : 'None'}
+                        </td>
+                        <td className="p-3 font-bold text-[#70252D]">{hist.notificationCountLast7Days || 0} / 3</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            hist.status === 'sent' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {hist.status || 'pending'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-[#6B5D55]">
+                          {hist.interactionTimestamp
+                            ? new Date(hist.interactionTimestamp).toLocaleString('en-IN', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : 'No interaction yet'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
