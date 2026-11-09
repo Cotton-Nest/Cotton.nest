@@ -1598,13 +1598,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleUpdateOrderStatus = async (orderId: string, nextStatus: OrderStatus) => {
     const targetOrder = editableOrders.find((o) => o.id === orderId);
+    if (targetOrder && targetOrder.status === nextStatus) {
+      return;
+    }
+
+    const alreadyHadInvoice = Boolean(
+      targetOrder?.invoiceGenerated ||
+        targetOrder?.invoiceSent ||
+        targetOrder?.invoiceStatus === 'generated'
+    );
+    const isNowGenerated = alreadyHadInvoice || nextStatus === 'confirmed';
+    const isCancelledUnconfirmed = nextStatus === 'cancelled' && !alreadyHadInvoice;
+    const canonicalId = String(orderId).startsWith('CN-') ? String(orderId) : `CN-${orderId}`;
     const nowIso = new Date().toISOString();
+
     const updated = editableOrders.map((o) => {
       if (o.id === orderId) {
         return {
           ...o,
           status: nextStatus,
-          invoiceSent: nextStatus === 'confirmed' ? true : o.invoiceSent,
+          invoiceNumber: isNowGenerated ? o.invoiceNumber || `INV-${canonicalId}` : undefined,
+          invoiceGenerated: isNowGenerated,
+          invoiceGeneratedAt: isNowGenerated ? o.invoiceGeneratedAt || nowIso : undefined,
+          invoiceSent: isNowGenerated,
+          invoiceSentAt: isNowGenerated ? o.invoiceSentAt || nowIso : undefined,
+          invoiceStatus: (isNowGenerated
+            ? 'generated'
+            : isCancelledUnconfirmed
+            ? 'cancelled_before_confirmation'
+            : 'pending_confirmation') as Order['invoiceStatus'],
+          invoiceMessage: isNowGenerated
+            ? o.invoiceMessage || `Official sale invoice (INV-${canonicalId}) generated & sent.`
+            : isCancelledUnconfirmed
+            ? 'Order was cancelled before confirmation. No invoice was generated.'
+            : 'Your invoice will be generated and available once your order is confirmed.',
           pointsCredited: nextStatus === 'delivered',
           ...(nextStatus === 'delivered' ? { deliveredAt: o.deliveredAt || nowIso } : {}),
         };
@@ -1613,8 +1640,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
     setEditableOrders(updated);
 
-    if (nextStatus === 'confirmed') {
-      showToast(`Order #${orderId} Confirmed! Generating & emailing sale invoice...`);
+    if (nextStatus === 'confirmed' && !alreadyHadInvoice) {
+      showToast(`Order #${orderId} Confirmed! Generating & emailing official sale invoice...`);
+    } else if (nextStatus === 'confirmed' && alreadyHadInvoice) {
+      showToast(`Order #${orderId} status set to CONFIRMED (invoice already generated).`);
+    } else if (nextStatus === 'cancelled' && !alreadyHadInvoice) {
+      showToast(`Order #${orderId} cancelled before confirmation. No invoice generated.`);
     } else if (nextStatus === 'delivered') {
       const earnedPts =
         targetOrder?.pointsEarned ||
@@ -1632,11 +1663,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       await updateOrderStatus(
         orderId,
         nextStatus,
-        targetOrder ? { ...targetOrder, status: nextStatus } : undefined
+        targetOrder
       );
       onUpdateOrders(updated);
-      if (nextStatus === 'confirmed') {
-        showToast(`✓ Sale invoice email dispatched from adityaa.22082011@gmail.com!`);
+      if (nextStatus === 'confirmed' && !alreadyHadInvoice) {
+        showToast(
+          `✓ Official sale invoice (INV-${canonicalId}) generated & sent to ${targetOrder?.customerEmail || 'registered customer email'}!`
+        );
       } else if (nextStatus === 'delivered') {
         const earnedPts =
           targetOrder?.pointsEarned ||
@@ -1652,44 +1685,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleResendInvoiceEmail = async (order: Order) => {
-    showToast(`Dispatching sale invoice email for Order #${order.id}...`);
-    try {
-      const res = await fetch('/api/send-invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: order.id,
-          customerName: order.customerName,
-          customerEmail: order.customerEmail,
-          customerPhone: order.customerPhone,
-          customerAddress: order.customerAddress,
-          shippingMethod: order.shippingCost ? 'Express Courier' : 'Sector 46 Complimentary Delivery',
-          subtotal: Number(order.totalAmount) || 0,
-          couponCode: order.couponCode,
-          couponDiscount: Number(order.couponDiscount) || 0,
-          pointsUsed: Number(order.pointsUsed) || 0,
-          pointsDiscount: Number(order.pointsDiscount) || 0,
-          shippingCost: Number(order.shippingCost) || 0,
-          finalTotal: Number(order.totalAmount) || 0,
-          items: (order.items || []).map((it) => ({
-            name: it.productName,
-            variantName: it.variantName,
-            dimensions: it.dimensions || '108 x 108 inches',
-            quantity: Number(it.quantity) || 1,
-            price: Number(it.price) || 0,
-            imageUrl: it.productImage || '',
-          })),
-          createdAt: order.createdAt,
-        }),
-      });
-      const data = await res.json();
-      if (data && data.success) {
-        showToast(`✓ Sale invoice sent to ${data.recipients?.join(', ') || 'customer & admin'}!`);
-      } else {
-        showToast(`⚠️ Could not send invoice: ${data.error || 'Server error'}`);
-      }
-    } catch (err: any) {
-      showToast(`⚠️ Error: ${err.message || 'Network error'}`);
+    if (order.status === 'pending') {
+      showToast('Your invoice will be generated and available once your order is confirmed.');
+      return;
+    }
+    if (order.status === 'cancelled' && !order.invoiceGenerated && !order.invoiceSent) {
+      showToast('Order was cancelled before confirmation. No invoice was generated.');
+      return;
+    }
+    if (order.invoiceGenerated || order.invoiceSent || order.invoiceStatus === 'generated') {
+      showToast(
+        `Invoice (${order.invoiceNumber || `INV-${order.id}`}) was already generated and sent upon order confirmation.`
+      );
+      return;
     }
   };
 
@@ -4329,23 +4337,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               type="button"
                               onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}
                               className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#8C2E46] hover:bg-[#722338] text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
-                              title="Confirm order and automatically email sale invoice to customer and atelier"
+                              title="Confirm order to generate and email official sale invoice"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 text-[#E6CA65]" />
-                              <span>Confirm &amp; Send Invoice</span>
+                              <span>Confirm &amp; Generate Invoice</span>
                             </button>
                           )}
 
                           {(safeStatus === 'confirmed' || safeStatus === 'dispatched' || safeStatus === 'delivered') && (
-                            <button
-                              type="button"
-                              onClick={() => handleResendInvoiceEmail(order)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] text-[#8C2E46] text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                              title="Resend official sale invoice to customer email via Gmail SMTP"
-                            >
-                              <Mail className="w-3.5 h-3.5 text-[#8C2E46]" />
-                              <span>Resend Invoice</span>
-                            </button>
+                            <div className="inline-flex items-center gap-2">
+                              <span
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold rounded-lg"
+                                title="Invoice generated and emailed upon order confirmation"
+                              >
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Invoice Sent ({order.invoiceNumber || `INV-${order.id}`})</span>
+                              </span>
+                              <a
+                                href={`/api/invoice-preview/${order.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FAF7F2] border border-[#DEC89B] text-[#8C2E46] text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                                title="View generated official sale invoice"
+                              >
+                                <Mail className="w-3.5 h-3.5 text-[#8C2E46]" />
+                                <span>View Invoice</span>
+                              </a>
+                            </div>
                           )}
 
                           <label className="text-xs text-[#7A6458] font-medium">Status:</label>

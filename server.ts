@@ -927,48 +927,110 @@ async function startServer() {
     res.json(result);
   });
 
-  async function dispatchOrderSaleInvoice(order: any) {
+  async function dispatchOrderSaleInvoice(order: any, options?: { forceResend?: boolean }) {
     try {
+      if (!order || !order.id) return null;
+
+      // Rule 1 & 8: Never generate an invoice for pending orders or orders cancelled before confirmation
+      const currentStatus = String(order.status || 'pending').toLowerCase();
+      if (currentStatus === 'pending') {
+        order.invoiceGenerated = false;
+        order.invoiceSent = false;
+        order.invoiceStatus = 'pending_confirmation';
+        order.invoiceMessage = 'Your invoice will be generated and available once your order is confirmed.';
+        return null;
+      }
+      if (currentStatus === 'cancelled' && !order.invoiceGenerated && !order.invoiceSent && order.invoiceStatus !== 'generated') {
+        order.invoiceGenerated = false;
+        order.invoiceSent = false;
+        order.invoiceStatus = 'cancelled_before_confirmation';
+        order.invoiceMessage = 'Order was cancelled before confirmation. No invoice was generated.';
+        return null;
+      }
+
+      // Rule 7: Prevent duplicate invoice generation or duplicate email sending
+      const alreadyGenerated = Boolean(
+        order.invoiceGenerated || order.invoiceSent || order.invoiceStatus === 'generated'
+      );
+      if (alreadyGenerated && !options?.forceResend) {
+        return {
+          success: true,
+          alreadySent: true,
+          sentViaSmtp: Boolean(order.invoiceResult?.sentViaSmtp),
+          recipients: order.invoiceResult?.recipients || (order.customerEmail ? [order.customerEmail] : []),
+          gmailComposeUrl: order.invoiceResult?.gmailComposeUrl,
+          message: 'Invoice already generated and sent for this order.',
+        };
+      }
+
+      const normalizedItems = Array.isArray(order.items)
+        ? order.items.map((it: any) => ({
+            name: it.product?.name || it.productName || it.name || 'Pure Cotton Bedsheet',
+            variantName: it.selectedVariant?.name || it.variantName,
+            dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.product?.price) || Number(it.price) || 0,
+            imageUrl: it.selectedVariant?.image || it.product?.image || it.productImage || it.imageUrl || '',
+          }))
+        : [];
+
+      const itemsSubtotal = normalizedItems.reduce(
+        (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+        0
+      );
+      const couponDiscountVal = Number(order.couponDiscount) || 0;
+      const pointsUsedVal = Number(order.pointsUsed) || 0;
+      const pointsDiscountVal =
+        Number(order.pointsDiscount) || (pointsUsedVal > 0 ? calculatePointsDiscount(pointsUsedVal) : 0);
+      const shippingCostVal = Number(order.shippingCost) || 0;
+      const finalPayableVal = Number(order.totalAmount) || 0;
+      const resolvedSubtotal =
+        itemsSubtotal > 0
+          ? itemsSubtotal
+          : Number(order.subtotal) > finalPayableVal
+          ? Number(order.subtotal)
+          : finalPayableVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
+
+      const canonicalId = String(order.id).startsWith('CN-') ? String(order.id) : `CN-${order.id}`;
+      const nowIso = new Date().toISOString();
+
+      // Mark invoice as generated immediately before dispatch to prevent concurrent duplicate triggers
+      order.invoiceNumber = order.invoiceNumber || `INV-${canonicalId}`;
+      order.invoiceGenerated = true;
+      order.invoiceGeneratedAt = order.invoiceGeneratedAt || nowIso;
+      order.subtotal = resolvedSubtotal;
+
       const invoiceResult = await sendOrderInvoiceEmail({
         orderId: order.id,
         customerName: order.customerName || 'Valued Customer',
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,
         customerAddress: order.customerAddress,
-        shippingMethod: order.shippingCost ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
-        subtotal: Number(order.subtotal) || Number(order.totalAmount) || 0,
+        shippingMethod: shippingCostVal > 0 ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
+        subtotal: resolvedSubtotal,
         couponCode: order.couponCode,
-        couponDiscount: Number(order.couponDiscount) || 0,
-        pointsUsed: Number(order.pointsUsed) || 0,
-        pointsDiscount: Number(order.pointsDiscount) || 0,
-        shippingCost: Number(order.shippingCost) || 0,
-        finalTotal: Number(order.totalAmount) || 0,
+        couponDiscount: couponDiscountVal,
+        pointsUsed: pointsUsedVal,
+        pointsDiscount: pointsDiscountVal,
+        shippingCost: shippingCostVal,
+        finalTotal: finalPayableVal,
         pointsEarned: order.pointsEarned,
-        items: Array.isArray(order.items)
-          ? order.items.map((it: any) => ({
-              name: it.product?.name || it.productName || it.name || 'Pure Cotton Bedsheet',
-              variantName: it.selectedVariant?.name || it.variantName,
-              dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
-              quantity: Number(it.quantity) || 1,
-              price: Number(it.product?.price) || Number(it.price) || 0,
-              imageUrl: it.selectedVariant?.image || it.product?.image || it.productImage || it.imageUrl || '',
-            }))
-          : [],
+        items: normalizedItems,
         createdAt: order.createdAt,
       });
 
+      order.invoiceSent = true;
+      order.invoiceSentAt = order.invoiceSentAt || nowIso;
+      order.invoiceStatus = 'generated';
+      order.invoiceMessage = `Official sale invoice (${order.invoiceNumber}) generated & sent to ${order.customerEmail || 'registered customer email'}.`;
       if (invoiceResult) {
-        order.invoiceSent = true;
-        order.invoiceSentAt = new Date().toISOString();
-        order.invoiceStatus = 'generated';
-        order.invoiceMessage = `Official sale invoice generated & dispatched to ${order.customerEmail || 'buyer and admin'}.`;
         order.invoiceResult = {
           success: invoiceResult.success,
           sentViaSmtp: invoiceResult.sentViaSmtp,
           recipients: invoiceResult.recipients,
           gmailComposeUrl: invoiceResult.gmailComposeUrl,
         };
-        console.log(`[SALE INVOICE] Generated and dispatched for confirmed Order #${order.id}`);
+        console.log(`[SALE INVOICE] Generated (${order.invoiceNumber}) and dispatched for confirmed Order #${order.id}`);
       }
       return invoiceResult;
     } catch (err: any) {
@@ -986,10 +1048,10 @@ async function startServer() {
     if (!newOrder.timeline || !Array.isArray(newOrder.timeline) || newOrder.timeline.length === 0) {
       newOrder.timeline = [
         {
-          status: newOrder.status || 'pending',
+          status: 'pending',
           timestamp: new Date().toISOString(),
           title: 'Order Placed',
-          description: 'Order received at Cotton Nest Atelier, Sector 46 Gurgaon. Sale invoice will generate once confirmed.'
+          description: 'Your invoice will be generated and available once your order is confirmed.'
         }
       ];
     }
@@ -1093,14 +1155,14 @@ async function startServer() {
       });
     }
 
-    // Invoice generation logic:
-    // Never dispatch invoice upon initial order creation/checkout while status is pending.
-    // Invoice is generated and emailed strictly when order status transitions to 'confirmed'.
+    // Rule 1 & 6: Never generate or send an invoice when an order is placed.
+    // Invoice is generated and emailed strictly when Admin changes order status to 'confirmed'.
     newOrder.status = 'pending';
+    newOrder.invoiceGenerated = false;
     newOrder.invoiceSent = false;
     newOrder.invoiceStatus = 'pending_confirmation';
-    newOrder.invoiceMessage = 'Your invoice will be published and emailed once your order is confirmed.';
-    console.log(`[ORDER CREATED] Order #${newOrder.id} placed (pending). Sale invoice will generate upon confirmation.`);
+    newOrder.invoiceMessage = 'Your invoice will be generated and available once your order is confirmed.';
+    console.log(`[ORDER CREATED] Order #${newOrder.id} placed (pending). Invoice will be generated only after Admin confirmation.`);
 
     db.orders.unshift(newOrder);
     saveDatabase();
@@ -1114,12 +1176,65 @@ async function startServer() {
       if (!payload || !payload.orderId) {
         return res.status(400).json({ success: false, error: 'Invalid invoice payload' });
       }
-      if (payload.status === 'pending' || payload.status === 'cancelled') {
+
+      const rawId = String(payload.orderId);
+      const existingOrder = db.orders.find(
+        (o) =>
+          o.id === rawId ||
+          o.id === `CN-${rawId}` ||
+          `CN-${o.id}` === rawId ||
+          (o.id && rawId && o.id.replace(/\D/g, '') === rawId.replace(/\D/g, ''))
+      );
+
+      const effectiveStatus = String(existingOrder?.status || payload.status || 'pending').toLowerCase();
+
+      // Rule 8: If cancelled before confirmation, no invoice should be generated
+      if (
+        effectiveStatus === 'cancelled' &&
+        !existingOrder?.invoiceGenerated &&
+        !existingOrder?.invoiceSent &&
+        existingOrder?.invoiceStatus !== 'generated'
+      ) {
         return res.status(400).json({
           success: false,
-          error: 'Your invoice will be published and emailed once your order is confirmed.',
+          error: 'This order was cancelled before confirmation. No invoice was generated.',
         });
       }
+
+      // Rule 1, 2, 6: Reject invoice generation/sending before order is confirmed
+      if (!['confirmed', 'dispatched', 'delivered'].includes(effectiveStatus)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Your invoice will be generated and available once your order is confirmed.',
+        });
+      }
+
+      // Rule 7: Prevent duplicate invoice generation or duplicate email sending unless explicitly forced
+      if (
+        existingOrder &&
+        (existingOrder.invoiceGenerated || existingOrder.invoiceSent || existingOrder.invoiceStatus === 'generated') &&
+        !payload.forceResend
+      ) {
+        return res.status(200).json({
+          success: true,
+          alreadySent: true,
+          sentViaSmtp: Boolean(existingOrder.invoiceResult?.sentViaSmtp),
+          recipients: existingOrder.invoiceResult?.recipients || (existingOrder.customerEmail ? [existingOrder.customerEmail] : []),
+          invoiceNumber: existingOrder.invoiceNumber,
+          message: 'Invoice was already generated and sent upon order confirmation.',
+        });
+      }
+
+      if (existingOrder) {
+        const result = await dispatchOrderSaleInvoice(existingOrder, {
+          forceResend: Boolean(payload.forceResend),
+        });
+        saveDatabase();
+        return res.status(result?.success === false ? 500 : 200).json(
+          result || { success: false, error: 'Failed to generate invoice' }
+        );
+      }
+
       const result = await sendOrderInvoiceEmail(payload);
       res.status(result.success ? 200 : 500).json(result);
     } catch (err: any) {
@@ -1131,33 +1246,64 @@ async function startServer() {
   app.get('/api/invoice-preview/:orderId?', (req, res) => {
     try {
       const orderId = req.params.orderId;
-      let order = orderId ? db.orders.find((o) => o.id === orderId) : db.orders[0];
-      if (!order) {
-        order = {
-          id: 'CN-894210',
-          customerName: 'Priya Sharma',
-          customerEmail: 'priya.sharma@example.com',
-          customerPhone: '9876543210',
-          customerAddress: 'Flat 402, Block C, DLF Phase 5, Golf Course Road, Gurgaon, Haryana - 122002',
-          totalAmount: 3999,
-          subtotal: 4499,
-          couponCode: 'FESTIVE500',
-          couponDiscount: 500,
-          shippingCost: 0,
-          pointsEarned: 199,
-          createdAt: new Date().toISOString(),
-          items: [
-            {
-              productName: 'Heritage Mughal Floral Bedsheet',
-              variantName: 'Royal Ruby & Gold',
-              dimensions: '108 x 108 inches (Super King)',
-              quantity: 1,
-              price: 4499,
-              productImage: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
-            },
-          ],
-        };
+      if (!orderId) {
+        return res.status(400).send('Order ID is required to view an invoice.');
       }
+      const order = db.orders.find(
+        (o) =>
+          o.id === orderId ||
+          o.id === `CN-${orderId}` ||
+          `CN-${o.id}` === orderId ||
+          (o.id && orderId && o.id.replace(/\D/g, '') === orderId.replace(/\D/g, ''))
+      );
+      if (!order) {
+        return res.status(404).send('Order not found.');
+      }
+
+      const currentStatus = String(order.status || 'pending').toLowerCase();
+      if (
+        currentStatus === 'cancelled' &&
+        !order.invoiceGenerated &&
+        !order.invoiceSent &&
+        order.invoiceStatus !== 'generated'
+      ) {
+        return res
+          .status(403)
+          .send('This order was cancelled before confirmation. No invoice was generated.');
+      }
+
+      if (!['confirmed', 'dispatched', 'delivered'].includes(currentStatus)) {
+        return res
+          .status(403)
+          .send('Your invoice will be generated and available once your order is confirmed.');
+      }
+
+      const normalizedItems = Array.isArray(order.items)
+        ? order.items.map((it: any) => ({
+            name: it.product?.name || it.productName || it.name || 'Pure Cotton Bedsheet',
+            variantName: it.selectedVariant?.name || it.variantName,
+            dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.product?.price) || Number(it.price) || 0,
+            imageUrl: it.selectedVariant?.image || it.product?.image || it.productImage || it.imageUrl || '',
+          }))
+        : [];
+      const itemsSubtotal = normalizedItems.reduce(
+        (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+        0
+      );
+      const couponDiscountVal = Number(order.couponDiscount) || 0;
+      const pointsUsedVal = Number(order.pointsUsed) || 0;
+      const pointsDiscountVal =
+        Number(order.pointsDiscount) || (pointsUsedVal > 0 ? calculatePointsDiscount(pointsUsedVal) : 0);
+      const shippingCostVal = Number(order.shippingCost) || 0;
+      const finalPayableVal = Number(order.totalAmount) || 0;
+      const resolvedSubtotal =
+        itemsSubtotal > 0
+          ? itemsSubtotal
+          : Number(order.subtotal) > finalPayableVal
+          ? Number(order.subtotal)
+          : finalPayableVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
 
       const html = buildCottonNestInvoiceHtml({
         orderId: order.id,
@@ -1165,25 +1311,16 @@ async function startServer() {
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,
         customerAddress: order.customerAddress,
-        shippingMethod: order.shippingCost ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
-        subtotal: Number(order.subtotal) || Number(order.totalAmount) || 0,
+        shippingMethod: shippingCostVal > 0 ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
+        subtotal: resolvedSubtotal,
         couponCode: order.couponCode,
-        couponDiscount: Number(order.couponDiscount) || 0,
-        pointsUsed: Number(order.pointsUsed) || 0,
-        pointsDiscount: Number(order.pointsDiscount) || 0,
-        shippingCost: Number(order.shippingCost) || 0,
-        finalTotal: Number(order.totalAmount) || 0,
+        couponDiscount: couponDiscountVal,
+        pointsUsed: pointsUsedVal,
+        pointsDiscount: pointsDiscountVal,
+        shippingCost: shippingCostVal,
+        finalTotal: finalPayableVal,
         pointsEarned: order.pointsEarned,
-        items: Array.isArray(order.items)
-          ? order.items.map((it: any) => ({
-              name: it.product?.name || it.productName || it.name || 'Pure Cotton Bedsheet',
-              variantName: it.selectedVariant?.name || it.variantName,
-              dimensions: it.product?.dimensions || it.dimensions || '108 x 108 inches',
-              quantity: Number(it.quantity) || 1,
-              price: Number(it.product?.price) || Number(it.price) || 0,
-              imageUrl: it.selectedVariant?.image || it.product?.image || it.productImage || it.imageUrl || '',
-            }))
-          : [],
+        items: normalizedItems,
         createdAt: order.createdAt,
       });
 
@@ -1196,13 +1333,27 @@ async function startServer() {
 
   app.put('/api/orders', async (req, res) => {
     if (Array.isArray(req.body)) {
-      for (const updated of req.body) {
-        const prev = db.orders.find((o) => o.id === updated.id);
-        if (prev && updated.status === 'confirmed' && (prev.status !== 'confirmed' || !prev.invoiceSent)) {
-          await dispatchOrderSaleInvoice(updated);
+      db.orders = req.body.map((updated: any) => {
+        const prev = db.orders.find((o) => o && o.id === updated?.id);
+        if (prev) {
+          return {
+            ...prev,
+            ...updated,
+            // Preserve existing invoice state so bulk sync never resets or duplicates invoices
+            invoiceNumber: prev.invoiceNumber || updated.invoiceNumber,
+            invoiceGenerated: Boolean(prev.invoiceGenerated || updated.invoiceGenerated),
+            invoiceGeneratedAt: prev.invoiceGeneratedAt || updated.invoiceGeneratedAt,
+            invoiceSent: Boolean(prev.invoiceSent || updated.invoiceSent),
+            invoiceSentAt: prev.invoiceSentAt || updated.invoiceSentAt,
+            invoiceStatus:
+              prev.invoiceStatus === 'generated'
+                ? 'generated'
+                : updated.invoiceStatus || prev.invoiceStatus || 'pending_confirmation',
+            invoiceMessage: prev.invoiceMessage || updated.invoiceMessage,
+          };
         }
-      }
-      db.orders = req.body;
+        return updated;
+      });
       saveDatabase();
       return res.json(db.orders);
     }
@@ -1437,23 +1588,56 @@ async function startServer() {
       pointsCreditedFlag = true;
     }
 
-    const isBecomingConfirmed = newStatus === 'confirmed' && (previousOrder.status !== 'confirmed' || !previousOrder.invoiceSent);
+    // Check if an invoice was ALREADY generated for this order before this update
+    const alreadyHadInvoice = Boolean(
+      previousOrder.invoiceGenerated ||
+        previousOrder.invoiceSent ||
+        previousOrder.invoiceStatus === 'generated'
+    );
+
+    // Rule 2 & 7: Generate invoice ONLY when Admin changes status to 'confirmed' and it hasn't been generated yet
+    const shouldGenerateInvoiceNow = newStatus === 'confirmed' && !alreadyHadInvoice;
+
+    // Rule 8: If cancelled before confirmation, mark that no invoice should be generated
+    const isCancelledBeforeConfirmation = newStatus === 'cancelled' && !alreadyHadInvoice;
+
     const deliveredAtTimestamp =
       newStatus === 'delivered'
         ? updated.deliveredAt || previousOrder.deliveredAt || new Date().toISOString()
         : previousOrder.deliveredAt;
 
+    const payloadOrderFields = updated.order && typeof updated.order === 'object' ? updated.order : {};
+    const { order: _omittedNestedOrder, ...topLevelUpdated } = updated;
+
     db.orders[index] = {
       ...previousOrder,
-      ...updated,
-      pointsEarned: previousOrder.pointsEarned || updated.pointsEarned,
+      ...payloadOrderFields,
+      ...topLevelUpdated,
+      status: newStatus,
+      pointsEarned: previousOrder.pointsEarned || updated.pointsEarned || payloadOrderFields.pointsEarned,
       ...(deliveredAtTimestamp ? { deliveredAt: deliveredAtTimestamp } : {}),
-      pointsCredited: pointsCreditedFlag,
+      pointsCredited: pointsCreditedFlag || Boolean(previousOrder.pointsCredited && newStatus === 'delivered'),
       pointsRefunded: pointsRefundedFlag,
       timeline: updatedTimeline,
+      // Preserve existing invoice fields if already generated
+      invoiceNumber: previousOrder.invoiceNumber || payloadOrderFields.invoiceNumber,
+      invoiceGenerated: alreadyHadInvoice,
+      invoiceGeneratedAt: previousOrder.invoiceGeneratedAt || payloadOrderFields.invoiceGeneratedAt,
+      invoiceSent: alreadyHadInvoice,
+      invoiceSentAt: previousOrder.invoiceSentAt || payloadOrderFields.invoiceSentAt,
+      invoiceStatus: alreadyHadInvoice
+        ? 'generated'
+        : isCancelledBeforeConfirmation
+        ? 'cancelled_before_confirmation'
+        : 'pending_confirmation',
+      invoiceMessage: alreadyHadInvoice
+        ? previousOrder.invoiceMessage
+        : isCancelledBeforeConfirmation
+        ? 'Order was cancelled before confirmation. No invoice was generated.'
+        : 'Your invoice will be generated and available once your order is confirmed.',
     };
 
-    if (isBecomingConfirmed) {
+    if (shouldGenerateInvoiceNow) {
       await dispatchOrderSaleInvoice(db.orders[index]);
     }
 
@@ -1468,7 +1652,7 @@ async function startServer() {
         category: 'orders',
         title: isConfirmed ? `Order #${id} Confirmed - Sale Invoice Generated` : `Order #${id} Updated: ${String(newStatus).toUpperCase()}`,
         message: isConfirmed
-          ? `Your Cotton Nest order #${id} has been confirmed. Your official sale invoice has been generated and dispatched to your email.`
+          ? `Your Cotton Nest order #${id} has been confirmed. Your official sale invoice has been generated and sent to your registered email.`
           : `Your Cotton Nest order #${id} is now ${newStatus}.`,
         timestamp: Date.now(),
         isRead: false,

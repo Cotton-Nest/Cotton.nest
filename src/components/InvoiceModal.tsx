@@ -59,17 +59,33 @@ export function buildOrderGmailUrl(order: Order): string {
     if (item.productImage) lines.push(`   Photo: ${item.productImage}`);
   });
 
+  const itemsSubtotal = (order.items || []).reduce(
+    (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+    0
+  );
+  const couponDiscount = Number(order.couponDiscount) || 0;
+  const pointsUsed = Number(order.pointsUsed) || 0;
+  const pointsDiscount = Number(order.pointsDiscount) || (pointsUsed > 0 ? Math.floor(pointsUsed * 0.5) : 0);
+  const shippingCost = Number(order.shippingCost) || 0;
+  const finalPayable = Number(order.totalAmount || 0);
+  const resolvedSubtotal =
+    itemsSubtotal > 0
+      ? itemsSubtotal
+      : Number(order.subtotal) > finalPayable
+      ? Number(order.subtotal)
+      : finalPayable + couponDiscount + pointsDiscount - shippingCost;
+
   lines.push(`----------------------------------------------------`);
   lines.push(`FINANCIAL SUMMARY:`);
-  lines.push(`Merchandise Total: ₹${Number(order.totalAmount || 0).toLocaleString('en-IN')}`);
-  if (order.couponDiscount && order.couponDiscount > 0) {
-    lines.push(`Coupon Discount (${order.couponCode || 'APPLIED'}): -₹${order.couponDiscount.toLocaleString('en-IN')}`);
+  lines.push(`Items Subtotal: ₹${resolvedSubtotal.toLocaleString('en-IN')}`);
+  if (couponDiscount > 0) {
+    lines.push(`Coupon Discount (${order.couponCode || 'APPLIED'}): -₹${couponDiscount.toLocaleString('en-IN')}`);
   }
-  if (order.pointsDiscount && order.pointsDiscount > 0) {
-    lines.push(`Nest Points Redeemed: -₹${order.pointsDiscount.toLocaleString('en-IN')}`);
+  if (pointsUsed > 0 || pointsDiscount > 0) {
+    lines.push(`Loyalty Points Used (${pointsUsed} pts): -₹${pointsDiscount.toLocaleString('en-IN')}`);
   }
-  lines.push(`Delivery Fee: ${order.shippingCost && order.shippingCost > 0 ? `₹${order.shippingCost}` : 'FREE'}`);
-  lines.push(`GRAND TOTAL: ₹${Number(order.totalAmount || 0).toLocaleString('en-IN')}`);
+  lines.push(`Delivery Charges: ${shippingCost > 0 ? `₹${shippingCost.toLocaleString('en-IN')}` : 'FREE'}`);
+  lines.push(`FINAL PAYABLE AMOUNT: ₹${finalPayable.toLocaleString('en-IN')}`);
 
   if (order.pointsEarned && order.pointsEarned > 0) {
     lines.push(`🎁 Nest Points Earned: +${order.pointsEarned} pts (5 pts per ₹100 spent)`);
@@ -96,6 +112,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
     order.status === 'delivered';
 
   if (!isOrderConfirmed) {
+    const isCancelled = order.status === 'cancelled';
     return (
       <AnimatePresence>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -119,7 +136,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
               Order #{order.id}
             </h3>
             <p className="text-xs text-[#7A6458] leading-relaxed">
-              Your invoice will be published and emailed once your order is confirmed.
+              {isCancelled
+                ? 'This order was cancelled before confirmation. No invoice was generated.'
+                : 'Your invoice will be generated and available once your order is confirmed.'}
             </p>
             <button
               type="button"
@@ -133,6 +152,22 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
       </AnimatePresence>
     );
   }
+
+  const itemsSubtotal = (order.items || []).reduce(
+    (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+    0
+  );
+  const couponDiscountVal = Number(order.couponDiscount) || 0;
+  const pointsUsedVal = Number(order.pointsUsed) || 0;
+  const pointsDiscountVal = Number(order.pointsDiscount) || (pointsUsedVal > 0 ? Math.floor(pointsUsedVal * 0.5) : 0);
+  const shippingCostVal = Number(order.shippingCost) || 0;
+  const finalPayableVal = Number(order.totalAmount || 0);
+  const resolvedSubtotal =
+    itemsSubtotal > 0
+      ? itemsSubtotal
+      : Number(order.subtotal) > finalPayableVal
+      ? Number(order.subtotal)
+      : finalPayableVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
 
   const handlePrint = () => {
     window.print();
@@ -276,16 +311,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
                   Official Sale Invoice
                 </span>
                 <span className="font-mono text-base font-bold text-[#2C2420] block mt-0.5">
-                  #{order.id}
+                  {order.invoiceNumber || `INV-${order.id}`}
                 </span>
-                <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider ${
-                  order.status === 'confirmed' || order.status === 'dispatched' || order.status === 'delivered'
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {order.status === 'confirmed' || order.status === 'dispatched' || order.status === 'delivered'
-                    ? '✓ Confirmed Sale Invoice'
-                    : '⏳ Pending Confirmation'}
+                <span className="text-[11px] font-mono text-[#7A6458] block">
+                  Order ID: #{order.id}
+                </span>
+                <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider bg-emerald-100 text-emerald-800">
+                  ✓ Confirmed Sale Invoice
                 </span>
                 <span className="text-xs text-[#7A6458] block mt-1">
                   Date: {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date().toLocaleDateString('en-IN')}
@@ -380,31 +412,31 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
 
               <div className="w-full sm:w-64 space-y-1.5 text-xs">
                 <div className="flex justify-between text-[#6B5D55]">
-                  <span>Subtotal</span>
-                  <span>₹{Number(order.totalAmount || 0).toLocaleString('en-IN')}</span>
+                  <span>Items Subtotal</span>
+                  <span>₹{resolvedSubtotal.toLocaleString('en-IN')}</span>
                 </div>
-                {Boolean(order.couponDiscount && order.couponDiscount > 0) && (
+                {Boolean(couponDiscountVal > 0) && (
                   <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>Coupon Discount</span>
-                    <span>-₹{Number(order.couponDiscount).toLocaleString('en-IN')}</span>
+                    <span>Coupon Discount{order.couponCode ? ` (${order.couponCode})` : ''}</span>
+                    <span>-₹{couponDiscountVal.toLocaleString('en-IN')}</span>
                   </div>
                 )}
-                {Boolean(order.pointsDiscount && order.pointsDiscount > 0) && (
+                {Boolean(pointsUsedVal > 0 || pointsDiscountVal > 0) && (
                   <div className="flex justify-between text-amber-800 font-medium">
-                    <span>Points Redeemed</span>
-                    <span>-₹{Number(order.pointsDiscount).toLocaleString('en-IN')}</span>
+                    <span>Loyalty Points Used{pointsUsedVal > 0 ? ` (${pointsUsedVal} pts)` : ''}</span>
+                    <span>-₹{pointsDiscountVal.toLocaleString('en-IN')}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-[#6B5D55]">
-                  <span>Shipping &amp; Delivery</span>
+                  <span>Delivery Charges</span>
                   <span className="text-emerald-700 font-semibold">
-                    {order.shippingCost ? `₹${order.shippingCost}` : 'FREE'}
+                    {shippingCostVal > 0 ? `₹${shippingCostVal.toLocaleString('en-IN')}` : 'FREE'}
                   </span>
                 </div>
                 <div className="border-t border-[#DEC89B] pt-2 flex justify-between text-base font-bold text-[#2C2420]">
-                  <span>Grand Total</span>
+                  <span>Final Payable Amount</span>
                   <span className="text-[#8C2E46]">
-                    ₹{Number(order.totalAmount || 0).toLocaleString('en-IN')}
+                    ₹{finalPayableVal.toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>

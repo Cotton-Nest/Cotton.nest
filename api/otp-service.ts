@@ -698,9 +698,20 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
     : calculateEarnedPoints(eligibleAmount);
   const pointsWorthInr = Math.floor(pointsEarned * 0.5);
 
-  const couponDiscount = payload.couponDiscount || 0;
-  const pointsDiscount = payload.pointsDiscount || 0;
-  const shippingCost = payload.shippingCost || 0;
+  const couponDiscount = Number(payload.couponDiscount) || 0;
+  const pointsUsed = Number(payload.pointsUsed) || 0;
+  const pointsDiscount = Number(payload.pointsDiscount) || (pointsUsed > 0 ? Math.floor(pointsUsed * 0.5) : 0);
+  const shippingCost = Number(payload.shippingCost) || 0;
+  const itemsSum = (payload.items || []).reduce(
+    (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+    0
+  );
+  const displaySubtotal =
+    itemsSum > 0
+      ? itemsSum
+      : Number(payload.subtotal) > Number(payload.finalTotal)
+      ? Number(payload.subtotal)
+      : Number(payload.finalTotal) + couponDiscount + pointsDiscount - shippingCost;
 
   const itemRowsHtml = (payload.items || [])
     .map((item) => {
@@ -827,23 +838,23 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
               <div style="background-color:#FAF7F2;border:1px solid #DEC89B;border-radius:16px;padding:18px 20px;margin-bottom:22px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.9;color:#4A3B32;">
                   <tr>
-                    <td>Bag Subtotal</td>
-                    <td align="right" style="font-weight:600;color:#2C2420;">₹${payload.subtotal.toLocaleString('en-IN')}</td>
+                    <td>Items Subtotal</td>
+                    <td align="right" style="font-weight:600;color:#2C2420;">₹${displaySubtotal.toLocaleString('en-IN')}</td>
                   </tr>
                   ${couponDiscount > 0 ? `<tr>
                     <td style="color:#8C2E46;">Coupon Discount (${payload.couponCode || 'Applied'})</td>
                     <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${couponDiscount.toLocaleString('en-IN')}</td>
                   </tr>` : ''}
-                  ${pointsDiscount > 0 ? `<tr>
-                    <td style="color:#8C2E46;">Nest Points Redeemed</td>
+                  ${(pointsUsed > 0 || pointsDiscount > 0) ? `<tr>
+                    <td style="color:#8C2E46;">Loyalty Points Used${pointsUsed > 0 ? ` (${pointsUsed} pts)` : ''}</td>
                     <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${pointsDiscount.toLocaleString('en-IN')}</td>
                   </tr>` : ''}
                   <tr>
-                    <td>Delivery &amp; Shipping</td>
+                    <td>Delivery Charges</td>
                     <td align="right" style="font-weight:600;color:#2C2420;">${shippingCost > 0 ? `₹${shippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}</td>
                   </tr>
                   <tr style="border-top:1px solid #DEC89B;font-size:15px;font-weight:bold;">
-                    <td style="padding-top:10px;color:#8C2E46;">Grand Total Paid</td>
+                    <td style="padding-top:10px;color:#8C2E46;">Final Payable Amount</td>
                     <td align="right" style="padding-top:10px;color:#8C2E46;font-size:18px;">₹${payload.finalTotal.toLocaleString('en-IN')}</td>
                   </tr>
                 </table>
@@ -976,18 +987,33 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
     }
   });
 
+  const textItemsSum = (payload.items || []).reduce(
+    (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+    0
+  );
+  const textCouponDiscount = Number(payload.couponDiscount) || 0;
+  const textPointsUsed = Number(payload.pointsUsed) || 0;
+  const textPointsDiscount = Number(payload.pointsDiscount) || (textPointsUsed > 0 ? Math.floor(textPointsUsed * 0.5) : 0);
+  const textShippingCost = Number(payload.shippingCost) || 0;
+  const textSubtotal =
+    textItemsSum > 0
+      ? textItemsSum
+      : Number(payload.subtotal) > Number(payload.finalTotal)
+      ? Number(payload.subtotal)
+      : Number(payload.finalTotal) + textCouponDiscount + textPointsDiscount - textShippingCost;
+
   lines.push(`----------------------------------------------------`);
   lines.push(`FINANCIAL SUMMARY:`);
-  lines.push(`Bag Subtotal: ₹${payload.subtotal.toLocaleString('en-IN')}`);
+  lines.push(`Items Subtotal: ₹${textSubtotal.toLocaleString('en-IN')}`);
 
-  if (payload.couponDiscount && payload.couponDiscount > 0) {
-    lines.push(`Coupon Discount (${payload.couponCode || 'Applied'}): -₹${payload.couponDiscount.toLocaleString('en-IN')}`);
+  if (textCouponDiscount > 0) {
+    lines.push(`Coupon Discount (${payload.couponCode || 'Applied'}): -₹${textCouponDiscount.toLocaleString('en-IN')}`);
   }
-  if (payload.pointsDiscount && payload.pointsDiscount > 0) {
-    lines.push(`Nest Loyalty Points Redeemed: -₹${payload.pointsDiscount.toLocaleString('en-IN')}`);
+  if (textPointsUsed > 0 || textPointsDiscount > 0) {
+    lines.push(`Loyalty Points Used (${textPointsUsed} pts): -₹${textPointsDiscount.toLocaleString('en-IN')}`);
   }
-  lines.push(`Delivery & Shipping: ${payload.shippingCost && payload.shippingCost > 0 ? `+₹${payload.shippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}`);
-  lines.push(`GRAND TOTAL AMOUNT: ₹${payload.finalTotal.toLocaleString('en-IN')}`);
+  lines.push(`Delivery Charges: ${textShippingCost > 0 ? `+₹${textShippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}`);
+  lines.push(`FINAL PAYABLE AMOUNT: ₹${payload.finalTotal.toLocaleString('en-IN')}`);
   lines.push(`----------------------------------------------------`);
   lines.push(`🎁 NEST LOYALTY POINTS EARNED:`);
   lines.push(`+${pointsEarned} Points Credited (worth ₹${pointsWorthInr} discount on future orders)`);

@@ -1,5 +1,4 @@
 import { COMPANY_DETAILS } from '../data/products';
-import { sendInvoiceEmailApi } from '../services/api';
 
 type WhatsAppListener = (data: {
   productName: string;
@@ -77,10 +76,10 @@ export interface SingleProductOrderPayload {
 }
 
 /**
- * Sends a single product or variant order to WhatsApp:
+ * Sends a single product or variant enquiry to WhatsApp:
  * 1. Generates the exact SKU.
- * 2. Pre-fills clean order specifications in WhatsApp.
- * 3. Triggers automated purchase invoice email to store admin & buyer email.
+ * 2. Pre-fills clean product specifications in WhatsApp.
+ * (No invoice is generated or sent on product enquiry.)
  */
 export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayload): Promise<void> {
   const sku = getProductSku(payload.productName, payload.variantName);
@@ -104,29 +103,6 @@ export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayloa
   ];
 
   const fullMessage = messageLines.join('\n');
-
-  // Automatically dispatch beautiful invoice email to buyer email and store admin
-  const invoicePayload = {
-    orderId: `CN-ENQ-${Math.floor(100000 + Math.random() * 900000)}`,
-    customerName: payload.customerName || 'Valued Store Visitor',
-    customerEmail: payload.customerEmail,
-    customerPhone: payload.customerPhone,
-    subtotal: totalAmount,
-    finalTotal: totalAmount,
-    items: [
-      {
-        name: payload.productName,
-        variantName: payload.variantName,
-        dimensions: size,
-        quantity: qty,
-        price: payload.price,
-        imageUrl: payload.imageUrl,
-      },
-    ],
-    createdAt: new Date().toISOString(),
-  };
-
-  sendInvoiceEmailApi(invoicePayload).catch(() => {});
 
   // Open WhatsApp directly
   openWhatsAppDirectly(fullMessage);
@@ -158,8 +134,9 @@ export interface CartOrderPayload {
 }
 
 /**
- * Sends complete cart order directly to WhatsApp with SKU references for every item,
- * and automatically dispatches a styled purchase invoice email via Gmail.
+ * Sends complete cart order directly to WhatsApp with SKU references for every item.
+ * IMPORTANT: Do NOT generate or send an invoice when an order is placed.
+ * The invoice is generated and emailed strictly when the Admin confirms the order.
  */
 export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<string> {
   const itemsText = payload.items.map((item, idx) => {
@@ -231,28 +208,6 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
   );
 
   const fullMessage = messageLines.join('\n');
-
-  // Send automated purchase invoice email to store admin & customer
-  const invoicePayload = {
-    orderId: refId,
-    customerName: payload.customerName,
-    customerEmail: payload.customerEmail,
-    customerPhone: payload.customerPhone,
-    customerAddress: payload.customerAddress,
-    shippingMethod: payload.shippingMethod,
-    subtotal: payload.subtotal,
-    totalSavings: payload.totalSavings,
-    couponCode: payload.couponCode,
-    couponDiscount,
-    pointsUsed: payload.pointsUsed,
-    pointsDiscount,
-    shippingCost: payload.shippingCost,
-    finalTotal,
-    items: payload.items,
-    createdAt: new Date().toISOString(),
-  };
-
-  sendInvoiceEmailApi(invoicePayload).catch(() => {});
 
   openWhatsAppDirectly(fullMessage);
   return fullMessage;

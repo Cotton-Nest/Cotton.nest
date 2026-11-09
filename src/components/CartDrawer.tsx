@@ -593,8 +593,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       customerAddress: customerAddress.trim(),
       paymentMethod: 'whatsapp',
       status: 'pending',
+      subtotal,
+      invoiceGenerated: false,
       invoiceSent: false,
       invoiceStatus: 'pending_confirmation',
+      invoiceMessage: 'Your invoice will be generated and available once your order is confirmed.',
       totalAmount: finalTotal,
       shippingCost,
       totalSavings,
@@ -1542,13 +1545,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   liveOrder?.status === 'delivered';
 
                 if (!isOrderConfirmed) {
+                  const isCancelled = liveOrder?.status === 'cancelled';
                   return (
                     <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 text-left text-xs flex items-start gap-2.5">
                       <FileText className="w-4 h-4 text-[#C29E57] shrink-0 mt-0.5" />
                       <div>
                         <p className="font-bold text-[#2C2420]">Official Sale Invoice</p>
                         <p className="text-[11px] text-[#7A6458] mt-0.5 leading-relaxed">
-                          Your invoice will be published and emailed once your order is confirmed.
+                          {isCancelled
+                            ? 'This order was cancelled before confirmation. No invoice was generated.'
+                            : 'Your invoice will be generated and available once your order is confirmed.'}
                         </p>
                       </div>
                     </div>

@@ -65,10 +65,20 @@ function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string {
   const pointsWorthInr = Math.floor(pointsEarned * 0.5);
 
   const couponDiscount = Number(payload.couponDiscount) || 0;
-  const pointsDiscount = Number(payload.pointsDiscount) || 0;
+  const pointsUsed = Number(payload.pointsUsed) || 0;
+  const pointsDiscount = Number(payload.pointsDiscount) || (pointsUsed > 0 ? Math.floor(pointsUsed * 0.5) : 0);
   const shippingCost = Number(payload.shippingCost) || 0;
   const finalTotal = Number(payload.finalTotal) || 0;
-  const subtotal = Number(payload.subtotal) || finalTotal;
+  const itemsSum = (payload.items || []).reduce(
+    (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+    0
+  );
+  const subtotal =
+    itemsSum > 0
+      ? itemsSum
+      : Number(payload.subtotal) > finalTotal
+      ? Number(payload.subtotal)
+      : finalTotal + couponDiscount + pointsDiscount - shippingCost;
 
   const itemRowsHtml = (payload.items || [])
     .map((item) => {
@@ -174,17 +184,17 @@ function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string {
               <div style="background-color:#FAF7F2;border:1px solid #DEC89B;border-radius:16px;padding:18px 20px;margin-bottom:22px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.9;color:#4A3B32;">
                   <tr>
-                    <td>Bag Subtotal</td>
+                    <td>Items Subtotal</td>
                     <td align="right" style="font-weight:600;color:#2C2420;">₹${subtotal.toLocaleString('en-IN')}</td>
                   </tr>
                   ${couponDiscount > 0 ? `<tr><td style="color:#8C2E46;">Coupon Discount (${payload.couponCode || 'Applied'})</td><td align="right" style="color:#8C2E46;font-weight:bold;">-₹${couponDiscount.toLocaleString('en-IN')}</td></tr>` : ''}
-                  ${pointsDiscount > 0 ? `<tr><td style="color:#8C2E46;">Nest Points Redeemed</td><td align="right" style="color:#8C2E46;font-weight:bold;">-₹${pointsDiscount.toLocaleString('en-IN')}</td></tr>` : ''}
+                  ${(pointsUsed > 0 || pointsDiscount > 0) ? `<tr><td style="color:#8C2E46;">Loyalty Points Used${pointsUsed > 0 ? ` (${pointsUsed} pts)` : ''}</td><td align="right" style="color:#8C2E46;font-weight:bold;">-₹${pointsDiscount.toLocaleString('en-IN')}</td></tr>` : ''}
                   <tr>
-                    <td>Delivery &amp; Shipping</td>
+                    <td>Delivery Charges</td>
                     <td align="right" style="font-weight:600;color:#2C2420;">${shippingCost > 0 ? `₹${shippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}</td>
                   </tr>
                   <tr style="border-top:1px solid #DEC89B;font-size:15px;font-weight:bold;">
-                    <td style="padding-top:10px;color:#8C2E46;">Grand Total Paid</td>
+                    <td style="padding-top:10px;color:#8C2E46;">Final Payable Amount</td>
                     <td align="right" style="padding-top:10px;color:#8C2E46;font-size:18px;">₹${finalTotal.toLocaleString('en-IN')}</td>
                   </tr>
                 </table>
@@ -258,10 +268,11 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'Invalid invoice payload' });
     }
 
-    if (payload.status === 'pending' || payload.status === 'cancelled') {
+    const allowedStatuses = ['confirmed', 'dispatched', 'delivered'];
+    if (!payload.status || !allowedStatuses.includes(String(payload.status).toLowerCase())) {
       return res.status(400).json({
         success: false,
-        error: 'Your invoice will be published and emailed once your order is confirmed.',
+        error: 'Your invoice will be generated and available once your order is confirmed.',
       });
     }
 

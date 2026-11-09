@@ -30,6 +30,7 @@ import {
   Briefcase,
   Bookmark,
   Download,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
@@ -53,6 +54,7 @@ import { GoogleSignInButton } from './GoogleSignInButton';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, setDefaultAddress, formatFullAddress } from '../data/addresses';
 import { OrderComplaintSection } from './OrderComplaintSection';
 import { getOrders } from '../services/api';
+import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -137,6 +139,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   });
 
   const [fetchedOrders, setFetchedOrders] = useState<Order[]>([]);
+  const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1338,6 +1341,56 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         </div>
                       </div>
 
+                      {/* Official Sale Invoice Section (Only generated & displayed after Admin confirmation) */}
+                      {(order.status === 'confirmed' || order.status === 'dispatched' || order.status === 'delivered') ? (
+                        <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-200 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-xs text-emerald-900">
+                            <FileText className="w-4 h-4 text-emerald-700 shrink-0" />
+                            <div>
+                              <span className="font-bold block">
+                                Official Sale Invoice ({order.invoiceNumber || `INV-${order.id}`})
+                              </span>
+                              <span className="text-[11px] text-emerald-700">
+                                {order.customerEmail ? `Emailed to ${order.customerEmail}` : 'Ready to view & download'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setInvoiceModalOrder(order)}
+                              className="px-2.5 py-1.5 bg-white hover:bg-emerald-50 text-[#2C2420] border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-[#8C2E46]" />
+                              <span>View / Print Invoice</span>
+                            </button>
+                            <a
+                              href={buildOrderGmailUrl(order)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1.5 bg-[#8C2E46] hover:bg-[#732236] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Email Copy</span>
+                            </a>
+                          </div>
+                        </div>
+                      ) : order.status === 'cancelled' ? (
+                        <div className="p-2.5 bg-neutral-100 rounded-xl border border-neutral-200 flex items-center gap-2 text-xs text-neutral-600">
+                          <Clock className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                          <span>
+                            {order.invoiceGenerated || order.invoiceSent
+                              ? `Order cancelled. Previously generated invoice: ${order.invoiceNumber || `INV-${order.id}`}`
+                              : 'Order was cancelled before confirmation. No invoice was generated.'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-amber-50/80 rounded-xl border border-amber-200 flex items-center gap-2 text-xs text-amber-900 font-medium">
+                          <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          <span>Your invoice will be generated and available once your order is confirmed.</span>
+                        </div>
+                      )}
+
                       {/* Defect Exchange & Quality Complaint under every order card */}
                       <OrderComplaintSection order={order} compact />
                     </div>
@@ -1588,6 +1641,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         </div>
 
       </div>
+
+      <InvoiceModal
+        order={invoiceModalOrder}
+        isOpen={Boolean(invoiceModalOrder)}
+        onClose={() => setInvoiceModalOrder(null)}
+      />
     </div>
   );
 };

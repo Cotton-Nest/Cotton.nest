@@ -29,6 +29,7 @@ export interface Order {
   customerAddress: string;
   paymentMethod: 'whatsapp' | 'cod' | 'upi';
   items: OrderItem[];
+  subtotal?: number;
   totalAmount: number;
   shippingCost?: number;
   totalSavings: number;
@@ -41,9 +42,12 @@ export interface Order {
   status: OrderStatus;
   deliveredAt?: string;
   updatedAt?: number;
+  invoiceNumber?: string;
+  invoiceGenerated?: boolean;
+  invoiceGeneratedAt?: string;
   invoiceSent?: boolean;
   invoiceSentAt?: string;
-  invoiceStatus?: 'pending_confirmation' | 'generated' | 'failed';
+  invoiceStatus?: 'pending_confirmation' | 'generated' | 'cancelled_before_confirmation' | 'failed';
   invoiceMessage?: string;
   invoiceResult?: any;
   notes?: string;

@@ -767,9 +767,14 @@ export async function getOrders(): Promise<Order[]> {
 export async function saveOrder(order: Order): Promise<void> {
   const path = `orders/${order.id}`;
 
-  // Sanitize strictly: remove all undefined values so Firestore does NOT reject with unsupported undefined field
+  // Rule 1 & 6: Never generate or send an invoice when an order is placed.
   const safeOrder: Order = stripUndefined({
     ...order,
+    status: 'pending',
+    invoiceGenerated: false,
+    invoiceSent: false,
+    invoiceStatus: 'pending_confirmation',
+    invoiceMessage: 'Your invoice will be generated and available once your order is confirmed.',
     customerEmail: order.customerEmail?.trim() || undefined,
     customerPhone: order.customerPhone?.trim() || '',
     customerAddress: order.customerAddress?.trim() || '',
@@ -777,10 +782,10 @@ export async function saveOrder(order: Order): Promise<void> {
     userId: order.userId?.trim() || undefined,
     timeline: order.timeline && order.timeline.length > 0 ? order.timeline : [
       {
-        status: order.status || 'pending',
+        status: 'pending',
         timestamp: order.createdAt || new Date().toISOString(),
-        title: 'Order Placed via WhatsApp',
-        description: 'Customer initiated order from Cotton Nest storefront.'
+        title: 'Order Placed',
+        description: 'Your invoice will be generated and available once your order is confirmed.'
       }
     ],
     trackingNumber: order.trackingNumber || `CN-TRK-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -892,11 +897,11 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     const titles: Record<string, { title: string; description: string }> = {
       pending: {
         title: 'Order Received',
-        description: 'Order queued for verification. Sale invoice will generate once confirmed.',
+        description: 'Your invoice will be generated and available once your order is confirmed.',
       },
       confirmed: {
         title: 'Order Confirmed & Sale Invoice Generated',
-        description: 'Inspected and confirmed by Cotton Nest Atelier. Official sale invoice dispatched to customer email.',
+        description: 'Inspected and confirmed by Cotton Nest Atelier. Official sale invoice generated and sent to customer email.',
       },
       dispatched: {
         title: 'Dispatched & In Transit',
@@ -928,23 +933,56 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     ];
   };
 
-  // 1. Update local storage
+  let alreadyHadInvoice = Boolean(
+    orderData?.invoiceGenerated ||
+      orderData?.invoiceSent ||
+      orderData?.invoiceStatus === 'generated'
+  );
+
+  // 1. Update local storage & inspect prior invoice state
   try {
     const cached = localStorage.getItem('cotton_nest_orders');
     if (cached) {
       const list: Order[] = JSON.parse(cached);
       if (Array.isArray(list)) {
+        const existingLocal = list.find((o) => o && o.id === orderId);
+        if (existingLocal) {
+          alreadyHadInvoice = Boolean(
+            alreadyHadInvoice ||
+              existingLocal.invoiceGenerated ||
+              existingLocal.invoiceSent ||
+              existingLocal.invoiceStatus === 'generated'
+          );
+        }
+        const canonicalId = String(orderId).startsWith('CN-') ? String(orderId) : `CN-${orderId}`;
         const updated = list.map((o) => {
           if (o.id === orderId) {
             const nextTimeline = buildUpdatedTimeline(orderData?.timeline || o.timeline, status);
             const nextDeliveredAt =
               status === 'delivered' ? o.deliveredAt || orderData?.deliveredAt || nowIso : o.deliveredAt;
+            const isNowGenerated = alreadyHadInvoice || status === 'confirmed';
+            const isCancelledUnconfirmed = status === 'cancelled' && !alreadyHadInvoice;
             targetOrder = {
               ...o,
               ...(orderData || {}),
               status: status as any,
               ...(nextDeliveredAt ? { deliveredAt: nextDeliveredAt } : {}),
               timeline: nextTimeline,
+              invoiceNumber: isNowGenerated ? o.invoiceNumber || `INV-${canonicalId}` : undefined,
+              invoiceGenerated: isNowGenerated,
+              invoiceGeneratedAt: isNowGenerated ? o.invoiceGeneratedAt || nowIso : undefined,
+              invoiceSent: isNowGenerated,
+              invoiceSentAt: isNowGenerated ? o.invoiceSentAt || nowIso : undefined,
+              invoiceStatus: isNowGenerated
+                ? 'generated'
+                : isCancelledUnconfirmed
+                ? 'cancelled_before_confirmation'
+                : 'pending_confirmation',
+              invoiceMessage: isNowGenerated
+                ? o.invoiceMessage || `Official sale invoice (INV-${canonicalId}) generated & sent.`
+                : isCancelledUnconfirmed
+                ? 'Order was cancelled before confirmation. No invoice was generated.'
+                : 'Your invoice will be generated and available once your order is confirmed.',
             };
             return {
               ...targetOrder,
@@ -963,7 +1001,14 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     try {
       const snap = await getDoc(doc(db, 'orders', orderId));
       if (snap.exists()) {
-        targetOrder = { ...(snap.data() as Order), id: snap.id };
+        const snapData = snap.data() as Order;
+        alreadyHadInvoice = Boolean(
+          alreadyHadInvoice ||
+            snapData.invoiceGenerated ||
+            snapData.invoiceSent ||
+            snapData.invoiceStatus === 'generated'
+        );
+        targetOrder = { ...snapData, id: snap.id };
       }
     } catch {}
   }
@@ -974,11 +1019,21 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       if (oRes.ok) {
         const oData = await oRes.json();
         if (Array.isArray(oData) && oData.length > 0) {
+          alreadyHadInvoice = Boolean(
+            alreadyHadInvoice ||
+              oData[0].invoiceGenerated ||
+              oData[0].invoiceSent ||
+              oData[0].invoiceStatus === 'generated'
+          );
           targetOrder = oData[0];
         }
       }
     } catch {}
   }
+
+  const canonicalId = String(orderId).startsWith('CN-') ? String(orderId) : `CN-${orderId}`;
+  const isNowGenerated = alreadyHadInvoice || status === 'confirmed';
+  const isCancelledBeforeConfirmation = status === 'cancelled' && !alreadyHadInvoice;
 
   const resolvedDeliveredAt =
     status === 'delivered'
@@ -994,10 +1049,25 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       status: status as any,
       ...(resolvedDeliveredAt ? { deliveredAt: resolvedDeliveredAt } : {}),
       timeline: resolvedTimeline,
+      invoiceNumber: isNowGenerated ? targetOrder.invoiceNumber || `INV-${canonicalId}` : undefined,
+      invoiceGenerated: isNowGenerated,
+      invoiceGeneratedAt: isNowGenerated ? targetOrder.invoiceGeneratedAt || nowIso : undefined,
+      invoiceSent: isNowGenerated,
+      invoiceSentAt: isNowGenerated ? targetOrder.invoiceSentAt || nowIso : undefined,
+      invoiceStatus: isNowGenerated
+        ? 'generated'
+        : isCancelledBeforeConfirmation
+        ? 'cancelled_before_confirmation'
+        : 'pending_confirmation',
+      invoiceMessage: isNowGenerated
+        ? targetOrder.invoiceMessage || `Official sale invoice (INV-${canonicalId}) generated & sent.`
+        : isCancelledBeforeConfirmation
+        ? 'Order was cancelled before confirmation. No invoice was generated.'
+        : 'Your invoice will be generated and available once your order is confirmed.',
     };
   }
 
-  // 2. Update Express server backend (or fallback to Vercel serverless /api/send-invoice when confirmed)
+  // 2. Update Express server backend (which generates and emails the invoice when transitioning to 'confirmed' for the first time)
   let serverHandledInvoice = false;
   try {
     const putRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
@@ -1014,7 +1084,7 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       const contentType = putRes.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const putData = await putRes.json().catch(() => null);
-        if (putData && putData.id && putData.invoiceSent) {
+        if (putData && putData.id && (putData.invoiceSent || putData.invoiceGenerated)) {
           serverHandledInvoice = true;
         }
       }
@@ -1023,9 +1093,13 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     console.warn('Failed to update order status on server:', err);
   }
 
-  // 2b. When status is 'confirmed', guarantee the Sale Invoice email is dispatched via /api/send-invoice if not already sent by Express
-  if (status === 'confirmed' && targetOrder && !serverHandledInvoice) {
+  // 2b. Fallback to /api/send-invoice ONLY if status is 'confirmed', invoice was NOT already generated before, and Express didn't handle it
+  if (status === 'confirmed' && !alreadyHadInvoice && targetOrder && !serverHandledInvoice) {
     try {
+      const itemsSubtotal = (targetOrder.items || []).reduce(
+        (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+        0
+      );
       await fetch('/api/send-invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1037,7 +1111,7 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
           customerPhone: targetOrder.customerPhone,
           customerAddress: targetOrder.customerAddress,
           shippingMethod: targetOrder.shippingCost ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
-          subtotal: Number(targetOrder.totalAmount) || 0,
+          subtotal: itemsSubtotal > 0 ? itemsSubtotal : Number(targetOrder.subtotal) || Number(targetOrder.totalAmount) || 0,
           couponCode: targetOrder.couponCode,
           couponDiscount: Number(targetOrder.couponDiscount) || 0,
           pointsUsed: Number(targetOrder.pointsUsed) || 0,
@@ -1111,13 +1185,31 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
   try {
     await updateDoc(doc(db, 'orders', orderId), {
       status,
-      ...(status === 'confirmed'
+      ...(isNowGenerated
         ? {
+            invoiceNumber: targetOrder?.invoiceNumber || `INV-${canonicalId}`,
+            invoiceGenerated: true,
+            invoiceGeneratedAt: targetOrder?.invoiceGeneratedAt || nowIso,
             invoiceSent: true,
-            invoiceSentAt: nowIso,
+            invoiceSentAt: targetOrder?.invoiceSentAt || nowIso,
             invoiceStatus: 'generated',
+            invoiceMessage:
+              targetOrder?.invoiceMessage ||
+              `Official sale invoice (INV-${canonicalId}) generated & sent.`,
           }
-        : {}),
+        : isCancelledBeforeConfirmation
+        ? {
+            invoiceGenerated: false,
+            invoiceSent: false,
+            invoiceStatus: 'cancelled_before_confirmation',
+            invoiceMessage: 'Order was cancelled before confirmation. No invoice was generated.',
+          }
+        : {
+            invoiceGenerated: false,
+            invoiceSent: false,
+            invoiceStatus: 'pending_confirmation',
+            invoiceMessage: 'Your invoice will be generated and available once your order is confirmed.',
+          }),
       ...(status === 'delivered'
         ? {
             pointsCredited: true,

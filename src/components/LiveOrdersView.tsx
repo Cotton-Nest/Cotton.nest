@@ -58,36 +58,6 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
   const [isSendingEmail, setIsSendingEmail] = useState<string | null>(null);
   const [emailSendFeedback, setEmailSendFeedback] = useState<{ id: string; success: boolean; message: string } | null>(null);
-  const [isConfirmingOrder, setIsConfirmingOrder] = useState<string | null>(null);
-
-  const handleConfirmOrder = async (order: Order) => {
-    setIsConfirmingOrder(order.id);
-    setEmailSendFeedback(null);
-    try {
-      await updateOrderStatus(order.id, 'confirmed', { ...order, status: 'confirmed' });
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? { ...o, status: 'confirmed' as const, invoiceSent: true } : o
-        )
-      );
-      if (searchedOrder && searchedOrder.id === order.id) {
-        setSearchedOrder({ ...searchedOrder, status: 'confirmed', invoiceSent: true });
-      }
-      setEmailSendFeedback({
-        id: order.id,
-        success: true,
-        message: '✓ Order confirmed & official sale invoice dispatched from adityaa.22082011@gmail.com!',
-      });
-    } catch (err: any) {
-      setEmailSendFeedback({
-        id: order.id,
-        success: false,
-        message: 'Could not confirm order.',
-      });
-    } finally {
-      setIsConfirmingOrder(null);
-    }
-  };
 
   // Handle user explicitly clicking an order to view its details
   const handleSelectOrder = (orderId: string) => {
@@ -107,11 +77,19 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   };
 
   const handleSendOrderEmail = async (order: Order) => {
-    if (order.status === 'pending' || order.status === 'cancelled') {
+    if (order.status === 'pending') {
       setEmailSendFeedback({
         id: order.id,
         success: false,
-        message: 'Your invoice will be published and emailed once your order is confirmed.',
+        message: 'Your invoice will be generated and available once your order is confirmed.',
+      });
+      return;
+    }
+    if (order.status === 'cancelled' && !order.invoiceGenerated && !order.invoiceSent) {
+      setEmailSendFeedback({
+        id: order.id,
+        success: false,
+        message: 'This order was cancelled before confirmation. No invoice was generated.',
       });
       return;
     }
@@ -976,8 +954,10 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                           {currentSelectedOrder.status === 'confirmed' ||
                           currentSelectedOrder.status === 'dispatched' ||
                           currentSelectedOrder.status === 'delivered'
-                            ? `Itemized printable sale invoice with bedsheet photos. Sent to ${currentSelectedOrder.customerEmail || 'buyer'}.`
-                            : 'Your invoice will be published and emailed once your order is confirmed.'}
+                            ? `Official Sale Invoice (${currentSelectedOrder.invoiceNumber || `INV-${currentSelectedOrder.id}`}) generated & sent to ${currentSelectedOrder.customerEmail || 'registered email'}.`
+                            : currentSelectedOrder.status === 'cancelled' && !currentSelectedOrder.invoiceGenerated && !currentSelectedOrder.invoiceSent
+                            ? 'This order was cancelled before confirmation. No invoice was generated.'
+                            : 'Your invoice will be generated and available once your order is confirmed.'}
                         </p>
                         {emailSendFeedback && emailSendFeedback.id === currentSelectedOrder.id && (
                           <p
