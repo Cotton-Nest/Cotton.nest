@@ -512,9 +512,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </form>
             )}
 
-            <div className="p-2.5 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] flex items-center gap-2 text-[11px] text-[#7A6458]">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Your cart items, wishlist, and saved addresses are securely preserved.</span>
+            <div className="p-2.5 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] flex items-start gap-2 text-[11px] text-[#7A6458]">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span>
+                Your cart items, wishlist, and saved addresses are securely preserved. When signed in, website activity (such as viewed bedsheets, searches, and session duration—never passwords, payment credentials, or GPS location) is recorded for analytics and service improvement.
+              </span>
             </div>
 
             {onOpenOwnerAuth && (

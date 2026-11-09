@@ -206,6 +206,41 @@
         "lastVisitedAt": { "type": "number", "description": "Timestamp of most recent page hit" }
       },
       "required": ["id", "totalVisits", "uniqueVisitors", "lastVisitedAt"]
+    },
+    "CustomerActivityProfile": {
+      "title": "CustomerActivityProfile",
+      "description": "Individual signed-in customer activity profile, session logs, product views, wishlist history, cart activity, search terms, device specs, and chronological timeline.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique customer Firebase UID or sanitized account identifier" },
+        "customerName": { "type": "string", "description": "Customer full name" },
+        "email": { "type": "string", "description": "Registered email address" },
+        "phone": { "type": "string", "description": "Customer phone number if available" },
+        "accountCreatedAt": { "type": "number", "description": "Account creation epoch timestamp" },
+        "lastLoginAt": { "type": "number", "description": "Most recent login timestamp" },
+        "lastLogoutAt": { "type": "number", "description": "Most recent logout timestamp" },
+        "lastActiveAt": { "type": "number", "description": "Most recent active interaction timestamp" },
+        "totalSessions": { "type": "number", "description": "Total number of login sessions" },
+        "totalTimeSpentSeconds": { "type": "number", "description": "Cumulative active seconds spent on website" },
+        "averageSessionDurationSeconds": { "type": "number", "description": "Average session duration in seconds" },
+        "totalPagesVisited": { "type": "number", "description": "Cumulative pages visited" },
+        "mostVisitedPage": { "type": "string", "description": "Most frequently visited section" },
+        "totalProductViews": { "type": "number", "description": "Total product views count" },
+        "productsViewed": { "type": "array", "description": "List of viewed products with counts and timestamps" },
+        "totalAddedToCartCount": { "type": "number", "description": "Total products added to cart" },
+        "totalAddedToWishlistCount": { "type": "number", "description": "Historical count of wishlist additions" },
+        "currentWishlist": { "type": "array", "description": "Currently saved wishlist products" },
+        "historicalWishlist": { "type": "array", "description": "All products ever added to wishlist by customer" },
+        "totalSearches": { "type": "number", "description": "Total searches performed" },
+        "searchHistory": { "type": "array", "description": "Search terms and timestamps" },
+        "ordersPlacedCount": { "type": "number", "description": "Total orders placed" },
+        "totalPurchaseValue": { "type": "number", "description": "Cumulative purchase value in INR" },
+        "deviceInfo": { "type": "object", "description": "Device type, OS, browser, screen resolution, and approximate region" },
+        "sessions": { "type": "array", "description": "Session-wise activity logs" },
+        "timeline": { "type": "array", "description": "Chronological activity events" },
+        "updatedAt": { "type": "number", "description": "Last profile flush timestamp" }
+      },
+      "required": ["uid", "customerName", "lastActiveAt", "totalSessions", "totalTimeSpentSeconds"]
     }
   },
   "firestore": {
@@ -252,6 +287,10 @@
     "/analytics/{docId}": {
       "schema": "AnalyticsData",
       "description": "Aggregated store traffic and analytics metrics"
+    },
+    "/customer_activity/{userId}": {
+      "schema": "CustomerActivityProfile",
+      "description": "Individual signed-in customer activity profiles and session analytics"
     }
   }
 }

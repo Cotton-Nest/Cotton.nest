@@ -61,11 +61,13 @@ import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '.
 import { AdminCouponsSection } from './AdminCouponsSection';
 import { AdminNotificationsSection } from './AdminNotificationsSection';
 import { AdminWishlistsSection } from './AdminWishlistsSection';
+import { AdminCustomerAnalyticsSection } from './AdminCustomerAnalyticsSection';
 import { AdminComplaintsSubsection } from './AdminComplaintsSubsection';
 import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
 import {
   Heart,
+  Users,
   Wrench,
   Bell,
   Package,
@@ -165,8 +167,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateSeasonalConfig,
   reviews = [],
 }) => {
-  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'content' | 'appearance'>('products');
+  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
 
   // Seasonal Page state
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
@@ -2422,6 +2424,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
               <span>Customer Wishlists</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('customer_analytics')}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+              style={
+                activeAdminTab === 'customer_analytics'
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
+            >
+              <Users className="w-3.5 h-3.5 text-[#C29E57]" />
+              <span>Customer Analytics</span>
             </button>
           </div>
 
@@ -5554,6 +5575,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {activeAdminTab === 'wishlists' && (
           <AdminWishlistsSection
             onShowToast={showToast}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 8: CUSTOMER ANALYTICS & ACTIVITY TRACKING            */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'customer_analytics' && (
+          <AdminCustomerAnalyticsSection
+            products={editableProducts}
+            orders={editableOrders}
+            onToast={showToast}
           />
         )}
 

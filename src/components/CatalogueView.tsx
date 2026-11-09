@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Sparkles,
@@ -47,6 +47,7 @@ import {
 } from '../data/products';
 import { ProductCard, ProductCardViewMode } from './ProductCard';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
+import { trackCustomerSearch } from '../services/customerActivityTracker';
 
 export type CatalogueViewMode = ProductCardViewMode;
 
@@ -623,6 +624,16 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     sortBy,
     reviews
   ]);
+
+  // Log search queries for signed-in customer activity analytics (debounced)
+  useEffect(() => {
+    const clean = searchQuery.trim();
+    if (clean.length < 2) return;
+    const timer = window.setTimeout(() => {
+      trackCustomerSearch(clean, filteredProducts.length);
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, filteredProducts.length]);
 
   // Compute option product counts with 100% safe null-guards
   const getCountForFilter = (type: 'size' | 'material' | 'pattern' | 'productType' | 'brand' | 'color', value?: string) => {

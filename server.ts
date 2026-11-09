@@ -61,6 +61,7 @@ interface StoreDatabase {
   wishlists?: WishlistItem[];
   loyaltyAccounts?: Record<string, LoyaltyAccount>;
   loyaltyTransactions?: LoyaltyTransaction[];
+  customerActivity?: Record<string, any>;
   wishlistNotificationSettings?: {
     enabled: boolean;
     dailyLimit: number;
@@ -2899,6 +2900,50 @@ async function startServer() {
         success: false,
         error: 'An unexpected error occurred while verifying the code.',
       });
+    }
+  });
+
+  // Customer Activity Tracking & User Analytics Endpoints
+  app.get('/api/customer-activity', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.customerActivity || typeof db.customerActivity !== 'object') {
+      db.customerActivity = {};
+    }
+    const list = Object.values(db.customerActivity).filter((item) => item && item.uid);
+    res.json(list);
+  });
+
+  app.post('/api/customer-activity', (req, res) => {
+    try {
+      const profile = req.body;
+      if (!profile || !profile.uid) {
+        return res.status(400).json({ error: 'Valid customer activity profile with uid is required' });
+      }
+      if (!db.customerActivity || typeof db.customerActivity !== 'object') {
+        db.customerActivity = {};
+      }
+      const existing = db.customerActivity[profile.uid] || {};
+      db.customerActivity[profile.uid] = {
+        ...existing,
+        ...profile,
+        totalTimeSpentSeconds: Math.max(
+          Number(existing.totalTimeSpentSeconds) || 0,
+          Number(profile.totalTimeSpentSeconds) || 0
+        ),
+        totalSessions: Math.max(
+          Number(existing.totalSessions) || 0,
+          Number(profile.totalSessions) || 0
+        ),
+        totalAddedToWishlistCount: Math.max(
+          Number(existing.totalAddedToWishlistCount) || 0,
+          Number(profile.totalAddedToWishlistCount) || 0
+        ),
+        updatedAt: Date.now(),
+      };
+      saveDatabase();
+      return res.json({ success: true, uid: profile.uid });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Failed to save customer activity' });
     }
   });
 

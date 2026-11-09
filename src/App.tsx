@@ -90,6 +90,13 @@ import { CustomerWishlistModal } from './components/CustomerWishlistModal';
 import { AnalyticsView } from './components/AnalyticsView';
 import { SiteTrafficData, getStoredTraffic } from './data/analytics';
 import {
+  useCustomerActivityTracker,
+  trackCustomerProductView,
+  trackCustomerWishlistAction,
+  trackCustomerCartAdd,
+  trackCustomerOrderPlaced,
+} from './services/customerActivityTracker';
+import {
   WishlistItem,
   CustomerProfile,
   getCurrentCustomerProfile,
@@ -123,6 +130,9 @@ export default function App() {
   const handleOpenProductModal = (product: BedsheetProduct, editMode: boolean = false) => {
     setSelectedProduct(product);
     setIsProductModalEditMode(editMode);
+    if (!editMode && product) {
+      trackCustomerProductView(product);
+    }
   };
 
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -187,6 +197,15 @@ export default function App() {
       });
     }
   }, [user]);
+
+  // Automatically maintain signed-in customer activity profile & session analytics in Firebase
+  useCustomerActivityTracker(
+    user,
+    Boolean(user),
+    activeTab,
+    wishlistItems,
+    customerProfile?.city
+  );
 
   // Initial fetch of wishlist items for this customer from Firestore/server
   useEffect(() => {
@@ -298,6 +317,7 @@ export default function App() {
       setWishlistItems(updated);
       saveLocalWishlist(updated);
       removeWishlistItemApi(existing.id).catch(() => {});
+      trackCustomerWishlistAction(product, 'remove');
       return;
     }
 
@@ -333,6 +353,7 @@ export default function App() {
     setWishlistItems(updated);
     saveLocalWishlist(updated);
     saveWishlistItemApi(newItem).catch(() => {});
+    trackCustomerWishlistAction(product, 'add');
   };
 
   const handleCustomerProfileConfirmed = (profile: CustomerProfile) => {
@@ -363,15 +384,23 @@ export default function App() {
       setWishlistItems(updated);
       saveLocalWishlist(updated);
       saveWishlistItemApi(newItem).catch(() => {});
+      trackCustomerWishlistAction(product, 'add');
       setPendingWishlistProduct(null);
     }
   };
 
   const handleRemoveWishlistItem = (id: string) => {
+    const targetItem = wishlistItems.find((item) => item.id === id);
     const updated = wishlistItems.filter((item) => item.id !== id);
     setWishlistItems(updated);
     saveLocalWishlist(updated);
     removeWishlistItemApi(id).catch(() => {});
+    if (targetItem) {
+      const matchedProd = products.find((p) => p.id === targetItem.productId);
+      if (matchedProd) {
+        trackCustomerWishlistAction(matchedProd, 'remove');
+      }
+    }
   };
 
   const handleMoveToCartFromWishlist = (item: WishlistItem) => {
@@ -1680,6 +1709,8 @@ export default function App() {
       quantity,
       variantName: safeVariant?.name,
     });
+
+    trackCustomerCartAdd(finalProduct, quantity);
   };
 
   // Automatically add pending item to bag once user signs in
@@ -2277,7 +2308,10 @@ export default function App() {
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveFromCart}
             onClearCart={handleClearCart}
-            onOrderPlaced={(order) => setOrders((prev) => [order, ...prev])}
+            onOrderPlaced={(order) => {
+              setOrders((prev) => [order, ...prev]);
+              trackCustomerOrderPlaced(order);
+            }}
             shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
             customerProfile={customerProfile}
             orders={orders}

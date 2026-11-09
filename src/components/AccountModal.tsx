@@ -1620,6 +1620,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     <GoogleSignInButton variant="navbar" customText="Sign In with Google" />
                   </div>
                 )}
+                <p className="text-[10px] text-[#8C7A70] leading-relaxed pt-2 border-t border-[#FAF7F2]">
+                  <strong>Privacy Notice:</strong> For signed-in accounts, Cotton Nest records website activity (including session duration, viewed products, wishlist saves, and search terms) to personalize your experience and improve store service. We never collect passwords, payment credentials, or precise GPS coordinates.
+                </p>
               </div>
             </div>
           )}

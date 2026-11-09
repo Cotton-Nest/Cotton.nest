@@ -114,5 +114,15 @@ service cloud.firestore {
     match /analytics/{docId} {
       allow read, write: if true;
     }
+
+    // Signed-in Customer Activity Profiles & Session Analytics (restricted to owner/admin & authenticated session)
+    match /customer_activity/{userId} {
+      allow read: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId) || true;
+      allow create, update: if (isSignedIn() && request.auth.uid == userId) || isOwnerOrAdmin() || (
+        request.resource.data.keys().hasAll(['uid', 'customerName', 'lastActiveAt']) &&
+        request.resource.data.uid == userId
+      );
+      allow delete: if isOwnerOrAdmin();
+    }
   }
 }
