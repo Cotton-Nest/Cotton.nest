@@ -263,8 +263,9 @@ function initDatabase(): StoreDatabase {
             } else {
               const acc = parsed.loyaltyAccounts[k];
               const effectiveReferral = Math.max(acc.referralPointsEarned || 0, referralBonus);
-              const effectiveEarned = stats.earned + effectiveReferral;
-              const effectiveSpent = Math.max(acc.lifetimeSpent || 0, stats.spent);
+              const effectiveEarned = Math.max(acc.lifetimeEarned || 0, stats.earned + effectiveReferral);
+              const safeAccSpent = (acc.lifetimeSpent || 0) <= effectiveEarned ? (acc.lifetimeSpent || 0) : 0;
+              const effectiveSpent = Math.max(safeAccSpent, stats.spent);
               const computedBalance = Math.max(0, effectiveEarned - effectiveSpent);
 
               if (acc.pointsBalance !== computedBalance || acc.lifetimeSpent !== effectiveSpent || acc.lifetimeEarned !== effectiveEarned) {
@@ -2383,7 +2384,9 @@ async function startServer() {
         const matchesPhone = Boolean(cleanPhoneDigits && otherAcc.phone?.replace(/[^0-9]/g, '').endsWith(cleanPhoneDigits));
         if (matchesEmail || matchesPhone) {
           const nextEarned = Math.max(account.lifetimeEarned || 0, otherAcc.lifetimeEarned || 0);
-          const nextSpent = Math.max(account.lifetimeSpent || 0, otherAcc.lifetimeSpent || 0);
+          const safeAccSpent = (account.lifetimeSpent || 0) <= nextEarned ? (account.lifetimeSpent || 0) : 0;
+          const safeOtherSpent = (otherAcc.lifetimeSpent || 0) <= nextEarned ? (otherAcc.lifetimeSpent || 0) : 0;
+          const nextSpent = Math.max(safeAccSpent, safeOtherSpent);
           const nextBal = Math.max(0, nextEarned - nextSpent);
           if (
             nextBal !== account.pointsBalance ||
@@ -2453,8 +2456,8 @@ async function startServer() {
                 }
               }
             }
-            if (o.pointsUsed && Number(o.pointsUsed) > 0) {
-              spentFromOrders += Math.min(125, Number(o.pointsUsed));
+            if (o.pointsUsed && Number(o.pointsUsed) > 0 && Number(o.pointsUsed) <= 125) {
+              spentFromOrders += Number(o.pointsUsed);
             }
           }
         });
@@ -2465,7 +2468,8 @@ async function startServer() {
             .reduce((sum, t) => sum + Number(t.points || 0), 0);
           const effectiveReferral = Math.max(account.referralPointsEarned || 0, referralBonus);
           const effectiveEarned = Math.max(account.lifetimeEarned || 0, earnedFromDeliveredOrders + effectiveReferral);
-          const effectiveSpent = Math.max(account.lifetimeSpent || 0, spentFromOrders);
+          const safeAccountSpent = (account.lifetimeSpent || 0) <= effectiveEarned ? (account.lifetimeSpent || 0) : 0;
+          const effectiveSpent = Math.max(safeAccountSpent, spentFromOrders);
           const computedNet = Math.max(0, effectiveEarned - effectiveSpent);
 
           if (

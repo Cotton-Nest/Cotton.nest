@@ -81,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           color: 'var(--color-text-secondary, #7A6458)',
         }}
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-center gap-3">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-3">
           <span className="flex items-center gap-1.5 font-medium">
             <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
             {announcementText}
@@ -95,6 +95,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Phone className="w-3 h-3" />
             {contactPhone}
           </a>
+          <span className="hidden sm:inline opacity-40">|</span>
+          <PWAInstallButton variant="topbar" />
         </div>
       </aside>
 

@@ -24,11 +24,10 @@ export function usePWAInstall() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Detect standalone mode (already installed as a working app)
+    // Detect standalone mode (only true when actually running inside the installed standalone PWA window)
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-      localStorage.getItem('cotton_nest_pwa_installed') === 'true';
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     setIsInstalled(isStandalone);
 
     // Detect iOS devices

@@ -261,7 +261,7 @@ export const ChromeInstallPopout: React.FC = () => {
 /**
  * In-App Install Button Component for Navbar & Mobile Drawer
  */
-export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' }> = ({ variant = 'navbar' }) => {
+export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' | 'topbar' }> = ({ variant = 'navbar' }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
 
   // If already running as an installed standalone PWA, hide the button
@@ -276,6 +276,20 @@ export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' }> = ({ 
       window.dispatchEvent(new CustomEvent('open-chrome-install-popout'));
     }
   };
+
+  if (variant === 'topbar') {
+    return (
+      <button
+        type="button"
+        onClick={handleTriggerInstall}
+        title="Install Cotton Nest App"
+        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#8C2E46] hover:bg-[#70252D] text-white shadow-2xs transition-colors cursor-pointer shrink-0"
+      >
+        <Download className="w-3 h-3" />
+        <span>Install App</span>
+      </button>
+    );
+  }
 
   if (variant === 'mobile') {
     return (
@@ -302,9 +316,10 @@ export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' }> = ({ 
       type="button"
       onClick={handleTriggerInstall}
       title="Install Cotton Nest as an App"
-      className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1a73e8] hover:bg-[#1557b0] rounded-full shadow-2xs transition-all cursor-pointer shrink-0"
+      data-testid="navbar-install-app-btn"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#8C2E46] hover:bg-[#70252D] border border-[#DEC89B]/60 rounded-full shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap"
     >
-      {isIOS ? <Smartphone className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+      <Download className="w-3.5 h-3.5 text-amber-200 shrink-0" />
       <span>Install App</span>
     </motion.button>
   );

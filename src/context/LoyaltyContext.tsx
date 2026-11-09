@@ -186,7 +186,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [activeKey, user]
   );
 
-  // Calculate active non-expired metrics
+  // Calculate active non-expired metrics: strictly Earned (credited) minus Used (debited)
   const {
     pointsBalance,
     pointsEarnedFromPurchases,
@@ -197,7 +197,9 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const now = Date.now();
     const earnedTxs = transactions.filter((t) => t.points > 0 && t.type === 'earned');
     const referralTxs = transactions.filter((t) => t.points > 0 && (t.type === 'referral' || t.type === 'bonus'));
-    const redeemedTxs = transactions.filter((t) => t.type === 'redeemed' || t.points < 0);
+    const redeemedTxs = transactions.filter(
+      (t) => (t.type === 'redeemed' || t.points < 0) && Math.abs(t.points) <= 125
+    );
 
     const calcPurchaseEarned = earnedTxs.reduce((sum, t) => sum + Math.max(0, t.points), 0);
     const calcReferralEarned = referralTxs.reduce((sum, t) => sum + Math.max(0, t.points), 0);
@@ -211,10 +213,14 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       account?.lifetimeEarned || 0,
       calcPurchaseEarned + calcReferralEarned
     );
-    const totalSpent = Math.max(
-      account?.lifetimeSpent || 0,
-      calcUsed
-    );
+    // Only debit actual redeemed transactions or verified account spent (never exceeding totalEarned)
+    const rawAccountSpent = account?.lifetimeSpent || 0;
+    const totalSpent =
+      redeemedTxs.length > 0
+        ? Math.max(calcUsed, rawAccountSpent <= totalEarned ? rawAccountSpent : calcUsed)
+        : rawAccountSpent <= totalEarned
+        ? rawAccountSpent
+        : 0;
 
     const effectiveBalance = Math.max(0, totalEarned - totalSpent - expiredPoints);
 
