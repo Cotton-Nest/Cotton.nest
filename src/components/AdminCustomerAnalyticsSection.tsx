@@ -37,6 +37,26 @@ import { Order } from '../data/orders';
 import { WishlistItem } from '../data/wishlist';
 import { getWishlistsApi } from '../services/api';
 import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as RechartsTooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  AreaChart,
+  Area,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar
+} from 'recharts';
+import {
   CustomerActivityEvent,
   CustomerActivityProfile,
   CustomerDeviceType,
@@ -227,6 +247,94 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
   const productInterestList = useMemo<ProductInterestAnalyticsItem[]>(() => {
     return aggregateProductInterestAnalytics(allProfiles, products, orders, wishlists);
   }, [allProfiles, products, orders, wishlists]);
+
+  // Recharts: Returning vs New Customers Donut Chart Data
+  const retentionPieData = useMemo(() => {
+    return [
+      { name: 'Returning Customers (2+ Sessions)', value: summaryStats.returningCount, color: '#8C2E46' },
+      { name: 'New Customers (1st Session)', value: summaryStats.newCount, color: '#C29E57' }
+    ];
+  }, [summaryStats.returningCount, summaryStats.newCount]);
+
+  // Recharts: Session Frequency Distribution (Retention Cohorts)
+  const sessionFrequencyData = useMemo(() => {
+    let single = 0;
+    let twoToThree = 0;
+    let fourToSix = 0;
+    let sevenPlus = 0;
+
+    allProfiles.forEach(p => {
+      const sess = p.totalSessions || 1;
+      if (sess <= 1) single++;
+      else if (sess <= 3) twoToThree++;
+      else if (sess <= 6) fourToSix++;
+      else sevenPlus++;
+    });
+
+    return [
+      { cohort: '1 Session (New)', count: single, fill: '#DEC89B' },
+      { cohort: '2-3 Sessions', count: twoToThree, fill: '#C29E57' },
+      { cohort: '4-6 Sessions', count: fourToSix, fill: '#A33452' },
+      { cohort: '7+ Sessions (VIP)', count: sevenPlus, fill: '#70252D' }
+    ];
+  }, [allProfiles]);
+
+  // Recharts: Engagement Timeline by Day (Last 7 Days) for Returning vs New
+  const retentionTimelineData = useMemo(() => {
+    const days: { [key: string]: { date: string; returning: number; newUsers: number; totalMinutes: number } } = {};
+    const now = new Date();
+    
+    // Seed last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const key = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+      days[key] = { date: key, returning: 0, newUsers: 0, totalMinutes: 0 };
+    }
+
+    allProfiles.forEach(p => {
+      const ts = p.lastActiveAt || p.lastLoginAt;
+      if (!ts) return;
+      const key = new Date(ts).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+      if (days[key]) {
+        if ((p.totalSessions || 1) > 1) {
+          days[key].returning += 1;
+        } else {
+          days[key].newUsers += 1;
+        }
+        days[key].totalMinutes += Math.round((p.totalTimeSpentSeconds || 0) / 60);
+      }
+    });
+
+    return Object.values(days);
+  }, [allProfiles]);
+
+  // Recharts: Top Bedsheet Product Interest Bar Chart Data
+  const topProductsChartData = useMemo(() => {
+    return productInterestList.slice(0, 8).map(p => ({
+      name: p.productName.length > 18 ? p.productName.slice(0, 16) + '…' : p.productName,
+      fullName: p.productName,
+      views: p.totalViews,
+      wishlists: p.wishlistAdds,
+      cartAdds: p.cartAdds,
+      orders: p.ordersCount,
+      score: p.interestScore
+    }));
+  }, [productInterestList]);
+
+  // Recharts: Most Interested Customers Radar / Bar Comparison Data
+  const mostInterestedChartData = useMemo(() => {
+    return mostInterestedCustomers.slice(0, 6).map(c => ({
+      name: c.customerName.length > 12 ? c.customerName.slice(0, 10) + '…' : c.customerName,
+      fullName: c.customerName,
+      score: computeCustomerInterestScore(c),
+      activeMins: Math.round((c.totalTimeSpentSeconds || 0) / 60),
+      views: c.totalProductViews || 0,
+      wishlists: c.totalAddedToWishlistCount || c.currentWishlist?.length || 0,
+      cartAdds: c.totalAddedToCartCount || 0,
+      orders: c.ordersPlacedCount || 0
+    }));
+  }, [mostInterestedCustomers]);
 
   // Selected Customer Profile object
   const selectedCustomer = useMemo(() => {
@@ -798,255 +906,491 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
         </div>
       )}
 
-      {/* SUB-TAB 2: MOST INTERESTED CUSTOMERS LEADERBOARD */}
+      {/* SUB-TAB 2: MOST INTERESTED CUSTOMERS LEADERBOARD & RECHARTS INTENT BREAKDOWN */}
       {activeSubTab === 'most_interested' && (
-        <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h4 className="font-serif-luxury text-xl font-bold text-[#2C2420]">
-                Most Interested & High-Intent Customers
-              </h4>
-              <p className="text-xs text-[#7A6A5E]">
-                Ranked by composite engagement score combining active browse duration, bedsheet views, wishlist saves, cart additions, repeat visits, and orders.
-              </p>
+        <div className="space-y-6">
+          {/* Top Visual Recharts Chart for High Intent Customers */}
+          <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h4 className="font-serif-luxury text-xl font-bold text-[#2C2420] flex items-center gap-2">
+                  <Award className="w-5 h-5 text-[#C29E57]" />
+                  <span>High-Intent Customer Engagement Score (Recharts)</span>
+                </h4>
+                <p className="text-xs text-[#7A6A5E]">
+                  Comparative multi-signal scoring: Active Browsing Minutes, Bedsheet Views, Wishlist Additions, Cart Additions, and Purchases.
+                </p>
+              </div>
+            </div>
+
+            {/* Recharts BarChart comparing Top Interested Customers */}
+            <div className="w-full h-72 sm:h-80 pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={mostInterestedChartData} margin={{ top: 20, right: 20, left: -10, bottom: 25 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0EAE1" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: '#7A6A5E', fontSize: 11 }} interval={0} angle={-15} textAnchor="end" />
+                  <YAxis tick={{ fill: '#7A6A5E', fontSize: 11 }} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-[#FAF7F2] p-3 rounded-xl border border-[#DEC89B] shadow-lg text-xs space-y-1">
+                          <p className="font-bold text-[#2C2420]">{data.fullName}</p>
+                          <p className="text-[#8C2E46] font-bold">Composite Score: {data.score}</p>
+                          <p className="text-[#5C4A3E]">Active Time: {data.activeMins} mins</p>
+                          <p className="text-[#5C4A3E]">Bedsheet Views: {data.views}</p>
+                          <p className="text-rose-700">Wishlist Adds: {data.wishlists}</p>
+                          <p className="text-amber-800">Cart Adds: {data.cartAdds}</p>
+                          <p className="text-emerald-800">Orders: {data.orders}</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                  <Bar dataKey="score" name="Total Intent Score" fill="#8C2E46" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="views" name="Product Views" fill="#C29E57" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="wishlists" name="Wishlist Saves" fill="#E2738F" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="cartAdds" name="Cart Adds" fill="#D4A373" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {mostInterestedCustomers.slice(0, 12).map((cust, index) => {
-              const score = computeCustomerInterestScore(cust);
-              return (
-                <div
-                  key={cust.uid}
-                  onClick={() => {
-                    setSelectedCustomerUid(cust.uid);
-                    setProfileTab('overview');
-                  }}
-                  className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE2D5] hover:border-[#8C2E46] transition-all cursor-pointer flex items-start justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-[#8C2E46] text-white font-bold text-xs flex items-center justify-center shrink-0 tabular-nums">
-                      #{index + 1}
-                    </div>
-                    <div>
-                      <div className="font-bold text-sm text-[#2C2420] flex items-center gap-2">
-                        <span>{cust.customerName}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-[#DEC89B] text-[#8C2E46] font-bold tabular-nums">
-                          Score: {score}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#7A6A5E]">{cust.email || cust.phone || cust.uid}</p>
-                      <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-[#5C4A3E] tabular-nums">
-                        <span>
-                          <strong>{formatDurationHuman(cust.totalTimeSpentSeconds)}</strong> active
-                        </span>
-                        <span>·</span>
-                        <span>
-                          <strong>{cust.totalProductViews || 0}</strong> product views
-                        </span>
-                        <span>·</span>
-                        <span>
-                          <strong>{cust.currentWishlist?.length || 0}</strong> wishlisted
-                        </span>
-                        <span>·</span>
-                        <span>
-                          <strong>{cust.totalAddedToCartCount || 0}</strong> cart adds
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="px-3 py-1.5 rounded-xl bg-white border border-[#EAE2D5] text-[11px] font-bold text-[#8C2E46] shrink-0"
-                  >
-                    Inspect
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* SUB-TAB 3: PRODUCT INTEREST ANALYTICS */}
-      {activeSubTab === 'product_interest' && (
-        <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
-          <div>
-            <h4 className="font-serif-luxury text-xl font-bold text-[#2C2420]">
-              Product Interest Analytics
+          {/* Customer Cards Grid */}
+          <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
+            <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+              VIP Customer Profiles Ranked by Engagement
             </h4>
-            <p className="text-xs text-[#7A6A5E]">
-              Bedsheets ranked by signed-in customer views, unique interested shoppers, wishlist saves, cart additions, and completed orders.
-            </p>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[760px]">
-              <thead>
-                <tr className="border-b border-[#EAE2D5] text-[11px] font-bold uppercase tracking-wider text-[#7A6A5E] bg-[#FAF7F2]">
-                  <th className="py-3 px-4 rounded-tl-xl">Bedsheet Product</th>
-                  <th className="py-3 px-3 text-right">Price</th>
-                  <th className="py-3 px-3 text-right">Total Views</th>
-                  <th className="py-3 px-3 text-right">Unique Viewers</th>
-                  <th className="py-3 px-3 text-right">Wishlist Saves</th>
-                  <th className="py-3 px-3 text-right">Added to Cart</th>
-                  <th className="py-3 px-3 text-right">Orders</th>
-                  <th className="py-3 px-4 text-right rounded-tr-xl">Interest Score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EAE2D5] text-xs">
-                {productInterestList.map(item => (
-                  <tr key={item.productId} className="hover:bg-[#FAF7F2]/70">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        {item.productImage ? (
-                          <img
-                            src={item.productImage}
-                            alt={item.productName}
-                            className="w-10 h-10 rounded-lg object-cover border border-[#EAE2D5] shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-[#FAF7F2] border border-[#EAE2D5] flex items-center justify-center">
-                            <Package className="w-4 h-4 text-[#C29E57]" />
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-bold text-[#2C2420]">{item.productName}</div>
-                          <div className="text-[10px] text-[#7A6A5E]">{item.collection}</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {mostInterestedCustomers.slice(0, 12).map((cust, index) => {
+                const score = computeCustomerInterestScore(cust);
+                return (
+                  <div
+                    key={cust.uid}
+                    onClick={() => {
+                      setSelectedCustomerUid(cust.uid);
+                      setProfileTab('overview');
+                    }}
+                    className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE2D5] hover:border-[#8C2E46] transition-all cursor-pointer flex items-start justify-between gap-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-[#8C2E46] text-white font-bold text-xs flex items-center justify-center shrink-0 tabular-nums">
+                        #{index + 1}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-[#2C2420] flex items-center gap-2">
+                          <span>{cust.customerName}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-[#DEC89B] text-[#8C2E46] font-bold tabular-nums">
+                            Score: {score}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#7A6A5E]">{cust.email || cust.phone || cust.uid}</p>
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-[#5C4A3E] tabular-nums">
+                          <span>
+                            <strong>{formatDurationHuman(cust.totalTimeSpentSeconds)}</strong> active
+                          </span>
+                          <span>·</span>
+                          <span>
+                            <strong>{cust.totalProductViews || 0}</strong> views
+                          </span>
+                          <span>·</span>
+                          <span>
+                            <strong>{cust.currentWishlist?.length || 0}</strong> wishlisted
+                          </span>
+                          <span>·</span>
+                          <span>
+                            <strong>{cust.totalAddedToCartCount || 0}</strong> cart adds
+                          </span>
+                          <span>·</span>
+                          <span>
+                            <strong>{cust.ordersPlacedCount || 0}</strong> orders
+                          </span>
                         </div>
                       </div>
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums font-semibold text-[#2C2420]">
-                      ₹{Number(item.productPrice).toLocaleString('en-IN')}
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums font-bold text-[#8C2E46]">
-                      {item.totalViews}
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-[#2C2420]">
-                      {item.uniqueViewers}
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums font-bold text-rose-700">
-                      {item.wishlistAdds}
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums font-semibold text-amber-800">
-                      {item.cartAdds}
-                    </td>
-                    <td className="py-3 px-3 text-right tabular-nums font-bold text-emerald-800">
-                      {item.ordersCount}
-                    </td>
-                    <td className="py-3 px-4 text-right tabular-nums">
-                      <span className="px-2.5 py-1 rounded-lg bg-[#FAF7F2] border border-[#DEC89B] font-bold text-[#8C2E46]">
-                        {item.interestScore}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded-xl bg-white border border-[#EAE2D5] text-[11px] font-bold text-[#8C2E46] shrink-0 hover:bg-[#8C2E46] hover:text-white transition-colors"
+                    >
+                      Inspect
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
-      {/* SUB-TAB 4: RETURNING VS NEW CUSTOMERS COHORT ANALYSIS */}
-      {activeSubTab === 'cohorts' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Returning Customers Card */}
+      {/* SUB-TAB 3: PRODUCT INTEREST ANALYTICS & RECHARTS PRODUCT COMPARISON */}
+      {activeSubTab === 'product_interest' && (
+        <div className="space-y-6">
+          {/* Top Bedsheets Engagement Recharts Visualization */}
           <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800">
-                  <UserCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
-                    Returning Customers ({summaryStats.returningCount})
-                  </h4>
-                  <p className="text-xs text-[#7A6A5E]">
-                    Signed-in customers with 2 or more sessions ({summaryStats.returningPct}% of base)
-                  </p>
-                </div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h4 className="font-serif-luxury text-xl font-bold text-[#2C2420] flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-[#8C2E46]" />
+                  <span>Product Interest Analytics (Recharts Multi-Metric)</span>
+                </h4>
+                <p className="text-xs text-[#7A6A5E]">
+                  Compare total views, wishlist additions, cart additions, and confirmed orders across highest-demand cotton bedsheets.
+                </p>
               </div>
             </div>
 
-            <div className="divide-y divide-[#EAE2D5] max-h-96 overflow-y-auto">
-              {allProfiles
-                .filter(p => (p.totalSessions || 1) > 1)
-                .map(p => (
-                  <div
-                    key={p.uid}
-                    onClick={() => {
-                      setSelectedCustomerUid(p.uid);
-                      setProfileTab('overview');
+            <div className="w-full h-80 pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topProductsChartData} margin={{ top: 20, right: 20, left: -10, bottom: 35 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0EAE1" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: '#7A6A5E', fontSize: 11 }} interval={0} angle={-20} textAnchor="end" />
+                  <YAxis tick={{ fill: '#7A6A5E', fontSize: 11 }} />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-[#FAF7F2] p-3 rounded-xl border border-[#DEC89B] shadow-lg text-xs space-y-1">
+                          <p className="font-bold text-[#2C2420]">{data.fullName}</p>
+                          <p className="text-[#8C2E46] font-bold">Interest Score: {data.score}</p>
+                          <p className="text-[#C29E57]">Total Views: {data.views}</p>
+                          <p className="text-rose-700">Wishlist Saves: {data.wishlists}</p>
+                          <p className="text-amber-800">Cart Adds: {data.cartAdds}</p>
+                          <p className="text-emerald-800">Orders Placed: {data.orders}</p>
+                        </div>
+                      );
                     }}
-                    className="py-3 flex items-center justify-between hover:bg-[#FAF7F2] px-2 rounded-xl cursor-pointer"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-[#2C2420]">{p.customerName}</div>
-                      <div className="text-[11px] text-[#7A6A5E]">{p.email || p.phone}</div>
-                    </div>
-                    <div className="text-right tabular-nums text-xs">
-                      <div className="font-bold text-emerald-800">{p.totalSessions} sessions</div>
-                      <div className="text-[10px] text-[#7A6A5E]">
-                        {formatDurationHuman(p.totalTimeSpentSeconds)} spent
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              {summaryStats.returningCount === 0 && (
-                <p className="text-xs text-[#7A6A5E] py-6 text-center">
-                  No multi-session returning customers recorded yet.
-                </p>
-              )}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                  <Bar dataKey="views" name="Customer Views" fill="#C29E57" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="wishlists" name="Wishlist Adds" fill="#E2738F" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="cartAdds" name="Cart Additions" fill="#A33452" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="orders" name="Orders" fill="#70252D" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          {/* New Customers Card */}
+          {/* Full Products Table */}
           <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
-                  <UserPlus className="w-5 h-5" />
+            <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+              Full Bedsheet Interest & Demand Ranking
+            </h4>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[760px]">
+                <thead>
+                  <tr className="border-b border-[#EAE2D5] text-[11px] font-bold uppercase tracking-wider text-[#7A6A5E] bg-[#FAF7F2]">
+                    <th className="py-3 px-4 rounded-tl-xl">Bedsheet Product</th>
+                    <th className="py-3 px-3 text-right">Price</th>
+                    <th className="py-3 px-3 text-right">Total Views</th>
+                    <th className="py-3 px-3 text-right">Unique Viewers</th>
+                    <th className="py-3 px-3 text-right">Wishlist Saves</th>
+                    <th className="py-3 px-3 text-right">Added to Cart</th>
+                    <th className="py-3 px-3 text-right">Orders</th>
+                    <th className="py-3 px-4 text-right rounded-tr-xl">Interest Score</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EAE2D5] text-xs">
+                  {productInterestList.map(item => (
+                    <tr key={item.productId} className="hover:bg-[#FAF7F2]/70">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          {item.productImage ? (
+                            <img
+                              src={item.productImage}
+                              alt={item.productName}
+                              className="w-10 h-10 rounded-lg object-cover border border-[#EAE2D5] shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-[#FAF7F2] border border-[#EAE2D5] flex items-center justify-center">
+                              <Package className="w-4 h-4 text-[#C29E57]" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-bold text-[#2C2420]">{item.productName}</div>
+                            <div className="text-[10px] text-[#7A6A5E]">{item.collection}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums font-semibold text-[#2C2420]">
+                        ₹{Number(item.productPrice).toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums font-bold text-[#8C2E46]">
+                        {item.totalViews}
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums text-[#2C2420]">
+                        {item.uniqueViewers}
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums font-bold text-rose-700">
+                        {item.wishlistAdds}
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums font-semibold text-amber-800">
+                        {item.cartAdds}
+                      </td>
+                      <td className="py-3 px-3 text-right tabular-nums font-bold text-emerald-800">
+                        {item.ordersCount}
+                      </td>
+                      <td className="py-3 px-4 text-right tabular-nums">
+                        <span className="px-2.5 py-1 rounded-lg bg-[#FAF7F2] border border-[#DEC89B] font-bold text-[#8C2E46]">
+                          {item.interestScore}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 4: RETURNING VS NEW CUSTOMERS VISUALIZATION (RECHARTS USER RETENTION) */}
+      {activeSubTab === 'cohorts' && (
+        <div className="space-y-6">
+          {/* Recharts Visual Retention Analytics Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* 1. Retention Donut Chart */}
+            <div className="lg:col-span-5 bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs flex flex-col justify-between">
+              <div>
+                <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420] flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-emerald-700" />
+                  <span>Customer Retention Split (Donut Chart)</span>
+                </h4>
+                <p className="text-xs text-[#7A6A5E] mt-0.5">
+                  Visual ratio of 1-session new customers versus repeat returning customers.
+                </p>
+              </div>
+
+              <div className="w-full h-64 my-2 relative flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={retentionPieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={65}
+                      outerRadius={95}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {retentionPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      formatter={(val: any) => [`${val} Customer(s)`, 'Count']}
+                      contentStyle={{ backgroundColor: '#FAF7F2', borderColor: '#DEC89B', borderRadius: '12px', fontSize: '12px' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center metric inside donut */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-4">
+                  <span className="text-2xl font-bold text-[#8C2E46] tabular-nums">
+                    {summaryStats.returningPct}%
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#7A6A5E] uppercase tracking-wider">
+                    Retention Rate
+                  </span>
                 </div>
-                <div>
-                  <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
-                    First-Time Signed-In Customers ({summaryStats.newCount})
-                  </h4>
-                  <p className="text-xs text-[#7A6A5E]">
-                    Customers on their initial recorded session ({summaryStats.newPct}% of base)
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#EAE2D5] text-xs">
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <span className="text-[10px] uppercase font-bold text-emerald-800">Returning (2+ Visits)</span>
+                  <p className="text-lg font-bold text-emerald-900 mt-0.5 tabular-nums">
+                    {summaryStats.returningCount} <span className="text-xs font-normal">({summaryStats.returningPct}%)</span>
+                  </p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                  <span className="text-[10px] uppercase font-bold text-amber-800">New (1st Visit)</span>
+                  <p className="text-lg font-bold text-amber-900 mt-0.5 tabular-nums">
+                    {summaryStats.newCount} <span className="text-xs font-normal">({summaryStats.newPct}%)</span>
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="divide-y divide-[#EAE2D5] max-h-96 overflow-y-auto">
-              {allProfiles
-                .filter(p => (p.totalSessions || 1) <= 1)
-                .map(p => (
-                  <div
-                    key={p.uid}
-                    onClick={() => {
-                      setSelectedCustomerUid(p.uid);
-                      setProfileTab('overview');
-                    }}
-                    className="py-3 flex items-center justify-between hover:bg-[#FAF7F2] px-2 rounded-xl cursor-pointer"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-[#2C2420]">{p.customerName}</div>
-                      <div className="text-[11px] text-[#7A6A5E]">{p.email || p.phone}</div>
-                    </div>
-                    <div className="text-right tabular-nums text-xs">
-                      <div className="font-bold text-[#8C2E46]">Joined {formatDateOnlyIST(p.accountCreatedAt)}</div>
-                      <div className="text-[10px] text-[#7A6A5E]">
-                        {formatDurationHuman(p.totalTimeSpentSeconds)} spent
+            {/* 2. Session Frequency Bar Chart (Retention Cohorts) */}
+            <div className="lg:col-span-7 bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs flex flex-col justify-between">
+              <div>
+                <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420] flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-[#C29E57]" />
+                  <span>Session Frequency &amp; Loyalty Cohorts (Recharts)</span>
+                </h4>
+                <p className="text-xs text-[#7A6A5E] mt-0.5">
+                  Distribution of customer visit depth from first-timers to highly engaged 7+ session VIP loyalists.
+                </p>
+              </div>
+
+              <div className="w-full h-64 my-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={sessionFrequencyData} margin={{ top: 20, right: 20, left: -10, bottom: 15 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0EAE1" vertical={false} />
+                    <XAxis dataKey="cohort" tick={{ fill: '#7A6A5E', fontSize: 11 }} />
+                    <YAxis tick={{ fill: '#7A6A5E', fontSize: 11 }} allowDecimals={false} />
+                    <RechartsTooltip
+                      formatter={(val: any) => [`${val} Customer(s)`, 'Customer Count']}
+                      contentStyle={{ backgroundColor: '#FAF7F2', borderColor: '#DEC89B', borderRadius: '12px', fontSize: '12px' }}
+                    />
+                    <Bar dataKey="count" name="Customers in Cohort" radius={[6, 6, 0, 0]}>
+                      {sessionFrequencyData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between text-xs text-[#7A6A5E] pt-3 border-t border-[#EAE2D5]">
+                <span>Total Tracked Customer Base: <strong className="text-[#2C2420]">{summaryStats.totalCustomers}</strong></span>
+                <span>Avg Sessions per Customer: <strong className="text-[#8C2E46] tabular-nums">{(summaryStats.totalSessionsSum / (summaryStats.totalCustomers || 1)).toFixed(1)}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 7-Day Activity Trends by Cohort (AreaChart) */}
+          <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
+            <div>
+              <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420] flex items-center gap-2">
+                <Clock className="w-5 h-5 text-[#8C2E46]" />
+                <span>Daily Active Shoppers (7-Day Retention Trend)</span>
+              </h4>
+              <p className="text-xs text-[#7A6A5E]">
+                Track daily returning customers vs new customers browsing Cotton Nest over the last 7 days.
+              </p>
+            </div>
+
+            <div className="w-full h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={retentionTimelineData} margin={{ top: 10, right: 20, left: -15, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="returningGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8C2E46" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#8C2E46" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="newGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#C29E57" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#C29E57" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0EAE1" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: '#7A6A5E', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#7A6A5E', fontSize: 11 }} allowDecimals={false} />
+                  <RechartsTooltip
+                    contentStyle={{ backgroundColor: '#FAF7F2', borderColor: '#DEC89B', borderRadius: '12px', fontSize: '12px' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '5px' }} />
+                  <Area type="monotone" dataKey="returning" name="Returning Shoppers" stroke="#8C2E46" strokeWidth={2} fillOpacity={1} fill="url(#returningGrad)" />
+                  <Area type="monotone" dataKey="newUsers" name="First-Time Shoppers" stroke="#C29E57" strokeWidth={2} fillOpacity={1} fill="url(#newGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Customer Lists Split */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Returning Customers Card */}
+            <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+                      Returning Customers ({summaryStats.returningCount})
+                    </h4>
+                    <p className="text-xs text-[#7A6A5E]">
+                      Signed-in customers with 2 or more sessions ({summaryStats.returningPct}% of base)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="divide-y divide-[#EAE2D5] max-h-96 overflow-y-auto">
+                {allProfiles
+                  .filter(p => (p.totalSessions || 1) > 1)
+                  .map(p => (
+                    <div
+                      key={p.uid}
+                      onClick={() => {
+                        setSelectedCustomerUid(p.uid);
+                        setProfileTab('overview');
+                      }}
+                      className="py-3 flex items-center justify-between hover:bg-[#FAF7F2] px-2 rounded-xl cursor-pointer"
+                    >
+                      <div>
+                        <div className="text-xs font-bold text-[#2C2420]">{p.customerName}</div>
+                        <div className="text-[11px] text-[#7A6A5E]">{p.email || p.phone}</div>
+                      </div>
+                      <div className="text-right tabular-nums text-xs">
+                        <div className="font-bold text-emerald-800">{p.totalSessions} sessions</div>
+                        <div className="text-[10px] text-[#7A6A5E]">
+                          {formatDurationHuman(p.totalTimeSpentSeconds)} spent
+                        </div>
                       </div>
                     </div>
+                  ))}
+                {summaryStats.returningCount === 0 && (
+                  <p className="text-xs text-[#7A6A5E] py-6 text-center">
+                    No multi-session returning customers recorded yet.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* New Customers Card */}
+            <div className="bg-white rounded-3xl border border-[#EAE2D5] p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
+                    <UserPlus className="w-5 h-5" />
                   </div>
-                ))}
-              {summaryStats.newCount === 0 && (
-                <p className="text-xs text-[#7A6A5E] py-6 text-center">
-                  No single-session customers in current list.
-                </p>
-              )}
+                  <div>
+                    <h4 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+                      First-Time Signed-In Customers ({summaryStats.newCount})
+                    </h4>
+                    <p className="text-xs text-[#7A6A5E]">
+                      Customers on their initial recorded session ({summaryStats.newPct}% of base)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="divide-y divide-[#EAE2D5] max-h-96 overflow-y-auto">
+                {allProfiles
+                  .filter(p => (p.totalSessions || 1) <= 1)
+                  .map(p => (
+                    <div
+                      key={p.uid}
+                      onClick={() => {
+                        setSelectedCustomerUid(p.uid);
+                        setProfileTab('overview');
+                      }}
+                      className="py-3 flex items-center justify-between hover:bg-[#FAF7F2] px-2 rounded-xl cursor-pointer"
+                    >
+                      <div>
+                        <div className="text-xs font-bold text-[#2C2420]">{p.customerName}</div>
+                        <div className="text-[11px] text-[#7A6A5E]">{p.email || p.phone}</div>
+                      </div>
+                      <div className="text-right tabular-nums text-xs">
+                        <div className="font-bold text-[#8C2E46]">Joined {formatDateOnlyIST(p.accountCreatedAt)}</div>
+                        <div className="text-[10px] text-[#7A6A5E]">
+                          {formatDurationHuman(p.totalTimeSpentSeconds)} spent
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                {summaryStats.newCount === 0 && (
+                  <p className="text-xs text-[#7A6A5E] py-6 text-center">
+                    No single-session customers in current list.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
