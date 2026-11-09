@@ -1067,7 +1067,33 @@ export default function App() {
       }
     );
 
-    // 6. Authoritative Site Content listener from Firestore
+    // 6. Authoritative Site Content listener from Firestore + initial API sync
+    getSiteContent()
+      .then((content) => {
+        if (content && content.company) {
+          const rawTc = String(content.termsAndConditions || INITIAL_SITE_CONTENT.termsAndConditions);
+          const normalizedTc = normalizeShippingInTerms(rawTc);
+          const normalizedFee = normalizeShippingFee(content.shippingFeeIndia);
+          const mergedContent: SiteContent = {
+            ...INITIAL_SITE_CONTENT,
+            ...content,
+            isMaintenanceMode: Boolean(content.isMaintenanceMode),
+            maintenanceNotice: content.maintenanceNotice || INITIAL_SITE_CONTENT.maintenanceNotice,
+            shippingFeeIndia: normalizedFee,
+            company: { ...INITIAL_SITE_CONTENT.company, ...(content.company || {}) },
+            announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(content.announcement || {}) },
+            hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
+            story: { ...INITIAL_SITE_CONTENT.story, ...(content.story || {}) },
+            termsAndConditions: normalizedTc,
+          };
+          setSiteContent(mergedContent);
+          try {
+            localStorage.setItem('cotton_nest_site_content', JSON.stringify(mergedContent));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
     const unsubContent = onSnapshot(
       doc(db, 'site_content', 'main'),
       (docSnap) => {

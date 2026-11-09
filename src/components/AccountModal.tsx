@@ -138,25 +138,25 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const [fetchedOrders, setFetchedOrders] = useState<Order[]>([]);
 
   useEffect(() => {
-    if (isOpen) {
-      setAddressBook(getSavedAddresses(customerProfile, userKey));
-      getOrders()
-        .then((res) => {
-          if (Array.isArray(res)) {
-            setFetchedOrders(res);
-            try {
-              localStorage.setItem('cotton_nest_orders', JSON.stringify(res));
-            } catch {}
-          }
-          refreshLoyalty();
-          loadTransactions();
-        })
-        .catch(() => {
-          refreshLoyalty();
-          loadTransactions();
-        });
-    }
-  }, [isOpen, customerProfile, userKey, activeTab, refreshLoyalty, loadTransactions]);
+    if (!isOpen) return;
+    setAddressBook(getSavedAddresses(customerProfile, userKey));
+    getOrders()
+      .then((res) => {
+        if (Array.isArray(res)) {
+          setFetchedOrders(res);
+          try {
+            localStorage.setItem('cotton_nest_orders', JSON.stringify(res));
+          } catch {}
+        }
+        refreshLoyalty();
+        loadTransactions();
+      })
+      .catch(() => {
+        refreshLoyalty();
+        loadTransactions();
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, userKey, activeTab]);
 
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
@@ -340,14 +340,23 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     return true; // fallback to show recent store orders
   }).slice(0, 10);
 
-  // Calculate purchase points from delivered orders as fallback/supplement
-  const deliveredOrdersEarned = customerOrders
+  // Delivered orders for this customer with calculated earned points
+  const deliveredCustomerOrders = customerOrders
     .filter((o) => o.status === 'delivered')
-    .reduce((sum, o) => {
-      if (typeof o.pointsEarned === 'number' && o.pointsEarned > 0) return sum + o.pointsEarned;
+    .map((o) => {
       const net = Math.max(0, (o.totalAmount || 0) - (o.shippingCost || 0));
-      return sum + calculateEarnedPoints(net);
-    }, 0);
+      const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
+      return {
+        ...o,
+        computedEarnedPoints: pts,
+      };
+    });
+
+  // Calculate purchase points from delivered orders as fallback/supplement
+  const deliveredOrdersEarned = deliveredCustomerOrders.reduce(
+    (sum, o) => sum + o.computedEarnedPoints,
+    0
+  );
 
   const pendingDeliveryPoints = customerOrders
     .filter((o) => o.status !== 'delivered' && o.status !== 'cancelled')
@@ -500,6 +509,65 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     <span className="text-[10px] text-[#7A6458] block">Referral Rewards</span>
                     <span className="font-bold text-emerald-800">+{referralPointsEarned} pts ({referralCode})</span>
                   </div>
+                </div>
+
+                {/* Brief History of Points Earned from Delivered Orders */}
+                <div className="pt-2.5 border-t border-amber-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-[#70252D] flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-[#C29E57]" />
+                      <span>Points Earned from Delivered Orders</span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      {deliveredCustomerOrders.length} Delivered Order{deliveredCustomerOrders.length === 1 ? '' : 's'} · +{displayPointsFromPurchases} pts
+                    </span>
+                  </div>
+
+                  {deliveredCustomerOrders.length > 0 ? (
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {deliveredCustomerOrders.slice(0, 4).map((ord) => (
+                        <div
+                          key={ord.id}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/95 border border-amber-200/80 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-[#2C2420]">
+                                Order #{ord.id.slice(-8)}
+                              </span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                                Delivered
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-[#7A6458] truncate">
+                              {new Date(ord.createdAt).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })} · Paid ₹{ord.totalAmount}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-extrabold text-emerald-700 text-xs block">
+                              +{ord.computedEarnedPoints} pts
+                            </span>
+                            <span className="text-[10px] text-[#7A6458] block">
+                              ≈ ₹{calculatePointsDiscount(ord.computedEarnedPoints)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-2 rounded-xl bg-white/80 border border-amber-200/60 text-[11px] text-[#7A6458]">
+                      Points are credited automatically once your order is marked <strong className="text-[#2C2420]">Delivered</strong> (5 Nest Points per ₹100 spent).
+                      {pendingDeliveryPoints > 0 && (
+                        <span className="block text-amber-900 font-semibold mt-0.5">
+                          +{pendingDeliveryPoints} Nest Points will be credited upon delivery of your active order(s).
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Redeem Points at Checkout Toggle & Action */}

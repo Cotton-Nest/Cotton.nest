@@ -1,9 +1,7 @@
 // Cotton Nest Atelier Service Worker for PWA Installability, Offline Support & Device OS Notification Bar
-const CACHE_NAME = 'cotton-nest-pwa-v3';
+const CACHE_NAME = 'cotton-nest-pwa-v5';
 const DEFAULT_ICON = '/pwa-192x192.png';
 const PRECACHE_URLS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icon.svg',
   '/pwa-192x192.png',
@@ -41,12 +39,29 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  // Skip API and Firestore/Google auth calls so live data is always fresh
+  // Skip API, Firestore/Google auth, and all Vite/TypeScript dev modules so live code & data are never broken by stale cache
   if (
     url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('dev-sw.js') ||
+    url.pathname.endsWith('.tsx') ||
+    url.pathname.endsWith('.ts') ||
+    url.search.includes('t=') ||
+    url.search.includes('v=') ||
     url.hostname.includes('firestore.googleapis.com') ||
+    url.hostname.includes('identitytoolkit.googleapis.com') ||
     url.hostname.includes('accounts.google.com')
   ) {
+    return;
+  }
+
+  // Always network-first for HTML navigation without caching dev HTML
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/index.html'))
+    );
     return;
   }
 
@@ -69,9 +84,6 @@ self.addEventListener('fetch', (event) => {
       .catch(() => {
         return caches.match(request).then((cached) => {
           if (cached) return cached;
-          if (request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
           return new Response('Offline', { status: 503, statusText: 'Offline' });
         });
       })
