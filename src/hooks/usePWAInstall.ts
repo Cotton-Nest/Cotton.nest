@@ -11,6 +11,19 @@ declare global {
   }
 }
 
+const PWA_INSTALLED_STORAGE_KEY = 'cotton_nest_pwa_installed';
+const PWA_INSTALLED_EVENT = 'cotton-nest-pwa-installed';
+
+function checkIsStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches ||
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true
+  );
+}
+
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => {
     if (typeof window !== 'undefined' && window.__deferredPwaPrompt) {
@@ -18,28 +31,71 @@ export function usePWAInstall() {
     }
     return null;
   });
-  const [isInstalled, setIsInstalled] = useState(false);
+
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    if (checkIsStandalone()) return true;
+    try {
+      if (!window.__deferredPwaPrompt && localStorage.getItem(PWA_INSTALLED_STORAGE_KEY) === 'true') {
+        return true;
+      }
+    } catch {}
+    return false;
+  });
+
   const [isIOS, setIsIOS] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Detect standalone mode (only true when actually running inside the installed standalone PWA window)
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsInstalled(isStandalone);
+    // Ensure service worker is registered so Android/Chrome fires beforeinstallprompt
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+    }
 
-    // Detect iOS / iPadOS devices
+    // Detect standalone mode
+    const standalone = checkIsStandalone();
+    if (standalone) {
+      setIsInstalled(true);
+      try {
+        localStorage.setItem(PWA_INSTALLED_STORAGE_KEY, 'true');
+      } catch {}
+    }
+
+    // Check getInstalledRelatedApps if supported on Android/Chrome
+    const nav = window.navigator as unknown as {
+      getInstalledRelatedApps?: () => Promise<Array<{ id?: string; platform?: string; url?: string }>>;
+    };
+    if (typeof nav.getInstalledRelatedApps === 'function') {
+      nav
+        .getInstalledRelatedApps()
+        .then((apps) => {
+          if (Array.isArray(apps) && apps.length > 0) {
+            setIsInstalled(true);
+            try {
+              localStorage.setItem(PWA_INSTALLED_STORAGE_KEY, 'true');
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Detect iOS / iPadOS and Android devices
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIOSDevice =
       /iphone|ipad|ipod/.test(userAgent) ||
       (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+    const isAndroidDevice = /android/.test(userAgent);
     setIsIOS(isIOSDevice);
+    setIsAndroid(isAndroidDevice);
 
-    // Check if index.html already captured the prompt
+    // Check if index.html already captured the prompt before React mounted
     if (window.__deferredPwaPrompt) {
       setDeferredPrompt(window.__deferredPwaPrompt);
+      if (!standalone) {
+        setIsInstalled(false);
+      }
     }
 
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -47,35 +103,70 @@ export function usePWAInstall() {
       const promptEvent = e as BeforeInstallPromptEvent;
       window.__deferredPwaPrompt = promptEvent;
       setDeferredPrompt(promptEvent);
+      // If browser fires beforeinstallprompt, the app is not currently installed
+      if (!checkIsStandalone()) {
+        setIsInstalled(false);
+        try {
+          localStorage.removeItem(PWA_INSTALLED_STORAGE_KEY);
+        } catch {}
+      }
     };
 
     const handleCustomInstallAvailable = () => {
       if (window.__deferredPwaPrompt) {
         setDeferredPrompt(window.__deferredPwaPrompt);
+        if (!checkIsStandalone()) {
+          setIsInstalled(false);
+        }
       }
     };
 
-    const handleAppInstalled = () => {
+    const markInstalled = () => {
       setIsInstalled(true);
       window.__deferredPwaPrompt = null;
       setDeferredPrompt(null);
       try {
-        localStorage.setItem('cotton_nest_pwa_installed', 'true');
+        localStorage.setItem(PWA_INSTALLED_STORAGE_KEY, 'true');
       } catch {}
+    };
+
+    const handleAppInstalled = () => {
+      markInstalled();
+      window.dispatchEvent(new CustomEvent(PWA_INSTALLED_EVENT));
+    };
+
+    const displayModeMedia = window.matchMedia('(display-mode: standalone)');
+    const handleDisplayModeChange = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        markInstalled();
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('pwa-install-available', handleCustomInstallAvailable);
     window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener(PWA_INSTALLED_EVENT, markInstalled);
+    if (typeof displayModeMedia.addEventListener === 'function') {
+      displayModeMedia.addEventListener('change', handleDisplayModeChange);
+    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('pwa-install-available', handleCustomInstallAvailable);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener(PWA_INSTALLED_EVENT, markInstalled);
+      if (typeof displayModeMedia.removeEventListener === 'function') {
+        displayModeMedia.removeEventListener('change', handleDisplayModeChange);
+      }
     };
   }, []);
 
-  const install = useCallback(async (): Promise<'accepted' | 'dismissed' | 'fallback'> => {
+  const install = useCallback(async (): Promise<'accepted' | 'dismissed' | 'already-installed' | 'unsupported'> => {
+    if (isInstalled || checkIsStandalone()) {
+      setIsInstalled(true);
+      return 'already-installed';
+    }
+
     const activePrompt = deferredPrompt || (typeof window !== 'undefined' ? window.__deferredPwaPrompt : null);
     if (activePrompt) {
       try {
@@ -86,8 +177,9 @@ export function usePWAInstall() {
           window.__deferredPwaPrompt = null;
           setDeferredPrompt(null);
           try {
-            localStorage.setItem('cotton_nest_pwa_installed', 'true');
+            localStorage.setItem(PWA_INSTALLED_STORAGE_KEY, 'true');
           } catch {}
+          window.dispatchEvent(new CustomEvent(PWA_INSTALLED_EVENT));
           return 'accepted';
         }
         return 'dismissed';
@@ -95,13 +187,14 @@ export function usePWAInstall() {
         console.warn('Native PWA install prompt error:', err);
       }
     }
-    return 'fallback';
-  }, [deferredPrompt]);
+    return 'unsupported';
+  }, [deferredPrompt, isInstalled]);
 
   return {
-    isInstallable: !!deferredPrompt,
+    isInstallable: Boolean(deferredPrompt),
     isInstalled,
     isIOS,
+    isAndroid,
     install,
   };
 }
