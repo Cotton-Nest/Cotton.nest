@@ -28,7 +28,8 @@ import {
   Plus,
   Home,
   Briefcase,
-  Bookmark
+  Bookmark,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
@@ -175,6 +176,54 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     if (res.success) {
       setFriendReferralInput('');
     }
+  };
+
+  const handleDownloadCsvHistory = () => {
+    if (!transactions || transactions.length === 0) return;
+
+    const headers = ['Transaction ID', 'Date & Time', 'Type', 'Points Delta', 'INR Value (INR)', 'Order ID', 'Description'];
+    
+    const sortedTxs = [...transactions].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    const rows = sortedTxs.map((t) => {
+      const isEarned = t.type === 'earned' || t.type === 'bonus' || t.type === 'referral' || t.points > 0;
+      const ptsDelta = isEarned ? `+${Math.abs(t.points)}` : `-${Math.abs(t.points)}`;
+      const typeLabel = t.type ? t.type.toUpperCase() : isEarned ? 'EARNED' : 'REDEEMED';
+      const dateStr = new Date(t.createdAt).toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+      const inrVal = calculatePointsDiscount(Math.abs(t.points));
+      const orderRef = t.orderId || '';
+      const desc = t.description || '';
+
+      return [
+        t.id,
+        dateStr,
+        typeLabel,
+        ptsDelta,
+        `₹${inrVal}`,
+        orderRef,
+        desc,
+      ].map((val) => `"${String(val).replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const userIdentifier = user?.phone || user?.email || customerProfile?.phone || 'customer';
+    const dateStamp = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `cotton_nest_nest_points_history_${userIdentifier.replace(/[^a-zA-Z0-9]/g, '_')}_${dateStamp}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleSaveProfile = () => {
@@ -904,16 +953,28 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
               {/* Points History with Chronological Log & Expiry Dates */}
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="text-xs font-bold text-[#70252D] uppercase tracking-wider flex items-center gap-1.5 font-serif-luxury">
                     <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
                     <span>Points History &amp; Expiry Ledger</span>
                   </h4>
-                  {transactions && transactions.length > 0 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-                      {transactions.length} record(s) · Newest first
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {transactions && transactions.length > 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                        {transactions.length} record(s)
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleDownloadCsvHistory}
+                      disabled={!transactions || transactions.length === 0}
+                      className="px-2.5 py-1 bg-[#8C2E46] hover:bg-[#742438] disabled:opacity-40 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      title="Download points history as CSV file"
+                    >
+                      <Download className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Download CSV</span>
+                    </button>
+                  </div>
                 </div>
 
                 {transactions && transactions.length > 0 ? (
@@ -1156,6 +1217,15 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                             <span className="font-semibold text-[#8C2E46]">₹{it.price * it.quantity}</span>
                           </div>
                         ))}
+                        {Boolean(order.pointsUsed && order.pointsUsed > 0) && (
+                          <div className="flex items-center justify-between text-xs py-1 px-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 font-semibold mt-1">
+                            <span className="flex items-center gap-1.5">
+                              <Award className="w-3.5 h-3.5 text-[#C29E57]" />
+                              <span>Loyalty Points Redeemed ({order.pointsUsed} pts)</span>
+                            </span>
+                            <span>-₹{order.pointsDiscount || calculatePointsDiscount(Number(order.pointsUsed) || 0)}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#EAE2D5] text-xs">

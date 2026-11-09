@@ -416,12 +416,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const catalogSavings = Math.max(0, originalSubtotal - subtotal);
   const effectiveCouponDiscount = couponDiscount || 0;
 
-  // Nest Points discount calculation: 100 points = ₹50 (₹0.50 per point), minimum 200 points required for redemption
+  // Nest Points discount calculation: 100 points = ₹50 (₹0.50 per point), maximum 125 points per order
   const netSubtotalAfterCoupon = Math.max(0, subtotal - effectiveCouponDiscount);
-  const maxRedeemablePoints = canRedeemPoints(pointsBalance)
-    ? Math.min(Math.max(0, pointsBalance), calculatePointsForRupeeDiscount(netSubtotalAfterCoupon))
+  const maxRedeemablePoints = pointsBalance > 0
+    ? Math.min(125, Math.max(0, pointsBalance), calculatePointsForRupeeDiscount(netSubtotalAfterCoupon))
     : 0;
-  const canRedeemForThisOrder = maxRedeemablePoints >= LOYALTY_MIN_REDEMPTION_POINTS;
+  const canRedeemForThisOrder = maxRedeemablePoints > 0;
   const pointsToRedeem = useLoyaltyPoints && canRedeemForThisOrder ? maxRedeemablePoints : 0;
   const effectivePointsDiscount = calculatePointsDiscount(pointsToRedeem);
 
@@ -647,10 +647,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       }
     }
 
-    // Process loyalty points redemption if applied (minimum 200 points enforced)
-    if (pointsToRedeem >= LOYALTY_MIN_REDEMPTION_POINTS) {
+    // Process loyalty points redemption if applied (maximum 125 points per order enforced)
+    const finalPointsToRedeem = Math.min(125, Math.max(0, pointsToRedeem), pointsBalance);
+    if (finalPointsToRedeem > 0) {
       try {
-        await redeemPoints(pointsToRedeem, orderId, customerPhone.trim());
+        await redeemPoints(finalPointsToRedeem, orderId, customerPhone.trim());
       } catch (err) {
         console.warn('Loyalty points redeem notice:', err);
       }
@@ -1865,7 +1866,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 <div className="flex justify-between text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
                   <span className="flex items-center gap-1">
                     <Award className="w-3 h-3 text-[#A8823B]" />
-                    <span>Loyalty Points ({pointsToRedeem} pts)</span>
+                    <span>Loyalty Points Redeemed ({pointsToRedeem} pts)</span>
                   </span>
                   <span>-₹{effectivePointsDiscount.toLocaleString('en-IN')}</span>
                 </div>

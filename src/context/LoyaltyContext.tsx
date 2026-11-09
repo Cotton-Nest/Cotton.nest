@@ -207,8 +207,16 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .filter((t) => isTransactionExpired(t.createdAt, t.expiresAt, now))
       .reduce((sum, t) => sum + Math.max(0, t.points), 0);
 
-    const rawAccountBalance = account?.pointsBalance || 0;
-    const effectiveBalance = Math.max(0, rawAccountBalance - expiredPoints);
+    const totalEarned = Math.max(
+      account?.lifetimeEarned || 0,
+      calcPurchaseEarned + calcReferralEarned
+    );
+    const totalSpent = Math.max(
+      account?.lifetimeSpent || 0,
+      calcUsed
+    );
+
+    const effectiveBalance = Math.max(0, totalEarned - totalSpent - expiredPoints);
 
     // Find the earliest upcoming expiry timestamp among active positive transactions
     const activePositiveExpiries = [...earnedTxs, ...referralTxs]
@@ -227,8 +235,8 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       pointsEarnedFromPurchases:
         calcPurchaseEarned > 0
           ? calcPurchaseEarned
-          : Math.max(0, (account?.lifetimeEarned || 0) - (account?.referralPointsEarned || 0)),
-      pointsUsed: calcUsed > 0 ? calcUsed : account?.lifetimeSpent || 0,
+          : Math.max(0, totalEarned - (account?.referralPointsEarned || calcReferralEarned)),
+      pointsUsed: totalSpent,
       referralPointsEarned:
         calcReferralEarned > 0 ? calcReferralEarned : account?.referralPointsEarned || 0,
       nextExpiryTimestamp: earliestExpiry,

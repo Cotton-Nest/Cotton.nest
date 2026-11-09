@@ -195,13 +195,13 @@ export async function getLoyaltyAccountApi(
               }
             }
           });
-          const computedNet = Math.max(0, orderEarned - orderSpent);
-          if (computedNet > (account.pointsBalance || 0) && (account.lifetimeSpent || 0) === 0) {
-            account.pointsBalance = computedNet;
-            account.lifetimeEarned = Math.max(account.lifetimeEarned || 0, orderEarned);
-            account.lifetimeSpent = Math.max(account.lifetimeSpent || 0, orderSpent);
-            saveLocalAccount(account);
-          }
+          const computedEarned = Math.max(account.lifetimeEarned || 0, orderEarned);
+          const computedSpent = Math.max(account.lifetimeSpent || 0, orderSpent);
+          const computedNet = Math.max(0, computedEarned - computedSpent);
+          account.lifetimeEarned = computedEarned;
+          account.lifetimeSpent = computedSpent;
+          account.pointsBalance = computedNet;
+          saveLocalAccount(account);
         }
       }
     } catch {}
@@ -220,27 +220,27 @@ export async function getLoyaltyAccountApi(
     for (const snap of snaps) {
       if (snap && snap.exists()) {
         const firestoreData = snap.data() as LoyaltyAccount;
-        if (
-          firestoreData &&
-          typeof firestoreData.pointsBalance === 'number' &&
-          (firestoreData.pointsBalance > (account.pointsBalance || 0) || (account.pointsBalance || 0) === 0)
-        ) {
+        if (firestoreData && (typeof firestoreData.lifetimeEarned === 'number' || typeof firestoreData.pointsBalance === 'number')) {
+          const mergedEarned = Math.max(account.lifetimeEarned || 0, firestoreData.lifetimeEarned || firestoreData.pointsBalance || 0);
+          const mergedSpent = Math.max(account.lifetimeSpent || 0, firestoreData.lifetimeSpent || 0);
+          const mergedBalance = Math.max(0, mergedEarned - mergedSpent);
+
           account = {
             ...account,
             ...firestoreData,
             id: accountId,
-            pointsBalance: Math.max(account.pointsBalance || 0, firestoreData.pointsBalance || 0),
-            lifetimeEarned: Math.max(account.lifetimeEarned || 0, firestoreData.lifetimeEarned || 0),
-            lifetimeSpent: Math.max(account.lifetimeSpent || 0, firestoreData.lifetimeSpent || 0),
+            lifetimeEarned: mergedEarned,
+            lifetimeSpent: mergedSpent,
+            pointsBalance: mergedBalance,
             referralCode: firestoreData.referralCode || account.referralCode || defaultReferralCode,
           };
           saveLocalAccount(account);
-          if ((account.pointsBalance || 0) > 0) break;
         }
       }
     }
   } catch {}
 
+  account.pointsBalance = Math.max(0, (account.lifetimeEarned || 0) - (account.lifetimeSpent || 0));
   return account;
 }
 
@@ -345,21 +345,24 @@ export async function redeemLoyaltyPointsApi(
   const current = await getLoyaltyAccountApi(accountId, extra);
 
   const availablePoints = Math.max(0, current.pointsBalance || 0);
-  if (availablePoints < LOYALTY_MIN_REDEMPTION_POINTS || pointsToRedeem < LOYALTY_MIN_REDEMPTION_POINTS) {
-    throw new Error(`Minimum ${LOYALTY_MIN_REDEMPTION_POINTS} Nest Points are required for redemption.`);
+  const requestedPoints = Math.min(125, Math.max(0, Math.floor(pointsToRedeem)));
+  if (requestedPoints <= 0 || availablePoints <= 0) {
+    throw new Error('Please enter a valid number of Nest Points to redeem.');
   }
 
-  const actualRedeemed = Math.min(availablePoints, Math.max(0, Math.floor(pointsToRedeem)));
+  const actualRedeemed = Math.min(availablePoints, requestedPoints);
   const discountInr = calculatePointsDiscount(actualRedeemed);
 
-  const newBalance = availablePoints - actualRedeemed;
+  const newLifetimeEarned = Math.max(current.lifetimeEarned || 0, availablePoints + (current.lifetimeSpent || 0));
   const newLifetimeSpent = (current.lifetimeSpent || 0) + actualRedeemed;
+  const newBalance = Math.max(0, newLifetimeEarned - newLifetimeSpent);
   const now = Date.now();
 
   const updatedAccount: LoyaltyAccount = {
     ...current,
-    pointsBalance: newBalance,
+    lifetimeEarned: newLifetimeEarned,
     lifetimeSpent: newLifetimeSpent,
+    pointsBalance: newBalance,
     updatedAt: now,
   };
 

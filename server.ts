@@ -141,9 +141,9 @@ function initDatabase(): StoreDatabase {
               };
             } else {
               const cur = sanitizedMap[canonical];
-              cur.pointsBalance = Math.max(cur.pointsBalance || 0, acc.pointsBalance || 0);
               cur.lifetimeEarned = Math.max(cur.lifetimeEarned || 0, acc.lifetimeEarned || 0);
               cur.lifetimeSpent = Math.max(cur.lifetimeSpent || 0, acc.lifetimeSpent || 0);
+              cur.pointsBalance = Math.max(0, cur.lifetimeEarned - cur.lifetimeSpent);
               if (acc.phone) cur.phone = cur.phone || acc.phone;
               if (acc.email) cur.email = cur.email || acc.email;
               if (acc.customerName) cur.customerName = cur.customerName || acc.customerName;
@@ -203,7 +203,7 @@ function initDatabase(): StoreDatabase {
               const effectiveSpent = Math.max(acc.lifetimeSpent || 0, stats.spent);
               const computedBalance = Math.max(0, effectiveEarned - effectiveSpent);
 
-              if (acc.pointsBalance !== computedBalance || acc.lifetimeSpent !== effectiveSpent) {
+              if (acc.pointsBalance !== computedBalance || acc.lifetimeSpent !== effectiveSpent || acc.lifetimeEarned !== effectiveEarned) {
                 acc.pointsBalance = computedBalance;
                 acc.lifetimeEarned = effectiveEarned;
                 acc.lifetimeSpent = effectiveSpent;
@@ -946,8 +946,10 @@ async function startServer() {
     newOrder.pointsEarned = earnedPts;
     newOrder.pointsCredited = true;
 
-    // Credit loyalty points immediately across all candidate keys (phone, email, userId)
-    if (earnedPts > 0) {
+    // Credit/Deduct loyalty points across candidate keys (phone, email, userId) - Max 125 pts redemption per order
+    const pointsUsedVal = Math.min(125, Math.max(0, Number(newOrder.pointsUsed) || 0));
+
+    if (earnedPts > 0 || pointsUsedVal > 0) {
       if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
       if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
 
@@ -976,30 +978,66 @@ async function startServer() {
           updatedAt: now,
         };
 
-        const prevBal = existingAcc.pointsBalance || 0;
-        const prevLife = existingAcc.lifetimeEarned || 0;
+        const prevEarned = existingAcc.lifetimeEarned || 0;
+        const prevSpent = existingAcc.lifetimeSpent || 0;
+
+        const newEarned = prevEarned + earnedPts;
+        let newSpent = prevSpent;
+
+        if (pointsUsedVal > 0) {
+          const existingRedeemTx = db.loyaltyTransactions!.find(
+            (t) => t.accountId === accKey && t.orderId === newOrder.id && (t.type === 'redeemed' || t.points < 0)
+          );
+          if (existingRedeemTx) {
+            // Already deducted for this order, do not deduct again
+            newSpent = prevSpent;
+          } else {
+            newSpent = prevSpent + pointsUsedVal;
+            db.loyaltyTransactions!.unshift({
+              id: `tx_redeem_${newOrder.id}_${accKey}_${now}`,
+              accountId: accKey,
+              orderId: newOrder.id,
+              type: 'redeemed',
+              points: -pointsUsedVal,
+              amountInr: calculatePointsDiscount(pointsUsedVal),
+              description: `Redeemed ${pointsUsedVal} Nest Points on Order #${newOrder.id}`,
+              createdAt: now,
+              status: 'credited',
+            });
+          }
+        }
+
+        const newBal = Math.max(0, newEarned - newSpent);
 
         db.loyaltyAccounts![accKey] = {
           ...existingAcc,
-          pointsBalance: prevBal + earnedPts,
-          lifetimeEarned: prevLife + earnedPts,
+          pointsBalance: newBal,
+          lifetimeEarned: newEarned,
+          lifetimeSpent: newSpent,
           phone: existingAcc.phone || newOrder.customerPhone,
           email: existingAcc.email || newOrder.customerEmail,
           updatedAt: now,
         };
 
-        db.loyaltyTransactions!.unshift({
-          id: `tx_earn_${newOrder.id}_${accKey}_${now}`,
-          accountId: accKey,
-          orderId: newOrder.id,
-          type: 'earned',
-          points: earnedPts,
-          amountInr: eligibleOrderAmount,
-          description: `Earned on Placed Order #${newOrder.id} (5 pts / ₹100)`,
-          createdAt: now,
-          expiresAt: expiry,
-          status: 'credited',
-        });
+        if (earnedPts > 0) {
+          const alreadyEarnedTx = db.loyaltyTransactions!.find(
+            (t) => t.accountId === accKey && t.orderId === newOrder.id && t.type === 'earned' && t.points > 0
+          );
+          if (!alreadyEarnedTx) {
+            db.loyaltyTransactions!.unshift({
+              id: `tx_earn_${newOrder.id}_${accKey}_${now}`,
+              accountId: accKey,
+              orderId: newOrder.id,
+              type: 'earned',
+              points: earnedPts,
+              amountInr: eligibleOrderAmount,
+              description: `Earned on Placed Order #${newOrder.id} (5 pts / ₹100)`,
+              createdAt: now,
+              expiresAt: expiry,
+              status: 'credited',
+            });
+          }
+        }
       });
     }
 
@@ -1200,6 +1238,62 @@ async function startServer() {
       }
     }
 
+    // Automatic refund of redeemed points if order is cancelled
+    const isBecomingCancelled = newStatus === 'cancelled' && previousOrder.status !== 'cancelled';
+    let pointsRefundedFlag = Boolean(previousOrder.pointsRefunded);
+
+    if (isBecomingCancelled && !pointsRefundedFlag) {
+      const ptsUsed = Number(previousOrder.pointsUsed) || 0;
+      if (ptsUsed > 0) {
+        const loyaltyAccountsMap = db.loyaltyAccounts || (db.loyaltyAccounts = {});
+        const loyaltyTransactionsList = db.loyaltyTransactions || (db.loyaltyTransactions = []);
+
+        const candidateKeys: string[] = [];
+        if (previousOrder.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.customerPhone));
+        if (previousOrder.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.customerEmail));
+        if (previousOrder.userId) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.userId));
+
+        const uniqueKeys = Array.from(new Set(candidateKeys.filter(Boolean)));
+        const now = Date.now();
+
+        const alreadyRefunded = loyaltyTransactionsList.some(
+          (t) => t.orderId === id && t.type === 'refund' && t.points > 0
+        );
+
+        if (!alreadyRefunded) {
+          uniqueKeys.forEach((accKey) => {
+            const existingAcc = loyaltyAccountsMap[accKey];
+            if (existingAcc) {
+              const currentSpent = existingAcc.lifetimeSpent || 0;
+              const newSpent = Math.max(0, currentSpent - ptsUsed);
+              const newEarned = existingAcc.lifetimeEarned || 0;
+              const newBal = Math.max(0, newEarned - newSpent);
+
+              loyaltyAccountsMap[accKey] = {
+                ...existingAcc,
+                lifetimeSpent: newSpent,
+                pointsBalance: newBal,
+                updatedAt: now,
+              };
+
+              loyaltyTransactionsList.unshift({
+                id: `tx_refund_${id}_${accKey}_${now}`,
+                accountId: accKey,
+                orderId: id,
+                type: 'refund',
+                points: ptsUsed,
+                amountInr: calculatePointsDiscount(ptsUsed),
+                description: `Refund of ${ptsUsed} Nest Points for cancelled Order #${id}`,
+                createdAt: now,
+                status: 'credited',
+              });
+            }
+          });
+        }
+        pointsRefundedFlag = true;
+      }
+    }
+
     // Credit Nest Points only upon successful delivery and full payment (excluding delivery charges)
     const shouldCreditPoints = newStatus === 'delivered' && !previousOrder.pointsCredited;
     let pointsCreditedFlag = Boolean(previousOrder.pointsCredited);
@@ -1287,6 +1381,7 @@ async function startServer() {
       ...updated,
       ...(deliveredAtTimestamp ? { deliveredAt: deliveredAtTimestamp } : {}),
       pointsCredited: pointsCreditedFlag,
+      pointsRefunded: pointsRefundedFlag,
       timeline: updatedTimeline,
     };
 
@@ -2231,10 +2326,10 @@ async function startServer() {
         }
       }
 
-      // 2. Check if this customer has placed orders where points should be credited
+      // 2. Check if this customer has placed orders where points should be credited/redeemed
       if (Array.isArray(db.orders)) {
         let earnedFromOrders = 0;
-        let lifetimeEarnedOrders = 0;
+        let spentFromOrders = 0;
         db.orders.forEach((o) => {
           if (!o || o.status === 'cancelled') return;
           const oEmail = (o.customerEmail || '').toLowerCase().trim();
@@ -2248,13 +2343,20 @@ async function startServer() {
             const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
             const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
             earnedFromOrders += pts;
-            lifetimeEarnedOrders += pts;
+            if (o.pointsUsed && Number(o.pointsUsed) > 0) {
+              spentFromOrders += Number(o.pointsUsed);
+            }
           }
         });
 
-        if (earnedFromOrders > (account.pointsBalance || 0)) {
-          account.pointsBalance = earnedFromOrders;
-          account.lifetimeEarned = Math.max(account.lifetimeEarned || 0, lifetimeEarnedOrders);
+        const effectiveEarned = Math.max(account.lifetimeEarned || 0, earnedFromOrders);
+        const effectiveSpent = Math.max(account.lifetimeSpent || 0, spentFromOrders);
+        const computedNet = Math.max(0, effectiveEarned - effectiveSpent);
+
+        if (computedNet !== account.pointsBalance || effectiveSpent !== account.lifetimeSpent) {
+          account.lifetimeEarned = effectiveEarned;
+          account.lifetimeSpent = effectiveSpent;
+          account.pointsBalance = computedNet;
           account.updatedAt = Date.now();
           db.loyaltyAccounts[accountId] = account;
           saveDatabase();
@@ -2349,20 +2451,23 @@ async function startServer() {
       updatedAt: Date.now(),
     };
 
-    const requestedPoints = Math.max(0, Number(points) || 0);
-    const currentBal = Math.max(existing.pointsBalance || 0, account?.pointsBalance || 0, requestedPoints);
-    const pointsToDeduct = Math.min(currentBal, requestedPoints);
+    const requestedPoints = Math.min(125, Math.max(0, Number(points) || 0));
+    const curEarned = Math.max(existing.lifetimeEarned || 0, account?.lifetimeEarned || 0);
+    const curSpent = Math.max(existing.lifetimeSpent || 0, account?.lifetimeSpent || 0);
+    const availableToDeduct = Math.max(0, curEarned - curSpent);
+    const pointsToDeduct = Math.min(125, availableToDeduct, requestedPoints > 0 ? requestedPoints : availableToDeduct);
     const effectiveDiscount = discountInr !== undefined ? discountInr : calculatePointsDiscount(pointsToDeduct);
 
-    const newBalance = Math.max(0, currentBal - pointsToDeduct);
-    const newLifetimeSpent = Math.max((existing.lifetimeSpent || 0) + pointsToDeduct, (account?.lifetimeSpent || 0));
+    const newLifetimeSpent = curSpent + pointsToDeduct;
+    const newBalance = Math.max(0, curEarned - newLifetimeSpent);
 
     const updatedAccount: LoyaltyAccount = {
       ...existing,
       ...(account || {}),
       id: accountId,
-      pointsBalance: newBalance,
+      lifetimeEarned: curEarned,
       lifetimeSpent: newLifetimeSpent,
+      pointsBalance: newBalance,
       updatedAt: Date.now(),
     };
 

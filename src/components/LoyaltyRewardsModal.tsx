@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Info,
   Layers,
+  Download,
 } from 'lucide-react';
 import { useLoyalty } from '../context/LoyaltyContext';
 import { useAuth } from '../context/AuthContext';
@@ -174,6 +175,52 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
     if (res.success) {
       setFriendReferralInput('');
     }
+  };
+
+  const handleDownloadCsvHistory = () => {
+    if (!chronologicalTransactions || chronologicalTransactions.length === 0) return;
+
+    const headers = ['Transaction ID', 'Date & Time', 'Type', 'Points Delta', 'INR Value (INR)', 'Order ID', 'Description'];
+    
+    const rows = chronologicalTransactions.map((t) => {
+      const isEarned = t.type === 'earned' || t.type === 'bonus' || t.type === 'referral' || t.points > 0;
+      const ptsDelta = isEarned ? `+${Math.abs(t.points)}` : `-${Math.abs(t.points)}`;
+      const typeLabel = t.type ? t.type.toUpperCase() : isEarned ? 'EARNED' : 'REDEEMED';
+      const dateStr = new Date(t.createdAt).toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+      const inrVal = calculatePointsDiscount(Math.abs(t.points));
+      const orderRef = t.orderId || '';
+      const desc = t.description || '';
+
+      return [
+        t.id,
+        dateStr,
+        typeLabel,
+        ptsDelta,
+        `₹${inrVal}`,
+        orderRef,
+        desc,
+      ].map((val) => `"${String(val).replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const userIdentifier = user?.phone || user?.email || 'customer';
+    const dateStamp = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `cotton_nest_nest_points_history_${userIdentifier.replace(/[^a-zA-Z0-9]/g, '_')}_${dateStamp}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -434,40 +481,54 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                   </p>
                 </div>
 
-                {/* Filter Pills */}
-                <div className="flex items-center gap-1 bg-[#EAE2D5]/70 p-1 rounded-xl self-start sm:self-auto">
+                <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-1 bg-[#EAE2D5]/70 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        historyFilter === 'all'
+                          ? 'bg-white text-[#70252D] shadow-2xs'
+                          : 'text-[#7A6458] hover:text-[#2C2420]'
+                      }`}
+                    >
+                      All ({chronologicalTransactions.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryFilter('earned')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        historyFilter === 'earned'
+                          ? 'bg-emerald-700 text-white shadow-2xs'
+                          : 'text-[#7A6458] hover:text-emerald-800'
+                      }`}
+                    >
+                      Earned ({earnedTxsCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryFilter('redeemed')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        historyFilter === 'redeemed'
+                          ? 'bg-[#70252D] text-white shadow-2xs'
+                          : 'text-[#7A6458] hover:text-rose-800'
+                      }`}
+                    >
+                      Redeemed ({redeemedTxsCount})
+                    </button>
+                  </div>
+
+                  {/* Download CSV Button */}
                   <button
                     type="button"
-                    onClick={() => setHistoryFilter('all')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                      historyFilter === 'all'
-                        ? 'bg-white text-[#70252D] shadow-2xs'
-                        : 'text-[#7A6458] hover:text-[#2C2420]'
-                    }`}
+                    onClick={handleDownloadCsvHistory}
+                    disabled={chronologicalTransactions.length === 0}
+                    className="px-2.5 py-1.5 bg-[#70252D] hover:bg-[#5a1c22] disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs shrink-0"
+                    title="Download Points History as CSV file"
                   >
-                    All ({chronologicalTransactions.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setHistoryFilter('earned')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                      historyFilter === 'earned'
-                        ? 'bg-emerald-700 text-white shadow-2xs'
-                        : 'text-[#7A6458] hover:text-emerald-800'
-                    }`}
-                  >
-                    Earned ({earnedTxsCount})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setHistoryFilter('redeemed')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                      historyFilter === 'redeemed'
-                        ? 'bg-[#70252D] text-white shadow-2xs'
-                        : 'text-[#7A6458] hover:text-rose-800'
-                    }`}
-                  >
-                    Redeemed ({redeemedTxsCount})
+                    <Download className="w-3.5 h-3.5 text-amber-300" />
+                    <span>CSV Download</span>
                   </button>
                 </div>
               </div>
