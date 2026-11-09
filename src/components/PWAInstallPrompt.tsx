@@ -1,69 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, CheckCircle2, Smartphone, Monitor } from 'lucide-react';
+import { Download, X, CheckCircle2, Smartphone, Share, PlusSquare, ExternalLink, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePWAInstall, useOnlineStatus } from '../hooks/usePWAInstall';
 
 /**
- * Triggers a downloadable standalone Web App launcher (.html app wrapper) when running
- * inside an iframe or browser environment where native `beforeinstallprompt` is restricted,
- * so clicking "Install" in the Chrome pop-out always downloads a working Cotton Nest app.
- */
-function downloadWorkingAppLauncher() {
-  if (typeof window === 'undefined') return;
-  const appOrigin = window.location.origin;
-  const appHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
-  <title>Cotton Nest — Luxury Bed Linens</title>
-  <meta name="theme-color" content="#8C2E46" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="icon" type="image/png" href="${appOrigin}/pwa-192x192.png" />
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #FAF7F2; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    iframe { width: 100%; height: 100%; border: none; display: block; }
-    .top-bar {
-      display: flex; align-items: center; justify-content: space-between;
-      background: #8C2E46; color: #FAF7F2; padding: 6px 14px; font-size: 12px;
-    }
-    .top-bar a { color: #FAF7F2; text-decoration: underline; font-weight: 600; }
-  </style>
-</head>
-<body>
-  <iframe src="${appOrigin}/?source=pwa_app" allow="clipboard-write; notifications; geolocation; payment"></iframe>
-  <script>
-    // Automatically redirect to standalone live app if opened directly
-    if (window.navigator.onLine) {
-      window.location.replace("${appOrigin}/?source=pwa_app");
-    }
-  </script>
-</body>
-</html>`;
-
-  const blob = new Blob([appHtml], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'Cotton-Nest-App.html';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
-/**
- * Chrome-Style Top-Right "Install app?" Omnibox Pop-out
- * Matches Google Chrome's native PWA installation pop-out bubble.
+ * Top-Right "Install app?" Pop-out & iOS "Add to Home Screen" Modal
+ * Never downloads an .html file. Uses native `beforeinstallprompt` when supported,
+ * and on iOS / iPadOS / Safari provides native iOS Share Sheet integration + visual
+ * "Add to Home Screen" flow so Cotton Nest installs as a real Home Screen app icon.
  */
 export const ChromeInstallPopout: React.FC = () => {
-  const { isInstalled, isIOS, install } = usePWAInstall();
+  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [visible, setVisible] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installedSuccess, setInstalledSuccess] = useState(false);
-  const [showIOSGuide, setShowIOSGuide] = useState(false);
+  const [showHomeScreenGuide, setShowHomeScreenGuide] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+
+  const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -80,14 +35,25 @@ export const ChromeInstallPopout: React.FC = () => {
     }
   }, [isInstalled]);
 
-  // Allow any button in the app to re-open the Chrome Install Popout
+  // Allow any "Install App" button in the app to open the Install prompt / Home Screen modal
   useEffect(() => {
     const handleOpenInstallPopout = () => {
-      setVisible(true);
+      if (isIOS && !isInstallable) {
+        setShowHomeScreenGuide(true);
+      } else {
+        setVisible(true);
+      }
+    };
+    const handleOpenIOSHomeScreenGuide = () => {
+      setShowHomeScreenGuide(true);
     };
     window.addEventListener('open-chrome-install-popout', handleOpenInstallPopout);
-    return () => window.removeEventListener('open-chrome-install-popout', handleOpenInstallPopout);
-  }, []);
+    window.addEventListener('open-ios-homescreen-guide', handleOpenIOSHomeScreenGuide);
+    return () => {
+      window.removeEventListener('open-chrome-install-popout', handleOpenInstallPopout);
+      window.removeEventListener('open-ios-homescreen-guide', handleOpenIOSHomeScreenGuide);
+    };
+  }, [isIOS, isInstallable]);
 
   if (isInstalled && !installedSuccess) {
     return null;
@@ -115,17 +81,29 @@ export const ChromeInstallPopout: React.FC = () => {
     }
 
     if (outcome === 'fallback') {
-      if (isIOS) {
-        setShowIOSGuide(true);
-        return;
+      setVisible(false);
+      setShowHomeScreenGuide(true);
+    }
+  };
+
+  const handleNativeIOSShare = async () => {
+    setShareFeedback(null);
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: 'Cotton Nest',
+          text: 'Cotton Nest — Luxury Bed Linens',
+          url: appUrl,
+        });
+        setShareFeedback('In the menu that opened, tap "Add to Home Screen" to place Cotton Nest on your Home Screen.');
+      } catch (err) {
+        // User cancelled share sheet or share restricted in iframe
+        if (isInIframe && appUrl) {
+          window.open(appUrl, '_blank', 'noopener,noreferrer');
+        }
       }
-      // Download the working Cotton Nest App launcher so the user immediately gets the app file
-      downloadWorkingAppLauncher();
-      setInstalledSuccess(true);
-      setTimeout(() => {
-        setVisible(false);
-        setInstalledSuccess(false);
-      }, 3500);
+    } else if (appUrl) {
+      window.open(appUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -144,10 +122,10 @@ export const ChromeInstallPopout: React.FC = () => {
             role="dialog"
             aria-label="Install Cotton Nest app"
           >
-            {/* Chrome Pop-out Header */}
+            {/* Header */}
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="text-[15px] font-medium leading-snug text-[#202124]">
-                {installedSuccess ? 'App Installed' : 'Install app?'}
+                {installedSuccess ? 'App Installed' : isIOS ? 'Add to Home Screen' : 'Install app?'}
               </div>
               <button
                 type="button"
@@ -162,7 +140,7 @@ export const ChromeInstallPopout: React.FC = () => {
             {/* App Info Row with Icon, Title & Host */}
             <div className="flex items-center gap-3.5 mb-4">
               <img
-                src="/pwa-192x192.png"
+                src="/apple-touch-icon.png"
                 alt="Cotton Nest App Icon"
                 className="w-11 h-11 rounded-xl object-contain border border-[#e8eaed] bg-[#FAF7F2] p-1 shrink-0 shadow-2xs"
               />
@@ -179,7 +157,7 @@ export const ChromeInstallPopout: React.FC = () => {
             {installedSuccess ? (
               <div className="flex items-center gap-2 text-[13px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                <span>Cotton Nest app downloaded &amp; ready to launch!</span>
+                <span>Cotton Nest added to your Home Screen!</span>
               </div>
             ) : (
               <div className="flex items-center justify-end gap-2">
@@ -188,16 +166,16 @@ export const ChromeInstallPopout: React.FC = () => {
                   onClick={handleDismiss}
                   className="px-4 py-1.5 rounded-full border border-[#dadce0] text-[#1a73e8] hover:bg-[#f8fbff] text-[13px] font-medium transition-colors cursor-pointer"
                 >
-                  Cancel
+                  Not now
                 </button>
                 <button
                   type="button"
                   onClick={handleInstallClick}
                   disabled={installing}
-                  className="px-5 py-1.5 rounded-full bg-[#1a73e8] hover:bg-[#1557b0] text-white text-[13px] font-medium shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="px-5 py-1.5 rounded-full bg-[#8C2E46] hover:bg-[#70252D] text-white text-[13px] font-medium shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>{installing ? 'Installing...' : 'Install'}</span>
+                  {isIOS ? <PlusSquare className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+                  <span>{installing ? 'Adding...' : isIOS ? 'Add to Home Screen' : 'Install'}</span>
                 </button>
               </div>
             )}
@@ -205,49 +183,149 @@ export const ChromeInstallPopout: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* iOS Safari Installation Guide Modal */}
+      {/* iOS / Home Screen PWA Installation Modal (Never downloads .html) */}
       <AnimatePresence>
-        {showIOSGuide && (
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4">
+        {showHomeScreenGuide && (
+          <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-[#DEC89B]"
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.96 }}
+              className="w-full max-w-md rounded-3xl bg-[#FAF7F2] p-5 sm:p-6 shadow-2xl border border-[#DEC89B] text-[#2C2420]"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <img
-                  src="/pwa-192x192.png"
-                  alt="Cotton Nest"
-                  className="w-10 h-10 rounded-xl border border-[#EAE2D5] bg-[#FAF7F2] p-1"
-                />
-                <div>
-                  <h3 className="text-base font-bold text-[#2C2420]">Install Cotton Nest App</h3>
-                  <p className="text-xs text-[#7A6458]">Add to your iPhone / iPad Home Screen</p>
+              {/* Modal Header */}
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative shrink-0">
+                    <img
+                      src="/apple-touch-icon.png"
+                      alt="Cotton Nest Home Screen Icon"
+                      className="w-14 h-14 rounded-2xl border border-[#DEC89B] bg-white p-1.5 shadow-md"
+                    />
+                    <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#8C2E46] text-white flex items-center justify-center shadow-xs">
+                      <Sparkles className="w-3 h-3" />
+                    </span>
+                  </div>
+                  <div>
+                    <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-[#70252D] border border-amber-200 mb-1">
+                      iOS &amp; Home Screen App
+                    </span>
+                    <h3 className="text-base sm:text-lg font-bold text-[#2C2420] leading-tight">
+                      Add Cotton Nest to Home Screen
+                    </h3>
+                    <p className="text-xs text-[#7A6458]">
+                      Installs as a full-screen app icon on your iPhone / iPad
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowHomeScreenGuide(false)}
+                  className="p-1.5 rounded-full text-[#7A6458] hover:text-[#2C2420] hover:bg-[#EAE2D5]/60 transition-colors cursor-pointer"
+                  aria-label="Close Home Screen guide"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Notice if inside an embedded preview iframe */}
+              {isInIframe && appUrl && (
+                <div className="mb-3.5 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-2">
+                  <p className="font-semibold leading-snug">
+                    Step 0: Open the direct app link in Safari first so iOS adds the Cotton Nest app icon to your Home Screen:
+                  </p>
+                  <a
+                    href={appUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#8C2E46] text-white font-bold text-xs shadow-xs hover:bg-[#70252D] transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Direct App in Safari</span>
+                  </a>
+                </div>
+              )}
+
+              {/* Visual 3-Step iOS Add to Home Screen Instructions */}
+              <div className="space-y-2.5 bg-white p-4 rounded-2xl border border-[#EAE2D5] shadow-2xs text-xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-xl bg-[#FDEAF0] text-[#8C2E46] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    1
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-[#2C2420] flex items-center gap-1.5 flex-wrap">
+                      <span>Tap the iOS</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-bold">
+                        <Share className="w-3.5 h-3.5" /> Share
+                      </span>
+                      <span>button</span>
+                    </p>
+                    <p className="text-[11px] text-[#7A6458] mt-0.5">
+                      Located at the bottom toolbar in Safari (or top-right in Chrome on iOS).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="h-px bg-[#F4EFE6]" />
+
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-xl bg-[#FDEAF0] text-[#8C2E46] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    2
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-[#2C2420] flex items-center gap-1.5 flex-wrap">
+                      <span>Scroll down &amp; tap</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                        <PlusSquare className="w-3.5 h-3.5" /> Add to Home Screen
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-[#7A6458] mt-0.5">
+                      Do not tap &ldquo;Save to Files&rdquo; — choose <strong>Add to Home Screen</strong> so the app icon appears on your screen.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="h-px bg-[#F4EFE6]" />
+
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-xl bg-[#FDEAF0] text-[#8C2E46] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    3
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-[#2C2420]">
+                      Tap <span className="text-blue-600 font-bold">Add</span> in the top-right corner
+                    </p>
+                    <p className="text-[11px] text-[#7A6458] mt-0.5">
+                      The <strong>Cotton Nest</strong> icon will immediately appear on your iPhone / iPad Home Screen.
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="space-y-2 text-xs text-[#2C2420] bg-[#FAF7F2] p-3.5 rounded-xl border border-[#EAE2D5]">
-                <p>1. Tap the <strong>Share</strong> button in your browser toolbar.</p>
-                <p>2. Scroll down and tap <strong>Add to Home Screen</strong>.</p>
-                <p>3. Tap <strong>Add</strong> in the top-right corner to launch Cotton Nest as a full app.</p>
-              </div>
-              <div className="mt-4 flex gap-2">
+
+              {shareFeedback && (
+                <p className="mt-3 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                  {shareFeedback}
+                </p>
+              )}
+
+              {/* Action Buttons */}
+              <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                  <button
+                    type="button"
+                    onClick={handleNativeIOSShare}
+                    className="flex-1 rounded-xl bg-[#8C2E46] hover:bg-[#70252D] py-2.5 px-4 text-xs font-bold text-white flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                  >
+                    <Share className="w-4 h-4" />
+                    <span>Open iOS Share Menu</span>
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => {
-                    downloadWorkingAppLauncher();
-                    setShowIOSGuide(false);
-                  }}
-                  className="flex-1 rounded-xl bg-[#70252D] py-2.5 text-xs font-semibold text-white hover:bg-[#8C2E46] cursor-pointer"
+                  onClick={() => setShowHomeScreenGuide(false)}
+                  className="px-5 rounded-xl bg-white hover:bg-[#EAE2D5]/60 border border-[#DEC89B] py-2.5 text-xs font-bold text-[#2C2420] transition-colors cursor-pointer"
                 >
-                  Download Web App
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowIOSGuide(false)}
-                  className="px-4 rounded-xl bg-gray-100 py-2.5 text-xs font-semibold text-[#2C2420] hover:bg-gray-200 cursor-pointer"
-                >
-                  Close
+                  Got It
                 </button>
               </div>
             </motion.div>
@@ -271,9 +349,14 @@ export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' | 'topba
 
   const handleTriggerInstall = async () => {
     if (isInstallable) {
-      await install();
+      const outcome = await install();
+      if (outcome === 'fallback') {
+        window.dispatchEvent(new CustomEvent('open-ios-homescreen-guide'));
+      }
+    } else if (isIOS) {
+      window.dispatchEvent(new CustomEvent('open-ios-homescreen-guide'));
     } else {
-      window.dispatchEvent(new CustomEvent('open-chrome-install-popout'));
+      window.dispatchEvent(new CustomEvent('open-ios-homescreen-guide'));
     }
   };
 
@@ -282,7 +365,7 @@ export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' | 'topba
       <button
         type="button"
         onClick={handleTriggerInstall}
-        title="Install Cotton Nest App"
+        title="Add Cotton Nest App to Home Screen"
         className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#8C2E46] hover:bg-[#70252D] text-white shadow-2xs transition-colors cursor-pointer shrink-0"
       >
         <Download className="w-3 h-3" />
@@ -296,11 +379,11 @@ export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' | 'topba
       <button
         type="button"
         onClick={handleTriggerInstall}
-        className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-semibold text-white bg-[#1a73e8] hover:bg-[#1557b0] flex items-center justify-between shadow-2xs transition-colors cursor-pointer"
+        className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-semibold text-white bg-[#8C2E46] hover:bg-[#70252D] flex items-center justify-between shadow-2xs transition-colors cursor-pointer"
       >
         <span className="flex items-center gap-2">
           {isIOS ? <Smartphone className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-          <span>Install Cotton Nest App</span>
+          <span>{isIOS ? 'Add Cotton Nest to Home Screen' : 'Install Cotton Nest App'}</span>
         </span>
         <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white/20 text-white">
           App
@@ -315,7 +398,7 @@ export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' | 'topba
       whileTap={{ scale: 0.95 }}
       type="button"
       onClick={handleTriggerInstall}
-      title="Install Cotton Nest as an App"
+      title="Install Cotton Nest on your Home Screen"
       data-testid="navbar-install-app-btn"
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#8C2E46] hover:bg-[#70252D] border border-[#DEC89B]/60 rounded-full shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap"
     >

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import {
   LoyaltyAccount,
   LoyaltyTransaction,
+  LOYALTY_MAX_REDEMPTION_POINTS,
   calculatePointsDiscount,
   getTransactionExpiryDate,
   isTransactionExpired,
@@ -198,7 +199,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const earnedTxs = transactions.filter((t) => t.points > 0 && t.type === 'earned');
     const referralTxs = transactions.filter((t) => t.points > 0 && (t.type === 'referral' || t.type === 'bonus'));
     const redeemedTxs = transactions.filter(
-      (t) => (t.type === 'redeemed' || t.points < 0) && Math.abs(t.points) <= 125
+      (t) => (t.type === 'redeemed' || t.points < 0) && Math.abs(t.points) <= LOYALTY_MAX_REDEMPTION_POINTS
     );
 
     const calcPurchaseEarned = earnedTxs.reduce((sum, t) => sum + Math.max(0, t.points), 0);

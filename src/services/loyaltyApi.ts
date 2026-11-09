@@ -4,6 +4,7 @@ import {
   LoyaltyAccount,
   LoyaltyTransaction,
   LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_MAX_REDEMPTION_POINTS,
   LOYALTY_REFERRAL_REWARD_POINTS,
   calculateEarnedPoints,
   calculatePointsDiscount,
@@ -272,7 +273,7 @@ export async function getLoyaltyAccountApi(
                 if (t.type === 'earned' && t.orderId && orderStatusMap.has(String(t.orderId))) {
                   return orderStatusMap.get(String(t.orderId)) === 'delivered';
                 }
-                if (t.type === 'redeemed' && Math.abs(t.points) > 125) return false;
+                if (t.type === 'redeemed' && Math.abs(t.points) > LOYALTY_MAX_REDEMPTION_POINTS) return false;
                 return true;
               });
               if (filtered.length !== txList.length) {
@@ -346,7 +347,7 @@ export async function getLoyaltyAccountApi(
               }
             }
             const usedVal = Number(o.pointsUsed) || 0;
-            if (usedVal > 0 && usedVal <= 125) {
+            if (usedVal > 0 && usedVal <= LOYALTY_MAX_REDEMPTION_POINTS) {
               orderSpent += usedVal;
               const localTxs = getLocalTransactions(accountId);
               const hasRedeemTx = localTxs.some((t) => t.orderId === o.id && (t.type === 'redeemed' || t.points < 0));
@@ -493,7 +494,7 @@ export async function redeemLoyaltyPointsApi(
   const current = await getLoyaltyAccountApi(accountId, extra);
 
   const availablePoints = Math.max(0, current.pointsBalance || 0);
-  const requestedPoints = Math.min(125, Math.max(0, Math.floor(pointsToRedeem)));
+  const requestedPoints = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Math.floor(pointsToRedeem)));
   if (requestedPoints <= 0 || availablePoints <= 0) {
     throw new Error('Please enter a valid number of Nest Points to redeem.');
   }
@@ -665,7 +666,7 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
         return orderStatusMap.get(String(t.orderId)) === 'delivered';
       }
     }
-    if ((t.type === 'redeemed' || t.points < 0) && Math.abs(t.points) > 125) {
+    if ((t.type === 'redeemed' || t.points < 0) && Math.abs(t.points) > LOYALTY_MAX_REDEMPTION_POINTS) {
       return false;
     }
     return true;

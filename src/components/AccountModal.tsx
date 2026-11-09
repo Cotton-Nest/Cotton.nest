@@ -36,6 +36,7 @@ import { useLoyalty } from '../context/LoyaltyContext';
 import {
   LOYALTY_POINTS_PER_100_INR,
   LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_MAX_REDEMPTION_POINTS,
   LOYALTY_EXPIRY_MONTHS,
   LOYALTY_REFERRAL_REWARD_POINTS,
   calculateEarnedPoints,
@@ -889,14 +890,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                           : 'bg-amber-100 text-amber-900'
                       }`}>
                         {canRedeemPoints(pointsBalance)
-                          ? `Eligible (-₹${pointsRupeesValue})`
+                          ? `Max ${LOYALTY_MAX_REDEMPTION_POINTS} pts/order (-₹${calculatePointsDiscount(Math.min(pointsBalance, LOYALTY_MAX_REDEMPTION_POINTS))})`
                           : `Min. ${LOYALTY_MIN_REDEMPTION_POINTS} pts required`}
                       </span>
                     </div>
                     <p className="text-[11px] text-[#7A6458]">
                       {canRedeemPoints(pointsBalance)
-                        ? `Auto-apply your ${pointsBalance} Nest Points for ₹${pointsRupeesValue} off at checkout.`
-                        : `You have ${pointsBalance} pts. Collect ${Math.max(0, LOYALTY_MIN_REDEMPTION_POINTS - pointsBalance)} more Nest Points to unlock checkout redemption (200 pts = ₹100).`}
+                        ? `Redeem up to ${Math.min(pointsBalance, LOYALTY_MAX_REDEMPTION_POINTS)} Nest Points (₹${calculatePointsDiscount(Math.min(pointsBalance, LOYALTY_MAX_REDEMPTION_POINTS))} off, max ${LOYALTY_MAX_REDEMPTION_POINTS} pts per order) at checkout.`
+                        : `You have ${pointsBalance} pts. Collect ${Math.max(0, LOYALTY_MIN_REDEMPTION_POINTS - pointsBalance)} more Nest Points to unlock checkout redemption (max ${LOYALTY_MAX_REDEMPTION_POINTS} pts = ₹${calculatePointsDiscount(LOYALTY_MAX_REDEMPTION_POINTS)} per order).`}
                     </p>
                   </div>
 
@@ -1023,7 +1024,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 <ul className="space-y-1 text-[11px] text-[#6B5D55] list-disc pl-4">
                   <li><strong>Earning Rate:</strong> Earn <strong>5 Nest Points per ₹100</strong> spent on eligible bedsheets.</li>
                   <li><strong>Redemption Value:</strong> <strong>100 Nest Points = ₹50</strong> (1 Nest Point = ₹0.50).</li>
-                  <li><strong>Minimum Redemption:</strong> Minimum <strong>200 Nest Points</strong> (₹100 value) required for redemption at checkout.</li>
+                  <li><strong>Maximum Redemption Limit:</strong> Redeem up to <strong>{LOYALTY_MAX_REDEMPTION_POINTS} Nest Points</strong> (₹{calculatePointsDiscount(LOYALTY_MAX_REDEMPTION_POINTS)} discount) per order.</li>
+                  <li><strong>Minimum Redemption:</strong> Minimum <strong>{LOYALTY_MIN_REDEMPTION_POINTS} Nest Points</strong> required for redemption at checkout.</li>
                   <li><strong>Credit Policy:</strong> Points are credited <strong>only after successful delivery and full payment</strong>.</li>
                   <li><strong>Delivery Charges Excluded:</strong> No points are earned on delivery / shipping charges.</li>
                   <li><strong>Expiry Policy:</strong> Nest Points expire after <strong>12 months</strong> from the date of credit.</li>

@@ -16,6 +16,7 @@ import {
   LoyaltyAccount,
   LoyaltyTransaction,
   LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_MAX_REDEMPTION_POINTS,
   calculateEarnedPoints,
   calculatePointsDiscount,
   getTransactionExpiryDate,
@@ -188,7 +189,7 @@ function initDatabase(): StoreDatabase {
             const ship = Number(o.shippingCost) || 0;
             const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
             const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
-            const spent = Math.min(125, Math.max(0, Number(o.pointsUsed) || 0));
+            const spent = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Number(o.pointsUsed) || 0));
             const isDelivered = o.status === 'delivered';
 
             o.pointsEarned = pts;
@@ -1024,8 +1025,8 @@ async function startServer() {
     // New order starts as pending; earned points are NOT credited until delivered
     newOrder.pointsCredited = false;
 
-    // Immediately deduct redeemed loyalty points across candidate keys (phone, email, userId) - Max 125 pts redemption per order
-    const pointsUsedVal = Math.min(125, Math.max(0, Number(newOrder.pointsUsed) || 0));
+    // Immediately deduct redeemed loyalty points across candidate keys (phone, email, userId) - Max 250 pts redemption per order
+    const pointsUsedVal = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Number(newOrder.pointsUsed) || 0));
 
     if (pointsUsedVal > 0) {
       if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
@@ -2456,7 +2457,7 @@ async function startServer() {
                 }
               }
             }
-            if (o.pointsUsed && Number(o.pointsUsed) > 0 && Number(o.pointsUsed) <= 125) {
+            if (o.pointsUsed && Number(o.pointsUsed) > 0 && Number(o.pointsUsed) <= LOYALTY_MAX_REDEMPTION_POINTS) {
               spentFromOrders += Number(o.pointsUsed);
             }
           }
@@ -2576,11 +2577,11 @@ async function startServer() {
       updatedAt: Date.now(),
     };
 
-    const requestedPoints = Math.min(125, Math.max(0, Number(points) || 0));
+    const requestedPoints = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Number(points) || 0));
     const curEarned = Math.max(existing.lifetimeEarned || 0, account?.lifetimeEarned || 0);
     const curSpent = Math.max(existing.lifetimeSpent || 0, account?.lifetimeSpent || 0);
     const availableToDeduct = Math.max(0, curEarned - curSpent);
-    const pointsToDeduct = Math.min(125, availableToDeduct, requestedPoints > 0 ? requestedPoints : availableToDeduct);
+    const pointsToDeduct = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, availableToDeduct, requestedPoints > 0 ? requestedPoints : availableToDeduct);
     const effectiveDiscount = discountInr !== undefined ? discountInr : calculatePointsDiscount(pointsToDeduct);
 
     const newLifetimeSpent = curSpent + pointsToDeduct;

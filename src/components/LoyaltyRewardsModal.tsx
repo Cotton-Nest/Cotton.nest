@@ -26,6 +26,7 @@ import {
   LoyaltyTransaction,
   LOYALTY_POINTS_PER_100_INR,
   LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_MAX_REDEMPTION_POINTS,
   LOYALTY_EXPIRY_MONTHS,
   LOYALTY_REFERRAL_REWARD_POINTS,
   calculatePointsDiscount,
@@ -385,7 +386,8 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                 <ul className="space-y-1 text-[11px] text-[#6B5D55] list-disc pl-4 leading-relaxed">
                   <li><strong>Earn Rate:</strong> <strong>{LOYALTY_POINTS_PER_100_INR} Nest Points per ₹100</strong> spent on bedsheets.</li>
                   <li><strong>Redemption Value:</strong> <strong>100 Points = ₹50</strong> (1 Nest Point = ₹0.50).</li>
-                  <li><strong>Minimum Redemption:</strong> Minimum <strong>{LOYALTY_MIN_REDEMPTION_POINTS} points</strong> (₹100 value) required for redemption.</li>
+                  <li><strong>Redemption Limit per Order:</strong> Redeem up to a maximum of <strong>{LOYALTY_MAX_REDEMPTION_POINTS} Nest Points</strong> (₹{calculatePointsDiscount(LOYALTY_MAX_REDEMPTION_POINTS)} discount) per order.</li>
+                  <li><strong>Minimum Redemption:</strong> Minimum <strong>{LOYALTY_MIN_REDEMPTION_POINTS} points</strong> required for redemption.</li>
                   <li><strong>Credited After Delivery:</strong> Points are credited only after successful delivery and full payment.</li>
                   <li><strong>No Points on Delivery Charges:</strong> Shipping / delivery charges do not earn Nest Points.</li>
                   <li><strong>Expiry:</strong> Points expire after <strong>{LOYALTY_EXPIRY_MONTHS} months</strong> from credit date.</li>
@@ -452,8 +454,8 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
                   <span className="font-bold text-[#2C2420] block">Redeem Points at Checkout</span>
                   <span className="text-[10px] text-[#7A6458]">
                     {canRedeemPoints(pointsBalance)
-                      ? `Apply ${pointsBalance} pts (-₹${pointsRupeesValue}) automatically in your shopping bag`
-                      : `Minimum ${LOYALTY_MIN_REDEMPTION_POINTS} Nest Points required to redeem`}
+                      ? `Apply up to ${Math.min(pointsBalance, LOYALTY_MAX_REDEMPTION_POINTS)} pts (-₹${calculatePointsDiscount(Math.min(pointsBalance, LOYALTY_MAX_REDEMPTION_POINTS))}) per order in your shopping bag`
+                      : `Minimum ${LOYALTY_MIN_REDEMPTION_POINTS} Nest Points required to redeem (max ${LOYALTY_MAX_REDEMPTION_POINTS} pts/order)`}
                   </span>
                 </div>
                 <input

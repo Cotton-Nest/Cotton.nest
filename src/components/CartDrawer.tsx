@@ -13,6 +13,7 @@ import {
   calculatePointsForRupeeDiscount,
   canRedeemPoints,
   LOYALTY_MIN_REDEMPTION_POINTS,
+  LOYALTY_MAX_REDEMPTION_POINTS,
   LOYALTY_POINTS_PER_100_INR,
 } from '../data/loyalty';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
@@ -416,10 +417,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const catalogSavings = Math.max(0, originalSubtotal - subtotal);
   const effectiveCouponDiscount = couponDiscount || 0;
 
-  // Nest Points discount calculation: 100 points = ₹50 (₹0.50 per point), maximum 125 points per order
+  // Nest Points discount calculation: 100 points = ₹50 (₹0.50 per point), maximum 250 points per order
   const netSubtotalAfterCoupon = Math.max(0, subtotal - effectiveCouponDiscount);
   const maxRedeemablePoints = pointsBalance > 0
-    ? Math.min(125, Math.max(0, pointsBalance), calculatePointsForRupeeDiscount(netSubtotalAfterCoupon))
+    ? Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, pointsBalance), calculatePointsForRupeeDiscount(netSubtotalAfterCoupon))
     : 0;
   const canRedeemForThisOrder = maxRedeemablePoints > 0;
   const pointsToRedeem = useLoyaltyPoints && canRedeemForThisOrder ? maxRedeemablePoints : 0;
@@ -647,8 +648,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       }
     }
 
-    // Process loyalty points redemption if applied (maximum 125 points per order enforced)
-    const finalPointsToRedeem = Math.min(125, Math.max(0, pointsToRedeem), pointsBalance);
+    // Process loyalty points redemption if applied (maximum 250 points per order enforced)
+    const finalPointsToRedeem = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, pointsToRedeem), pointsBalance);
     if (finalPointsToRedeem > 0) {
       try {
         await redeemPoints(finalPointsToRedeem, orderId, customerPhone.trim());
@@ -1091,8 +1092,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </span>
                     <span className="text-[10px] text-[#7A6458] block">
                       {canRedeemForThisOrder
-                        ? `100 pts = ₹50 · Earn +${pointsToEarn} pts after delivery & full payment`
-                        : `Min. ${LOYALTY_MIN_REDEMPTION_POINTS} pts (₹100) required to redeem · Earn +${pointsToEarn} pts on delivery`}
+                        ? `Up to ${LOYALTY_MAX_REDEMPTION_POINTS} pts/order (100 pts = ₹50) · Earn +${pointsToEarn} pts on delivery`
+                        : `Min. ${LOYALTY_MIN_REDEMPTION_POINTS} pts required to redeem · Earn +${pointsToEarn} pts on delivery`}
                     </span>
                   </div>
 

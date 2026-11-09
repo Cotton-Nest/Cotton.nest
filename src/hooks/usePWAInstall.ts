@@ -30,9 +30,11 @@ export function usePWAInstall() {
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     setIsInstalled(isStandalone);
 
-    // Detect iOS devices
+    // Detect iOS / iPadOS devices
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+    const isIOSDevice =
+      /iphone|ipad|ipod/.test(userAgent) ||
+      (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
     setIsIOS(isIOSDevice);
 
     // Check if index.html already captured the prompt

@@ -5,7 +5,7 @@ export const LOYALTY_POINTS_REDEMPTION_BLOCK = 100; // 100 points = ₹50
 export const LOYALTY_REDEMPTION_VALUE_PER_100_PTS = 50; // ₹50 for 100 points
 export const LOYALTY_POINT_VALUE_INR = 0.5; // 1 Nest Point = ₹0.50 (100 points = ₹50)
 export const LOYALTY_MIN_REDEMPTION_POINTS = 1; // Minimum 1 Nest Point required for redemption
-export const LOYALTY_MAX_REDEMPTION_POINTS = 125; // Maximum 125 Nest Points allowed per order
+export const LOYALTY_MAX_REDEMPTION_POINTS = 250; // Maximum 250 Nest Points allowed per order
 export const LOYALTY_EXPIRY_MONTHS = 12; // Nest Points expire 12 months after credit date
 export const LOYALTY_REFERRAL_REWARD_POINTS = 100; // 100 Nest Points (₹50) per referral reward
 
