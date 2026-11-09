@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon, Maximize2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS, normalizeAvailabilityType } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS, normalizeAvailabilityType, normalizeCustomPrice } from '../data/products';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
@@ -167,8 +167,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     try {
       const updatedData: Partial<BedsheetProduct> = {
         name: editName.trim() || product.name,
-        price: Number(editPrice) || product.price,
-        originalPrice: Number(editOriginalPrice) || product.originalPrice,
+        price: normalizeCustomPrice(editPrice, product.price),
+        originalPrice: normalizeCustomPrice(editOriginalPrice, product.originalPrice),
         dimensions: editDimensions.trim() || product.dimensions,
         threadCount: editThreadCount.trim() || product.threadCount,
         fabric: editFabric.trim() || product.fabric,
@@ -843,8 +843,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </label>
                     <input
                       type="number"
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(Number(e.target.value))}
+                      min={0}
+                      step="0.01"
+                      value={editPrice === 0 ? '' : editPrice}
+                      placeholder="e.g. 349, 475, 1299"
+                      onChange={(e) => setEditPrice(e.target.value === '' ? 0 : normalizeCustomPrice(e.target.value, 0))}
                       className="w-full px-3 py-2 bg-white border border-[#DEC89B] rounded-xl text-sm font-bold text-[#8C2E46] focus:outline-hidden focus:border-[#8C2E46]"
                     />
                   </div>
@@ -854,8 +857,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </label>
                     <input
                       type="number"
-                      value={editOriginalPrice}
-                      onChange={(e) => setEditOriginalPrice(Number(e.target.value))}
+                      min={0}
+                      step="0.01"
+                      value={editOriginalPrice === 0 ? '' : editOriginalPrice}
+                      placeholder="e.g. 499, 699, 1499"
+                      onChange={(e) => setEditOriginalPrice(e.target.value === '' ? 0 : normalizeCustomPrice(e.target.value, 0))}
                       className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-sm text-[#7A6458] focus:outline-hidden focus:border-[#C29E57]"
                     />
                   </div>

@@ -12,7 +12,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { BedsheetProduct, BEDSHEETS_CATALOG } from '../data/products';
+import { BedsheetProduct, BEDSHEETS_CATALOG, normalizeCustomPrice } from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from '../data/siteContent';
 import { resolveBedsheetImage } from '../utils/imageUrl';
@@ -426,9 +426,13 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
         }
         return;
       }
+      const cleanPrice = normalizeCustomPrice(data.price, 1320);
+      const cleanOrigPrice = normalizeCustomPrice(data.originalPrice, cleanPrice);
       products.push({
         ...data,
         id: docSnap.id,
+        price: cleanPrice,
+        originalPrice: cleanOrigPrice,
         additionalImages: cleanMediaArray(data.additionalImages),
         videos: cleanMediaArray(data.videos),
         videoUrl: data.videoUrl && !data.videoUrl.startsWith('data:') && !data.videoUrl.startsWith('blob:') ? data.videoUrl : '',
@@ -461,8 +465,12 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
 
 export async function addProduct(product: BedsheetProduct): Promise<BedsheetProduct> {
   const path = `products/${product.id}`;
+  const cleanPrice = normalizeCustomPrice(product.price, 1320);
+  const cleanOrigPrice = normalizeCustomPrice(product.originalPrice, cleanPrice);
   const cleanProduct: BedsheetProduct = stripUndefined({
     ...product,
+    price: cleanPrice,
+    originalPrice: cleanOrigPrice,
     updatedAt: Date.now(),
     image: cleanLinkOnly(product.image, product.id),
     additionalImages: cleanMediaArray(product.additionalImages),
@@ -498,6 +506,12 @@ export async function updateSingleProduct(id: string, updates: Partial<BedsheetP
   if (isSubkeyDocumentId(id)) return;
   const path = `products/${id}`;
   const sanitized = stripUndefined({ ...updates });
+  if (sanitized.price !== undefined) {
+    sanitized.price = normalizeCustomPrice(sanitized.price, 0);
+  }
+  if (sanitized.originalPrice !== undefined) {
+    sanitized.originalPrice = normalizeCustomPrice(sanitized.originalPrice, sanitized.price ?? 0);
+  }
   if (sanitized.image) {
     sanitized.image = cleanLinkOnly(sanitized.image, id);
   }
@@ -587,13 +601,7 @@ export async function saveAllProducts(
   const nowTs = Date.now();
 
   const parsePrice = (val: any, fallback: number = 1320): number => {
-    if (typeof val === 'number') return isNaN(val) ? fallback : Math.max(0, Math.round(val));
-    if (typeof val === 'string') {
-      const cleaned = val.replace(/[^0-9.]/g, '');
-      const num = parseFloat(cleaned);
-      return isNaN(num) ? fallback : Math.max(0, Math.round(num));
-    }
-    return fallback;
+    return normalizeCustomPrice(val, fallback);
   };
 
   for (let idx = 0; idx < (products || []).length; idx++) {

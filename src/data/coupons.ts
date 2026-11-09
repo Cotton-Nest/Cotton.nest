@@ -240,17 +240,17 @@ export function evaluateCouponEligibility(
   // 7. Calculate discount amount
   let discountAmount = 0;
   if (coupon.discountType === 'percentage') {
-    discountAmount = Math.round((eligibleSubtotal * coupon.discountValue) / 100);
+    discountAmount = Number(((eligibleSubtotal * coupon.discountValue) / 100).toFixed(2));
     if (coupon.maxDiscountAmount && coupon.maxDiscountAmount > 0) {
-      discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
+      discountAmount = Math.min(discountAmount, Number(coupon.maxDiscountAmount.toFixed(2)));
     }
   } else {
     // Fixed amount discount
-    discountAmount = Math.min(eligibleSubtotal, Math.round(coupon.discountValue));
+    discountAmount = Math.min(eligibleSubtotal, Number(coupon.discountValue.toFixed(2)));
   }
 
   // Ensure discount does not exceed total subtotal
-  discountAmount = Math.min(discountAmount, subtotal);
+  discountAmount = Number(Math.min(discountAmount, subtotal).toFixed(2));
 
   return {
     isEligible: true,

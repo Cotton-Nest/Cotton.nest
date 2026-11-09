@@ -57,6 +57,29 @@ export function normalizeAvailabilityType(raw?: string | null): AvailabilityType
   return 'none';
 }
 
+/**
+ * Parses and normalizes any custom product price (whole numbers or decimals up to 2 decimal places)
+ * without rounding to the nearest ₹50 or nearest whole number.
+ */
+export function normalizeCustomPrice(val: any, fallback: number = 0): number {
+  if (typeof val === 'number') {
+    if (!Number.isFinite(val) || isNaN(val)) return fallback;
+    return Math.max(0, Number(val.toFixed(2)));
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return fallback;
+    const cleaned = trimmed.replace(/[^0-9.]/g, '');
+    if (!cleaned) return fallback;
+    const parts = cleaned.split('.');
+    const normalizedStr = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join('')}` : parts[0];
+    const num = parseFloat(normalizedStr);
+    if (!Number.isFinite(num) || isNaN(num)) return fallback;
+    return Math.max(0, Number(num.toFixed(2)));
+  }
+  return fallback;
+}
+
 export const STANDARD_SIZES = ['Single', 'Double', 'Queen', 'King (100 × 108)', 'Super King (108 × 108)', 'Other'] as const;
 export type StandardSize = (typeof STANDARD_SIZES)[number];
 

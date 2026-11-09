@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { X, Upload, RotateCcw, Check, Sparkles, Image as ImageIcon, Plus, Trash2, Cloud, Layers, Play, Video, Film, Link as LinkIcon } from 'lucide-react';
-import { BEDSHEETS_CATALOG, BedsheetProduct } from '../data/products';
+import { BEDSHEETS_CATALOG, BedsheetProduct, normalizeCustomPrice } from '../data/products';
 import {
   uploadImageApi,
   computeUpdatedImagesCount,
@@ -210,12 +210,13 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
       const createdId = `bedsheet-${Date.now().toString(36)}`;
       const hostedUrl = await uploadImageApi(newSheetFile, createdId);
 
+      const parsedPrice = normalizeCustomPrice(newSheetPrice, 1499);
       const newProduct: BedsheetProduct = {
         id: createdId,
         name: newSheetName.trim(),
         collection: 'Signature Collection',
-        price: Number(newSheetPrice) || 1499,
-        originalPrice: Math.round((Number(newSheetPrice) || 1499) * 1.3),
+        price: parsedPrice,
+        originalPrice: parsedPrice,
         dimensions: '108 x 108 inches (274 x 274 cm)',
         pillowCovers: '2 Pillow Covers (45 x 70 cm)',
         threadCount: '350 Thread Count',
@@ -378,6 +379,9 @@ export const PhotoUploadModal: React.FC<PhotoUploadModalProps> = ({
                 </label>
                 <input
                   type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="e.g. 349, 475, 1499"
                   value={newSheetPrice}
                   onChange={(e) => setNewSheetPrice(e.target.value)}
                   className="w-full px-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420]"

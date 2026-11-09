@@ -11,6 +11,7 @@ import {
   normalizeAvailabilityType,
   normalizeProductCategory,
   doesProductMatchCategory,
+  normalizeCustomPrice,
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingFee } from '../data/siteContent';
@@ -609,21 +610,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   /* ---------------- PRODUCT HANDLERS ---------------- */
 
-  const handlePriceChange = (id: string, newPrice: number) => {
-    updateProductItem(id, (p) => ({ ...p, price: Math.max(0, newPrice) }), false);
+  const handlePriceChange = (id: string, newPrice: number | string) => {
+    const cleanPrice = newPrice === '' ? 0 : normalizeCustomPrice(newPrice, 0);
+    updateProductItem(id, (p) => ({ ...p, price: cleanPrice }), false);
     showToast('Price updated!');
   };
 
-  const handleOriginalPriceChange = (id: string, newOriginalPrice: number) => {
-    updateProductItem(id, (p) => ({ ...p, originalPrice: Math.max(0, newOriginalPrice) }), false);
+  const handleOriginalPriceChange = (id: string, newOriginalPrice: number | string) => {
+    const cleanOriginalPrice = newOriginalPrice === '' ? 0 : normalizeCustomPrice(newOriginalPrice, 0);
+    updateProductItem(id, (p) => ({ ...p, originalPrice: cleanOriginalPrice }), false);
     showToast('MRP updated!');
   };
 
   const handleDiscountPercentChange = (id: string, discountPct: number) => {
     updateProductItem(id, (p) => {
       const pct = Math.min(90, Math.max(0, discountPct));
-      const orig = Number(p.originalPrice) || Number(p.price) || 0;
-      const newPrice = Math.round(orig * (1 - pct / 100));
+      const orig = normalizeCustomPrice(p.originalPrice || p.price, 0);
+      const newPrice = normalizeCustomPrice(orig * (1 - pct / 100), 0);
       return { ...p, originalPrice: orig, price: newPrice };
     }, true);
     showToast(discountPct === 0 ? '0% Discount applied (Selling at Full MRP)!' : `${discountPct}% Discount applied!`);
@@ -1132,6 +1135,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       showToast('Please enter a name for the new bedsheet.');
       return;
     }
+    const parsedSellingPrice = normalizeCustomPrice(newProduct.price, 0);
+    if (parsedSellingPrice <= 0) {
+      showToast('Please enter a valid selling price greater than ₹0.');
+      return;
+    }
+    const parsedOriginalPrice = normalizeCustomPrice(
+      newProduct.originalPrice && Number(newProduct.originalPrice) > 0
+        ? newProduct.originalPrice
+        : parsedSellingPrice,
+      parsedSellingPrice
+    );
 
     const createdId = `bedsheet-${Date.now().toString(36)}`;
     let finalImageUrl = newProduct.image || '/images/exact_sheet1_pink_rose_1790997736396.jpg';
@@ -1183,8 +1197,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       size: finalSize,
       productType: finalProductType,
       brand: finalBrand,
-      price: Number(newProduct.price) || 1899,
-      originalPrice: Number(newProduct.originalPrice) || 2499,
+      price: parsedSellingPrice,
+      originalPrice: parsedOriginalPrice,
       dimensions: newProduct.dimensions || '108 x 108 inches (274 x 274 cm)',
       pillowCovers: newProduct.pillowCovers || '2 Pillow Covers (45 x 70 cm)',
       threadCount: newProduct.threadCount || '350 Thread Count',
@@ -1232,8 +1246,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleBulkDiscount = (discountPercent: number) => {
     const updated = editableProducts.map((p) => {
-      const newPrice = Math.round(p.originalPrice * (1 - discountPercent / 100));
-      return { ...p, price: newPrice };
+      const orig = normalizeCustomPrice(p.originalPrice || p.price, 0);
+      const newPrice = normalizeCustomPrice(orig * (1 - discountPercent / 100), 0);
+      return { ...p, originalPrice: orig, price: newPrice };
     });
     setEditableProducts(updated);
     onUpdateProducts(updated);
@@ -1293,13 +1308,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       let couponsToRestore: any[] | null = null;
 
       const safeParsePrice = (val: any, fallback: number = 1320): number => {
-        if (typeof val === 'number') return isNaN(val) ? fallback : Math.max(0, Math.round(val));
-        if (typeof val === 'string') {
-          const cleaned = val.replace(/[^0-9.]/g, '');
-          const num = parseFloat(cleaned);
-          return isNaN(num) ? fallback : Math.max(0, Math.round(num));
-        }
-        return fallback;
+        return normalizeCustomPrice(val, fallback);
       };
 
       const isProdLike = (obj: any): boolean => {
@@ -1761,8 +1770,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         nextItems = prev.items.filter((item) => item.productId !== productId);
         showToast(`Removed "${prod?.name || 'Bedsheet'}" from ${prev.name}`);
       } else {
-        const regularPrice = prod?.price || 1200;
-        const discountPrice = Math.round(regularPrice * 0.8); // 20% discount default
+        const regularPrice = normalizeCustomPrice(prod?.price, 1200);
+        const discountPrice = normalizeCustomPrice(regularPrice * 0.8, regularPrice); // 20% discount default
         nextItems = [
           ...prev.items,
           {
@@ -1784,9 +1793,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleUpdateSeasonalItemPrice = (productId: string, newOfferPrice: number) => {
     setEditableSeasonal((prev) => {
       const prod = editableProducts.find((p) => p.id === productId);
-      const originalPrice = prod?.originalPrice || (prod?.price ? Math.round(prod.price * 1.35) : 2000);
-      const validPrice = Math.max(0, newOfferPrice);
-      const computedPct = Math.max(0, Math.min(95, Math.round(((originalPrice - validPrice) / originalPrice) * 100)));
+      const originalPrice = normalizeCustomPrice(prod?.originalPrice || prod?.price, 2000);
+      const validPrice = normalizeCustomPrice(newOfferPrice, 0);
+      const computedPct = originalPrice > 0
+        ? Math.max(0, Math.min(95, Math.round(((originalPrice - validPrice) / originalPrice) * 100)))
+        : 0;
 
       const nextItems = prev.items.map((item) => {
         if (item.productId === productId) {
@@ -1808,9 +1819,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleUpdateSeasonalItemPct = (productId: string, newPct: number) => {
     setEditableSeasonal((prev) => {
       const prod = editableProducts.find((p) => p.id === productId);
-      const originalPrice = prod?.originalPrice || (prod?.price ? Math.round(prod.price * 1.35) : 2000);
+      const originalPrice = normalizeCustomPrice(prod?.originalPrice || prod?.price, 2000);
       const validPct = Math.max(0, Math.min(95, newPct));
-      const computedPrice = Math.round(originalPrice * (1 - validPct / 100));
+      const computedPrice = normalizeCustomPrice(originalPrice * (1 - validPct / 100), 0);
 
       const nextItems = prev.items.map((item) => {
         if (item.productId === productId) {
@@ -1846,8 +1857,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleBulkSeasonalDiscount = (discountPercent: number) => {
     setEditableSeasonal((prev) => {
       const nextItems = editableProducts.map((p) => {
-        const originalPrice = p.originalPrice || Math.round(p.price * 1.35);
-        const offerPrice = Math.round(originalPrice * (1 - discountPercent / 100));
+        const originalPrice = normalizeCustomPrice(p.originalPrice || p.price, 0);
+        const offerPrice = normalizeCustomPrice(originalPrice * (1 - discountPercent / 100), 0);
         return {
           productId: p.id,
           discountPercentage: discountPercent,
@@ -3303,9 +3314,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </label>
                             <input
                               type="number"
-                              value={product.price}
-                              onChange={(e) => handlePriceChange(product.id, Number(e.target.value))}
-                              step={50}
+                              value={product.price === 0 ? '' : product.price}
+                              placeholder="e.g. 349"
+                              onChange={(e) => handlePriceChange(product.id, e.target.value)}
+                              step="0.01"
                               min={0}
                               className="w-full px-2 py-1 bg-white border border-[#DEC89B] rounded-lg text-sm font-bold text-[#8C2E46] focus:outline-hidden focus:border-[#B83F60]"
                             />
@@ -3317,9 +3329,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </label>
                             <input
                               type="number"
-                              value={product.originalPrice}
-                              onChange={(e) => handleOriginalPriceChange(product.id, Number(e.target.value))}
-                              step={50}
+                              value={product.originalPrice === 0 ? '' : product.originalPrice}
+                              placeholder="e.g. 499"
+                              onChange={(e) => handleOriginalPriceChange(product.id, e.target.value)}
+                              step="0.01"
                               min={0}
                               className="w-full px-2 py-1 bg-white border border-[#EAE2D5] rounded-lg text-sm text-[#7A6458] focus:outline-hidden focus:border-[#C29E57]"
                             />
@@ -5011,9 +5024,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               </span>
                               <input
                                 type="number"
-                                min={100}
-                                max={originalPrice}
-                                value={seasonalItem?.discountPrice ?? Math.round((Number(product.price) || 0) * 0.8)}
+                                min={0}
+                                step="0.01"
+                                max={originalPrice > 0 ? originalPrice : undefined}
+                                value={seasonalItem?.discountPrice ?? normalizeCustomPrice((Number(product.price) || 0) * 0.8)}
                                 onChange={(e) => handleUpdateSeasonalItemPrice(product.id, Number(e.target.value))}
                                 className="w-24 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-[var(--color-border,#EAE2D5)] bg-white text-[var(--color-primary,#70252D)] focus:outline-hidden"
                               />
@@ -5802,9 +5816,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     type="number"
                     required
                     min={0}
-                    step={50}
-                    value={newProduct.price || 1899}
-                    onChange={(e) => setNewProduct({ ...newProduct, price: Number(e.target.value) })}
+                    step="0.01"
+                    placeholder="e.g. 349, 475, 1299"
+                    value={newProduct.price === 0 ? '' : (newProduct.price ?? '')}
+                    onChange={(e) =>
+                      setNewProduct({
+                        ...newProduct,
+                        price: e.target.value === '' ? 0 : normalizeCustomPrice(e.target.value, 0),
+                      })
+                    }
                     className="w-full px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs font-bold text-[#8C2E46]"
                   />
                 </div>
@@ -5817,9 +5837,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     type="number"
                     required
                     min={0}
-                    step={50}
-                    value={newProduct.originalPrice || 2499}
-                    onChange={(e) => setNewProduct({ ...newProduct, originalPrice: Number(e.target.value) })}
+                    step="0.01"
+                    placeholder="e.g. 499, 699, 1499"
+                    value={newProduct.originalPrice === 0 ? '' : (newProduct.originalPrice ?? '')}
+                    onChange={(e) =>
+                      setNewProduct({
+                        ...newProduct,
+                        originalPrice: e.target.value === '' ? 0 : normalizeCustomPrice(e.target.value, 0),
+                      })
+                    }
                     className="w-full px-3 py-1.5 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#7A6458]"
                   />
                 </div>

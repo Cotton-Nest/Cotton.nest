@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BedsheetProduct, BedsheetVariant, BEDSHEETS_CATALOG, COMPANY_DETAILS } from './data/products';
+import { BedsheetProduct, BedsheetVariant, BEDSHEETS_CATALOG, COMPANY_DETAILS, normalizeCustomPrice } from './data/products';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { ProductCard } from './components/ProductCard';
@@ -849,8 +849,8 @@ export default function App() {
               }
               return;
             }
-            const cleanPrice = Number(data.price) || 1320;
-            const cleanOrigPrice = Number(data.originalPrice) || cleanPrice;
+            const cleanPrice = normalizeCustomPrice(data.price, 1320);
+            const cleanOrigPrice = normalizeCustomPrice(data.originalPrice, cleanPrice);
             const safeAdditional = Array.isArray(data.additionalImages)
               ? data.additionalImages.filter(
                   (u) => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('blob:')
@@ -1297,6 +1297,18 @@ export default function App() {
   ) => {
     lastAdminSaveRef.current = Date.now();
     setProducts(updatedProducts);
+    // Keep cart items and active product modal synchronized with latest Admin prices
+    setCartItems((prevCart) =>
+      prevCart.map((item) => {
+        const match = updatedProducts.find((p) => p.id === item.product?.id);
+        return match ? { ...item, product: match } : item;
+      })
+    );
+    setSelectedProduct((prevSel) => {
+      if (!prevSel) return null;
+      const match = updatedProducts.find((p) => p.id === prevSel.id);
+      return match || prevSel;
+    });
     try {
       localStorage.setItem('cotton_nest_products', JSON.stringify(updatedProducts));
     } catch {}
@@ -1339,6 +1351,11 @@ export default function App() {
       } catch {}
       return next;
     });
+    setCartItems((prevCart) =>
+      prevCart.map((item) =>
+        item.product?.id === updatedProduct.id ? { ...item, product: updatedProduct } : item
+      )
+    );
     if (selectedProduct && selectedProduct.id === updatedProduct.id) {
       setSelectedProduct(updatedProduct);
     }

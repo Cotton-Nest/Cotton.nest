@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { BedsheetProduct, COMPANY_DETAILS } from '../data/products';
+import { BedsheetProduct, COMPANY_DETAILS, normalizeCustomPrice } from '../data/products';
 import { SeasonalConfig, SeasonalItemDiscount } from '../data/seasonal';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import {
@@ -85,23 +85,27 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
       .filter((p) => p && itemMap.has(p.id))
       .map((p) => {
         const itemDiscount = itemMap.get(p.id)!;
-        const regularPrice = Number(p.price) || 1320;
-        const originalPrice = Number(p.originalPrice) || Math.round(regularPrice * 1.35);
+        const regularPrice = normalizeCustomPrice(p.price, 1320);
+        const originalPrice = normalizeCustomPrice(p.originalPrice, regularPrice);
 
-        let finalOfferPrice = itemDiscount.discountPrice;
+        let finalOfferPrice = itemDiscount.discountPrice !== undefined
+          ? normalizeCustomPrice(itemDiscount.discountPrice, regularPrice)
+          : undefined;
         let finalDiscountPct = itemDiscount.discountPercentage;
 
-        if (finalOfferPrice && !finalDiscountPct) {
-          finalDiscountPct = Math.max(5, Math.round(((originalPrice - finalOfferPrice) / originalPrice) * 100));
-        } else if (finalDiscountPct && !finalOfferPrice) {
-          finalOfferPrice = Math.round(originalPrice * (1 - finalDiscountPct / 100));
-        } else if (!finalOfferPrice && !finalDiscountPct) {
+        if (finalOfferPrice !== undefined && !finalDiscountPct) {
+          finalDiscountPct = originalPrice > 0
+            ? Math.max(0, Math.round(((originalPrice - finalOfferPrice) / originalPrice) * 100))
+            : 0;
+        } else if (finalDiscountPct && finalOfferPrice === undefined) {
+          finalOfferPrice = normalizeCustomPrice(originalPrice * (1 - finalDiscountPct / 100), regularPrice);
+        } else if (finalOfferPrice === undefined && !finalDiscountPct) {
           // Default 20% off regular price
           finalDiscountPct = 20;
-          finalOfferPrice = Math.round(regularPrice * 0.8);
+          finalOfferPrice = normalizeCustomPrice(regularPrice * 0.8, regularPrice);
         }
 
-        const savings = Math.max(0, originalPrice - (finalOfferPrice || regularPrice));
+        const savings = normalizeCustomPrice(Math.max(0, originalPrice - (finalOfferPrice ?? regularPrice)), 0);
 
         return {
           product: p,

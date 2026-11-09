@@ -5,7 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { v2 as cloudinary } from 'cloudinary';
 import { getCloudinaryConfig } from './api/cloudinary-sign.ts';
-import { BEDSHEETS_CATALOG } from './src/data/products.ts';
+import { BEDSHEETS_CATALOG, normalizeCustomPrice } from './src/data/products.ts';
 import { INITIAL_ORDERS } from './src/data/orders.ts';
 import { INITIAL_SITE_CONTENT } from './src/data/siteContent.ts';
 import { INITIAL_REVIEWS } from './src/data/reviews.ts';
@@ -820,6 +820,8 @@ async function startServer() {
     if (!newProduct.id) {
       newProduct.id = `sheet-${Date.now().toString(36)}`;
     }
+    newProduct.price = normalizeCustomPrice(newProduct.price, 1320);
+    newProduct.originalPrice = normalizeCustomPrice(newProduct.originalPrice, newProduct.price);
     const now = Date.now();
     newProduct.updatedAt = now;
     (db as any).updatedAt = now;
@@ -837,11 +839,17 @@ async function startServer() {
   app.put('/api/products', (req, res) => {
     if (Array.isArray(req.body)) {
       const now = Date.now();
-      db.products = req.body.map((p: any, idx: number) => ({
-        ...p,
-        order: typeof p.order === 'number' ? p.order : idx,
-        updatedAt: p.updatedAt || now,
-      }));
+      db.products = req.body.map((p: any, idx: number) => {
+        const cleanPrice = normalizeCustomPrice(p.price ?? p.sale_price ?? p.selling_price, 1320);
+        const cleanOriginalPrice = normalizeCustomPrice(p.originalPrice ?? p.mrp ?? p.list_price, cleanPrice);
+        return {
+          ...p,
+          price: cleanPrice,
+          originalPrice: cleanOriginalPrice,
+          order: typeof p.order === 'number' ? p.order : idx,
+          updatedAt: p.updatedAt || now,
+        };
+      });
       (db as any).updatedAt = now;
       saveDatabase();
       return res.json(db.products);
@@ -851,12 +859,20 @@ async function startServer() {
 
   app.put('/api/products/:id', (req, res) => {
     const { id } = req.params;
-    const updated = req.body || {};
+    const updated = { ...(req.body || {}) };
+    if (updated.price !== undefined) {
+      updated.price = normalizeCustomPrice(updated.price, 0);
+    }
+    if (updated.originalPrice !== undefined) {
+      updated.originalPrice = normalizeCustomPrice(updated.originalPrice, updated.price ?? 0);
+    }
     const now = Date.now();
     (db as any).updatedAt = now;
     const index = db.products.findIndex((p) => p.id === id);
     if (index === -1) {
       // Upsert product if it exists in Firestore but not yet in local store_db.json
+      const entryPrice = normalizeCustomPrice(updated.price, 1320);
+      const entryOrigPrice = normalizeCustomPrice(updated.originalPrice, entryPrice);
       const newEntry = {
         id,
         name: updated.name || id,
@@ -864,8 +880,8 @@ async function startServer() {
         size: updated.size || 'King',
         productType: updated.productType || 'Bedsheet',
         brand: updated.brand || 'Cotton Nest',
-        price: Number(updated.price) || 1320,
-        originalPrice: Number(updated.originalPrice) || Number(updated.price) || 1320,
+        price: entryPrice,
+        originalPrice: entryOrigPrice,
         inStock: updated.inStock !== false,
         ...updated,
         updatedAt: now,
@@ -2407,15 +2423,15 @@ async function startServer() {
 
     let discountAmount = 0;
     if (coupon.discountType === 'percentage') {
-      discountAmount = Math.round((eligibleSubtotal * coupon.discountValue) / 100);
+      discountAmount = normalizeCustomPrice((eligibleSubtotal * coupon.discountValue) / 100, 0);
       if (coupon.maxDiscountAmount && coupon.maxDiscountAmount > 0) {
-        discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
+        discountAmount = Math.min(discountAmount, normalizeCustomPrice(coupon.maxDiscountAmount, 0));
       }
     } else {
-      discountAmount = Math.min(eligibleSubtotal, Math.round(coupon.discountValue));
+      discountAmount = Math.min(eligibleSubtotal, normalizeCustomPrice(coupon.discountValue, 0));
     }
 
-    discountAmount = Math.min(discountAmount, orderSubtotal);
+    discountAmount = normalizeCustomPrice(Math.min(discountAmount, orderSubtotal), 0);
 
     res.json({
       valid: true,

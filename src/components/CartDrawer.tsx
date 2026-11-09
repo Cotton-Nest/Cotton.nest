@@ -396,15 +396,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   }, [items]);
 
   const subtotal = React.useMemo(() => {
-    return validItems.reduce((sum, item) => {
+    const raw = validItems.reduce((sum, item) => {
       const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0 ? item.quantity : 1;
       const price = typeof item?.product?.price === 'number' && !isNaN(item?.product?.price) ? item.product.price : 0;
       return sum + price * qty;
     }, 0);
+    return Number(raw.toFixed(2));
   }, [validItems]);
 
   const originalSubtotal = React.useMemo(() => {
-    return validItems.reduce((sum, item) => {
+    const raw = validItems.reduce((sum, item) => {
       const qty = typeof item?.quantity === 'number' && !isNaN(item?.quantity) && item?.quantity > 0 ? item.quantity : 1;
       const price = typeof item?.product?.price === 'number' && !isNaN(item?.product?.price) ? item.product.price : 0;
       const orig = typeof item?.product?.originalPrice === 'number' && !isNaN(item?.product?.originalPrice) && item.product.originalPrice >= price
@@ -412,13 +413,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         : price;
       return sum + orig * qty;
     }, 0);
+    return Number(raw.toFixed(2));
   }, [validItems]);
 
-  const catalogSavings = Math.max(0, originalSubtotal - subtotal);
-  const effectiveCouponDiscount = couponDiscount || 0;
+  const catalogSavings = Number(Math.max(0, originalSubtotal - subtotal).toFixed(2));
+  const effectiveCouponDiscount = Number((couponDiscount || 0).toFixed(2));
 
   // Nest Points discount calculation: 100 points = ₹50 (₹0.50 per point), maximum 250 points per order
-  const netSubtotalAfterCoupon = Math.max(0, subtotal - effectiveCouponDiscount);
+  const netSubtotalAfterCoupon = Number(Math.max(0, subtotal - effectiveCouponDiscount).toFixed(2));
   const maxRedeemablePoints = pointsBalance > 0
     ? Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, pointsBalance), calculatePointsForRupeeDiscount(netSubtotalAfterCoupon))
     : 0;
@@ -428,13 +430,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const acrossIndiaFee =
     typeof shippingFee === 'number' && !isNaN(shippingFee) && shippingFee >= 0 && shippingFee !== 100
-      ? Math.round(shippingFee)
+      ? Number(shippingFee.toFixed(2))
       : 29;
-  const totalSavings = catalogSavings + effectiveCouponDiscount + effectivePointsDiscount;
+  const totalSavings = Number((catalogSavings + effectiveCouponDiscount + effectivePointsDiscount).toFixed(2));
   const shippingCost = shippingOption === 'india' ? acrossIndiaFee : 0;
   // Net merchandise amount strictly excludes delivery charges (No points on delivery charges)
-  const netMerchandiseAmount = Math.max(0, subtotal - effectiveCouponDiscount - effectivePointsDiscount);
-  const finalTotal = netMerchandiseAmount + shippingCost;
+  const netMerchandiseAmount = Number(Math.max(0, subtotal - effectiveCouponDiscount - effectivePointsDiscount).toFixed(2));
+  const finalTotal = Number((netMerchandiseAmount + shippingCost).toFixed(2));
   const pointsToEarn = calculateEarnedPoints(netMerchandiseAmount); // 5 points per ₹100 spent (excluding delivery charges)
 
   // Auto-apply or re-validate coupons when bag items or subtotal change
