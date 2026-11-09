@@ -1350,6 +1350,21 @@ export default function App() {
     }
   };
 
+  const handleGlobalToggleMaintenanceMode = async () => {
+    const nextMode = !siteContent?.isMaintenanceMode;
+    if (nextMode) {
+      const confirmed = window.confirm("Are you sure you want to put Cotton Nest under maintenance?");
+      if (!confirmed) return;
+    }
+
+    const updated = {
+      ...(siteContent || INITIAL_SITE_CONTENT),
+      isMaintenanceMode: nextMode,
+      maintenanceNotice: siteContent?.maintenanceNotice || "We're making some improvements! Cotton Nest will be back shortly. Thank you for your patience.",
+    };
+    await handleUpdateSiteContent(updated);
+  };
+
   // Admin: Reset products back to factory defaults on server & local
   const handleResetProducts = async () => {
     setProducts(BEDSHEETS_CATALOG);
@@ -1686,6 +1701,16 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={handleGlobalToggleMaintenanceMode}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                siteContent?.isMaintenanceMode
+                  ? 'bg-amber-600 text-white animate-pulse'
+                  : 'bg-white/10 hover:bg-white/20 text-[#FAF7F2]'
+              }`}
+            >
+              <span>{siteContent?.isMaintenanceMode ? '🛠️ Maint: ON' : '⚡ Maint: OFF'}</span>
+            </button>
+            <button
               onClick={() => setIsOwnerAuthOpen(true)}
               className="px-2.5 py-1 bg-[#8C2E46] hover:bg-[#A33452] text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
             >
@@ -1740,14 +1765,14 @@ export default function App() {
           </div>
           <div className="max-w-md space-y-2">
             <span className="text-xs font-bold uppercase tracking-widest text-[#8C2E46] bg-[#FDEAF0] px-3 py-1 rounded-full border border-[#FAD1DC]">
-              Gurgaon Atelier Maintenance
+              Cotton Nest · Pure Cotton Comfort
             </span>
             <h1 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-[#2C2420] pt-2">
-              Cotton Nest Atelier Under Scheduled Maintenance
+              We&apos;re making some improvements!
             </h1>
             <p className="text-xs sm:text-sm text-[#6B5D55] leading-relaxed">
               {siteContent.maintenanceNotice ||
-                "Our online storefront is currently undergoing scheduled updates to bring you our latest pure cotton collections and improved experience. We will be back online shortly!"}
+                "We're making some improvements! Cotton Nest will be back shortly. Thank you for your patience."}
             </p>
           </div>
 

@@ -1860,9 +1860,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleToggleMaintenanceMode = async () => {
     const nextMode = !editableContent.isMaintenanceMode;
+    if (nextMode) {
+      const confirmed = window.confirm("Are you sure you want to put Cotton Nest under maintenance?");
+      if (!confirmed) return;
+    }
+
     const nextContent: SiteContent = {
       ...editableContent,
       isMaintenanceMode: nextMode,
+      maintenanceNotice: editableContent.maintenanceNotice || "We're making some improvements! Cotton Nest will be back shortly. Thank you for your patience.",
     };
     setEditableContent(nextContent);
     onUpdateSiteContent(nextContent);

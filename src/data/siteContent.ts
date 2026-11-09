@@ -53,7 +53,7 @@ export function normalizeShippingFee(rawFee?: unknown): number {
 
 export const INITIAL_SITE_CONTENT: SiteContent = {
   isMaintenanceMode: false,
-  maintenanceNotice: "Cotton Nest Atelier is currently undergoing scheduled system maintenance & upgrades. We will be back online shortly!",
+  maintenanceNotice: "We're making some improvements! Cotton Nest will be back shortly. Thank you for your patience.",
   company: {
     name: "Cotton Nest",
     tagline: "Pure Cotton Comfort, Everyday Elegance",
