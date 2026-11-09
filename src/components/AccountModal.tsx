@@ -98,6 +98,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     setPreferRedeemAtCheckout,
     claimReferralReward,
     transactions,
+    refreshLoyalty,
+    loadTransactions,
   } = useLoyalty();
 
   // Active view tab inside account modal: 'overview' | 'loyalty' | 'wishlist' | 'orders' | 'profile'
@@ -140,11 +142,21 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       setAddressBook(getSavedAddresses(customerProfile, userKey));
       getOrders()
         .then((res) => {
-          if (Array.isArray(res)) setFetchedOrders(res);
+          if (Array.isArray(res)) {
+            setFetchedOrders(res);
+            try {
+              localStorage.setItem('cotton_nest_orders', JSON.stringify(res));
+            } catch {}
+          }
+          refreshLoyalty();
+          loadTransactions();
         })
-        .catch(() => {});
+        .catch(() => {
+          refreshLoyalty();
+          loadTransactions();
+        });
     }
-  }, [isOpen, customerProfile, userKey, activeTab]);
+  }, [isOpen, customerProfile, userKey, activeTab, refreshLoyalty, loadTransactions]);
 
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 

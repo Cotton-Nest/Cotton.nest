@@ -86,6 +86,22 @@ export function getActiveLoyaltyKey(user?: any, phoneInput?: string): string {
   if (user?.id) {
     return sanitizeLoyaltyKey(user.id);
   }
+  // Check most recent order in localStorage for guest session continuity
+  try {
+    const rawOrders = localStorage.getItem('cotton_nest_orders');
+    if (rawOrders) {
+      const parsedOrders = JSON.parse(rawOrders);
+      if (Array.isArray(parsedOrders) && parsedOrders.length > 0) {
+        const latest = parsedOrders[0];
+        if (latest?.customerPhone && String(latest.customerPhone).replace(/[^0-9]/g, '').length >= 10) {
+          return sanitizeLoyaltyKey(latest.customerPhone);
+        }
+        if (latest?.customerEmail) {
+          return sanitizeLoyaltyKey(latest.customerEmail);
+        }
+      }
+    }
+  } catch {}
   return 'guest_default_wallet';
 }
 
@@ -136,92 +152,67 @@ export async function getLoyaltyAccountApi(
     }
   } catch {}
 
-  // 3. Fallback: if balance is 0 and customer has an alternate key (e.g. phone vs email), try querying alternate key
-  if ((account.pointsBalance || 0) === 0) {
-    const alternateKeys: string[] = [];
-    if (extra?.phone) alternateKeys.push(sanitizeLoyaltyKey(extra.phone));
-    if (extra?.email) alternateKeys.push(sanitizeLoyaltyKey(extra.email));
-    try {
-      const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
-      if (rawProfile) {
-        const parsed = JSON.parse(rawProfile);
-        if (parsed?.phone) alternateKeys.push(sanitizeLoyaltyKey(parsed.phone));
-        if (parsed?.email) alternateKeys.push(sanitizeLoyaltyKey(parsed.email));
+  // 3. Collect alternate keys for this user (phone, email, userId)
+  const alternateKeys: string[] = [];
+  if (extra?.phone) alternateKeys.push(sanitizeLoyaltyKey(extra.phone));
+  if (extra?.email) alternateKeys.push(sanitizeLoyaltyKey(extra.email));
+  if (extra?.userId) alternateKeys.push(sanitizeLoyaltyKey(extra.userId));
+  let profilePhone = '';
+  let profileEmail = '';
+  try {
+    const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
+    if (rawProfile) {
+      const parsed = JSON.parse(rawProfile);
+      if (parsed?.phone) {
+        profilePhone = String(parsed.phone);
+        alternateKeys.push(sanitizeLoyaltyKey(parsed.phone));
       }
-    } catch {}
-
-    for (const alt of alternateKeys) {
-      if (alt && alt !== accountId) {
-        try {
-          const altRes = await fetch(`/api/loyalty/${encodeURIComponent(alt)}`);
-          if (altRes.ok) {
-            const altData = await altRes.json();
-            if (altData && typeof altData.pointsBalance === 'number' && altData.pointsBalance > 0) {
-              account = {
-                ...account,
-                ...altData,
-                id: accountId, // preserve current key
-                referralCode: altData.referralCode || account.referralCode || defaultReferralCode,
-              };
-              saveLocalAccount(account);
-              break;
-            }
-          }
-        } catch {}
+      if (parsed?.email) {
+        profileEmail = String(parsed.email);
+        alternateKeys.push(sanitizeLoyaltyKey(parsed.email));
       }
     }
+  } catch {}
 
-    // 3b. Check local orders cache for uncredited purchases
+  const uniqueAltKeys = Array.from(new Set(alternateKeys.filter((k) => k && k !== accountId)));
+
+  for (const alt of uniqueAltKeys) {
     try {
-      const rawOrders = localStorage.getItem('cotton_nest_orders');
-      if (rawOrders) {
-        const parsedOrders = JSON.parse(rawOrders);
-        if (Array.isArray(parsedOrders)) {
-          let orderEarned = 0;
-          let orderSpent = 0;
-          parsedOrders.forEach((o) => {
-            if (!o || o.status === 'cancelled') return;
-            const oEmail = (o.customerEmail || '').toLowerCase().trim();
-            const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
-            const myEmail = (account.email || extra?.email || '').toLowerCase().trim();
-            const myPhone = (account.phone || extra?.phone || '').replace(/[^0-9]/g, '').slice(-10);
-            const isMatch = Boolean((myEmail && oEmail === myEmail) || (myPhone && oPhone === myPhone));
-            if (isMatch) {
-              const ship = Number(o.shippingCost) || 0;
-              const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
-              orderEarned += typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
-              if (o.pointsUsed && Number(o.pointsUsed) > 0) {
-                orderSpent += Number(o.pointsUsed);
-              }
-            }
-          });
-          const computedEarned = Math.max(account.lifetimeEarned || 0, orderEarned);
-          const computedSpent = Math.max(account.lifetimeSpent || 0, orderSpent);
-          const computedNet = Math.max(0, computedEarned - computedSpent);
-          account.lifetimeEarned = computedEarned;
-          account.lifetimeSpent = computedSpent;
-          account.pointsBalance = computedNet;
+      const altRes = await fetch(`/api/loyalty/${encodeURIComponent(alt)}`);
+      if (altRes.ok) {
+        const altData = await altRes.json();
+        if (altData && typeof altData.pointsBalance === 'number') {
+          const mergedEarned = Math.max(account.lifetimeEarned || 0, altData.lifetimeEarned || 0);
+          const mergedSpent = Math.max(account.lifetimeSpent || 0, altData.lifetimeSpent || 0);
+          account = {
+            ...account,
+            ...altData,
+            id: accountId,
+            lifetimeEarned: mergedEarned,
+            lifetimeSpent: mergedSpent,
+            pointsBalance: Math.max(0, mergedEarned - mergedSpent),
+            referralCode: altData.referralCode || account.referralCode || defaultReferralCode,
+          };
           saveLocalAccount(account);
         }
       }
     } catch {}
   }
 
-  // 4. Fetch from Firestore (Authoritative across both site_content/loyalty_* and loyalty/* collections)
+  // 4. Fetch from Firestore across customer's candidate keys
   try {
-    const candidateDocRefs = [
-      doc(db, 'site_content', `loyalty_${accountId}`),
-      doc(db, 'loyalty', accountId),
-      doc(db, 'site_content', 'loyalty_phone_7838625915'),
-      doc(db, 'loyalty', 'phone_7838625915'),
-    ];
+    const allCandidateKeys = Array.from(new Set([accountId, ...uniqueAltKeys]));
+    const candidateDocRefs = allCandidateKeys.flatMap((k) => [
+      doc(db, 'site_content', `loyalty_${k}`),
+      doc(db, 'loyalty', k),
+    ]);
     const snaps = await Promise.all(candidateDocRefs.map((ref) => getDoc(ref).catch(() => null)));
 
     for (const snap of snaps) {
       if (snap && snap.exists()) {
         const firestoreData = snap.data() as LoyaltyAccount;
         if (firestoreData && (typeof firestoreData.lifetimeEarned === 'number' || typeof firestoreData.pointsBalance === 'number')) {
-          const mergedEarned = Math.max(account.lifetimeEarned || 0, firestoreData.lifetimeEarned || firestoreData.pointsBalance || 0);
+          const mergedEarned = Math.max(account.lifetimeEarned || 0, firestoreData.lifetimeEarned || 0);
           const mergedSpent = Math.max(account.lifetimeSpent || 0, firestoreData.lifetimeSpent || 0);
           const mergedBalance = Math.max(0, mergedEarned - mergedSpent);
 
@@ -234,6 +225,115 @@ export async function getLoyaltyAccountApi(
             pointsBalance: mergedBalance,
             referralCode: firestoreData.referralCode || account.referralCode || defaultReferralCode,
           };
+          saveLocalAccount(account);
+        }
+      }
+    }
+  } catch {}
+
+  // 5. Reconcile against local orders cache: ONLY count earned points for 'delivered' orders
+  try {
+    const rawOrders = localStorage.getItem('cotton_nest_orders');
+    if (rawOrders) {
+      const parsedOrders = JSON.parse(rawOrders);
+      if (Array.isArray(parsedOrders)) {
+        const orderStatusMap = new Map<string, string>();
+        parsedOrders.forEach((o) => {
+          if (o && o.id) orderStatusMap.set(String(o.id), String(o.status || 'pending'));
+        });
+
+        // Clean up any premature local 'earned' transactions for non-delivered orders
+        try {
+          const rawTxs = localStorage.getItem(LOCAL_STORAGE_TX_KEY);
+          if (rawTxs) {
+            const txList: LoyaltyTransaction[] = JSON.parse(rawTxs);
+            if (Array.isArray(txList)) {
+              const filtered = txList.filter((t) => {
+                if (t && t.type === 'earned' && t.orderId && orderStatusMap.has(String(t.orderId))) {
+                  return orderStatusMap.get(String(t.orderId)) === 'delivered';
+                }
+                return true;
+              });
+              if (filtered.length !== txList.length) {
+                localStorage.setItem(LOCAL_STORAGE_TX_KEY, JSON.stringify(filtered));
+              }
+            }
+          }
+        } catch {}
+
+        let deliveredOrderEarned = 0;
+        let orderSpent = 0;
+        let matchedAnyOrder = false;
+
+        const myEmail = (
+          account.email ||
+          extra?.email ||
+          profileEmail ||
+          (accountId.startsWith('email_') ? accountId.slice(6) : '')
+        )
+          .toLowerCase()
+          .trim();
+        const myPhone = (
+          account.phone ||
+          extra?.phone ||
+          profilePhone ||
+          (accountId.startsWith('phone_') ? accountId.slice(6) : '')
+        )
+          .replace(/[^0-9]/g, '')
+          .slice(-10);
+
+        parsedOrders.forEach((o) => {
+          if (!o || o.status === 'cancelled') return;
+          const oEmail = (o.customerEmail || '').toLowerCase().trim();
+          const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
+          const isMatch =
+            Boolean(myEmail && oEmail === myEmail) ||
+            Boolean(myPhone && oPhone === myPhone) ||
+            Boolean(extra?.userId && o.userId === extra.userId) ||
+            accountId === 'guest_default_wallet';
+
+          if (isMatch) {
+            matchedAnyOrder = true;
+            const ship = Number(o.shippingCost) || 0;
+            const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
+            const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
+
+            if (o.status === 'delivered') {
+              deliveredOrderEarned += pts;
+              if (pts > 0) {
+                const localTxs = getLocalTransactions(accountId);
+                const hasTx = localTxs.some((t) => t.orderId === o.id && t.type === 'earned' && t.points > 0);
+                if (!hasTx) {
+                  const now = o.deliveredAt ? new Date(o.deliveredAt).getTime() || Date.now() : Date.now();
+                  saveLocalTransaction({
+                    id: `tx_earn_${o.id.replace(/[^a-zA-Z0-9_-]/g, '')}_${accountId}`,
+                    accountId,
+                    orderId: o.id,
+                    type: 'earned',
+                    points: pts,
+                    amountInr: net,
+                    description: `Earned on Delivered Order #${o.id} (5 pts / ₹100)`,
+                    createdAt: now,
+                    expiresAt: getTransactionExpiryDate(now),
+                    status: 'credited',
+                  });
+                }
+              }
+            }
+            if (o.pointsUsed && Number(o.pointsUsed) > 0) {
+              orderSpent += Math.min(125, Number(o.pointsUsed));
+            }
+          }
+        });
+
+        if (matchedAnyOrder) {
+          const referralPts = account.referralPointsEarned || 0;
+          const computedEarned = deliveredOrderEarned + referralPts;
+          const computedSpent = Math.max(account.lifetimeSpent || 0, orderSpent);
+          const computedNet = Math.max(0, computedEarned - computedSpent);
+          account.lifetimeEarned = computedEarned;
+          account.lifetimeSpent = computedSpent;
+          account.pointsBalance = computedNet;
           saveLocalAccount(account);
         }
       }
@@ -260,21 +360,22 @@ export async function earnLoyaltyPointsApi(
       : calculateEarnedPoints(eligibleRupeesExcludingDelivery);
   const accountId = sanitizeLoyaltyKey(rawKey);
 
-  const current = await getLoyaltyAccountApi(accountId, extra);
-
-  // Prevent duplicate credit for the same delivered orderId
+  // Check server & Firestore transactions before crediting to prevent duplicates
   const existingTxs = await getLoyaltyTransactionsApi(accountId);
   const alreadyCredited = existingTxs.find(
-    (t) => t.orderId === orderId && t.type === 'earned' && t.points > 0
+    (t) => t.accountId === accountId && t.orderId === orderId && t.type === 'earned' && t.points > 0
   );
+
+  const current = await getLoyaltyAccountApi(accountId, extra);
   if (alreadyCredited) {
     return { account: current, pointsEarned: alreadyCredited.points, tx: alreadyCredited };
   }
 
   const now = Date.now();
   const expiresAt = getTransactionExpiryDate(now);
-  const newBalance = (current.pointsBalance || 0) + pointsEarned;
   const newLifetimeEarned = (current.lifetimeEarned || 0) + pointsEarned;
+  const currentSpent = current.lifetimeSpent || 0;
+  const newBalance = Math.max(0, newLifetimeEarned - currentSpent);
 
   const updatedAccount: LoyaltyAccount = {
     ...current,
@@ -288,7 +389,7 @@ export async function earnLoyaltyPointsApi(
   };
 
   const tx: LoyaltyTransaction = {
-    id: `tx_earn_${orderId.replace(/[^a-zA-Z0-9_-]/g, '')}_${now}`,
+    id: `tx_earn_${orderId.replace(/[^a-zA-Z0-9_-]/g, '')}_${accountId}`,
     accountId,
     orderId,
     type: 'earned',
@@ -306,7 +407,7 @@ export async function earnLoyaltyPointsApi(
 
   // 2. Server backend dual-write
   try {
-    fetch('/api/loyalty/earn', {
+    await fetch('/api/loyalty/earn', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -320,9 +421,13 @@ export async function earnLoyaltyPointsApi(
     }).catch(() => {});
   } catch {}
 
-  // 3. Firestore persistence
+  // 3. Firestore persistence across both loyalty collections and transaction log
   try {
-    await setDoc(doc(db, 'site_content', `loyalty_${accountId}`), stripUndefined(updatedAccount), { merge: true });
+    await Promise.all([
+      setDoc(doc(db, 'site_content', `loyalty_${accountId}`), stripUndefined(updatedAccount), { merge: true }).catch(() => {}),
+      setDoc(doc(db, 'loyalty', accountId), stripUndefined(updatedAccount), { merge: true }).catch(() => {}),
+      setDoc(doc(db, 'loyalty_transactions', tx.id), stripUndefined(tx), { merge: true }).catch(() => {}),
+    ]);
   } catch {}
 
   return { account: updatedAccount, pointsEarned, tx };
@@ -487,10 +592,32 @@ export async function claimReferralRewardApi(
  */
 export async function getLoyaltyTransactionsApi(rawKey: string): Promise<LoyaltyTransaction[]> {
   const accountId = sanitizeLoyaltyKey(rawKey);
+  const orderStatusMap = new Map<string, string>();
+  try {
+    const rawOrders = localStorage.getItem('cotton_nest_orders');
+    if (rawOrders) {
+      const parsedOrders = JSON.parse(rawOrders);
+      if (Array.isArray(parsedOrders)) {
+        parsedOrders.forEach((o) => {
+          if (o && o.id) orderStatusMap.set(String(o.id), String(o.status || 'pending'));
+        });
+      }
+    }
+  } catch {}
+
+  const isEligibleTx = (t: LoyaltyTransaction) => {
+    if (!t) return false;
+    if (t.type === 'earned' && t.orderId && orderStatusMap.has(String(t.orderId))) {
+      return orderStatusMap.get(String(t.orderId)) === 'delivered';
+    }
+    return true;
+  };
+
   const localList = getLocalTransactions(accountId);
   const txMap = new Map<string, LoyaltyTransaction>();
 
   localList.forEach((t) => {
+    if (!isEligibleTx(t)) return;
     const normalized: LoyaltyTransaction = {
       ...t,
       expiresAt: t.points > 0 ? getTransactionExpiryDate(t.createdAt, t.expiresAt) : t.expiresAt,
@@ -505,6 +632,7 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
       const serverTxs: LoyaltyTransaction[] = await res.json();
       if (Array.isArray(serverTxs)) {
         serverTxs.forEach((t) => {
+          if (!isEligibleTx(t)) return;
           txMap.set(t.id, {
             ...t,
             expiresAt: t.points > 0 ? getTransactionExpiryDate(t.createdAt, t.expiresAt) : t.expiresAt,
@@ -524,7 +652,7 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
     const snap = await getDocs(q);
     snap.forEach((d) => {
       const data = d.data() as LoyaltyTransaction;
-      if (data && d.id) {
+      if (data && d.id && isEligibleTx(data)) {
         txMap.set(d.id, {
           ...data,
           id: d.id,
@@ -532,21 +660,6 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
         });
       }
     });
-
-    // If no transactions matched the current accountId, also check all store loyalty transactions so history is never empty
-    if (txMap.size === 0) {
-      const allSnap = await getDocs(query(collection(db, 'loyalty_transactions'), limit(50)));
-      allSnap.forEach((d) => {
-        const data = d.data() as LoyaltyTransaction;
-        if (data && d.id) {
-          txMap.set(d.id, {
-            ...data,
-            id: d.id,
-            expiresAt: data.points > 0 ? getTransactionExpiryDate(data.createdAt, data.expiresAt) : data.expiresAt,
-          });
-        }
-      });
-    }
   } catch {}
 
   const merged = Array.from(txMap.values());

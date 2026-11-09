@@ -844,25 +844,31 @@ export async function saveOrder(order: Order): Promise<void> {
 
 export async function saveAllOrdersApi(orders: Order[]): Promise<void> {
   if (!Array.isArray(orders)) return;
-  try {
-    localStorage.setItem('cotton_nest_orders', JSON.stringify(orders));
-  } catch {}
-
-  await Promise.all(
-    orders.map(async (order) => {
-      if (!order || !order.id) return;
-      const safeOrder = stripUndefined({
+  const sanitizedOrders = orders
+    .filter((o) => o && o.id)
+    .map((order) =>
+      stripUndefined({
         ...order,
         customerPhone: order.customerPhone?.trim() || '',
         customerAddress: order.customerAddress?.trim() || '',
         status: order.status || 'pending',
+        pointsCredited: order.status === 'delivered' ? Boolean(order.pointsCredited ?? true) : false,
         createdAt: order.createdAt || new Date().toISOString(),
-      });
-      fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(safeOrder),
-      }).catch(() => {});
+      })
+    );
+
+  try {
+    localStorage.setItem('cotton_nest_orders', JSON.stringify(sanitizedOrders));
+  } catch {}
+
+  fetch('/api/orders', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sanitizedOrders),
+  }).catch(() => {});
+
+  await Promise.all(
+    sanitizedOrders.map(async (safeOrder) => {
       try {
         await setDoc(doc(db, 'orders', String(safeOrder.id)), safeOrder, { merge: true });
       } catch (err) {
@@ -942,7 +948,7 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
             };
             return {
               ...targetOrder,
-              pointsCredited: status === 'delivered' ? true : o.pointsCredited,
+              pointsCredited: status === 'delivered',
             };
           }
           return o;
@@ -1055,17 +1061,18 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     }
   }
 
-  // 3. If order is marked delivered and points were not credited yet, credit Nest Points now across customer keys
-  if (status === 'delivered' && targetOrder && !targetOrder.pointsCredited) {
+  // 3. When order is marked delivered, credit Nest Points across all customer keys (idempotent per orderId + accountId)
+  if (status === 'delivered' && targetOrder) {
     const rawKeys: string[] = [];
     if (targetOrder.customerPhone) rawKeys.push(targetOrder.customerPhone);
     if (targetOrder.customerEmail) rawKeys.push(targetOrder.customerEmail);
     if (targetOrder.userId) rawKeys.push(targetOrder.userId);
+    if (rawKeys.length === 0) rawKeys.push('guest_default_wallet');
 
     const shippingCostVal = Number(targetOrder.shippingCost) || 0;
     const eligibleAmount = Math.max(0, (Number(targetOrder.totalAmount) || 0) - shippingCostVal);
 
-    if (rawKeys.length > 0 && (eligibleAmount > 0 || (targetOrder.pointsEarned && targetOrder.pointsEarned > 0))) {
+    if (eligibleAmount > 0 || (targetOrder.pointsEarned && targetOrder.pointsEarned > 0)) {
       try {
         const { earnLoyaltyPointsApi } = await import('./loyaltyApi');
         for (const k of rawKeys) {
@@ -1087,6 +1094,14 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       window.dispatchEvent(
         new CustomEvent('cotton-nest-loyalty-updated', {
           detail: { orderId, status: 'delivered' },
+        })
+      );
+    } catch {}
+  } else if (status === 'cancelled') {
+    try {
+      window.dispatchEvent(
+        new CustomEvent('cotton-nest-loyalty-updated', {
+          detail: { orderId, status: 'cancelled' },
         })
       );
     } catch {}

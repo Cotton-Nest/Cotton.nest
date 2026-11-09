@@ -1598,21 +1598,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleUpdateOrderStatus = async (orderId: string, nextStatus: OrderStatus) => {
     const targetOrder = editableOrders.find((o) => o.id === orderId);
+    const nowIso = new Date().toISOString();
     const updated = editableOrders.map((o) => {
       if (o.id === orderId) {
         return {
           ...o,
           status: nextStatus,
           invoiceSent: nextStatus === 'confirmed' ? true : o.invoiceSent,
+          pointsCredited: nextStatus === 'delivered',
+          ...(nextStatus === 'delivered' ? { deliveredAt: o.deliveredAt || nowIso } : {}),
         };
       }
       return o;
     });
     setEditableOrders(updated);
-    onUpdateOrders(updated);
 
     if (nextStatus === 'confirmed') {
       showToast(`Order #${orderId} Confirmed! Generating & emailing sale invoice...`);
+    } else if (nextStatus === 'delivered') {
+      const earnedPts =
+        targetOrder?.pointsEarned ||
+        Math.floor((Math.max(0, (Number(targetOrder?.totalAmount) || 0) - (Number(targetOrder?.shippingCost) || 0)) / 100) * 5);
+      showToast(
+        earnedPts > 0
+          ? `Order #${orderId} Delivered! Crediting +${earnedPts} Nest Points to customer...`
+          : `Order #${orderId} status set to DELIVERED`
+      );
     } else {
       showToast(`Order #${orderId} status set to ${nextStatus.toUpperCase()}`);
     }
@@ -1623,11 +1634,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         nextStatus,
         targetOrder ? { ...targetOrder, status: nextStatus } : undefined
       );
+      onUpdateOrders(updated);
       if (nextStatus === 'confirmed') {
         showToast(`✓ Sale invoice email dispatched from adityaa.22082011@gmail.com!`);
+      } else if (nextStatus === 'delivered') {
+        const earnedPts =
+          targetOrder?.pointsEarned ||
+          Math.floor((Math.max(0, (Number(targetOrder?.totalAmount) || 0) - (Number(targetOrder?.shippingCost) || 0)) / 100) * 5);
+        if (earnedPts > 0) {
+          showToast(`✓ +${earnedPts} Nest Points credited to customer wallet for Delivered Order #${orderId}!`);
+        }
       }
     } catch (err) {
       console.warn('Failed to persist status change:', err);
+      onUpdateOrders(updated);
     }
   };
 

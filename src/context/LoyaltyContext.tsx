@@ -271,6 +271,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setPreferRedeemAtCheckout,
         openLoyaltyModal: () => {
           setIsLoyaltyModalOpen(true);
+          refreshLoyalty();
           loadTransactions();
         },
         closeLoyaltyModal: () => setIsLoyaltyModalOpen(false),

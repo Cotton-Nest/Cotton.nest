@@ -602,7 +602,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       pointsUsed: pointsToRedeem > 0 ? pointsToRedeem : undefined,
       pointsDiscount: effectivePointsDiscount > 0 ? effectivePointsDiscount : undefined,
       pointsEarned: pointsToEarn > 0 ? pointsToEarn : undefined,
-      pointsCredited: true,
+      pointsCredited: false,
       items: validItems.map((i) => {
         const pName = i?.product?.name || 'Handcrafted Bedsheet';
         const vName = i?.selectedVariant?.name;
@@ -652,25 +652,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     if (finalPointsToRedeem > 0) {
       try {
         await redeemPoints(finalPointsToRedeem, orderId, customerPhone.trim());
+        window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
       } catch (err) {
         console.warn('Loyalty points redeem notice:', err);
       }
     }
 
-    // Immediately credit earned loyalty points (5 pts / ₹100 spent, excluding delivery)
-    if (pointsToEarn > 0) {
-      try {
-        await earnPoints(
-          netMerchandiseAmount,
-          orderId,
-          customerPhone.trim() || user?.phone || user?.email,
-          pointsToEarn
-        );
-        window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
-      } catch (err) {
-        console.warn('Loyalty points earn notice:', err);
-      }
-    }
+    // Earned loyalty points (5 pts / ₹100 spent, excluding delivery) are credited strictly after order status becomes 'delivered'
 
     // Record coupon usage in Firestore/backend if coupon was applied
     if (appliedCoupon) {
@@ -1530,7 +1518,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 {Boolean(lastOrderDetails.pointsEarned && lastOrderDetails.pointsEarned > 0) && (
                   <p className="text-[11px] text-emerald-800 font-semibold flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>🎁 +{lastOrderDetails.pointsEarned} Nest Points credited to your account! Available balance: <strong className="text-amber-950 font-bold">{pointsBalance} pts</strong> (₹{calculatePointsDiscount(pointsBalance)})</span>
+                    <span>
+                      🎁 +{lastOrderDetails.pointsEarned} Nest Points (₹{calculatePointsDiscount(Number(lastOrderDetails.pointsEarned) || 0)} value) will be credited upon delivery! Current available balance: <strong className="text-amber-950 font-bold">{pointsBalance} pts</strong>
+                    </span>
                   </p>
                 )}
                 {Boolean(lastOrderDetails.pointsUsed && lastOrderDetails.pointsUsed > 0) && (
