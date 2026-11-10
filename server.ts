@@ -5,7 +5,13 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { v2 as cloudinary } from 'cloudinary';
 import { getCloudinaryConfig } from './api/cloudinary-sign.ts';
-import { BEDSHEETS_CATALOG, normalizeCustomPrice } from './src/data/products.ts';
+import {
+  BEDSHEETS_CATALOG,
+  normalizeCustomPrice,
+  normalizeSkuCode,
+  auditAndEnsureUniqueProductSkus,
+  generateUniqueProductSku,
+} from './src/data/products.ts';
 import { INITIAL_ORDERS } from './src/data/orders.ts';
 import { INITIAL_SITE_CONTENT, normalizeShippingInTerms } from './src/data/siteContent.ts';
 import { INITIAL_REVIEWS } from './src/data/reviews.ts';
@@ -71,6 +77,7 @@ interface StoreDatabase {
     cooldownHours: number;
   };
   wishlistNotificationHistories?: Record<string, any>;
+  historicalSkus?: string[];
 }
 
 function initDatabase(): StoreDatabase {
@@ -107,6 +114,26 @@ function initDatabase(): StoreDatabase {
         // Only seed default catalog items if products list is completely empty
         if (parsed.products.length === 0) {
           parsed.products = [...BEDSHEETS_CATALOG];
+          needsSave = true;
+        }
+
+        // One-time SKU uniqueness audit: ensure every product has a permanent unique SKU
+        const skuAudit = auditAndEnsureUniqueProductSkus(
+          parsed.products,
+          Array.isArray(parsed.historicalSkus) ? parsed.historicalSkus : []
+        );
+        if (skuAudit.changedProducts.length > 0) {
+          parsed.products = skuAudit.products;
+          needsSave = true;
+        }
+        const mergedHistorical = Array.from(
+          new Set([...(Array.isArray(parsed.historicalSkus) ? parsed.historicalSkus : []), ...skuAudit.allAssignedSkus])
+        );
+        if (
+          !Array.isArray(parsed.historicalSkus) ||
+          parsed.historicalSkus.length !== mergedHistorical.length
+        ) {
+          parsed.historicalSkus = mergedHistorical;
           needsSave = true;
         }
 
@@ -805,7 +832,15 @@ async function startServer() {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
-          db.products = parsed.products;
+          const audit = auditAndEnsureUniqueProductSkus(
+            parsed.products,
+            Array.isArray(parsed.historicalSkus) ? parsed.historicalSkus : db.historicalSkus
+          );
+          db.products = audit.products;
+          if (audit.changedProducts.length > 0) {
+            db.historicalSkus = Array.from(new Set([...(db.historicalSkus || []), ...audit.allAssignedSkus]));
+            saveDatabase();
+          }
         }
       }
     } catch {}
@@ -815,11 +850,18 @@ async function startServer() {
   app.post('/api/products', (req, res) => {
     if (Array.isArray(req.body)) {
       const now = Date.now();
-      db.products = req.body.map((p: any, idx: number) => ({
-        ...p,
-        order: typeof p.order === 'number' ? p.order : idx,
-        updatedAt: p.updatedAt || now,
-      }));
+      const mapped = req.body.map((p: any, idx: number) => {
+        const existing = db.products.find((ep) => ep.id === p.id);
+        return {
+          ...p,
+          sku: existing?.sku || normalizeSkuCode(p.sku) || undefined,
+          order: typeof p.order === 'number' ? p.order : idx,
+          updatedAt: p.updatedAt || now,
+        };
+      });
+      const audit = auditAndEnsureUniqueProductSkus(mapped, db.historicalSkus);
+      db.products = audit.products;
+      db.historicalSkus = Array.from(new Set([...(db.historicalSkus || []), ...audit.allAssignedSkus]));
       (db as any).updatedAt = now;
       saveDatabase();
       return res.status(200).json(db.products);
@@ -839,8 +881,24 @@ async function startServer() {
 
     const existingIdx = db.products.findIndex((p) => p.id === newProduct.id);
     if (existingIdx >= 0) {
+      // Preserve immutable SKU on existing product
+      newProduct.sku =
+        db.products[existingIdx].sku ||
+        normalizeSkuCode(newProduct.sku) ||
+        generateUniqueProductSku(newProduct.name, db.products, db.historicalSkus);
       db.products[existingIdx] = newProduct;
     } else {
+      const otherProducts = db.products.filter((p) => p.id !== newProduct.id);
+      const requestedSku = normalizeSkuCode(newProduct.sku);
+      const isDuplicateOrHistorical =
+        !requestedSku ||
+        otherProducts.some((p) => normalizeSkuCode(p.sku) === requestedSku) ||
+        (db.historicalSkus || []).includes(requestedSku);
+
+      newProduct.sku = isDuplicateOrHistorical
+        ? generateUniqueProductSku(newProduct.name, otherProducts, db.historicalSkus)
+        : requestedSku;
+      db.historicalSkus = Array.from(new Set([...(db.historicalSkus || []), newProduct.sku]));
       db.products.unshift(newProduct);
     }
     saveDatabase();
@@ -850,17 +908,22 @@ async function startServer() {
   app.put('/api/products', (req, res) => {
     if (Array.isArray(req.body)) {
       const now = Date.now();
-      db.products = req.body.map((p: any, idx: number) => {
+      const mapped = req.body.map((p: any, idx: number) => {
+        const existing = db.products.find((ep) => ep.id === p.id);
         const cleanPrice = normalizeCustomPrice(p.price ?? p.sale_price ?? p.selling_price, 1320);
         const cleanOriginalPrice = normalizeCustomPrice(p.originalPrice ?? p.mrp ?? p.list_price, cleanPrice);
         return {
           ...p,
+          sku: existing?.sku || normalizeSkuCode(p.sku) || undefined,
           price: cleanPrice,
           originalPrice: cleanOriginalPrice,
           order: typeof p.order === 'number' ? p.order : idx,
           updatedAt: p.updatedAt || now,
         };
       });
+      const audit = auditAndEnsureUniqueProductSkus(mapped, db.historicalSkus);
+      db.products = audit.products;
+      db.historicalSkus = Array.from(new Set([...(db.historicalSkus || []), ...audit.allAssignedSkus]));
       (db as any).updatedAt = now;
       saveDatabase();
       return res.json(db.products);
@@ -884,6 +947,11 @@ async function startServer() {
       // Upsert product if it exists in Firestore but not yet in local store_db.json
       const entryPrice = normalizeCustomPrice(updated.price, 1320);
       const entryOrigPrice = normalizeCustomPrice(updated.originalPrice, entryPrice);
+      const reqSku = normalizeSkuCode(updated.sku);
+      const hasSkuConflict = !reqSku || db.products.some((p) => normalizeSkuCode(p.sku) === reqSku);
+      const assignedSku = hasSkuConflict
+        ? generateUniqueProductSku(updated.name || id, db.products, db.historicalSkus)
+        : reqSku;
       const newEntry = {
         id,
         name: updated.name || id,
@@ -895,13 +963,26 @@ async function startServer() {
         originalPrice: entryOrigPrice,
         inStock: updated.inStock !== false,
         ...updated,
+        sku: assignedSku,
         updatedAt: now,
       };
+      db.historicalSkus = Array.from(new Set([...(db.historicalSkus || []), assignedSku]));
       db.products.push(newEntry);
       saveDatabase();
       return res.json(newEntry);
     }
-    db.products[index] = { ...db.products[index], ...updated, updatedAt: now };
+    // Preserve immutable SKU when editing product name, price, or other details
+    const immutableSku =
+      db.products[index].sku ||
+      normalizeSkuCode(updated.sku) ||
+      generateUniqueProductSku(db.products[index].name || updated.name || id, db.products, db.historicalSkus);
+    db.products[index] = {
+      ...db.products[index],
+      ...updated,
+      sku: immutableSku,
+      updatedAt: now,
+    };
+    db.historicalSkus = Array.from(new Set([...(db.historicalSkus || []), immutableSku]));
     saveDatabase();
     res.json(db.products[index]);
   });

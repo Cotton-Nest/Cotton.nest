@@ -359,6 +359,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const handleWhatsApp = () => {
     sendWhatsAppProductOrder({
       productName: product.name,
+      sku: product.sku,
       variantName: activeVariant?.name,
       dimensions: product.dimensions,
       quantity,

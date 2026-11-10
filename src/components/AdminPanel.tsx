@@ -66,7 +66,12 @@ import { AdminCustomerAnalyticsSection } from './AdminCustomerAnalyticsSection';
 import { AdminComplaintsSubsection } from './AdminComplaintsSubsection';
 import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
-import { resolveProductPrimarySku, getAllProductSkus } from '../utils/whatsappOrder';
+import {
+  resolveProductPrimarySku,
+  getAllProductSkus,
+  auditAndEnsureUniqueProductSkus,
+  generateUniqueProductSku,
+} from '../utils/whatsappOrder';
 import {
   Heart,
   Users,
@@ -229,8 +234,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [seasonalSearchQuery, setSeasonalSearchQuery] = useState('');
 
-  // Products local state
-  const [editableProducts, setEditableProducts] = useState<BedsheetProduct[]>(products);
+  // Products local state (guaranteed unique SKUs per product)
+  const [editableProducts, setEditableProducts] = useState<BedsheetProduct[]>(() =>
+    auditAndEnsureUniqueProductSkus(products).products
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [skuSearchQuery, setSkuSearchQuery] = useState('');
   const [cachedFallbackProducts, setCachedFallbackProducts] = useState<BedsheetProduct[]>([]);
@@ -256,32 +263,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     getProducts()
       .then((fetched) => {
         if (Array.isArray(fetched) && fetched.length > 0) {
-          setCachedFallbackProducts(fetched);
+          setCachedFallbackProducts(auditAndEnsureUniqueProductSkus(fetched).products);
         }
       })
       .catch(() => {});
   };
 
   const inMemorySkuProductsSource = React.useMemo<BedsheetProduct[]>(() => {
-    if (editableProducts && editableProducts.length > 0) return editableProducts;
-    if (products && products.length > 0) return products;
-    if (cachedFallbackProducts.length > 0) return cachedFallbackProducts;
-    return BEDSHEETS_CATALOG;
+    const rawList =
+      editableProducts && editableProducts.length > 0
+        ? editableProducts
+        : products && products.length > 0
+        ? products
+        : cachedFallbackProducts.length > 0
+        ? cachedFallbackProducts
+        : BEDSHEETS_CATALOG;
+    return auditAndEnsureUniqueProductSkus(rawList).products;
   }, [editableProducts, products, cachedFallbackProducts]);
 
-  // Read-only local in-memory SKU filtering supporting exact and partial SKU matching
+  // Read-only local in-memory SKU filtering:
+  // - Exact SKU searches return strictly ONE matching product.
+  // - Partial SKU searches return all matching products.
   const skuSearchResults = React.useMemo(() => {
     const raw = (skuSearchQuery || '').trim();
     if (!raw) return [];
-    const normalizedQuery = raw.replace(/^#/, '').trim().toUpperCase();
+    const normalizedQuery = raw.replace(/^#+/, '').trim().toUpperCase();
     if (!normalizedQuery) return [];
 
-    const matches: Array<{
+    type SkuLookupMatch = {
       product: BedsheetProduct;
       primarySku: string;
       matchedSku: string;
       matchType: 'exact' | 'partial';
-    }> = [];
+    };
+
+    const exactMatches: SkuLookupMatch[] = [];
+    const partialMatches: SkuLookupMatch[] = [];
 
     for (const product of inMemorySkuProductsSource) {
       if (!product) continue;
@@ -290,7 +307,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       const exactSku = allSkus.find((s) => s.toUpperCase() === normalizedQuery);
       if (exactSku) {
-        matches.push({
+        exactMatches.push({
           product,
           primarySku,
           matchedSku: exactSku,
@@ -301,7 +318,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       const partialSku = allSkus.find((s) => s.toUpperCase().includes(normalizedQuery));
       if (partialSku) {
-        matches.push({
+        partialMatches.push({
           product,
           primarySku,
           matchedSku: partialSku,
@@ -310,11 +327,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     }
 
-    // Sort exact SKU matches first, then partial matches
-    return matches.sort((a, b) => {
-      if (a.matchType === b.matchType) return 0;
-      return a.matchType === 'exact' ? -1 : 1;
-    });
+    // If an exact SKU match exists, return strictly that ONE product so exact searches never include partial suffix variants
+    if (exactMatches.length > 0) {
+      return exactMatches.slice(0, 1);
+    }
+
+    return partialMatches;
   }, [skuSearchQuery, inMemorySkuProductsSource]);
 
   // Authoritative count of updated/custom photos remembered across sessions
@@ -619,8 +637,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setEditableProducts((prev) => {
       const updated = prev.map((p) => {
         if (p.id === id) {
+          const immutableSku = p.sku || resolveProductPrimarySku(p);
           const mod = updater(p);
-          const stamped = { ...mod, updatedAt: Date.now() };
+          // SKU must remain unchanged when product name, price, or other details are edited later
+          const stamped: BedsheetProduct = {
+            ...mod,
+            sku: immutableSku,
+            updatedAt: Date.now(),
+          };
           updateSingleProduct(id, stamped).catch((err) => {
             console.warn('Failed to update single product in Firestore:', err);
           });
@@ -670,8 +694,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       products &&
       products.length > 0
     ) {
-      setEditableProducts(products);
-      latestProductsRef.current = products;
+      const audited = auditAndEnsureUniqueProductSkus(products).products;
+      setEditableProducts(audited);
+      latestProductsRef.current = audited;
     }
   }, [products, galleryUploadingId, replacingProductId]);
 
@@ -1285,8 +1310,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const finalProductType = newProduct.productType === 'Other' ? (newProductCustomType.trim() || 'Custom') : (newProduct.productType || 'Bedsheet');
     const finalBrand = (newProduct.brand || 'Cotton Nest').trim() || 'Cotton Nest';
 
+    // Automatically generate a unique SKU checking all existing products and historical SKUs
+    const assignedUniqueSku = generateUniqueProductSku(
+      newProduct.name.trim(),
+      editableProducts
+    );
+
     const fullProduct: BedsheetProduct = {
       id: createdId,
+      sku: assignedUniqueSku,
       name: newProduct.name.trim(),
       collection: newProduct.collection || 'Signature Collection',
       size: finalSize,

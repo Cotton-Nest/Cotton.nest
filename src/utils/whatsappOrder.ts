@@ -1,4 +1,25 @@
-import { COMPANY_DETAILS } from '../data/products';
+import {
+  COMPANY_DETAILS,
+  normalizeSkuCode,
+  getBaseProductSkuFromName,
+  stripSequentialSkuSuffix,
+  formatSequentialSku,
+  auditAndEnsureUniqueProductSkus,
+  generateUniqueProductSku,
+  getHistoricallyAssignedSkus,
+  recordHistoricallyAssignedSkus,
+} from '../data/products';
+
+export {
+  normalizeSkuCode,
+  getBaseProductSkuFromName,
+  stripSequentialSkuSuffix,
+  formatSequentialSku,
+  auditAndEnsureUniqueProductSkus,
+  generateUniqueProductSku,
+  getHistoricallyAssignedSkus,
+  recordHistoricallyAssignedSkus,
+};
 
 type WhatsAppListener = (data: {
   productName: string;
@@ -27,47 +48,32 @@ export function isMobileDevice(): boolean {
 /**
  * Generates an unmistakable, memorable SKU code for each bedsheet and color variant.
  * Example: Gulabi Bagh + Blush Rose -> CN-ROSE-BLUSH-108K
- * This guarantees the store owner in Sector 46 Gurgaon knows 100% which bedsheet
- * is being ordered without needing the customer to upload or attach any file.
+ * If an explicit productSku is provided, preserves that unique SKU.
  */
-export function getProductSku(productName: string, variantName?: string): string {
-  const pCode = (productName || '').toLowerCase();
-  let base = 'CN-BS';
-  if (pCode.includes('gulabi') || (pCode.includes('rose') && !pCode.includes('sage') && !pCode.includes('rosemary') && !pCode.includes('blue'))) base = 'CN-ROSE';
-  else if (pCode.includes('dohar') || pCode.includes('jaipuri')) base = 'CN-DOHAR';
-  else if (pCode.includes('comforter') || pCode.includes('cloud-soft')) base = 'CN-COMFORTER';
-  else if (pCode.includes('sage') || pCode.includes('meadow')) base = 'CN-SAGE';
-  else if (pCode.includes('garland') || pCode.includes('cream')) base = 'CN-GARLAND';
-  else if (pCode.includes('petal') || pCode.includes('botanical')) base = 'CN-PETALS';
-  else if (pCode.includes('shivaura') || pCode.includes('trellis')) base = 'CN-TRELLIS';
-  else if (pCode.includes('poppy') || pCode.includes('milky')) base = 'CN-POPPY';
-  else if (pCode.includes('amber') || pCode.includes('orchid')) base = 'CN-ORCHID';
-  else if (pCode.includes('peacock') || pCode.includes('teal')) base = 'CN-PEACOCK';
-  else if (pCode.includes('sapphire') || pCode.includes('blue') || pCode.includes('rosemary')) base = 'CN-BLUE-ROSE';
-  else {
-    const cleanWord = productName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
-    if (cleanWord) base = `CN-${cleanWord}`;
+export function getProductSku(productName: string, variantName?: string, explicitProductSku?: string): string {
+  const cleanExplicit = normalizeSkuCode(explicitProductSku);
+  if (cleanExplicit) {
+    if (!variantName) return cleanExplicit;
+    const vCode = variantName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase();
+    return vCode ? `${cleanExplicit}-${vCode}` : cleanExplicit;
   }
-
-  const vCode = variantName
-    ? `-${variantName.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase()}`
-    : '';
-
-  return `${base}${vCode}-108K`;
+  return getBaseProductSkuFromName(productName, variantName);
 }
 
 /**
- * Resolves the primary SKU for a product record from its explicit sku field
- * or deterministic Cotton Nest SKU generator.
+ * Resolves the authoritative unique primary SKU for a product record.
+ * Always prioritizes the product's permanent `sku` field.
  */
 export function resolveProductPrimarySku(product: { id?: string; sku?: string; name?: string }): string {
-  const explicit = typeof product?.sku === 'string' ? product.sku.trim() : '';
-  if (explicit) return explicit.toUpperCase();
-  return getProductSku(product?.name || product?.id || 'Bedsheet');
+  const explicit = normalizeSkuCode(product?.sku);
+  if (explicit) return explicit;
+  return getBaseProductSkuFromName(product?.name || product?.id || 'Bedsheet');
 }
 
 /**
- * Returns all searchable SKU tokens associated with a product (primary SKU, variant SKUs, and product ID).
+ * Returns all searchable SKU tokens strictly belonging to this specific product
+ * (its unique primary SKU and any variant-specific SKUs derived from its unique primary SKU).
+ * Never mixes another product's base SKU onto a sequential SKU product.
  */
 export function getAllProductSkus(product: {
   id?: string;
@@ -77,26 +83,20 @@ export function getAllProductSkus(product: {
 }): string[] {
   const primary = resolveProductPrimarySku(product);
   const skus = new Set<string>([primary]);
-  if (product?.sku && product.sku.trim()) {
-    skus.add(product.sku.trim().toUpperCase());
-  }
-  const generatedBase = getProductSku(product?.name || '');
-  if (generatedBase) {
-    skus.add(generatedBase.toUpperCase());
-  }
+
   if (Array.isArray(product?.variants)) {
     for (const v of product.variants) {
       if (!v) continue;
-      if (v.sku && v.sku.trim()) {
-        skus.add(v.sku.trim().toUpperCase());
-      }
-      if (v.name) {
-        skus.add(getProductSku(product?.name || '', v.name).toUpperCase());
+      const vSku = normalizeSkuCode(v.sku);
+      if (vSku) {
+        skus.add(vSku);
+      } else if (v.name) {
+        const vCode = v.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase();
+        if (vCode) {
+          skus.add(`${primary}-${vCode}`);
+        }
       }
     }
-  }
-  if (product?.id && product.id.trim()) {
-    skus.add(product.id.trim().toUpperCase());
   }
   return Array.from(skus);
 }
@@ -116,6 +116,7 @@ export function openWhatsAppDirectly(message: string): void {
 
 export interface SingleProductOrderPayload {
   productName: string;
+  sku?: string;
   variantName?: string;
   dimensions?: string;
   quantity?: number;
@@ -125,12 +126,12 @@ export interface SingleProductOrderPayload {
 
 /**
  * Sends a single product or variant enquiry to WhatsApp:
- * 1. Generates the exact SKU.
+ * 1. Uses the product's unique SKU (or generates the fallback SKU).
  * 2. Pre-fills clean product specifications in WhatsApp.
  * (No invoice is generated or sent on product enquiry.)
  */
 export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayload): Promise<void> {
-  const sku = getProductSku(payload.productName, payload.variantName);
+  const sku = getProductSku(payload.productName, payload.variantName, payload.sku);
   const qty = payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
   const qtyLine = qty > 1
     ? `🔢 Quantity: ${qty} Sets (includes ${qty * 2} Pillow Covers)`
@@ -173,6 +174,7 @@ export interface CartOrderPayload {
   shippingCost?: number;
   items: Array<{
     name: string;
+    sku?: string;
     variantName?: string;
     dimensions: string;
     quantity: number;
@@ -188,7 +190,7 @@ export interface CartOrderPayload {
  */
 export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<string> {
   const itemsText = payload.items.map((item, idx) => {
-    const sku = getProductSku(item.name, item.variantName);
+    const sku = getProductSku(item.name, item.variantName, item.sku);
     return [
       `${idx + 1}. ${item.name}`,
       `   • SKU: #${sku}`,

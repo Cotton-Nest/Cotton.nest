@@ -212,6 +212,287 @@ export const COMPANY_DETAILS = {
   mapQuery: "House+Number+2508+Ground+Floor+Sector+46+Gurgaon+Haryana",
 };
 
+/* ---------------- UNIQUE SKU MANAGEMENT & DEDUPLICATION SYSTEM ---------------- */
+
+export const HISTORICAL_SKU_STORAGE_KEY = 'cotton_nest_historical_skus_v1';
+const inMemoryHistoricalSkus = new Set<string>();
+
+/**
+ * Normalizes a SKU string to uppercase trimmed format without leading '#'.
+ */
+export function normalizeSkuCode(raw?: string | null): string {
+  if (typeof raw !== 'string') return '';
+  return raw.trim().replace(/^#+/, '').trim().toUpperCase().replace(/\s+/g, '-');
+}
+
+/**
+ * Generates the base Cotton Nest SKU code from a product name (and optional variant name)
+ * following the existing Cotton Nest SKU naming convention (e.g. CN-POPPY-108K).
+ */
+export function getBaseProductSkuFromName(productName: string, variantName?: string): string {
+  const safeName = String(productName || '').trim();
+  const pCode = safeName.toLowerCase();
+  let base = 'CN-BS';
+
+  if (
+    pCode.includes('gulabi') ||
+    (pCode.includes('rose') && !pCode.includes('sage') && !pCode.includes('rosemary') && !pCode.includes('blue'))
+  ) {
+    base = 'CN-ROSE';
+  } else if (pCode.includes('dohar') || pCode.includes('jaipuri')) {
+    base = 'CN-DOHAR';
+  } else if (pCode.includes('comforter') || pCode.includes('cloud-soft')) {
+    base = 'CN-COMFORTER';
+  } else if (pCode.includes('sage') || pCode.includes('meadow')) {
+    base = 'CN-SAGE';
+  } else if (pCode.includes('garland') || pCode.includes('cream')) {
+    base = 'CN-GARLAND';
+  } else if (pCode.includes('petal') || pCode.includes('botanical')) {
+    base = 'CN-PETALS';
+  } else if (pCode.includes('shivaura') || pCode.includes('trellis')) {
+    base = 'CN-TRELLIS';
+  } else if (pCode.includes('poppy') || pCode.includes('milky')) {
+    base = 'CN-POPPY';
+  } else if (pCode.includes('amber') || pCode.includes('orchid')) {
+    base = 'CN-ORCHID';
+  } else if (pCode.includes('peacock') || pCode.includes('teal')) {
+    base = 'CN-PEACOCK';
+  } else if (pCode.includes('sapphire') || pCode.includes('blue') || pCode.includes('rosemary')) {
+    base = 'CN-BLUE-ROSE';
+  } else {
+    const cleanWord = safeName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
+    if (cleanWord) {
+      base = `CN-${cleanWord}`;
+    }
+  }
+
+  const vCode = variantName
+    ? `-${variantName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase()}`
+    : '';
+
+  return `${base}${vCode}-108K`;
+}
+
+/**
+ * Strips any existing trailing 3+ digit sequential suffix (e.g. -001, -002) from a SKU
+ * so sequential suffixes are cleanly appended to the root SKU.
+ */
+export function stripSequentialSkuSuffix(sku: string): string {
+  const norm = normalizeSkuCode(sku);
+  return norm.replace(/-\d{3,}$/, '');
+}
+
+/**
+ * Formats a sequential SKU with a 3-digit zero-padded suffix (e.g. CN-POPPY-108K-001).
+ */
+export function formatSequentialSku(baseSku: string, sequenceNumber: number): string {
+  const root = stripSequentialSkuSuffix(baseSku) || 'CN-BS-108K';
+  const padded = String(Math.max(1, Math.floor(sequenceNumber))).padStart(3, '0');
+  return `${root}-${padded}`;
+}
+
+/**
+ * Loads the set of all historically assigned SKUs so no previously assigned SKU is ever reused.
+ */
+export function getHistoricallyAssignedSkus(): Set<string> {
+  const set = new Set<string>(inMemoryHistoricalSkus);
+  if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem(HISTORICAL_SKU_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((s) => {
+            const norm = normalizeSkuCode(s);
+            if (norm) {
+              set.add(norm);
+              inMemoryHistoricalSkus.add(norm);
+            }
+          });
+        }
+      }
+    } catch {}
+  }
+  return set;
+}
+
+/**
+ * Persists newly assigned SKUs to the historical SKU registry so they are never reused.
+ */
+export function recordHistoricallyAssignedSkus(skus: Iterable<string>): void {
+  for (const s of skus) {
+    const norm = normalizeSkuCode(s);
+    if (norm) inMemoryHistoricalSkus.add(norm);
+  }
+  if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+    try {
+      const current = getHistoricallyAssignedSkus();
+      for (const s of skus) {
+        const norm = normalizeSkuCode(s);
+        if (norm) current.add(norm);
+      }
+      window.localStorage.setItem(HISTORICAL_SKU_STORAGE_KEY, JSON.stringify(Array.from(current)));
+    } catch {}
+  }
+}
+
+/**
+ * Scans an entire product collection, identifies missing or duplicate SKUs, keeps the original SKU
+ * for the first product, and assigns new sequential unique SKUs (-001, -002, -003, ...) to remaining
+ * products with duplicate SKUs.
+ *
+ * Does NOT delete or merge products and does NOT modify product names, images, prices, descriptions,
+ * variants, or stock quantities.
+ */
+export function auditAndEnsureUniqueProductSkus(
+  products: BedsheetProduct[],
+  historicalSkus?: Iterable<string>
+): {
+  products: BedsheetProduct[];
+  changedProducts: BedsheetProduct[];
+  allAssignedSkus: string[];
+} {
+  if (!Array.isArray(products) || products.length === 0) {
+    return { products: [], changedProducts: [], allAssignedSkus: [] };
+  }
+
+  const historicalSet = getHistoricallyAssignedSkus();
+  if (historicalSkus) {
+    for (const s of historicalSkus) {
+      const norm = normalizeSkuCode(s);
+      if (norm) historicalSet.add(norm);
+    }
+  }
+
+  const assignedInCatalog = new Set<string>();
+  const changedProducts: BedsheetProduct[] = [];
+
+  // Pass 1: Lock the first occurrence of any product that already has an explicit non-empty SKU
+  const firstExplicitHolderIndex = new Set<number>();
+  products.forEach((p, idx) => {
+    if (!p) return;
+    const explicit = normalizeSkuCode(p.sku);
+    if (explicit && !assignedInCatalog.has(explicit)) {
+      assignedInCatalog.add(explicit);
+      firstExplicitHolderIndex.add(idx);
+    }
+  });
+
+  // Pass 2: Assign or deduplicate SKUs while keeping the original SKU for the first product
+  const updatedProducts = products.map((p, idx) => {
+    if (!p) return p;
+    const currentExplicit = normalizeSkuCode(p.sku);
+
+    // If this product already holds a unique explicit SKU from Pass 1, preserve it untouched
+    if (firstExplicitHolderIndex.has(idx) && currentExplicit) {
+      if (p.sku === currentExplicit) {
+        return p;
+      }
+      const normalizedProd: BedsheetProduct = { ...p, sku: currentExplicit };
+      changedProducts.push(normalizedProd);
+      return normalizedProd;
+    }
+
+    // Determine candidate original SKU
+    const baseSku = currentExplicit || getBaseProductSkuFromName(p.name || p.id || 'Bedsheet');
+    let assignedSku = '';
+
+    // Keep the original SKU for the first product if not yet assigned in the catalog
+    if (!assignedInCatalog.has(baseSku)) {
+      assignedSku = baseSku;
+    } else {
+      // Duplicate SKU detected: generate sequential SKU (-001, -002, -003, ...)
+      const rootSku = stripSequentialSkuSuffix(baseSku);
+      let seq = 1;
+      let candidate = formatSequentialSku(rootSku, seq);
+      while (assignedInCatalog.has(candidate) || historicalSet.has(candidate)) {
+        seq++;
+        candidate = formatSequentialSku(rootSku, seq);
+      }
+      assignedSku = candidate;
+    }
+
+    assignedInCatalog.add(assignedSku);
+    historicalSet.add(assignedSku);
+
+    if (p.sku === assignedSku) {
+      return p;
+    }
+
+    const updatedProd: BedsheetProduct = {
+      ...p,
+      sku: assignedSku,
+    };
+    changedProducts.push(updatedProd);
+    return updatedProd;
+  });
+
+  const allAssignedSkus = Array.from(assignedInCatalog);
+  recordHistoricallyAssignedSkus(allAssignedSkus);
+
+  return {
+    products: updatedProducts,
+    changedProducts,
+    allAssignedSkus,
+  };
+}
+
+/**
+ * Generates a guaranteed-unique SKU for a newly added product by checking the entire existing
+ * product database and all previously assigned historical SKUs.
+ */
+export function generateUniqueProductSku(
+  productName: string,
+  existingProducts: Array<{ id?: string; sku?: string; name?: string }> = [],
+  historicalSkus?: Iterable<string>
+): string {
+  const unavailableSkus = getHistoricallyAssignedSkus();
+  if (historicalSkus) {
+    for (const s of historicalSkus) {
+      const norm = normalizeSkuCode(s);
+      if (norm) unavailableSkus.add(norm);
+    }
+  }
+
+  for (const p of existingProducts) {
+    if (!p) continue;
+    const explicit = normalizeSkuCode(p.sku);
+    if (explicit) {
+      unavailableSkus.add(explicit);
+    } else if (p.name || p.id) {
+      unavailableSkus.add(getBaseProductSkuFromName(p.name || p.id || 'Bedsheet'));
+    }
+  }
+
+  const baseSku = getBaseProductSkuFromName(productName || 'Bedsheet');
+  const rootSku = stripSequentialSkuSuffix(baseSku);
+
+  // Check if rootSku or any sequential variant of rootSku already exists
+  let hasRootOrSequentialCollision = unavailableSkus.has(baseSku) || unavailableSkus.has(rootSku);
+  if (!hasRootOrSequentialCollision) {
+    for (const existing of unavailableSkus) {
+      if (stripSequentialSkuSuffix(existing) === rootSku) {
+        hasRootOrSequentialCollision = true;
+        break;
+      }
+    }
+  }
+
+  let assigned = baseSku;
+  if (hasRootOrSequentialCollision) {
+    let seq = 1;
+    let candidate = formatSequentialSku(rootSku, seq);
+    while (unavailableSkus.has(candidate)) {
+      seq++;
+      candidate = formatSequentialSku(rootSku, seq);
+    }
+    assigned = candidate;
+  }
+
+  recordHistoricallyAssignedSkus([assigned]);
+  return assigned;
+}
+
 export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   {
     id: "gulabi-bagh-rose",

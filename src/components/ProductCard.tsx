@@ -80,6 +80,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     e.stopPropagation();
     sendWhatsAppProductOrder({
       productName: product.name,
+      sku: product.sku,
       variantName: activeVariant?.name,
       dimensions: product.dimensions,
       price: product.price,

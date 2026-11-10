@@ -13,7 +13,14 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, isFirestoreWriteQuotaExhausted, markFirestoreWriteQuotaExhausted } from '../firebase';
-import { BedsheetProduct, BEDSHEETS_CATALOG, normalizeCustomPrice } from '../data/products';
+import {
+  BedsheetProduct,
+  BEDSHEETS_CATALOG,
+  normalizeCustomPrice,
+  normalizeSkuCode,
+  auditAndEnsureUniqueProductSkus,
+  generateUniqueProductSku,
+} from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from '../data/siteContent';
 import { resolveBedsheetImage } from '../utils/imageUrl';
@@ -445,7 +452,44 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
       return orderA - orderB;
     });
 
-    return products;
+    // Controlled one-time SKU uniqueness audit & migration
+    const skuAudit = auditAndEnsureUniqueProductSkus(products);
+    if (skuAudit.changedProducts.length > 0) {
+      try {
+        localStorage.setItem('cotton_nest_products', JSON.stringify(skuAudit.products));
+      } catch {}
+
+      // Sync corrected SKUs to local Express database
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(skuAudit.products),
+      }).catch(() => {});
+
+      // One-time Firebase write ONLY for products whose SKUs actually needed correction
+      const migrationDoneKey = 'cotton_nest_sku_migration_v1_done';
+      let alreadyMigrated = false;
+      try {
+        alreadyMigrated = localStorage.getItem(migrationDoneKey) === 'true';
+      } catch {}
+
+      if (!alreadyMigrated && !isFirestoreWriteQuotaExhausted()) {
+        try {
+          localStorage.setItem(migrationDoneKey, 'true');
+        } catch {}
+        Promise.all(
+          skuAudit.changedProducts.map((changedProd) =>
+            setDoc(
+              doc(db, 'products', changedProd.id),
+              { sku: changedProd.sku },
+              { merge: true }
+            ).catch(() => {})
+          )
+        ).catch(() => {});
+      }
+    }
+
+    return skuAudit.products;
   } catch (error) {
     try {
       handleFirestoreError(error, OperationType.LIST, path);
@@ -454,10 +498,12 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
       const saved = localStorage.getItem('cotton_nest_products');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return auditAndEnsureUniqueProductSkus(parsed).products;
+        }
       }
     } catch {}
-    return BEDSHEETS_CATALOG;
+    return auditAndEnsureUniqueProductSkus(BEDSHEETS_CATALOG).products;
   }
 }
 
@@ -465,8 +511,11 @@ export async function addProduct(product: BedsheetProduct): Promise<BedsheetProd
   const path = `products/${product.id}`;
   const cleanPrice = normalizeCustomPrice(product.price, 1320);
   const cleanOrigPrice = normalizeCustomPrice(product.originalPrice, cleanPrice);
+  const resolvedSku =
+    normalizeSkuCode(product.sku) || generateUniqueProductSku(product.name || product.id || 'Bedsheet');
   const cleanProduct: BedsheetProduct = stripUndefined({
     ...product,
+    sku: resolvedSku,
     price: cleanPrice,
     originalPrice: cleanOrigPrice,
     updatedAt: Date.now(),
@@ -652,10 +701,12 @@ export async function saveAllProducts(
     sanitizedList.push(cleanProd);
   }
 
+  const { products: deduplicatedList } = auditAndEnsureUniqueProductSkus(sanitizedList);
+
   // 1. Immediately update localStorage cache so refresh never loses data
   try {
-    if (sanitizedList.length > 0) {
-      localStorage.setItem('cotton_nest_products', JSON.stringify(sanitizedList));
+    if (deduplicatedList.length > 0) {
+      localStorage.setItem('cotton_nest_products', JSON.stringify(deduplicatedList));
     }
   } catch {}
 
@@ -663,13 +714,13 @@ export async function saveAllProducts(
   fetch('/api/products', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(sanitizedList),
+    body: JSON.stringify(deduplicatedList),
   }).catch(() => {});
 
   // 3. Persist each product to Firestore individually so one large document never aborts the entire catalog
   try {
     await Promise.all(
-      sanitizedList.map(async (cleanProd) => {
+      deduplicatedList.map(async (cleanProd) => {
         try {
           const productRef = doc(db, 'products', cleanProd.id);
           await setDoc(productRef, cleanProd);
@@ -680,8 +731,8 @@ export async function saveAllProducts(
     );
 
     // If replacing the entire catalog (e.g. from JSON backup restore), remove old Firestore docs not in the new list
-    if (options?.replaceAll && sanitizedList.length > 0) {
-      const keepIds = new Set(sanitizedList.map((p) => p.id));
+    if (options?.replaceAll && deduplicatedList.length > 0) {
+      const keepIds = new Set(deduplicatedList.map((p) => p.id));
       const existingSnap = await getDocs(collection(db, 'products'));
       const deletions: Promise<void>[] = [];
       existingSnap.forEach((docSnap) => {
@@ -699,7 +750,7 @@ export async function saveAllProducts(
     } catch {}
   }
 
-  return sanitizedList;
+  return deduplicatedList;
 }
 
 // ---------------- ORDERS API (FIRESTORE & BACKEND AUTHORITATIVE) ---------------- //

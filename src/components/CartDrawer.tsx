@@ -575,6 +575,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       shippingCost,
       items: validItems.map((i) => ({
         name: i?.product?.name || 'Handcrafted Bedsheet',
+        sku: i?.product?.sku,
         variantName: i?.selectedVariant?.name,
         dimensions: i?.product?.dimensions || '108 x 108 inches',
         quantity: typeof i?.quantity === 'number' && !isNaN(i?.quantity) && i?.quantity > 0 ? i.quantity : 1,
