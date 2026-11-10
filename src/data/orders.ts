@@ -39,6 +39,7 @@ export interface Order {
   pointsDiscount?: number;
   pointsEarned?: number;
   pointsCredited?: boolean;
+  pointsRefunded?: boolean;
   status: OrderStatus;
   deliveredAt?: string;
   updatedAt?: number;

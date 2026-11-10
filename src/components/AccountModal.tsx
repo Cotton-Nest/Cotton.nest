@@ -375,38 +375,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       return sum + calculateEarnedPoints(net);
     }, 0);
 
-  // Authoritative earned credits and debits directly from ledger transactions
-  const totalEarnedFromTxs = transactions
-    .filter((t) => {
-      const type = (t.type || '').toLowerCase();
-      const pts = Number(t.points) || 0;
-      return pts > 0 && (type === 'earned' || type === 'credit' || type === 'bonus' || type === 'referral' || type === 'adjustment' || !type);
-    })
-    .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
-
-  const totalUsedFromTxs = transactions
-    .filter((t) => {
-      const type = (t.type || '').toLowerCase();
-      const pts = Number(t.points) || 0;
-      return pts < 0 || type === 'redeemed' || type === 'debit';
-    })
-    .reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
-
-  const netFromTxs = Math.max(0, totalEarnedFromTxs - totalUsedFromTxs);
-
-  const displayPointsFromPurchases = Math.max(
-    pointsEarnedFromPurchases,
-    deliveredOrdersEarned,
-    totalEarnedFromTxs
-  );
-  const displayPointsUsed = Math.max(pointsUsed, totalUsedFromTxs);
-
-  const activeAvailablePoints = Math.max(
-    pointsBalance,
-    netFromTxs,
-    Math.max(0, displayPointsFromPurchases + referralPointsEarned - displayPointsUsed)
-  );
+  const activeAvailablePoints = pointsBalance;
   const activeRupeesValue = calculatePointsDiscount(activeAvailablePoints);
+  const displayPointsFromPurchases = pointsEarnedFromPurchases;
+  const displayPointsUsed = pointsUsed;
   const formattedNextExpiry = nextExpiryTimestamp
     ? new Date(nextExpiryTimestamp).toLocaleDateString('en-IN', {
         day: 'numeric',

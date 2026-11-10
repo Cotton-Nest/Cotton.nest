@@ -377,7 +377,7 @@ export async function getLoyaltyAccountApi(
 
         if (matchedAnyOrder) {
           const referralPts = account.referralPointsEarned || 0;
-          const computedEarned = Math.max(account.lifetimeEarned || 0, deliveredOrderEarned + referralPts);
+          const computedEarned = deliveredOrderEarned + referralPts > 0 ? (deliveredOrderEarned + referralPts) : (account.lifetimeEarned || 0);
           const computedSpent = orderSpent;
           const computedNet = Math.max(0, computedEarned - computedSpent);
           account.lifetimeEarned = computedEarned;
@@ -499,6 +499,19 @@ export async function redeemLoyaltyPointsApi(
   const accountId = sanitizeLoyaltyKey(rawKey);
   const current = await getLoyaltyAccountApi(accountId, extra);
 
+  // Idempotency check: if points for this order ID were already redeemed, return existing account & transaction
+  const existingTxs = await getLoyaltyTransactionsApi(accountId);
+  const existingRedeemTx = existingTxs.find(
+    (t) => t.orderId === orderId && (t.type === 'redeemed' || t.points < 0)
+  );
+  if (existingRedeemTx) {
+    return {
+      account: current,
+      discountInr: Math.abs(existingRedeemTx.amountInr || calculatePointsDiscount(Math.abs(existingRedeemTx.points))),
+      tx: existingRedeemTx,
+    };
+  }
+
   const availablePoints = Math.max(0, current.pointsBalance || 0);
   const requestedPoints = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Math.floor(pointsToRedeem)));
   if (requestedPoints <= 0 || availablePoints <= 0) {
@@ -564,6 +577,66 @@ export async function redeemLoyaltyPointsApi(
   } catch {}
 
   return { account: updatedAccount, discountInr, tx };
+}
+
+/**
+ * Refund / reinstate redeemed Nest Points when an order is cancelled or refunded.
+ */
+export async function refundLoyaltyPointsApi(
+  rawKey: string,
+  pointsToRefund: number,
+  orderId: string,
+  extra?: { name?: string; phone?: string; email?: string; userId?: string }
+): Promise<{ account: LoyaltyAccount; tx: LoyaltyTransaction } | null> {
+  const accountId = sanitizeLoyaltyKey(rawKey);
+  const current = await getLoyaltyAccountApi(accountId, extra);
+
+  const existingTxs = await getLoyaltyTransactionsApi(accountId);
+  const alreadyRefunded = existingTxs.some(
+    (t) => t.orderId === orderId && t.type === 'refund' && t.points > 0
+  );
+  if (alreadyRefunded) return null;
+
+  const ptsRefund = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Math.floor(pointsToRefund)));
+  if (ptsRefund <= 0) return null;
+
+  const currentSpent = current.lifetimeSpent || 0;
+  const newLifetimeSpent = Math.max(0, currentSpent - ptsRefund);
+  const newBalance = Math.max(0, (current.lifetimeEarned || 0) - newLifetimeSpent);
+  const now = Date.now();
+
+  const updatedAccount: LoyaltyAccount = {
+    ...current,
+    lifetimeSpent: newLifetimeSpent,
+    pointsBalance: newBalance,
+    updatedAt: now,
+  };
+
+  const cleanOrderId = (orderId || `ord_${now}`).replace(/[^a-zA-Z0-9_-]/g, '');
+  const tx: LoyaltyTransaction = {
+    id: `tx_refund_${cleanOrderId}_${accountId}`,
+    accountId,
+    orderId,
+    type: 'refund',
+    points: ptsRefund,
+    amountInr: calculatePointsDiscount(ptsRefund),
+    description: `Refund of ${ptsRefund} Nest Points for cancelled Order #${orderId}`,
+    createdAt: now,
+    status: 'credited',
+  };
+
+  saveLocalAccount(updatedAccount);
+  saveLocalTransaction(tx);
+
+  try {
+    await Promise.all([
+      setDoc(doc(db, 'site_content', `loyalty_${accountId}`), stripUndefined(updatedAccount), { merge: true }).catch(() => {}),
+      setDoc(doc(db, 'loyalty', accountId), stripUndefined(updatedAccount), { merge: true }).catch(() => {}),
+      setDoc(doc(db, 'loyalty_transactions', tx.id), stripUndefined(tx), { merge: true }).catch(() => {}),
+    ]);
+  } catch {}
+
+  return { account: updatedAccount, tx };
 }
 
 /**

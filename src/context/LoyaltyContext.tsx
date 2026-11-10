@@ -217,20 +217,34 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     nextExpiryTimestamp,
   } = useMemo(() => {
     const now = Date.now();
-    const earnedTxs = transactions.filter((t) => {
+    const dedupTxMap = new Map<string, LoyaltyTransaction>();
+    (transactions || []).forEach((t) => {
+      if (!t) return;
+      const key = t.orderId ? `${(t.type || '').toLowerCase()}_${t.orderId}` : t.id;
+      if (!dedupTxMap.has(key)) {
+        dedupTxMap.set(key, t);
+      }
+    });
+    const uniqueTxs = Array.from(dedupTxMap.values());
+
+    const earnedTxs = uniqueTxs.filter((t) => {
       const type = (t.type || '').toLowerCase();
       const pts = Number(t.points) || 0;
       return pts > 0 && (type === 'earned' || type === 'credit' || type === 'bonus' || type === 'referral' || type === 'adjustment' || !type);
     });
-    const referralTxs = transactions.filter((t) => {
+    const referralTxs = uniqueTxs.filter((t) => {
       const type = (t.type || '').toLowerCase();
       const pts = Number(t.points) || 0;
       return pts > 0 && (type === 'referral' || type === 'bonus');
     });
-    const redeemedTxs = transactions.filter((t) => {
+    const redeemedTxs = uniqueTxs.filter((t) => {
       const type = (t.type || '').toLowerCase();
       const pts = Number(t.points) || 0;
       return pts < 0 || type === 'redeemed' || type === 'debit';
+    });
+    const refundedTxs = uniqueTxs.filter((t) => {
+      const type = (t.type || '').toLowerCase();
+      return type === 'refund' || type === 'reversal';
     });
 
     const calcPurchaseEarned = earnedTxs
@@ -239,30 +253,22 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return type !== 'referral' && type !== 'bonus';
       })
       .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+
     const calcReferralEarned = referralTxs.reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
-    const calcUsed = redeemedTxs.reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
+    const calcRedeemedSpent = redeemedTxs.reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
+    const calcRefundedPoints = refundedTxs.reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
 
     const expiredPoints = earnedTxs
       .filter((t) => isTransactionExpired(t.createdAt, t.expiresAt, now))
       .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
 
-    const netFromTxs = Math.max(0, calcPurchaseEarned + calcReferralEarned - calcUsed - expiredPoints);
+    const totalEarnedFromTxs = calcPurchaseEarned + calcReferralEarned;
+    const totalEarned = totalEarnedFromTxs > 0 ? totalEarnedFromTxs : (account?.lifetimeEarned || 0);
 
-    const totalEarned = Math.max(
-      account?.lifetimeEarned || 0,
-      calcPurchaseEarned + calcReferralEarned
-    );
-    // Only debit actual redeemed transactions or verified account spent (never exceeding totalEarned)
-    const rawAccountSpent = account?.lifetimeSpent || 0;
-    const totalSpent =
-      redeemedTxs.length > 0
-        ? Math.max(calcUsed, rawAccountSpent <= totalEarned ? rawAccountSpent : calcUsed)
-        : rawAccountSpent <= totalEarned
-        ? rawAccountSpent
-        : 0;
+    const rawSpent = calcRedeemedSpent > 0 ? calcRedeemedSpent : (account?.lifetimeSpent || 0);
+    const netSpent = Math.max(0, rawSpent - calcRefundedPoints);
 
-    const computedNet = Math.max(0, totalEarned - totalSpent - expiredPoints);
-    const effectiveBalance = Math.max(account?.pointsBalance || 0, computedNet, netFromTxs);
+    const effectiveBalance = Math.max(0, totalEarned - netSpent - expiredPoints);
 
     // Find the earliest upcoming expiry timestamp among active positive transactions
     const activePositiveExpiries = earnedTxs
@@ -282,7 +288,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         calcPurchaseEarned > 0
           ? calcPurchaseEarned
           : Math.max(0, totalEarned - (account?.referralPointsEarned || calcReferralEarned)),
-      pointsUsed: totalSpent,
+      pointsUsed: netSpent,
       referralPointsEarned:
         calcReferralEarned > 0 ? calcReferralEarned : account?.referralPointsEarned || 0,
       nextExpiryTimestamp: earliestExpiry,

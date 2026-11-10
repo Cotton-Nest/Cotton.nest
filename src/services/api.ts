@@ -39,6 +39,7 @@ import {
   applyAdminComplaintUpdate,
   normalizePhoneDigits,
 } from '../data/complaints';
+import { LOYALTY_MAX_REDEMPTION_POINTS } from '../data/loyalty';
 
 // Re-export Cloudinary & media service helpers
 export {
@@ -836,6 +837,36 @@ export async function saveOrder(order: Order): Promise<void> {
     console.warn('Firestore order save error (saved to backend):', error);
   }
 
+  // 3b. If user applied Nest Points at checkout (pointsUsed > 0), calculate deduction and update user's loyalty balance in Firestore
+  const pointsToRedeemVal = Math.min(
+    LOYALTY_MAX_REDEMPTION_POINTS,
+    Math.max(0, Number(safeOrder.pointsUsed) || 0)
+  );
+  if (pointsToRedeemVal > 0) {
+    try {
+      const { redeemLoyaltyPointsApi } = await import('./loyaltyApi');
+      const rawKeys: string[] = [];
+      if (safeOrder.customerPhone) rawKeys.push(safeOrder.customerPhone);
+      if (safeOrder.customerEmail) rawKeys.push(safeOrder.customerEmail);
+      if (safeOrder.userId) rawKeys.push(safeOrder.userId);
+      if (rawKeys.length === 0) rawKeys.push('guest_default_wallet');
+
+      for (const k of Array.from(new Set(rawKeys))) {
+        await redeemLoyaltyPointsApi(k, pointsToRedeemVal, safeOrder.id, {
+          name: safeOrder.customerName,
+          phone: safeOrder.customerPhone,
+          email: safeOrder.customerEmail,
+          userId: safeOrder.userId,
+        }).catch(() => {});
+      }
+      try {
+        window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
+      } catch {}
+    } catch (redeemErr) {
+      console.warn('Failed to redeem Nest Points in saveOrder:', redeemErr);
+    }
+  }
+
   // 4. Create in-app + device notification bar alert for newly placed order
   try {
     const recipient = safeOrder.customerEmail || safeOrder.customerPhone || safeOrder.userId || 'all';
@@ -1179,11 +1210,34 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
         })
       );
     } catch {}
-  } else if (status === 'cancelled') {
+  } else if ((status === 'cancelled' || status === 'refunded') && targetOrder) {
+    const ptsUsed = Number(targetOrder.pointsUsed) || 0;
+    if (ptsUsed > 0 && !targetOrder.pointsRefunded) {
+      try {
+        const { refundLoyaltyPointsApi } = await import('./loyaltyApi');
+        const rawKeys: string[] = [];
+        if (targetOrder.customerPhone) rawKeys.push(targetOrder.customerPhone);
+        if (targetOrder.customerEmail) rawKeys.push(targetOrder.customerEmail);
+        if (targetOrder.userId) rawKeys.push(targetOrder.userId);
+        if (rawKeys.length === 0) rawKeys.push('guest_default_wallet');
+
+        for (const k of Array.from(new Set(rawKeys))) {
+          await refundLoyaltyPointsApi(k, ptsUsed, orderId, {
+            name: targetOrder.customerName,
+            phone: targetOrder.customerPhone,
+            email: targetOrder.customerEmail,
+            userId: targetOrder.userId,
+          }).catch(() => {});
+        }
+        targetOrder.pointsRefunded = true;
+      } catch (refundErr) {
+        console.warn('Failed to refund Nest Points on cancellation:', refundErr);
+      }
+    }
     try {
       window.dispatchEvent(
         new CustomEvent('cotton-nest-loyalty-updated', {
-          detail: { orderId, status: 'cancelled' },
+          detail: { orderId, status },
         })
       );
     } catch {}

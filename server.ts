@@ -2734,15 +2734,23 @@ async function startServer() {
           }
         });
 
-        const matchingTxs = (db.loyaltyTransactions || []).filter((t) => {
-          if (!t) return false;
+        const dedupTxMap = new Map<string, LoyaltyTransaction>();
+        (db.loyaltyTransactions || []).forEach((t) => {
+          if (!t) return;
           const txAcc = String(t.accountId || '').toLowerCase().trim();
-          return (
+          const matches =
             txAcc === accountId ||
             (cleanPhoneDigits && (txAcc === `phone_${cleanPhoneDigits}` || txAcc.endsWith(cleanPhoneDigits))) ||
-            (extractedEmail && txAcc === `email_${extractedEmail}`)
-          );
+            (extractedEmail && txAcc === `email_${extractedEmail}`);
+          if (matches) {
+            const key = t.orderId ? `${(t.type || '').toLowerCase()}_${t.orderId}` : t.id;
+            if (!dedupTxMap.has(key)) {
+              dedupTxMap.set(key, t);
+            }
+          }
         });
+        const matchingTxs = Array.from(dedupTxMap.values());
+
         const txEarned = matchingTxs
           .filter((t) => {
             const type = (t.type || '').toLowerCase();
@@ -2755,32 +2763,28 @@ async function startServer() {
             return (Number(t.points) < 0) || type === 'redeemed' || type === 'debit';
           })
           .reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
-        const txNet = Math.max(0, txEarned - txSpent);
+        const txRefunded = matchingTxs
+          .filter((t) => (t.type || '').toLowerCase() === 'refund')
+          .reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
 
         const referralBonus = matchingTxs
           .filter((t) => (t.type === 'referral' || t.type === 'bonus') && t.points > 0)
           .reduce((sum, t) => sum + Number(t.points || 0), 0);
-        const effectiveReferral = Math.max(account.referralPointsEarned || 0, referralBonus);
-        const effectiveEarned = Math.max(account.lifetimeEarned || 0, earnedFromDeliveredOrders + effectiveReferral, txEarned);
-        const safeAccountSpent = (account.lifetimeSpent || 0) <= effectiveEarned ? (account.lifetimeSpent || 0) : 0;
-        const effectiveSpent = Math.min(effectiveEarned, Math.max(safeAccountSpent, spentFromOrders, txSpent));
-        const computedNet = Math.max(0, effectiveEarned - effectiveSpent, txNet);
 
-        if (
-          computedNet !== account.pointsBalance ||
-          effectiveSpent !== account.lifetimeSpent ||
-          effectiveEarned !== account.lifetimeEarned ||
-          txAdded
-        ) {
-          account.lifetimeEarned = effectiveEarned;
-          account.lifetimeSpent = effectiveSpent;
-          account.pointsBalance = computedNet;
-          if (cleanPhoneDigits && !account.phone) account.phone = cleanPhoneDigits;
-          if (extractedEmail && !account.email) account.email = extractedEmail;
-          account.updatedAt = Date.now();
-          db.loyaltyAccounts[accountId] = account;
-          saveDatabase();
-        }
+        const effectiveEarned = Math.max(earnedFromDeliveredOrders, txEarned);
+        const netSpentFromOrdersOrTxs = Math.max(spentFromOrders, txSpent);
+        const effectiveSpent = Math.max(0, netSpentFromOrdersOrTxs - txRefunded);
+        const computedNet = Math.max(0, effectiveEarned - effectiveSpent);
+
+        account.lifetimeEarned = effectiveEarned;
+        account.lifetimeSpent = effectiveSpent;
+        account.pointsBalance = computedNet;
+        account.referralPointsEarned = Math.max(account.referralPointsEarned || 0, referralBonus);
+        if (cleanPhoneDigits && !account.phone) account.phone = cleanPhoneDigits;
+        if (extractedEmail && !account.email) account.email = extractedEmail;
+        account.updatedAt = Date.now();
+        db.loyaltyAccounts[accountId] = account;
+        saveDatabase();
       }
     }
 
@@ -2915,6 +2919,8 @@ async function startServer() {
   app.get('/api/loyalty/:id/transactions', (req, res) => {
     const rawId = req.params.id;
     const accountId = sanitizeLoyaltyKey(rawId);
+    const cleanRaw = rawId.toLowerCase().trim();
+    const cleanPhone = rawId.replace(/\D/g, '');
     if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
 
     const orderStatusMap = new Map<string, string>();
@@ -2924,23 +2930,27 @@ async function startServer() {
       });
     }
 
-    const cleanRaw = String(rawId).toLowerCase().trim();
-    const queryPhone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
-    const cleanPhone = (queryPhone || cleanRaw).replace(/[^0-9]/g, '').slice(-10);
-
-    const userTxs = db.loyaltyTransactions.filter((t) => {
+    const dedupTxMap = new Map<string, LoyaltyTransaction>();
+    db.loyaltyTransactions.forEach((t) => {
+      if (!t) return;
       const txAcc = String(t.accountId || '').toLowerCase().trim();
       const matchesAccount =
         txAcc === accountId ||
         txAcc === cleanRaw ||
         (cleanPhone && txAcc.endsWith(cleanPhone));
-      if (!matchesAccount) return false;
+      if (!matchesAccount) return;
       // Only include 'earned' purchase transactions if the corresponding order is delivered
       if (t.type === 'earned' && t.orderId && orderStatusMap.has(String(t.orderId))) {
-        return orderStatusMap.get(String(t.orderId)) === 'delivered';
+        if (orderStatusMap.get(String(t.orderId)) !== 'delivered') return;
       }
-      return true;
+      const dedupKey = t.orderId ? `${(t.type || '').toLowerCase()}_${t.orderId}` : t.id;
+      if (!dedupTxMap.has(dedupKey)) {
+        dedupTxMap.set(dedupKey, t);
+      }
     });
+
+    const userTxs = Array.from(dedupTxMap.values());
+    userTxs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     res.json(userTxs);
   });
 

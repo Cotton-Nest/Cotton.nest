@@ -120,7 +120,15 @@ export const LoyaltyRewardsModal: React.FC<LoyaltyRewardsModalProps> = ({
 
   // Sort transactions chronologically: newest first
   const chronologicalTransactions = useMemo(() => {
-    return [...transactions].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const dedupMap = new Map<string, LoyaltyTransaction>();
+    (transactions || []).forEach((t) => {
+      if (!t) return;
+      const key = t.orderId ? `${(t.type || '').toLowerCase()}_${t.orderId}` : t.id;
+      if (!dedupMap.has(key)) {
+        dedupMap.set(key, t);
+      }
+    });
+    return Array.from(dedupMap.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [transactions]);
 
   // Filtered transactions based on filter tabs
