@@ -1,12 +1,14 @@
 export interface BedsheetVariant {
   id: string;
   name: string;        // e.g. "Blush Rose", "Mint Sage", "Royal Navy"
+  sku?: string;        // Optional variant SKU code
   colorHex?: string;   // e.g. "#E8A598" for color swatch
   image: string;       // Image URL or uploaded data URL
 }
 
 export interface BedsheetProduct {
   id: string;
+  sku?: string;        // Product SKU code (e.g. CN-ROSE-108K)
   name: string;
   collection: string;
   price: number;
@@ -213,6 +215,7 @@ export const COMPANY_DETAILS = {
 export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   {
     id: "gulabi-bagh-rose",
+    sku: "CN-ROSE-108K",
     name: "Nandini Gulabi Bagh Rose",
     collection: "Floral Heritage",
     size: "King",
@@ -259,6 +262,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "mint-meadow-sage",
+    sku: "CN-SAGE-108K",
     name: "Nandini Pastel Sage Rose",
     collection: "Botanical Serenity",
     size: "King",
@@ -299,6 +303,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "ivory-garland-wreath",
+    sku: "CN-GARLAND-108K",
     name: "Nandini Ivory Garland",
     collection: "Royal Heritage",
     size: "King",
@@ -325,6 +330,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "petals-print-marigold",
+    sku: "CN-PETALS-108K",
     name: "The Petals Print Golden Sprig",
     collection: "The Petals Print",
     size: "King",
@@ -351,6 +357,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "shivaura-trellis-slate",
+    sku: "CN-TRELLIS-108K",
     name: "Shivaura Chevron Trellis",
     collection: "Shivaura Collection",
     size: "Super King",
@@ -377,6 +384,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "milky-white-poppy",
+    sku: "CN-POPPY-108K",
     name: "Milky White Poppy Meadow",
     collection: "Inspired By Nature",
     size: "Queen",
@@ -403,6 +411,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "amber-orchid-medallion",
+    sku: "CN-ORCHID-108K",
     name: "Heritage Amber Orchid",
     collection: "108x108 Classic",
     size: "Double",
@@ -429,6 +438,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "peacock-teal-paisley",
+    sku: "CN-PEACOCK-108K",
     name: "Batik Royal Peacock Teal",
     collection: "Artisanal Block",
     size: "King",
@@ -455,6 +465,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "rosemary-blue-rose-100x108",
+    sku: "CN-BLUE-ROSE-108K",
     name: "Rosemary Royal Blue Rose",
     collection: "Rosemary Collection",
     size: "Queen",
@@ -481,6 +492,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "jaipuri-cotton-dohar-blanket",
+    sku: "CN-DOHAR-108K",
     name: "Jaipuri Artisanal Cotton Dohar Blanket",
     collection: "Heritage Dohar",
     size: "Double",
@@ -507,6 +519,7 @@ export const BEDSHEETS_CATALOG: BedsheetProduct[] = [
   },
   {
     id: "cloud-soft-cotton-comforter",
+    sku: "CN-COMFORTER-108K",
     name: "Cloud-Soft All-Season Comforter",
     collection: "Comfort Atelier",
     size: "King",

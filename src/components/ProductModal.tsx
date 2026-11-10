@@ -358,17 +358,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   const handleWhatsApp = () => {
     sendWhatsAppProductOrder({
-      productId: product.id,
       productName: product.name,
       variantName: activeVariant?.name,
       dimensions: product.dimensions,
       quantity,
       price: product.price,
       imageUrl: displayImage,
-      customerName: user?.name || undefined,
-      customerEmail: user?.email || undefined,
-      customerPhone: user?.phone || undefined,
-      source: 'product_enquiry',
     });
   };
 

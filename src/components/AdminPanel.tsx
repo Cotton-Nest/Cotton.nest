@@ -28,6 +28,7 @@ import {
   removeProductGalleryImageApi,
   saveUpdatedImagesStatsApi,
   getOrders,
+  getProducts,
   updateOrderStatus,
   deleteOrder,
   saveCustomImagesMapApi,
@@ -62,12 +63,10 @@ import { AdminCouponsSection } from './AdminCouponsSection';
 import { AdminNotificationsSection } from './AdminNotificationsSection';
 import { AdminWishlistsSection } from './AdminWishlistsSection';
 import { AdminCustomerAnalyticsSection } from './AdminCustomerAnalyticsSection';
-import { AdminEnquiriesSection } from './AdminEnquiriesSection';
 import { AdminComplaintsSubsection } from './AdminComplaintsSubsection';
 import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
-import { EnquiryRecord } from '../data/enquiries';
-import { subscribeToEnquiries } from '../services/api';
+import { resolveProductPrimarySku, getAllProductSkus } from '../utils/whatsappOrder';
 import {
   Heart,
   Users,
@@ -170,18 +169,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateSeasonalConfig,
   reviews = [],
 }) => {
-  // Tabs: 'products' | 'orders' | 'enquiries' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'enquiries' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
-  const [adminEnquiries, setAdminEnquiries] = useState<EnquiryRecord[]>([]);
-
-  useEffect(() => {
-    const unsub = subscribeToEnquiries((list) => {
-      setAdminEnquiries(list);
-    });
-    return () => unsub();
-  }, []);
-
-  const newEnquiriesCount = adminEnquiries.filter((e) => e.status === 'new').length;
+  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
 
   // Seasonal Page state
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
@@ -243,9 +232,90 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Products local state
   const [editableProducts, setEditableProducts] = useState<BedsheetProduct[]>(products);
   const [searchQuery, setSearchQuery] = useState('');
+  const [skuSearchQuery, setSkuSearchQuery] = useState('');
+  const [cachedFallbackProducts, setCachedFallbackProducts] = useState<BedsheetProduct[]>([]);
+  const hasFetchedFallbackProductsRef = useRef(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'inStock' | 'outOfStock'>('all');
   const [adminCategoryFilter, setAdminCategoryFilter] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Firebase Optimisation for SKU Search:
+  // 1. Check whether product data is already loaded in the application (editableProducts or products prop).
+  // 2. Only if neither is loaded, fetch once when SKU search is used and reuse cached data.
+  // 3. Never read or write to Firebase on keystrokes.
+  const ensureProductsLoadedForSkuSearch = () => {
+    if (
+      (editableProducts && editableProducts.length > 0) ||
+      (products && products.length > 0) ||
+      cachedFallbackProducts.length > 0 ||
+      hasFetchedFallbackProductsRef.current
+    ) {
+      return;
+    }
+    hasFetchedFallbackProductsRef.current = true;
+    getProducts()
+      .then((fetched) => {
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          setCachedFallbackProducts(fetched);
+        }
+      })
+      .catch(() => {});
+  };
+
+  const inMemorySkuProductsSource = React.useMemo<BedsheetProduct[]>(() => {
+    if (editableProducts && editableProducts.length > 0) return editableProducts;
+    if (products && products.length > 0) return products;
+    if (cachedFallbackProducts.length > 0) return cachedFallbackProducts;
+    return BEDSHEETS_CATALOG;
+  }, [editableProducts, products, cachedFallbackProducts]);
+
+  // Read-only local in-memory SKU filtering supporting exact and partial SKU matching
+  const skuSearchResults = React.useMemo(() => {
+    const raw = (skuSearchQuery || '').trim();
+    if (!raw) return [];
+    const normalizedQuery = raw.replace(/^#/, '').trim().toUpperCase();
+    if (!normalizedQuery) return [];
+
+    const matches: Array<{
+      product: BedsheetProduct;
+      primarySku: string;
+      matchedSku: string;
+      matchType: 'exact' | 'partial';
+    }> = [];
+
+    for (const product of inMemorySkuProductsSource) {
+      if (!product) continue;
+      const primarySku = resolveProductPrimarySku(product);
+      const allSkus = getAllProductSkus(product);
+
+      const exactSku = allSkus.find((s) => s.toUpperCase() === normalizedQuery);
+      if (exactSku) {
+        matches.push({
+          product,
+          primarySku,
+          matchedSku: exactSku,
+          matchType: 'exact',
+        });
+        continue;
+      }
+
+      const partialSku = allSkus.find((s) => s.toUpperCase().includes(normalizedQuery));
+      if (partialSku) {
+        matches.push({
+          product,
+          primarySku,
+          matchedSku: partialSku,
+          matchType: 'partial',
+        });
+      }
+    }
+
+    // Sort exact SKU matches first, then partial matches
+    return matches.sort((a, b) => {
+      if (a.matchType === b.matchType) return 0;
+      return a.matchType === 'exact' ? -1 : 1;
+    });
+  }, [skuSearchQuery, inMemorySkuProductsSource]);
 
   // Authoritative count of updated/custom photos remembered across sessions
   const totalUpdatedImagesCount = computeUpdatedImagesCount(
@@ -2149,19 +2219,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveAdminTab('enquiries')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
-                activeAdminTab === 'enquiries'
-                  ? 'bg-[#70252D] text-white shadow-2xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
-              }`}
-            >
-              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Enquiry Orders {newEnquiriesCount > 0 ? `(${newEnquiriesCount})` : ''}</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => setActiveAdminTab('notifications')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
                 activeAdminTab === 'notifications'
@@ -2336,37 +2393,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {pendingOrdersCount}
                 </span>
               )}
-            </button>
-
-            <button
-              onClick={() => setActiveAdminTab('enquiries')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative shrink-0"
-              style={
-                activeAdminTab === 'enquiries'
-                  ? {
-                      backgroundColor: 'var(--color-primary, #70252D)',
-                      color: 'var(--color-primary-contrast, #FFFFFF)',
-                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-                    }
-                  : {
-                      color: 'var(--color-text-secondary, #6B5D55)',
-                    }
-              }
-            >
-              <MessageCircle
-                className="w-3.5 h-3.5"
-                style={{ color: activeAdminTab === 'enquiries' ? undefined : '#059669' }}
-              />
-              <span>Enquiry Orders</span>
-              {newEnquiriesCount > 0 ? (
-                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-600 text-white">
-                  {newEnquiriesCount}
-                </span>
-              ) : adminEnquiries.length > 0 ? (
-                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-stone-200 text-stone-700">
-                  {adminEnquiries.length}
-                </span>
-              ) : null}
             </button>
 
             <button
@@ -2813,6 +2839,208 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             </section>
 
+            {/* SKU Search Bar (Read-Only Local In-Memory Lookup) */}
+            <section
+              className="p-4 sm:p-5 rounded-2xl border shadow-xs space-y-4"
+              style={{
+                backgroundColor: 'var(--color-surface, #FAF7F2)',
+                borderColor: 'var(--color-border, #DEC89B)',
+              }}
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#8C2E46]">
+                      <Tag className="w-3.5 h-3.5 text-[#8C2E46]" />
+                      <span>Product SKU Lookup</span>
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#F4EFE6] text-[#6B5D55] border border-[#EAE2D5]">
+                      Read-Only · Local In-Memory Search
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#7A6458]">
+                    Enter or paste an exact or partial product SKU (e.g. <span className="font-mono font-semibold text-[#2C2420]">CN-ROSE-108K</span>, <span className="font-mono font-semibold text-[#2C2420]">CN-SAGE</span>, or <span className="font-mono font-semibold text-[#2C2420]">108K</span>) to inspect product details and live stock.
+                  </p>
+                </div>
+
+                {/* SKU Search Input */}
+                <div className="relative w-full md:w-96 shrink-0">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8C2E46]" />
+                  <input
+                    type="text"
+                    value={skuSearchQuery}
+                    onFocus={ensureProductsLoadedForSkuSearch}
+                    onChange={(e) => {
+                      ensureProductsLoadedForSkuSearch();
+                      setSkuSearchQuery(e.target.value);
+                    }}
+                    placeholder="Enter or paste product SKU (e.g. CN-ROSE-108K)..."
+                    aria-label="Search product by SKU"
+                    className="w-full pl-9 pr-20 py-2.5 bg-white border border-[#DEC89B] rounded-xl text-xs font-mono font-semibold text-[#2C2420] placeholder-[#A8988D] placeholder:font-sans placeholder:font-normal focus:outline-hidden focus:border-[#8C2E46] shadow-2xs"
+                  />
+                  {skuSearchQuery.trim() !== '' && (
+                    <button
+                      type="button"
+                      onClick={() => setSkuSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-[#F4EFE6] hover:bg-[#EAE2D5] text-[#2C2420] text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Clear SKU search"
+                    >
+                      <X className="w-3 h-3" />
+                      <span>Clear</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Sample SKU Chips for fast 1-click lookup */}
+              <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                <span className="text-[#8C7A70] font-medium">Quick SKU Check:</span>
+                {inMemorySkuProductsSource.slice(0, 6).map((item) => {
+                  const itemSku = resolveProductPrimarySku(item);
+                  const isActive = skuSearchQuery.trim().replace(/^#/, '').toUpperCase() === itemSku.toUpperCase();
+                  return (
+                    <button
+                      key={`sku-chip-${item.id}`}
+                      type="button"
+                      onClick={() => {
+                        ensureProductsLoadedForSkuSearch();
+                        setSkuSearchQuery(isActive ? '' : itemSku);
+                      }}
+                      className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold border transition-colors cursor-pointer ${
+                        isActive
+                          ? 'bg-[#8C2E46] text-white border-[#8C2E46]'
+                          : 'bg-white hover:bg-[#F4EFE6] text-[#2C2420] border-[#EAE2D5]'
+                      }`}
+                    >
+                      {itemSku}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* SKU Search Results Panel */}
+              {skuSearchQuery.trim() !== '' && (
+                <div className="pt-3 border-t border-[#EAE2D5] space-y-3 animate-in fade-in duration-150">
+                  {skuSearchResults.length > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-[#2C2420]">
+                          Found {skuSearchResults.length} matching {skuSearchResults.length === 1 ? 'product' : 'products'} for SKU{' '}
+                          <span className="font-mono text-[#8C2E46]">"{skuSearchQuery.trim()}"</span>
+                        </span>
+                        <span className="text-[11px] text-[#7A6458]">
+                          Showing read-only product details
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {skuSearchResults.map(({ product, primarySku, matchedSku, matchType }) => {
+                          const displayImg = product.image || customImages[product.id];
+                          const stockUnits = product.inStock ? (product.stockQuantity ?? 10) : 0;
+                          const isAvailable = Boolean(product.inStock && stockUnits > 0);
+
+                          return (
+                            <div
+                              key={`sku-result-${product.id}`}
+                              className="p-3.5 bg-white rounded-xl border border-[#EAE2D5] shadow-2xs flex flex-col sm:flex-row items-start sm:items-center gap-3.5 justify-between"
+                            >
+                              <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
+                                {/* Product Image */}
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-[#F4EFE6] border border-[#EAE2D5] shrink-0">
+                                  {isVideoMedia(displayImg) ? (
+                                    <video
+                                      src={displayImg}
+                                      muted
+                                      playsInline
+                                      className="w-full h-full object-cover object-center"
+                                    />
+                                  ) : (
+                                    <img
+                                      src={resolveBedsheetImage(displayImg, product.id)}
+                                      alt={product.name}
+                                      referrerPolicy="no-referrer"
+                                      onError={(e) => handleImageFallback(e, product.id)}
+                                      className="w-full h-full object-cover object-center"
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Product Name, SKU, Price & Stock */}
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="px-2 py-0.5 rounded bg-[#FAF7EE] border border-[#DEC89B] font-mono text-[11px] font-bold text-[#8C2E46]">
+                                      SKU: {primarySku}
+                                    </span>
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                        matchType === 'exact'
+                                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                                      }`}
+                                    >
+                                      {matchType === 'exact' ? 'Exact Match' : 'Partial Match'}
+                                    </span>
+                                  </div>
+
+                                  {matchedSku !== primarySku && (
+                                    <div className="text-[10px] text-[#7A6458] font-mono">
+                                      Matched Variant / Code: {matchedSku}
+                                    </div>
+                                  )}
+
+                                  <div className="text-sm font-bold text-[#2C2420] truncate" title={product.name}>
+                                    {product.name}
+                                  </div>
+
+                                  <div className="flex items-center gap-3 flex-wrap pt-0.5">
+                                    <div className="text-xs font-bold text-[#8C2E46] tabular-nums">
+                                      Price: ₹{Number(product.price || 0).toLocaleString('en-IN')}
+                                      {Number(product.originalPrice) > Number(product.price) && (
+                                        <span className="ml-1.5 text-[11px] font-normal text-[#8C7A70] line-through">
+                                          ₹{Number(product.originalPrice).toLocaleString('en-IN')}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                                        isAvailable
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                          : 'bg-amber-50 text-amber-900 border-amber-200'
+                                      }`}
+                                    >
+                                      {isAvailable ? (
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      ) : (
+                                        <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                      )}
+                                      <span>
+                                        Stock: {isAvailable ? `${stockUnits} pcs available` : 'Out of Stock (0 pcs)'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-5 bg-white rounded-xl border border-[#EAE2D5] text-center space-y-1.5">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 mx-auto" />
+                      <p className="text-xs sm:text-sm font-bold text-[#2C2420]">
+                        No matching SKU found for <span className="font-mono text-[#8C2E46]">"{skuSearchQuery.trim()}"</span>
+                      </p>
+                      <p className="text-xs text-[#7A6458]">
+                        Please verify the SKU code and try again. Both exact SKUs (e.g. <span className="font-mono">CN-ROSE-108K</span>) and partial SKUs (e.g. <span className="font-mono">ROSE</span> or <span className="font-mono">108K</span>) are supported.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+
             {/* Search & Filter */}
             <section className="space-y-3">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -3026,6 +3254,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             Catalogue Position #{currentPosition}
                           </span>
                         )}
+
+                        {/* Read-Only Product SKU Badge */}
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-white text-[#8C2E46] border border-[#EAE2D5]">
+                          <Tag className="w-3 h-3 text-[#C29E57]" />
+                          <span>SKU: {resolveProductPrimarySku(product)}</span>
+                        </span>
                       </div>
 
                       {/* 1-Click Move Up / Move Down buttons for mobile and touch accessibility */}
@@ -4410,7 +4644,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     >
                       {/* Order Header Row */}
                       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#EAE2D5]">
-                        <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="flex items-center gap-2.5">
                           <span className="font-serif-luxury font-bold text-base text-[#2C2420]">
                             Order #{order.id}
                           </span>
@@ -4421,16 +4655,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           >
                             {safeStatus}
                           </span>
-                          {order.sourceEnquiryId && (
-                            <button
-                              type="button"
-                              onClick={() => setActiveAdminTab('enquiries')}
-                              className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
-                              title="Click to open Enquiry Orders section"
-                            >
-                              Converted from Enquiry #{order.sourceEnquiryId}
-                            </button>
-                          )}
                           <span className="text-xs text-[#8C7A70]">
                             {order.createdAt
                               ? new Date(order.createdAt).toLocaleString('en-IN', {
@@ -5662,23 +5886,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <AdminCustomerAnalyticsSection
             products={editableProducts}
             orders={editableOrders}
-            onToast={showToast}
-          />
-        )}
-
-        {/* ======================================================== */}
-        {/* TAB 9: ENQUIRY ORDERS MANAGEMENT                         */}
-        {/* ======================================================== */}
-        {activeAdminTab === 'enquiries' && (
-          <AdminEnquiriesSection
-            products={editableProducts}
-            shippingFee={normalizeShippingFee(editableContent.shippingFeeIndia)}
-            onOrderConverted={(newOrder) => {
-              const updatedOrders = [newOrder, ...editableOrders.filter((o) => o.id !== newOrder.id)];
-              setEditableOrders(updatedOrders);
-              onUpdateOrders(updatedOrders);
-            }}
-            onNavigateToOrders={() => setActiveAdminTab('orders')}
             onToast={showToast}
           />
         )}

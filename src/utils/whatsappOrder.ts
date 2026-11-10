@@ -31,9 +31,11 @@ export function isMobileDevice(): boolean {
  * is being ordered without needing the customer to upload or attach any file.
  */
 export function getProductSku(productName: string, variantName?: string): string {
-  const pCode = productName.toLowerCase();
+  const pCode = (productName || '').toLowerCase();
   let base = 'CN-BS';
-  if (pCode.includes('gulabi') || pCode.includes('rose')) base = 'CN-ROSE';
+  if (pCode.includes('gulabi') || (pCode.includes('rose') && !pCode.includes('sage') && !pCode.includes('rosemary') && !pCode.includes('blue'))) base = 'CN-ROSE';
+  else if (pCode.includes('dohar') || pCode.includes('jaipuri')) base = 'CN-DOHAR';
+  else if (pCode.includes('comforter') || pCode.includes('cloud-soft')) base = 'CN-COMFORTER';
   else if (pCode.includes('sage') || pCode.includes('meadow')) base = 'CN-SAGE';
   else if (pCode.includes('garland') || pCode.includes('cream')) base = 'CN-GARLAND';
   else if (pCode.includes('petal') || pCode.includes('botanical')) base = 'CN-PETALS';
@@ -41,13 +43,62 @@ export function getProductSku(productName: string, variantName?: string): string
   else if (pCode.includes('poppy') || pCode.includes('milky')) base = 'CN-POPPY';
   else if (pCode.includes('amber') || pCode.includes('orchid')) base = 'CN-ORCHID';
   else if (pCode.includes('peacock') || pCode.includes('teal')) base = 'CN-PEACOCK';
-  else if (pCode.includes('sapphire') || pCode.includes('blue')) base = 'CN-BLUE-ROSE';
+  else if (pCode.includes('sapphire') || pCode.includes('blue') || pCode.includes('rosemary')) base = 'CN-BLUE-ROSE';
+  else {
+    const cleanWord = productName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
+    if (cleanWord) base = `CN-${cleanWord}`;
+  }
 
   const vCode = variantName
     ? `-${variantName.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase()}`
     : '';
 
   return `${base}${vCode}-108K`;
+}
+
+/**
+ * Resolves the primary SKU for a product record from its explicit sku field
+ * or deterministic Cotton Nest SKU generator.
+ */
+export function resolveProductPrimarySku(product: { id?: string; sku?: string; name?: string }): string {
+  const explicit = typeof product?.sku === 'string' ? product.sku.trim() : '';
+  if (explicit) return explicit.toUpperCase();
+  return getProductSku(product?.name || product?.id || 'Bedsheet');
+}
+
+/**
+ * Returns all searchable SKU tokens associated with a product (primary SKU, variant SKUs, and product ID).
+ */
+export function getAllProductSkus(product: {
+  id?: string;
+  sku?: string;
+  name?: string;
+  variants?: Array<{ name?: string; sku?: string }>;
+}): string[] {
+  const primary = resolveProductPrimarySku(product);
+  const skus = new Set<string>([primary]);
+  if (product?.sku && product.sku.trim()) {
+    skus.add(product.sku.trim().toUpperCase());
+  }
+  const generatedBase = getProductSku(product?.name || '');
+  if (generatedBase) {
+    skus.add(generatedBase.toUpperCase());
+  }
+  if (Array.isArray(product?.variants)) {
+    for (const v of product.variants) {
+      if (!v) continue;
+      if (v.sku && v.sku.trim()) {
+        skus.add(v.sku.trim().toUpperCase());
+      }
+      if (v.name) {
+        skus.add(getProductSku(product?.name || '', v.name).toUpperCase());
+      }
+    }
+  }
+  if (product?.id && product.id.trim()) {
+    skus.add(product.id.trim().toUpperCase());
+  }
+  return Array.from(skus);
 }
 
 /**
@@ -64,42 +115,18 @@ export function openWhatsAppDirectly(message: string): void {
 }
 
 export interface SingleProductOrderPayload {
-  productId?: string;
   productName: string;
   variantName?: string;
   dimensions?: string;
   quantity?: number;
   price: number;
   imageUrl: string;
-  customerName?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  message?: string;
-  source?: 'product_enquiry' | 'enquiry_tab' | 'store_visit' | 'wishlist_enquiry';
-}
-
-function resolveSavedCustomerInfo(): { name?: string; phone?: string; email?: string } {
-  if (typeof window === 'undefined') return {};
-  try {
-    const rawUser = localStorage.getItem('cotton_nest_user_session');
-    const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
-    const u = rawUser ? JSON.parse(rawUser) : {};
-    const p = rawProfile ? JSON.parse(rawProfile) : {};
-    return {
-      name: u?.name || p?.name || undefined,
-      phone: u?.phone || p?.phone || undefined,
-      email: u?.email || p?.email || undefined,
-    };
-  } catch {
-    return {};
-  }
 }
 
 /**
  * Sends a single product or variant enquiry to WhatsApp:
  * 1. Generates the exact SKU.
  * 2. Pre-fills clean product specifications in WhatsApp.
- * 3. Automatically logs the enquiry into the 'enquiries' collection for Admin Enquiry Orders tracking.
  * (No invoice is generated or sent on product enquiry.)
  */
 export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayload): Promise<void> {
@@ -111,12 +138,6 @@ export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayloa
   const totalAmount = payload.price * qty;
   const size = payload.dimensions || '108 x 108 inches (274 x 274 cm)';
 
-  const savedCustomer = resolveSavedCustomerInfo();
-  const cName = payload.customerName || savedCustomer.name || 'Cotton Nest Visitor';
-  const cPhone = payload.customerPhone || savedCustomer.phone || 'Not provided (WhatsApp Chat)';
-  const cEmail = payload.customerEmail || savedCustomer.email || undefined;
-  const defaultEnquiryNote = payload.message || 'I am interested in this bedsheet. Please confirm stock availability and details.';
-
   const messageLines = [
     `COTTON NEST - BEDSHEET ENQUIRY 🪷`,
     `Hi Cotton Nest! I would like to enquire about:`,
@@ -126,30 +147,10 @@ export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayloa
     qtyLine,
     `💰 Price: ₹${totalAmount.toLocaleString('en-IN')}`,
     ``,
-    defaultEnquiryNote,
+    `I am interested in this bedsheet. Please confirm stock availability and details.`,
   ];
 
   const fullMessage = messageLines.join('\n');
-
-  // Persist enquiry record asynchronously without blocking WhatsApp launch
-  import('../services/api')
-    .then(({ saveEnquiryApi }) =>
-      saveEnquiryApi({
-        customerName: cName,
-        customerPhone: cPhone,
-        customerEmail: cEmail,
-        productId: payload.productId || sku,
-        productName: payload.productName,
-        productImage: payload.imageUrl,
-        productPrice: payload.price,
-        productDimensions: size,
-        variantName: payload.variantName,
-        quantity: qty,
-        message: defaultEnquiryNote,
-        source: payload.source || 'product_enquiry',
-      })
-    )
-    .catch(() => {});
 
   // Open WhatsApp directly
   openWhatsAppDirectly(fullMessage);

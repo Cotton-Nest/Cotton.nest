@@ -52,7 +52,6 @@ export interface Order {
   invoiceMessage?: string;
   invoiceResult?: any;
   notes?: string;
-  sourceEnquiryId?: string;
   trackingNumber?: string;
   estimatedDelivery?: string;
   timeline?: OrderTimelineStep[];
