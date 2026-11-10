@@ -1,7 +1,43 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer, setLogLevel } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+
+// Silence internal @firebase/firestore WriteStream backoff console spam when free tier daily quota is reached
+try {
+  setLogLevel('silent');
+} catch {}
+
+const QUOTA_SESSION_KEY = 'cn_firestore_write_quota_exhausted_date';
+
+export function isFirestoreWriteQuotaExhausted(): boolean {
+  try {
+    const flaggedDate = sessionStorage.getItem(QUOTA_SESSION_KEY);
+    if (!flaggedDate) return false;
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    return flaggedDate === todayUtc;
+  } catch {
+    return false;
+  }
+}
+
+export function markFirestoreWriteQuotaExhausted(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error || '');
+  const code = (error as any)?.code || '';
+  if (
+    code === 'resource-exhausted' ||
+    msg.includes('resource-exhausted') ||
+    msg.includes('Quota limit exceeded') ||
+    msg.includes('Quota exceeded')
+  ) {
+    try {
+      const todayUtc = new Date().toISOString().slice(0, 10);
+      sessionStorage.setItem(QUOTA_SESSION_KEY, todayUtc);
+    } catch {}
+    return true;
+  }
+  return false;
+}
 
 // Primary app for Firestore database (preserves all original store data in river-fusion-rz0s9 / ai-studio-remixcottonnestl-79807e95-0ce0-4626-9bba-b37acdbe97c1)
 const app = initializeApp(firebaseConfig);
@@ -154,6 +190,7 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  markFirestoreWriteQuotaExhausted(error);
   const activeUser = previewAuth.currentUser || primaryAuth.currentUser;
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -172,7 +209,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path,
   };
-  console.warn('Firestore notice: ', JSON.stringify(errInfo));
   return errInfo;
 }
 

@@ -421,10 +421,6 @@ export async function getProducts(): Promise<BedsheetProduct[]> {
     snap.forEach((docSnap) => {
       const data = docSnap.data() as BedsheetProduct;
       if (isSubkeyDocumentId(docSnap.id) || !data || typeof data.name !== 'string' || !data.name.trim()) {
-        // Clean up orphaned subkey document in background
-        if (isSubkeyDocumentId(docSnap.id) || !data?.name) {
-          deleteDoc(doc(db, 'products', docSnap.id)).catch(() => {});
-        }
         return;
       }
       const cleanPrice = normalizeCustomPrice(data.price, 1320);
@@ -1342,25 +1338,11 @@ export async function getSiteContent(): Promise<SiteContent> {
       if (data && data.company) {
         const normalizedTc = normalizeShippingInTerms(data.termsAndConditions);
         const normalizedFee = normalizeShippingFee(data.shippingFeeIndia);
-        if (normalizedTc !== data.termsAndConditions || data.shippingFeeIndia !== normalizedFee) {
-          data.termsAndConditions = normalizedTc;
-          data.shippingFeeIndia = normalizedFee;
-          setDoc(
-            doc(db, 'site_content', 'main'),
-            { termsAndConditions: normalizedTc, shippingFeeIndia: normalizedFee, updatedAt: Date.now() },
-            { merge: true }
-          ).catch(() => {});
-        }
+        data.termsAndConditions = normalizedTc;
+        data.shippingFeeIndia = normalizedFee;
         return data;
       }
     }
-    // Auto-seed Firestore so document exists
-    const initialWithStamp = {
-      ...INITIAL_SITE_CONTENT,
-      shippingFeeIndia: normalizeShippingFee(INITIAL_SITE_CONTENT.shippingFeeIndia),
-      updatedAt: Date.now(),
-    };
-    await setDoc(doc(db, 'site_content', 'main'), initialWithStamp, { merge: true });
     return INITIAL_SITE_CONTENT;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
@@ -1539,10 +1521,6 @@ export async function getCouponsApi(): Promise<CouponOffer[]> {
     if (res.ok) {
       const serverCoupons = await res.json();
       if (Array.isArray(serverCoupons) && serverCoupons.length > 0) {
-        // Seed into Firestore in background
-        serverCoupons.forEach((c) => {
-          setDoc(doc(db, 'coupons', c.id), c).catch(() => {});
-        });
         try {
           localStorage.setItem('cotton_nest_coupons', JSON.stringify(serverCoupons));
         } catch {}
@@ -2388,8 +2366,6 @@ export async function getSiteAnalyticsApi(): Promise<SiteTrafficData> {
       saveStoredTraffic(merged);
       return merged;
     } else {
-      // First time initialization in Firestore
-      await setDoc(ref, stripUndefined(local), { merge: true });
       return local;
     }
   } catch {
@@ -2399,26 +2375,6 @@ export async function getSiteAnalyticsApi(): Promise<SiteTrafficData> {
 
 export async function recordPageVisitApi(section: string = 'home'): Promise<SiteTrafficData> {
   const updated = recordLocalPageView(section);
-  try {
-    const ref = doc(db, 'site_content', 'site_traffic');
-    await setDoc(
-      ref,
-      stripUndefined({
-        id: 'site_traffic',
-        totalVisits: updated.totalVisits,
-        uniqueVisitors: updated.uniqueVisitors,
-        todayVisits: updated.todayVisits,
-        lastVisitedAt: updated.lastVisitedAt,
-        pageViewsByDate: updated.pageViewsByDate,
-        pageViewsBySection: updated.pageViewsBySection,
-        trafficSources: updated.trafficSources,
-        deviceBreakdown: updated.deviceBreakdown,
-      }),
-      { merge: true }
-    );
-  } catch {
-    // Non-blocking background firestore sync
-  }
   return updated;
 }
 

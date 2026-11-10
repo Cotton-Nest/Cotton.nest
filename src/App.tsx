@@ -873,9 +873,6 @@ export default function App() {
               typeof data.name !== 'string' ||
               !data.name.trim()
             ) {
-              if (isSubkey || !data?.name) {
-                deleteDoc(doc(db, 'products', docSnap.id)).catch(() => {});
-              }
               return;
             }
             const cleanPrice = normalizeCustomPrice(data.price, 1320);
@@ -1145,9 +1142,6 @@ export default function App() {
               termsAndConditions: normalizedTc,
             };
             setSiteContent(mergedContent);
-            if (normalizedTc !== rawTc || content.shippingFeeIndia !== normalizedFee) {
-              saveSiteContentApi(mergedContent).catch(() => {});
-            }
             try {
               localStorage.setItem('cotton_nest_site_content', JSON.stringify(mergedContent));
             } catch {}

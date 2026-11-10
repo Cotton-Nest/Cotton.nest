@@ -4,8 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
-  onSnapshot,
-  setDoc
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile } from '../context/AuthContext';
@@ -28,8 +27,6 @@ const ACTIVE_SESSION_STORAGE_PREFIX = 'cotton_nest_active_session_v1_';
 const INACTIVITY_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes without interaction pauses active tracking
 const PERIODIC_FLUSH_INTERVAL_MS = 60 * 1000; // Batch flush every 60 seconds to conserve database write quota
 const MAX_TIMELINE_EVENTS = 120;
-
-let isFirestoreQuotaExceeded = false;
 const MAX_SESSIONS_HISTORY = 40;
 const MAX_SEARCH_HISTORY = 50;
 const MAX_CART_HISTORY = 50;
@@ -157,18 +154,6 @@ export async function flushCustomerActivityProfile(force = false): Promise<void>
   runtime.lastFlushedAt = snapshotProfile.updatedAt;
 
   writeLocalProfileToCache(snapshotProfile);
-
-  if (!isFirestoreQuotaExceeded) {
-    try {
-      await setDoc(doc(db, COLLECTION_NAME, snapshotProfile.uid), snapshotProfile, { merge: true });
-    } catch (err: any) {
-      const errMsg = String(err?.message || err);
-      if (errMsg.includes('Quota limit exceeded') || errMsg.includes('resource-exhausted') || errMsg.includes('quota')) {
-        isFirestoreQuotaExceeded = true;
-        console.warn('Firestore write quota limit reached. Customer activity tracking is operating seamlessly via Express server API & local cache.');
-      }
-    }
-  }
 
   try {
     await fetch('/api/customer-activity', {
