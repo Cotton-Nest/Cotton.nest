@@ -371,6 +371,11 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     }, 0);
 
   const displayPointsFromPurchases = Math.max(pointsEarnedFromPurchases, deliveredOrdersEarned);
+  const activeAvailablePoints = Math.max(
+    pointsBalance,
+    Math.max(0, displayPointsFromPurchases + referralPointsEarned - pointsUsed)
+  );
+  const activeRupeesValue = calculatePointsDiscount(activeAvailablePoints);
   const formattedNextExpiry = nextExpiryTimestamp
     ? new Date(nextExpiryTimestamp).toLocaleDateString('en-IN', {
         day: 'numeric',
@@ -423,7 +428,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         <div className="flex items-center gap-1 px-4 py-2 bg-white border-b border-[#EAE2D5] overflow-x-auto no-scrollbar shrink-0 text-xs">
           {[
             { id: 'overview', label: 'Overview', icon: User },
-            { id: 'loyalty', label: 'Nest Points & Rewards', count: `${pointsBalance} pts`, icon: Award },
+            { id: 'loyalty', label: 'Nest Points & Rewards', count: `${activeAvailablePoints} pts`, icon: Award },
             { id: 'wishlist', label: 'Wishlist', count: wishlistItems.length, icon: Heart },
             { id: 'orders', label: 'My Orders', count: customerOrders.length, icon: Package },
             { id: 'profile', label: 'Address & Profile', icon: MapPin },
@@ -820,7 +825,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     </span>
                     <div className="flex items-baseline gap-2 mt-1">
                       <span className="text-3xl font-extrabold font-mono text-[#70252D]">
-                        {pointsBalance}
+                        {activeAvailablePoints}
                       </span>
                       <span className="text-xs font-semibold text-amber-900">Nest Points</span>
                     </div>
@@ -832,7 +837,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     </span>
                     <div className="flex items-baseline gap-2 mt-1">
                       <span className="text-3xl font-extrabold font-mono text-emerald-800">
-                        ₹{pointsRupeesValue}
+                        ₹{activeRupeesValue}
                       </span>
                       <span className="text-xs font-semibold text-emerald-700">(₹0.50 / pt · 100 pts = ₹50)</span>
                     </div>
@@ -1034,6 +1039,26 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   <li><strong>Expiry Policy:</strong> Nest Points expire after <strong>12 months</strong> from the date of credit.</li>
                   <li><strong>Non-Encashable:</strong> Nest Points cannot be exchanged or redeemed for cash.</li>
                 </ul>
+
+                {/* Loyalty Points Redemption – Additional Terms & Conditions */}
+                <div className="pt-2.5 mt-2.5 border-t border-[#EAE2D5] space-y-1.5">
+                  <h5 className="font-bold text-[#8C2E46] uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <span>🛡️</span>
+                    <span>Loyalty Points Redemption – Additional Terms &amp; Conditions</span>
+                  </h5>
+                  <ol className="list-decimal pl-4 space-y-1 text-[11px] text-[#6B5D55]">
+                    <li>Nest Points can only be redeemed by the registered customer account to which they were originally credited.</li>
+                    <li>Points cannot be transferred, exchanged for cash, or redeemed outside the Cotton Nest website.</li>
+                    <li>Redemption is permitted only on eligible purchases and cannot be combined with any excluded promotional offers unless explicitly allowed by Cotton Nest.</li>
+                    <li>The maximum Nest Points redemption limit is 125 points per order.</li>
+                    <li>Customers must have sufficient available points at the time of checkout. Points already redeemed cannot be reused.</li>
+                    <li>Once an order is successfully placed using Nest Points, the redeemed points will be deducted from the customer&apos;s available balance.</li>
+                    <li>If an order is cancelled or refunded, the redeemed points will be returned to the customer&apos;s account, subject to order and refund verification.</li>
+                    <li>Cotton Nest reserves the right to reverse points credited through incorrect calculations, fraudulent transactions, or cancelled/returned purchases.</li>
+                    <li>Nest Points have no independent cash value and cannot be transferred to another account.</li>
+                    <li>Cotton Nest reserves the right to modify or discontinue the loyalty programme with reasonable notice.</li>
+                  </ol>
+                </div>
               </div>
 
               {/* Points History with Chronological Log & Expiry Dates */}

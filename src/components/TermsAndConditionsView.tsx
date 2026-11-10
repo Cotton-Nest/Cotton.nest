@@ -158,6 +158,26 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
                       <span><strong className="font-semibold text-[#8C2E46]">Points cannot be exchanged for cash.</strong></span>
                     </li>
                   </ul>
+
+                  {/* Loyalty Points Redemption – Additional Terms & Conditions Subsection */}
+                  <div className="pt-4 mt-4 border-t border-[#EAE2D5]/70 space-y-3">
+                    <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-[#8C2E46] flex items-center gap-2">
+                      <span>🛡️</span>
+                      <span>Loyalty Points Redemption – Additional Terms &amp; Conditions</span>
+                    </h3>
+                    <ol className="list-decimal pl-5 space-y-2 text-sm sm:text-base text-[#3C322C]">
+                      <li>Nest Points can only be redeemed by the registered customer account to which they were originally credited.</li>
+                      <li>Points cannot be transferred, exchanged for cash, or redeemed outside the Cotton Nest website.</li>
+                      <li>Redemption is permitted only on eligible purchases and cannot be combined with any excluded promotional offers unless explicitly allowed by Cotton Nest.</li>
+                      <li>The maximum Nest Points redemption limit is 125 points per order.</li>
+                      <li>Customers must have sufficient available points at the time of checkout. Points already redeemed cannot be reused.</li>
+                      <li>Once an order is successfully placed using Nest Points, the redeemed points will be deducted from the customer&apos;s available balance.</li>
+                      <li>If an order is cancelled or refunded, the redeemed points will be returned to the customer&apos;s account, subject to order and refund verification.</li>
+                      <li>Cotton Nest reserves the right to reverse points credited through incorrect calculations, fraudulent transactions, or cancelled/returned purchases.</li>
+                      <li>Nest Points have no independent cash value and cannot be transferred to another account.</li>
+                      <li>Cotton Nest reserves the right to modify or discontinue the loyalty programme with reasonable notice.</li>
+                    </ol>
+                  </div>
                 </div>
               )}
             </div>
@@ -309,6 +329,26 @@ export const TermsAndConditionsView: React.FC<TermsAndConditionsViewProps> = ({
                   <span><strong className="font-semibold text-[#8C2E46]">Points cannot be exchanged for cash.</strong></span>
                 </li>
               </ul>
+
+              {/* Loyalty Points Redemption – Additional Terms & Conditions Subsection */}
+              <div className="pt-4 mt-4 border-t border-[#EAE2D5]/70 space-y-3">
+                <h3 className="font-serif-luxury text-base sm:text-lg font-bold text-[#8C2E46] flex items-center gap-2">
+                  <span>🛡️</span>
+                  <span>Loyalty Points Redemption – Additional Terms &amp; Conditions</span>
+                </h3>
+                <ol className="list-decimal pl-5 space-y-2 text-sm sm:text-base text-[#3C322C]">
+                  <li>Nest Points can only be redeemed by the registered customer account to which they were originally credited.</li>
+                  <li>Points cannot be transferred, exchanged for cash, or redeemed outside the Cotton Nest website.</li>
+                  <li>Redemption is permitted only on eligible purchases and cannot be combined with any excluded promotional offers unless explicitly allowed by Cotton Nest.</li>
+                  <li>The maximum Nest Points redemption limit is 125 points per order.</li>
+                  <li>Customers must have sufficient available points at the time of checkout. Points already redeemed cannot be reused.</li>
+                  <li>Once an order is successfully placed using Nest Points, the redeemed points will be deducted from the customer&apos;s available balance.</li>
+                  <li>If an order is cancelled or refunded, the redeemed points will be returned to the customer&apos;s account, subject to order and refund verification.</li>
+                  <li>Cotton Nest reserves the right to reverse points credited through incorrect calculations, fraudulent transactions, or cancelled/returned purchases.</li>
+                  <li>Nest Points have no independent cash value and cannot be transferred to another account.</li>
+                  <li>Cotton Nest reserves the right to modify or discontinue the loyalty programme with reasonable notice.</li>
+                </ol>
+              </div>
             </div>
 
             {/* Outro Greeting */}

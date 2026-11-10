@@ -2574,17 +2574,63 @@ async function startServer() {
     // Always cross-link phone/email and reconcile delivered orders so newly delivered orders immediately credit
     {
       const cleanRaw = String(rawId).toLowerCase().trim();
-      const extractedEmail =
+      const queryPhone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+      const queryEmail = typeof req.query.email === 'string' ? req.query.email.trim().toLowerCase() : '';
+      const queryUserId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
+
+      // Determine customer email
+      let extractedEmail =
+        queryEmail ||
         (account.email || '').toLowerCase().trim() ||
         (cleanRaw.startsWith('email_') ? cleanRaw.slice(6) : cleanRaw.includes('@') ? cleanRaw : '');
-      const cleanPhoneDigits = (account.phone || cleanRaw).replace(/[^0-9]/g, '').slice(-10);
 
-      // 1. Search other loyalty accounts with matching email or phone
+      // Determine customer 10-digit phone number
+      const candidatePhones = [
+        queryPhone,
+        account.phone || '',
+        cleanRaw.startsWith('phone_') ? cleanRaw.slice(6) : '',
+        cleanRaw.replace(/[^0-9]/g, '').length >= 10 ? cleanRaw : '',
+      ];
+      let cleanPhoneDigits = '';
+      for (const p of candidatePhones) {
+        const digits = p.replace(/[^0-9]/g, '');
+        if (digits.length >= 10) {
+          cleanPhoneDigits = digits.slice(-10);
+          break;
+        }
+      }
+
+      // If email or phone is missing, discover from customer's previous orders or other loyalty accounts
+      if ((!extractedEmail || !cleanPhoneDigits) && Array.isArray(db.orders)) {
+        for (const o of db.orders) {
+          if (!o) continue;
+          const oEmail = (o.customerEmail || '').toLowerCase().trim();
+          const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
+          const oUserId = String(o.userId || '').toLowerCase().trim();
+          const oId = String(o.id || '').toLowerCase().trim();
+
+          const matchesCurrent =
+            (cleanRaw && (cleanRaw === oUserId || cleanRaw === oEmail || (cleanPhoneDigits && oPhone === cleanPhoneDigits))) ||
+            (queryUserId && queryUserId.toLowerCase() === oUserId);
+
+          if (matchesCurrent) {
+            if (!extractedEmail && oEmail) extractedEmail = oEmail;
+            if (!cleanPhoneDigits && oPhone) cleanPhoneDigits = oPhone;
+            if (extractedEmail && cleanPhoneDigits) break;
+          }
+        }
+      }
+
+      // 1. Search other loyalty accounts with matching email, phone or userId to pool balance
       for (const [otherKey, otherAcc] of Object.entries(db.loyaltyAccounts)) {
         if (otherKey === accountId || !otherAcc) continue;
-        const matchesEmail = Boolean(extractedEmail && otherAcc.email?.toLowerCase().trim() === extractedEmail);
-        const matchesPhone = Boolean(cleanPhoneDigits && otherAcc.phone?.replace(/[^0-9]/g, '').endsWith(cleanPhoneDigits));
-        if (matchesEmail || matchesPhone) {
+        const otherPhoneDigits = (otherAcc.phone || '').replace(/[^0-9]/g, '').slice(-10);
+        const otherEmail = (otherAcc.email || '').toLowerCase().trim();
+        const matchesEmail = Boolean(extractedEmail && otherEmail === extractedEmail);
+        const matchesPhone = Boolean(cleanPhoneDigits && otherPhoneDigits === cleanPhoneDigits);
+        const matchesUid = Boolean(account.userId && otherAcc.userId === account.userId);
+
+        if (matchesEmail || matchesPhone || matchesUid) {
           const nextEarned = Math.max(account.lifetimeEarned || 0, otherAcc.lifetimeEarned || 0);
           const safeAccSpent = (account.lifetimeSpent || 0) <= nextEarned ? (account.lifetimeSpent || 0) : 0;
           const safeOtherSpent = (otherAcc.lifetimeSpent || 0) <= nextEarned ? (otherAcc.lifetimeSpent || 0) : 0;
@@ -2598,8 +2644,8 @@ async function startServer() {
             account.lifetimeEarned = nextEarned;
             account.lifetimeSpent = nextSpent;
             account.pointsBalance = nextBal;
-            account.phone = account.phone || otherAcc.phone;
-            account.email = account.email || otherAcc.email;
+            account.phone = account.phone || otherAcc.phone || cleanPhoneDigits;
+            account.email = account.email || otherAcc.email || extractedEmail;
             account.updatedAt = Date.now();
             db.loyaltyAccounts[accountId] = account;
             saveDatabase();
@@ -2608,7 +2654,7 @@ async function startServer() {
         }
       }
 
-      // 2. Reconcile customer orders: Earned points ONLY from 'delivered' orders; Spent points from non-cancelled orders
+      // 2. Reconcile customer orders: Earned points strictly from 'delivered' orders; Spent points from non-cancelled orders
       if (Array.isArray(db.orders)) {
         if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
         let earnedFromDeliveredOrders = 0;
@@ -2622,10 +2668,13 @@ async function startServer() {
           if (!o || o.status === 'cancelled') return;
           const oEmail = (o.customerEmail || '').toLowerCase().trim();
           const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
+          const oUserId = String(o.userId || '').toLowerCase().trim();
+
           const isMatch =
             Boolean(extractedEmail && oEmail === extractedEmail) ||
             Boolean(cleanPhoneDigits && oPhone === cleanPhoneDigits) ||
-            Boolean(cleanRaw && (o.userId === cleanRaw || o.userId === accountId)) ||
+            Boolean(cleanRaw && (cleanRaw === oUserId || cleanRaw === oEmail || (cleanPhoneDigits && cleanRaw.includes(cleanPhoneDigits)))) ||
+            Boolean(queryUserId && queryUserId.toLowerCase() === oUserId) ||
             accountId === 'guest_default_wallet';
 
           if (isMatch) {
@@ -2639,7 +2688,11 @@ async function startServer() {
               o.pointsCredited = true;
               if (pts > 0) {
                 const hasTx = db.loyaltyTransactions!.some(
-                  (t) => t.accountId === accountId && t.orderId === o.id && t.type === 'earned' && t.points > 0
+                  (t) =>
+                    (t.accountId === accountId || (cleanPhoneDigits && t.accountId === `phone_${cleanPhoneDigits}`)) &&
+                    t.orderId === o.id &&
+                    t.type === 'earned' &&
+                    t.points > 0
                 );
                 if (!hasTx) {
                   db.loyaltyTransactions!.unshift({
@@ -2666,7 +2719,7 @@ async function startServer() {
 
         if (matchedAnyOrder) {
           const referralBonus = (db.loyaltyTransactions || [])
-            .filter((t) => t && t.accountId === accountId && (t.type === 'referral' || t.type === 'bonus') && t.points > 0)
+            .filter((t) => t && (t.accountId === accountId || (cleanPhoneDigits && t.accountId === `phone_${cleanPhoneDigits}`)) && (t.type === 'referral' || t.type === 'bonus') && t.points > 0)
             .reduce((sum, t) => sum + Number(t.points || 0), 0);
           const effectiveReferral = Math.max(account.referralPointsEarned || 0, referralBonus);
           const effectiveEarned = Math.max(account.lifetimeEarned || 0, earnedFromDeliveredOrders + effectiveReferral);
@@ -2683,6 +2736,8 @@ async function startServer() {
             account.lifetimeEarned = effectiveEarned;
             account.lifetimeSpent = effectiveSpent;
             account.pointsBalance = computedNet;
+            if (cleanPhoneDigits && !account.phone) account.phone = cleanPhoneDigits;
+            if (extractedEmail && !account.email) account.email = extractedEmail;
             account.updatedAt = Date.now();
             db.loyaltyAccounts[accountId] = account;
             saveDatabase();
@@ -2831,8 +2886,17 @@ async function startServer() {
       });
     }
 
+    const cleanRaw = String(rawId).toLowerCase().trim();
+    const queryPhone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+    const cleanPhone = (queryPhone || cleanRaw).replace(/[^0-9]/g, '').slice(-10);
+
     const userTxs = db.loyaltyTransactions.filter((t) => {
-      if (t.accountId !== accountId) return false;
+      const txAcc = String(t.accountId || '').toLowerCase().trim();
+      const matchesAccount =
+        txAcc === accountId ||
+        txAcc === cleanRaw ||
+        (cleanPhone && txAcc.endsWith(cleanPhone));
+      if (!matchesAccount) return false;
       // Only include 'earned' purchase transactions if the corresponding order is delivered
       if (t.type === 'earned' && t.orderId && orderStatusMap.has(String(t.orderId))) {
         return orderStatusMap.get(String(t.orderId)) === 'delivered';

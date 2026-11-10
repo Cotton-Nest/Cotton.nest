@@ -443,7 +443,7 @@ export const ChromeInstallPopout: React.FC = () => {
  * - Opens Safari installation guide on iOS.
  * - Shows "App Already Installed" when installation is complete.
  */
-export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' | 'topbar' }> = ({ variant = 'navbar' }) => {
+export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' | 'topbar' | 'compact' }> = ({ variant = 'navbar' }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
 
   const handleTriggerInstall = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -478,6 +478,33 @@ export const PWAInstallButton: React.FC<{ variant?: 'navbar' | 'mobile' | 'topba
       new CustomEvent('open-pwa-install-guide', { detail: { mode: 'unsupported' } })
     );
   };
+
+  if (variant === 'compact') {
+    if (isInstalled) {
+      return (
+        <span
+          data-testid="compact-app-installed-badge"
+          title="Cotton Nest App is already installed"
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0"
+        >
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+          <span className="hidden xs:inline">Installed</span>
+        </span>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={handleTriggerInstall}
+        title="Install Cotton Nest App"
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#8C2E46] hover:bg-[#70252D] text-white shadow-2xs transition-colors cursor-pointer shrink-0"
+      >
+        <Download className="w-3 h-3 text-amber-200" />
+        <span>Install App</span>
+      </button>
+    );
+  }
 
   if (variant === 'topbar') {
     if (isInstalled) {

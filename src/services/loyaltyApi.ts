@@ -151,9 +151,15 @@ export async function getLoyaltyAccountApi(
     account.referralCode = defaultReferralCode;
   }
 
-  // 2. Fetch from Express backend (/api/loyalty/:id)
+  // 2. Fetch from Express backend (/api/loyalty/:id) with candidate query params
   try {
-    const res = await fetch(`/api/loyalty/${encodeURIComponent(accountId)}`);
+    const qParams = new URLSearchParams();
+    if (extra?.phone) qParams.set('phone', extra.phone);
+    if (extra?.email) qParams.set('email', extra.email);
+    if (extra?.userId) qParams.set('userId', extra.userId);
+    const qStr = qParams.toString() ? `?${qParams.toString()}` : '';
+
+    const res = await fetch(`/api/loyalty/${encodeURIComponent(accountId)}${qStr}`);
     if (res.ok) {
       const serverAccount = await res.json();
       if (serverAccount && typeof serverAccount.pointsBalance === 'number') {
@@ -672,7 +678,22 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
     return true;
   };
 
+  let customerPhone = '';
+  try {
+    const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
+    if (rawProfile) {
+      const parsed = JSON.parse(rawProfile);
+      if (parsed?.phone) customerPhone = String(parsed.phone).replace(/[^0-9]/g, '').slice(-10);
+    }
+  } catch {}
+  if (!customerPhone && rawKey.replace(/[^0-9]/g, '').length >= 10) {
+    customerPhone = rawKey.replace(/[^0-9]/g, '').slice(-10);
+  }
+
   const localList = getLocalTransactions(accountId);
+  if (customerPhone && `phone_${customerPhone}` !== accountId) {
+    localList.push(...getLocalTransactions(`phone_${customerPhone}`));
+  }
   const txMap = new Map<string, LoyaltyTransaction>();
 
   const putUniqueTx = (t: LoyaltyTransaction) => {
@@ -690,7 +711,8 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
 
   // Fetch from server backend
   try {
-    const res = await fetch(`/api/loyalty/${encodeURIComponent(accountId)}/transactions`);
+    const qStr = customerPhone ? `?phone=${encodeURIComponent(customerPhone)}` : '';
+    const res = await fetch(`/api/loyalty/${encodeURIComponent(accountId)}/transactions${qStr}`);
     if (res.ok) {
       const serverTxs: LoyaltyTransaction[] = await res.json();
       if (Array.isArray(serverTxs)) {

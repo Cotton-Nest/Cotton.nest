@@ -2903,13 +2903,13 @@
       "phone": "7838625915",
       "email": "saurabh.451485@gmail.com",
       "userId": "usr_email_adityaa_22082011_gmail_com",
-      "lifetimeEarned": 0,
+      "lifetimeEarned": 925,
       "lifetimeSpent": 0,
-      "pointsBalance": 0,
+      "pointsBalance": 925,
       "referralPointsEarned": 0,
       "referralCode": "NEST-COTT307",
       "referralCount": 0,
-      "updatedAt": 1794216487101
+      "updatedAt": 1794281164065
     },
     "phone_9971345915": {
       "id": "phone_9971345915",
@@ -2931,16 +2931,112 @@
       "phone": "7838625915",
       "email": "saurabh.451485@gmail.com",
       "userId": "ipMjoZQzuvg9Xdj8uylIwSwaUuC3",
-      "lifetimeEarned": 130,
+      "lifetimeEarned": 925,
       "lifetimeSpent": 0,
-      "pointsBalance": 130,
+      "pointsBalance": 925,
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794216487603
+      "updatedAt": 1794279930965
     }
   },
   "loyaltyTransactions": [
+    {
+      "id": "tx_earn_CN-362076_usr_email_adityaa_22082011_gmail_com_1794281164065",
+      "accountId": "usr_email_adityaa_22082011_gmail_com",
+      "orderId": "CN-362076",
+      "type": "earned",
+      "points": 65,
+      "amountInr": 1350,
+      "description": "Earned on Delivered Order #CN-362076 (5 pts / ₹100)",
+      "createdAt": 1794158271286,
+      "expiresAt": 1825817164065,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_CN-366677_usr_email_adityaa_22082011_gmail_com_1794281164065",
+      "accountId": "usr_email_adityaa_22082011_gmail_com",
+      "orderId": "CN-366677",
+      "type": "earned",
+      "points": 55,
+      "amountInr": 1110,
+      "description": "Earned on Delivered Order #CN-366677 (5 pts / ₹100)",
+      "createdAt": 1794191998317,
+      "expiresAt": 1825817164065,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_CN-516150_usr_email_adityaa_22082011_gmail_com_1794281164065",
+      "accountId": "usr_email_adityaa_22082011_gmail_com",
+      "orderId": "CN-516150",
+      "type": "earned",
+      "points": 65,
+      "amountInr": 1350,
+      "description": "Earned on Delivered Order #CN-516150 (5 pts / ₹100)",
+      "createdAt": 1794208240888,
+      "expiresAt": 1825817164065,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_CN-169941_usr_email_adityaa_22082011_gmail_com_1794281164065",
+      "accountId": "usr_email_adityaa_22082011_gmail_com",
+      "orderId": "CN-169941",
+      "type": "earned",
+      "points": 270,
+      "amountInr": 5400,
+      "description": "Earned on Delivered Order #CN-169941 (5 pts / ₹100)",
+      "createdAt": 1794215377520,
+      "expiresAt": 1825817164065,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_CN-860881_usr_email_adityaa_22082011_gmail_com_1794281164065",
+      "accountId": "usr_email_adityaa_22082011_gmail_com",
+      "orderId": "CN-860881",
+      "type": "earned",
+      "points": 470,
+      "amountInr": 9450,
+      "description": "Earned on Delivered Order #CN-860881 (5 pts / ₹100)",
+      "createdAt": 1794215721845,
+      "expiresAt": 1825817164065,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_CN-366677_ipmjozqzuvg9xdj8uyliwswauuc3_1794279930964",
+      "accountId": "ipmjozqzuvg9xdj8uyliwswauuc3",
+      "orderId": "CN-366677",
+      "type": "earned",
+      "points": 55,
+      "amountInr": 1110,
+      "description": "Earned on Delivered Order #CN-366677 (5 pts / ₹100)",
+      "createdAt": 1794191998317,
+      "expiresAt": 1825815930964,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_CN-169941_ipmjozqzuvg9xdj8uyliwswauuc3_1794279930964",
+      "accountId": "ipmjozqzuvg9xdj8uyliwswauuc3",
+      "orderId": "CN-169941",
+      "type": "earned",
+      "points": 270,
+      "amountInr": 5400,
+      "description": "Earned on Delivered Order #CN-169941 (5 pts / ₹100)",
+      "createdAt": 1794215377520,
+      "expiresAt": 1825815930964,
+      "status": "credited"
+    },
+    {
+      "id": "tx_earn_CN-860881_ipmjozqzuvg9xdj8uyliwswauuc3_1794279930964",
+      "accountId": "ipmjozqzuvg9xdj8uyliwswauuc3",
+      "orderId": "CN-860881",
+      "type": "earned",
+      "points": 470,
+      "amountInr": 9450,
+      "description": "Earned on Delivered Order #CN-860881 (5 pts / ₹100)",
+      "createdAt": 1794215721845,
+      "expiresAt": 1825815930964,
+      "status": "credited"
+    },
     {
       "id": "tx_earn_CN-169941_phone_7838625915",
       "accountId": "phone_7838625915",
@@ -3145,5 +3241,137 @@
       "expiresAt": 1825751657205,
       "status": "credited"
     }
-  ]
+  ],
+  "customerActivity": {
+    "ipMjoZQzuvg9Xdj8uylIwSwaUuC3": {
+      "uid": "ipMjoZQzuvg9Xdj8uylIwSwaUuC3",
+      "customerName": "saurabh grover",
+      "email": "saurabh.451485@gmail.com",
+      "phone": "",
+      "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
+      "authProvider": "google",
+      "accountCreatedAt": 1794232460968,
+      "lastLoginAt": 1794279929160,
+      "lastActiveAt": 1794280049031,
+      "totalSessions": 2,
+      "totalTimeSpentSeconds": 1546,
+      "averageSessionDurationSeconds": 773,
+      "totalPagesVisited": 3,
+      "pageVisitCounts": {
+        "Home Showcase": 2,
+        "Admin Analytics": 1
+      },
+      "mostVisitedPage": "Home Showcase",
+      "totalProductViews": 0,
+      "productsViewed": [],
+      "totalAddedToCartCount": 0,
+      "cartActivity": [],
+      "totalAddedToWishlistCount": 1,
+      "currentWishlist": [
+        {
+          "productId": "bedsheet-mw6ks1ic",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794066452/cotton_nest/bedsheets/sheet_bedsheet-mw6ks1ic_1794066452.jpg",
+          "productPrice": 1350,
+          "addedAt": 1794155434713,
+          "currentlyInWishlist": true
+        }
+      ],
+      "historicalWishlist": [
+        {
+          "productId": "bedsheet-mw6ks1ic",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794066452/cotton_nest/bedsheets/sheet_bedsheet-mw6ks1ic_1794066452.jpg",
+          "productPrice": 1350,
+          "addedAt": 1794155434713,
+          "currentlyInWishlist": true
+        }
+      ],
+      "totalSearches": 0,
+      "searchHistory": [],
+      "ordersPlacedCount": 0,
+      "totalPurchaseValue": 0,
+      "deviceInfo": {
+        "deviceType": "Desktop",
+        "os": "Windows 10/11",
+        "browser": "Google Chrome",
+        "screenResolution": "1536x864",
+        "deviceCategory": "Windows 10/11 Workstation / Desktop",
+        "approximateLocation": "India (IST Region)",
+        "language": "en-GB",
+        "userAgentSummary": "Google Chrome on Windows 10/11 (Desktop)"
+      },
+      "sessions": [
+        {
+          "sessionId": "sess_1794279929160_xi6no",
+          "loginAt": 1794279929160,
+          "lastActiveAt": 1794280049031,
+          "durationSeconds": 119,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794232460968_xe468",
+          "loginAt": 1794232460968,
+          "lastActiveAt": 1794236121613,
+          "durationSeconds": 1427,
+          "pagesVisited": [
+            "Home Showcase",
+            "Admin Analytics"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794279929160_xi6no",
+          "timestamp": 1794279929160,
+          "id": "evt_1794279929160_x1wmz"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794232460968_xe468",
+          "timestamp": 1794236121463,
+          "id": "evt_1794236121463_hclep"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Admin Analytics",
+          "page": "Admin Analytics",
+          "sessionId": "sess_1794232460968_xe468",
+          "timestamp": 1794233222892,
+          "id": "evt_1794233222892_b3s7l"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Home Showcase",
+          "page": "Home Showcase",
+          "sessionId": "sess_1794232460968_xe468",
+          "timestamp": 1794232460978,
+          "id": "evt_1794232460978_aj5pw"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794232460968_xe468",
+          "timestamp": 1794232460968,
+          "id": "evt_1794232460968_i8e0j"
+        }
+      ],
+      "updatedAt": 1794280052584
+    }
+  }
 }

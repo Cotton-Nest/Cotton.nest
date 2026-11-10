@@ -7,6 +7,7 @@ import {
   getTransactionExpiryDate,
   isTransactionExpired,
   generateReferralCode,
+  sanitizeLoyaltyKey,
 } from '../data/loyalty';
 import {
   getLoyaltyAccountApi,
@@ -66,14 +67,25 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const refreshLoyalty = useCallback(
     async (explicitKey?: string): Promise<LoyaltyAccount | null> => {
-      const key = explicitKey || activeKey;
+      let resolvedPhone = user?.phone;
+      let resolvedEmail = user?.email;
+      try {
+        const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
+        if (rawProfile) {
+          const parsed = JSON.parse(rawProfile);
+          if (parsed?.phone && !resolvedPhone) resolvedPhone = parsed.phone;
+          if (parsed?.email && !resolvedEmail) resolvedEmail = parsed.email;
+        }
+      } catch {}
+
+      const key = explicitKey || (resolvedPhone ? sanitizeLoyaltyKey(resolvedPhone) : activeKey);
       if (!key) return null;
       setIsLoading(true);
       try {
         const acc = await getLoyaltyAccountApi(key, {
           name: user?.name,
-          phone: user?.phone,
-          email: user?.email,
+          phone: resolvedPhone,
+          email: resolvedEmail,
           userId: user?.id,
         });
         setAccount(acc);
@@ -89,7 +101,16 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 
   const loadTransactions = useCallback(async (): Promise<LoyaltyTransaction[]> => {
-    const key = activeKey;
+    let resolvedPhone = user?.phone;
+    try {
+      const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
+      if (rawProfile) {
+        const parsed = JSON.parse(rawProfile);
+        if (parsed?.phone && !resolvedPhone) resolvedPhone = parsed.phone;
+      }
+    } catch {}
+
+    const key = resolvedPhone ? sanitizeLoyaltyKey(resolvedPhone) : activeKey;
     if (!key) return [];
     try {
       const txs = await getLoyaltyTransactionsApi(key);
@@ -98,7 +119,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch {
       return [];
     }
-  }, [activeKey]);
+  }, [activeKey, user]);
 
   useEffect(() => {
     refreshLoyalty();
@@ -196,19 +217,19 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     nextExpiryTimestamp,
   } = useMemo(() => {
     const now = Date.now();
-    const earnedTxs = transactions.filter((t) => t.points > 0 && t.type === 'earned');
-    const referralTxs = transactions.filter((t) => t.points > 0 && (t.type === 'referral' || t.type === 'bonus'));
+    const earnedTxs = transactions.filter((t) => (Number(t.points) || 0) > 0 && (t.type === 'earned' || !t.type));
+    const referralTxs = transactions.filter((t) => (Number(t.points) || 0) > 0 && (t.type === 'referral' || t.type === 'bonus'));
     const redeemedTxs = transactions.filter(
-      (t) => (t.type === 'redeemed' || t.points < 0) && Math.abs(t.points) <= LOYALTY_MAX_REDEMPTION_POINTS
+      (t) => (t.type === 'redeemed' || (Number(t.points) || 0) < 0) && Math.abs(Number(t.points) || 0) <= LOYALTY_MAX_REDEMPTION_POINTS
     );
 
-    const calcPurchaseEarned = earnedTxs.reduce((sum, t) => sum + Math.max(0, t.points), 0);
-    const calcReferralEarned = referralTxs.reduce((sum, t) => sum + Math.max(0, t.points), 0);
-    const calcUsed = redeemedTxs.reduce((sum, t) => sum + Math.abs(t.points), 0);
+    const calcPurchaseEarned = earnedTxs.reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+    const calcReferralEarned = referralTxs.reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+    const calcUsed = redeemedTxs.reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
 
     const expiredPoints = [...earnedTxs, ...referralTxs]
       .filter((t) => isTransactionExpired(t.createdAt, t.expiresAt, now))
-      .reduce((sum, t) => sum + Math.max(0, t.points), 0);
+      .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
 
     const totalEarned = Math.max(
       account?.lifetimeEarned || 0,
@@ -223,7 +244,8 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ? rawAccountSpent
         : 0;
 
-    const effectiveBalance = Math.max(0, totalEarned - totalSpent - expiredPoints);
+    const computedNet = Math.max(0, totalEarned - totalSpent - expiredPoints);
+    const effectiveBalance = Math.max(account?.pointsBalance || 0, computedNet);
 
     // Find the earliest upcoming expiry timestamp among active positive transactions
     const activePositiveExpiries = [...earnedTxs, ...referralTxs]

@@ -1978,52 +1978,61 @@ export async function savePushSubscriptionApi(pushSub: PushSubscriptionData): Pr
  * Resiliently queries Firestore first, then falls back to /api/wishlists Express endpoint.
  */
 export async function getWishlistsApi(customerId?: string): Promise<WishlistItem[]> {
+  const mergedMap = new Map<string, WishlistItem>();
+
+  // 1. Fetch from Firestore wishlists collection
   try {
     const snap = await getDocs(collection(db, 'wishlists'));
     if (!snap.empty) {
-      const allItems: WishlistItem[] = [];
-      const matchedItems: WishlistItem[] = [];
       snap.forEach((d) => {
         const item = { id: d.id, ...d.data() } as WishlistItem;
-        allItems.push(item);
-        if (!customerId || item.customerId === customerId) {
-          matchedItems.push(item);
+        if (item && item.id) {
+          if (!customerId || item.customerId === customerId) {
+            mergedMap.set(item.id, item);
+          }
         }
       });
-      const result = matchedItems.length > 0 ? matchedItems : allItems;
-      return result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     }
   } catch {
-    // Fallback to site_content/wishlists_registry or Express API
+    // Continue to other sources
   }
 
+  // 2. Fetch from Firestore site_content/wishlists_registry fallback
   try {
     const regSnap = await getDoc(doc(db, 'site_content', 'wishlists_registry'));
     if (regSnap.exists()) {
       const data = regSnap.data();
       if (data && Array.isArray(data.items)) {
-        const items = (data.items as WishlistItem[]).filter(
-          (item) => !customerId || item.customerId === customerId
-        );
-        if (items.length > 0) {
-          return items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        }
+        (data.items as WishlistItem[]).forEach((item) => {
+          if (item && item.id && (!customerId || item.customerId === customerId)) {
+            if (!mergedMap.has(item.id)) {
+              mergedMap.set(item.id, item);
+            }
+          }
+        });
       }
     }
   } catch {}
 
+  // 3. Fetch from Express /api/wishlists backend endpoint
   try {
     const url = customerId ? `/api/wishlists?customerId=${encodeURIComponent(customerId)}` : '/api/wishlists';
     const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
-        return data;
+        data.forEach((item: WishlistItem) => {
+          if (item && item.id && (!customerId || item.customerId === customerId)) {
+            if (!mergedMap.has(item.id)) {
+              mergedMap.set(item.id, item);
+            }
+          }
+        });
       }
     }
   } catch {}
 
-  return [];
+  return Array.from(mergedMap.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 }
 
 /**

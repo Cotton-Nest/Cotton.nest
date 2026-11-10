@@ -465,8 +465,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               createdAt: raw.createdAt || new Date().toISOString(),
             });
           });
-          liveOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-          setEditableOrders(liveOrders);
+          setEditableOrders((prev) => {
+            const map = new Map<string, Order>();
+            (prev || []).forEach((o) => {
+              if (o && o.id) map.set(o.id, o);
+            });
+            liveOrders.forEach((o) => {
+              if (o && o.id) map.set(o.id, o);
+            });
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            );
+          });
           setOrdersLastSyncedAt(new Date());
         }
       },

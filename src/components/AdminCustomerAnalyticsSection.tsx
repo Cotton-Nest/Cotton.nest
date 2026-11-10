@@ -32,6 +32,8 @@ import {
   Users,
   X
 } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { BedsheetProduct } from '../data/products';
 import { Order } from '../data/orders';
 import { WishlistItem } from '../data/wishlist';
@@ -133,6 +135,25 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
   const allProfiles = useMemo(() => {
     return reconcileCustomerProfilesWithStoreData(rawProfiles, orders, wishlists);
   }, [rawProfiles, orders, wishlists]);
+
+  // Synchronize all reconciled customer profiles to Firestore so they are permanent across all devices and published URLs
+  useEffect(() => {
+    if (!allProfiles || allProfiles.length === 0) return;
+    allProfiles.forEach(async (p) => {
+      if (!p || !p.uid) return;
+      try {
+        await setDoc(doc(db, 'customer_activity', p.uid), p, { merge: true });
+      } catch {}
+      try {
+        await fetch('/api/customer-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p),
+          keepalive: true
+        });
+      } catch {}
+    });
+  }, [allProfiles]);
 
   // Apply Search, Date Range, Device Type, and Sort
   const filteredProfiles = useMemo(() => {

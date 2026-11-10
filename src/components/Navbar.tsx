@@ -102,7 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Main Header with Apple Liquid Glass */}
       <header className="sticky top-0 z-40 liquid-glass-nav transition-all">
-        <div className="max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6 py-2 min-h-16 flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+        <div className="max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6 py-2 h-16 flex items-center justify-between gap-2">
           
           {/* Zone 1: Logo and Brand Name */}
           <motion.button
@@ -284,8 +284,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Zone 3: All Action Buttons & User Profile — Aligned & Visible */}
-          <div className="flex items-center flex-wrap justify-end gap-1.5 sm:gap-2 shrink-0">
+          {/* Zone 3 Desktop: All Action Buttons & User Profile (md:flex) */}
+          <div className="hidden md:flex items-center justify-end gap-1.5 lg:gap-2 shrink-0">
             
             {/* Owner Exclusive Controls */}
             {isAdmin && (
@@ -541,12 +541,61 @@ export const Navbar: React.FC<NavbarProps> = ({
               </AnimatePresence>
             </motion.button>
 
+          </div>
+
+          {/* Zone 3 Mobile: Clean, Single-Row Action Cluster (md:hidden) */}
+          <div className="flex md:hidden items-center gap-1.5 shrink-0">
+            {/* Install App Button near top Nav bar */}
+            <PWAInstallButton variant="compact" />
+
+            {/* Wishlist CTA Mobile */}
+            {onOpenWishlist && (
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                type="button"
+                onClick={onOpenWishlist}
+                aria-label="Saved Wishlist"
+                className="relative p-2 text-[var(--color-text,#2C2420)] rounded-full liquid-glass-badge hover:bg-white cursor-pointer shrink-0"
+              >
+                <Heart className="w-4 h-4 text-rose-500" />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs">
+                    {wishlistCount > 9 ? '9+' : wishlistCount}
+                  </span>
+                )}
+              </motion.button>
+            )}
+
+            {/* Shopping Bag CTA Mobile */}
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={openCart}
+              aria-label="View Shopping Bag"
+              className="relative p-2 text-[var(--color-text,#2C2420)] rounded-full liquid-glass-badge hover:bg-white cursor-pointer shrink-0"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <AnimatePresence mode="popLayout">
+                {cartCount > 0 && (
+                  <motion.span
+                    key={cartCount}
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.4, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 20 }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--color-primary,#70252D)] text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs"
+                  >
+                    {cartCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+
             {/* Mobile Menu Hamburger Toggle */}
             <motion.button
               whileTap={{ scale: 0.92 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation menu"
-              className="md:hidden p-2 text-[#2C2420] hover:bg-white rounded-full cursor-pointer liquid-glass-badge shrink-0 flex items-center justify-center"
+              className="p-2 text-[#2C2420] hover:bg-white rounded-full cursor-pointer liquid-glass-badge shrink-0 flex items-center justify-center"
             >
               {mobileMenuOpen ? <X className="w-5 h-5 text-[#70252D]" /> : <Menu className="w-5 h-5" />}
             </motion.button>
@@ -604,6 +653,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                         My Account
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        openLoyaltyModal();
+                      }}
+                      className="flex-1 py-1.5 text-center text-xs font-semibold text-amber-900 bg-amber-50 rounded-lg border border-amber-200 cursor-pointer"
+                    >
+                      {pointsBalance} Nest Pts
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
