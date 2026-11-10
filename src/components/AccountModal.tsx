@@ -45,6 +45,7 @@ import {
   canRedeemPoints,
   getTransactionExpiryDate,
   isTransactionExpired,
+  sanitizeLoyaltyKey,
 } from '../data/loyalty';
 import { WishlistItem, CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
 import { Order } from '../data/orders';
@@ -143,7 +144,11 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setAddressBook(getSavedAddresses(customerProfile, userKey));
+    const activeCustomerPhone = customerProfile?.phone || user?.phone;
+    const explicitAccKey = activeCustomerPhone
+      ? sanitizeLoyaltyKey(activeCustomerPhone)
+      : (user?.email ? sanitizeLoyaltyKey(user.email) : undefined);
+
     getOrders()
       .then((res) => {
         if (Array.isArray(res)) {
@@ -152,15 +157,15 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             localStorage.setItem('cotton_nest_orders', JSON.stringify(res));
           } catch {}
         }
-        refreshLoyalty();
-        loadTransactions();
+        refreshLoyalty(explicitAccKey);
+        loadTransactions(explicitAccKey);
       })
       .catch(() => {
-        refreshLoyalty();
-        loadTransactions();
+        refreshLoyalty(explicitAccKey);
+        loadTransactions(explicitAccKey);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, userKey, activeTab]);
+  }, [isOpen, userKey, activeTab, customerProfile?.phone, user?.phone]);
 
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
@@ -370,10 +375,36 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       return sum + calculateEarnedPoints(net);
     }, 0);
 
-  const displayPointsFromPurchases = Math.max(pointsEarnedFromPurchases, deliveredOrdersEarned);
+  // Authoritative earned credits and debits directly from ledger transactions
+  const totalEarnedFromTxs = transactions
+    .filter((t) => {
+      const type = (t.type || '').toLowerCase();
+      const pts = Number(t.points) || 0;
+      return pts > 0 && (type === 'earned' || type === 'credit' || type === 'bonus' || type === 'referral' || type === 'adjustment' || !type);
+    })
+    .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+
+  const totalUsedFromTxs = transactions
+    .filter((t) => {
+      const type = (t.type || '').toLowerCase();
+      const pts = Number(t.points) || 0;
+      return pts < 0 || type === 'redeemed' || type === 'debit';
+    })
+    .reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
+
+  const netFromTxs = Math.max(0, totalEarnedFromTxs - totalUsedFromTxs);
+
+  const displayPointsFromPurchases = Math.max(
+    pointsEarnedFromPurchases,
+    deliveredOrdersEarned,
+    totalEarnedFromTxs
+  );
+  const displayPointsUsed = Math.max(pointsUsed, totalUsedFromTxs);
+
   const activeAvailablePoints = Math.max(
     pointsBalance,
-    Math.max(0, displayPointsFromPurchases + referralPointsEarned - pointsUsed)
+    netFromTxs,
+    Math.max(0, displayPointsFromPurchases + referralPointsEarned - displayPointsUsed)
   );
   const activeRupeesValue = calculatePointsDiscount(activeAvailablePoints);
   const formattedNextExpiry = nextExpiryTimestamp
@@ -865,10 +896,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       4. Points Used
                     </span>
                     <span className="text-lg font-extrabold font-mono text-rose-700 mt-0.5 block">
-                      {pointsUsed} pts
+                      {displayPointsUsed} pts
                     </span>
                     <span className="text-[10px] text-[#7A6458] block">
-                      Saved ₹{calculatePointsDiscount(pointsUsed)} on orders
+                      Saved ₹{calculatePointsDiscount(displayPointsUsed)} on orders
                     </span>
                   </div>
 
@@ -1040,22 +1071,22 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   <li><strong>Non-Encashable:</strong> Nest Points cannot be exchanged or redeemed for cash.</li>
                 </ul>
 
-                {/* Loyalty Points Redemption – Additional Terms & Conditions */}
+                {/* Additional Terms & Conditions for Nest Points Redemption */}
                 <div className="pt-2.5 mt-2.5 border-t border-[#EAE2D5] space-y-1.5">
                   <h5 className="font-bold text-[#8C2E46] uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                     <span>🛡️</span>
-                    <span>Loyalty Points Redemption – Additional Terms &amp; Conditions</span>
+                    <span>Additional Terms &amp; Conditions for Nest Points Redemption</span>
                   </h5>
                   <ol className="list-decimal pl-4 space-y-1 text-[11px] text-[#6B5D55]">
-                    <li>Nest Points can only be redeemed by the registered customer account to which they were originally credited.</li>
-                    <li>Points cannot be transferred, exchanged for cash, or redeemed outside the Cotton Nest website.</li>
-                    <li>Redemption is permitted only on eligible purchases and cannot be combined with any excluded promotional offers unless explicitly allowed by Cotton Nest.</li>
-                    <li>The maximum Nest Points redemption limit is 125 points per order.</li>
-                    <li>Customers must have sufficient available points at the time of checkout. Points already redeemed cannot be reused.</li>
-                    <li>Once an order is successfully placed using Nest Points, the redeemed points will be deducted from the customer&apos;s available balance.</li>
-                    <li>If an order is cancelled or refunded, the redeemed points will be returned to the customer&apos;s account, subject to order and refund verification.</li>
-                    <li>Cotton Nest reserves the right to reverse points credited through incorrect calculations, fraudulent transactions, or cancelled/returned purchases.</li>
-                    <li>Nest Points have no independent cash value and cannot be transferred to another account.</li>
+                    <li>Nest Points are account-specific and non-transferable. They can only be redeemed by the registered customer to whom they were credited.</li>
+                    <li>Nest Points cannot be exchanged for cash or transferred to another account.</li>
+                    <li>Redemption is permitted only on eligible purchases.</li>
+                    <li>Maximum redemption is capped at 125 Nest Points per order.</li>
+                    <li>Customers must have sufficient available points at checkout to redeem them.</li>
+                    <li>Once an order is successfully placed using Nest Points, the redeemed points must be deducted from the available balance.</li>
+                    <li>If an order is cancelled or refunded, redeemed points must be reinstated after verification, according to the applicable refund process.</li>
+                    <li>Cotton Nest reserves the right to reverse points credited incorrectly or obtained through fraudulent transactions.</li>
+                    <li>Nest Points have no independent cash value and cannot be redeemed outside the Cotton Nest website.</li>
                     <li>Cotton Nest reserves the right to modify or discontinue the loyalty programme with reasonable notice.</li>
                   </ol>
                 </div>

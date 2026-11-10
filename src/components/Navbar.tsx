@@ -56,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
+  const [mobileUserDropdownOpen, setMobileUserDropdownOpen] = React.useState(false);
   const { user, isAuthenticated, logout, loginWithGoogle, isOwner } = useAuth();
   const isAdmin = Boolean(isOwnerMode || isOwner || (user?.email && isOwnerEmail(user.email)));
   const { pointsBalance, pointsRupeesValue, openLoyaltyModal } = useLoyalty();
@@ -545,8 +546,129 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Zone 3 Mobile: Clean, Single-Row Action Cluster (md:hidden) */}
           <div className="flex md:hidden items-center gap-1.5 shrink-0">
-            {/* Install App Button near top Nav bar */}
-            <PWAInstallButton variant="compact" />
+            {/* Auth / Profile Initial Button on Mobile */}
+            {isAuthenticated && user ? (
+              <div className="relative">
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setMobileUserDropdownOpen(!mobileUserDropdownOpen)}
+                  aria-label="User Account Menu"
+                  aria-expanded={mobileUserDropdownOpen}
+                  className="w-8 h-8 rounded-full bg-[#70252D] text-white flex items-center justify-center text-xs font-bold shadow-xs hover:bg-[#8C2E46] transition-colors cursor-pointer shrink-0 border border-white/80 select-none"
+                >
+                  {user.name && user.name.trim().length > 0 ? (
+                    user.name.trim().charAt(0).toUpperCase()
+                  ) : (
+                    <User className="w-3.5 h-3.5 text-white" />
+                  )}
+                </motion.button>
+
+                <AnimatePresence>
+                  {mobileUserDropdownOpen && (
+                    <>
+                      {/* Click outside backdrop */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setMobileUserDropdownOpen(false)}
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                        transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                        className="absolute right-0 mt-2 w-64 bg-white rounded-2xl border border-[#DEC89B] shadow-2xl p-2 z-50 origin-top-right text-left"
+                      >
+                        <div className="p-2.5 bg-[#FAF7F2] rounded-xl mb-1.5 border border-[#EAE2D5]">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <p className="text-xs font-bold text-[#2C2420] truncate">
+                              {user.name || 'Valued Member'}
+                            </p>
+                            {isAdmin && (
+                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-[#70252D] text-white shrink-0">
+                                Admin
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-[#7A6458] truncate">{user.email || user.phone}</p>
+                          <div className="mt-1.5 pt-1.5 border-t border-[#EAE2D5] flex items-center justify-between text-[11px]">
+                            <span className="text-[#7A6458] font-medium">Nest Points:</span>
+                            <span className="font-bold text-[#70252D] font-mono">{pointsBalance} pts</span>
+                          </div>
+                        </div>
+
+                        {onOpenAccount && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileUserDropdownOpen(false);
+                              onOpenAccount();
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                          >
+                            <User className="w-3.5 h-3.5 text-[#8C2E46]" />
+                            <span>My Account & Points</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMobileUserDropdownOpen(false);
+                            handleNavClick('orders');
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-[#2C2420] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                        >
+                          <Package className="w-3.5 h-3.5 text-[#C29E57]" />
+                          <span>My Orders & Tracking</span>
+                        </button>
+
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileUserDropdownOpen(false);
+                              handleNavClick('analytics');
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-[#70252D] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                          >
+                            <BarChart3 className="w-3.5 h-3.5 text-[#70252D]" />
+                            <span>Store Analytics (Admin)</span>
+                          </button>
+                        )}
+
+                        {isAdmin && onOpenAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileUserDropdownOpen(false);
+                              onOpenAdmin();
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-[#8C2E46]" />
+                            <span>Owner Admin Panel</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMobileUserDropdownOpen(false);
+                            logout();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer transition-colors mt-1 pt-2 border-t border-[#EAE2D5]"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Sign Out</span>
+                        </button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <GoogleSignInButton variant="navbar" customText="Sign In" className="text-[11px] px-2.5 py-1 shrink-0" />
+            )}
 
             {/* Wishlist CTA Mobile */}
             {onOpenWishlist && (

@@ -2861,13 +2861,13 @@
       "phone": "7838625915",
       "email": "saurabh.451485@gmail.com",
       "userId": "y1RXTxbslaYV453HAFazLTB2iOn1",
-      "lifetimeEarned": 925,
+      "lifetimeEarned": 1850,
       "lifetimeSpent": 0,
-      "pointsBalance": 925,
+      "pointsBalance": 1850,
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794216487101
+      "updatedAt": 1794283331216
     },
     "email_saurabh.451485@gmail.com": {
       "id": "email_saurabh.451485@gmail.com",
@@ -3252,14 +3252,15 @@
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
       "lastLoginAt": 1794279929160,
-      "lastActiveAt": 1794280049031,
+      "lastActiveAt": 1794283291395,
       "totalSessions": 2,
-      "totalTimeSpentSeconds": 1546,
-      "averageSessionDurationSeconds": 773,
-      "totalPagesVisited": 3,
+      "totalTimeSpentSeconds": 2235,
+      "averageSessionDurationSeconds": 1118,
+      "totalPagesVisited": 5,
       "pageVisitCounts": {
         "Home Showcase": 2,
-        "Admin Analytics": 1
+        "Admin Analytics": 1,
+        "Terms & Privacy Policy": 2
       },
       "mostVisitedPage": "Home Showcase",
       "totalProductViews": 0,
@@ -3305,10 +3306,11 @@
         {
           "sessionId": "sess_1794279929160_xi6no",
           "loginAt": 1794279929160,
-          "lastActiveAt": 1794280049031,
-          "durationSeconds": 119,
+          "lastActiveAt": 1794283291395,
+          "durationSeconds": 808,
           "pagesVisited": [
-            "Home Showcase"
+            "Home Showcase",
+            "Terms & Privacy Policy"
           ],
           "productsViewedCount": 0,
           "deviceType": "Desktop",
@@ -3333,6 +3335,29 @@
         }
       ],
       "timeline": [
+        {
+          "type": "page_view",
+          "label": "Visited Terms & Privacy Policy",
+          "page": "Terms & Privacy Policy",
+          "sessionId": "sess_1794279929160_xi6no",
+          "timestamp": 1794281537339,
+          "id": "evt_1794281537339_rg7sc"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794279929160_xi6no",
+          "timestamp": 1794281517693,
+          "id": "evt_1794281517693_hgnai"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Terms & Privacy Policy",
+          "page": "Terms & Privacy Policy",
+          "sessionId": "sess_1794279929160_xi6no",
+          "timestamp": 1794281446669,
+          "id": "evt_1794281446669_fywze"
+        },
         {
           "type": "login",
           "label": "User signed in (Google Chrome on Windows 10/11)",
@@ -3371,7 +3396,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794280052584
+      "updatedAt": 1794283305756
     }
   }
 }

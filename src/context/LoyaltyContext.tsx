@@ -50,7 +50,7 @@ interface LoyaltyContextType {
     referralCodeInput: string,
     phoneOrKey?: string
   ) => Promise<{ success: boolean; message: string; pointsAwarded: number }>;
-  loadTransactions: () => Promise<LoyaltyTransaction[]>;
+  loadTransactions: (explicitKey?: string) => Promise<LoyaltyTransaction[]>;
 }
 
 const LoyaltyContext = createContext<LoyaltyContextType | undefined>(undefined);
@@ -100,7 +100,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [activeKey, user]
   );
 
-  const loadTransactions = useCallback(async (): Promise<LoyaltyTransaction[]> => {
+  const loadTransactions = useCallback(async (explicitKey?: string): Promise<LoyaltyTransaction[]> => {
     let resolvedPhone = user?.phone;
     try {
       const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
@@ -110,7 +110,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     } catch {}
 
-    const key = resolvedPhone ? sanitizeLoyaltyKey(resolvedPhone) : activeKey;
+    const key = explicitKey || (resolvedPhone ? sanitizeLoyaltyKey(resolvedPhone) : activeKey);
     if (!key) return [];
     try {
       const txs = await getLoyaltyTransactionsApi(key);
@@ -217,19 +217,36 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     nextExpiryTimestamp,
   } = useMemo(() => {
     const now = Date.now();
-    const earnedTxs = transactions.filter((t) => (Number(t.points) || 0) > 0 && (t.type === 'earned' || !t.type));
-    const referralTxs = transactions.filter((t) => (Number(t.points) || 0) > 0 && (t.type === 'referral' || t.type === 'bonus'));
-    const redeemedTxs = transactions.filter(
-      (t) => (t.type === 'redeemed' || (Number(t.points) || 0) < 0) && Math.abs(Number(t.points) || 0) <= LOYALTY_MAX_REDEMPTION_POINTS
-    );
+    const earnedTxs = transactions.filter((t) => {
+      const type = (t.type || '').toLowerCase();
+      const pts = Number(t.points) || 0;
+      return pts > 0 && (type === 'earned' || type === 'credit' || type === 'bonus' || type === 'referral' || type === 'adjustment' || !type);
+    });
+    const referralTxs = transactions.filter((t) => {
+      const type = (t.type || '').toLowerCase();
+      const pts = Number(t.points) || 0;
+      return pts > 0 && (type === 'referral' || type === 'bonus');
+    });
+    const redeemedTxs = transactions.filter((t) => {
+      const type = (t.type || '').toLowerCase();
+      const pts = Number(t.points) || 0;
+      return pts < 0 || type === 'redeemed' || type === 'debit';
+    });
 
-    const calcPurchaseEarned = earnedTxs.reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+    const calcPurchaseEarned = earnedTxs
+      .filter((t) => {
+        const type = (t.type || '').toLowerCase();
+        return type !== 'referral' && type !== 'bonus';
+      })
+      .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
     const calcReferralEarned = referralTxs.reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
     const calcUsed = redeemedTxs.reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
 
-    const expiredPoints = [...earnedTxs, ...referralTxs]
+    const expiredPoints = earnedTxs
       .filter((t) => isTransactionExpired(t.createdAt, t.expiresAt, now))
       .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+
+    const netFromTxs = Math.max(0, calcPurchaseEarned + calcReferralEarned - calcUsed - expiredPoints);
 
     const totalEarned = Math.max(
       account?.lifetimeEarned || 0,
@@ -245,10 +262,10 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         : 0;
 
     const computedNet = Math.max(0, totalEarned - totalSpent - expiredPoints);
-    const effectiveBalance = Math.max(account?.pointsBalance || 0, computedNet);
+    const effectiveBalance = Math.max(account?.pointsBalance || 0, computedNet, netFromTxs);
 
     // Find the earliest upcoming expiry timestamp among active positive transactions
-    const activePositiveExpiries = [...earnedTxs, ...referralTxs]
+    const activePositiveExpiries = earnedTxs
       .map((t) => getTransactionExpiryDate(t.createdAt, t.expiresAt))
       .filter((exp) => exp > now)
       .sort((a, b) => a - b);

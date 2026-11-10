@@ -7,7 +7,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { getCloudinaryConfig } from './api/cloudinary-sign.ts';
 import { BEDSHEETS_CATALOG, normalizeCustomPrice } from './src/data/products.ts';
 import { INITIAL_ORDERS } from './src/data/orders.ts';
-import { INITIAL_SITE_CONTENT } from './src/data/siteContent.ts';
+import { INITIAL_SITE_CONTENT, normalizeShippingInTerms } from './src/data/siteContent.ts';
 import { INITIAL_REVIEWS } from './src/data/reviews.ts';
 import { INITIAL_SEASONAL_CONFIG } from './src/data/seasonal.ts';
 import { INITIAL_COUPONS, CouponOffer } from './src/data/coupons.ts';
@@ -288,6 +288,16 @@ function initDatabase(): StoreDatabase {
         if (!parsed.notifications || !Array.isArray(parsed.notifications)) {
           parsed.notifications = [...INITIAL_CUSTOMER_NOTIFICATIONS];
           needsSave = true;
+        }
+        if (!parsed.siteContent) {
+          parsed.siteContent = INITIAL_SITE_CONTENT;
+          needsSave = true;
+        } else if (parsed.siteContent.termsAndConditions) {
+          const normalizedTc = normalizeShippingInTerms(parsed.siteContent.termsAndConditions);
+          if (normalizedTc !== parsed.siteContent.termsAndConditions) {
+            parsed.siteContent.termsAndConditions = normalizedTc;
+            needsSave = true;
+          }
         }
         if (needsSave) {
           try {
@@ -2122,11 +2132,18 @@ async function startServer() {
         }
       }
     } catch {}
+    if (db.siteContent?.termsAndConditions) {
+      db.siteContent.termsAndConditions = normalizeShippingInTerms(db.siteContent.termsAndConditions);
+    }
     res.json(db.siteContent);
   });
 
   app.put('/api/content', (req, res) => {
-    db.siteContent = req.body;
+    const updated = req.body || {};
+    if (updated.termsAndConditions) {
+      updated.termsAndConditions = normalizeShippingInTerms(updated.termsAndConditions);
+    }
+    db.siteContent = updated;
     saveDatabase();
     res.json(db.siteContent);
   });
@@ -2717,31 +2734,52 @@ async function startServer() {
           }
         });
 
-        if (matchedAnyOrder) {
-          const referralBonus = (db.loyaltyTransactions || [])
-            .filter((t) => t && (t.accountId === accountId || (cleanPhoneDigits && t.accountId === `phone_${cleanPhoneDigits}`)) && (t.type === 'referral' || t.type === 'bonus') && t.points > 0)
-            .reduce((sum, t) => sum + Number(t.points || 0), 0);
-          const effectiveReferral = Math.max(account.referralPointsEarned || 0, referralBonus);
-          const effectiveEarned = Math.max(account.lifetimeEarned || 0, earnedFromDeliveredOrders + effectiveReferral);
-          const safeAccountSpent = (account.lifetimeSpent || 0) <= effectiveEarned ? (account.lifetimeSpent || 0) : 0;
-          const effectiveSpent = Math.max(safeAccountSpent, spentFromOrders);
-          const computedNet = Math.max(0, effectiveEarned - effectiveSpent);
+        const matchingTxs = (db.loyaltyTransactions || []).filter((t) => {
+          if (!t) return false;
+          const txAcc = String(t.accountId || '').toLowerCase().trim();
+          return (
+            txAcc === accountId ||
+            (cleanPhoneDigits && (txAcc === `phone_${cleanPhoneDigits}` || txAcc.endsWith(cleanPhoneDigits))) ||
+            (extractedEmail && txAcc === `email_${extractedEmail}`)
+          );
+        });
+        const txEarned = matchingTxs
+          .filter((t) => {
+            const type = (t.type || '').toLowerCase();
+            return (Number(t.points) > 0) && (type === 'earned' || type === 'credit' || type === 'bonus' || type === 'referral' || type === 'adjustment' || !type);
+          })
+          .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+        const txSpent = matchingTxs
+          .filter((t) => {
+            const type = (t.type || '').toLowerCase();
+            return (Number(t.points) < 0) || type === 'redeemed' || type === 'debit';
+          })
+          .reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
+        const txNet = Math.max(0, txEarned - txSpent);
 
-          if (
-            computedNet !== account.pointsBalance ||
-            effectiveSpent !== account.lifetimeSpent ||
-            effectiveEarned !== account.lifetimeEarned ||
-            txAdded
-          ) {
-            account.lifetimeEarned = effectiveEarned;
-            account.lifetimeSpent = effectiveSpent;
-            account.pointsBalance = computedNet;
-            if (cleanPhoneDigits && !account.phone) account.phone = cleanPhoneDigits;
-            if (extractedEmail && !account.email) account.email = extractedEmail;
-            account.updatedAt = Date.now();
-            db.loyaltyAccounts[accountId] = account;
-            saveDatabase();
-          }
+        const referralBonus = matchingTxs
+          .filter((t) => (t.type === 'referral' || t.type === 'bonus') && t.points > 0)
+          .reduce((sum, t) => sum + Number(t.points || 0), 0);
+        const effectiveReferral = Math.max(account.referralPointsEarned || 0, referralBonus);
+        const effectiveEarned = Math.max(account.lifetimeEarned || 0, earnedFromDeliveredOrders + effectiveReferral, txEarned);
+        const safeAccountSpent = (account.lifetimeSpent || 0) <= effectiveEarned ? (account.lifetimeSpent || 0) : 0;
+        const effectiveSpent = Math.min(effectiveEarned, Math.max(safeAccountSpent, spentFromOrders, txSpent));
+        const computedNet = Math.max(0, effectiveEarned - effectiveSpent, txNet);
+
+        if (
+          computedNet !== account.pointsBalance ||
+          effectiveSpent !== account.lifetimeSpent ||
+          effectiveEarned !== account.lifetimeEarned ||
+          txAdded
+        ) {
+          account.lifetimeEarned = effectiveEarned;
+          account.lifetimeSpent = effectiveSpent;
+          account.pointsBalance = computedNet;
+          if (cleanPhoneDigits && !account.phone) account.phone = cleanPhoneDigits;
+          if (extractedEmail && !account.email) account.email = extractedEmail;
+          account.updatedAt = Date.now();
+          db.loyaltyAccounts[accountId] = account;
+          saveDatabase();
         }
       }
     }

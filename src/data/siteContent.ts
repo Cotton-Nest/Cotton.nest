@@ -123,6 +123,18 @@ Your soft & stylish bedsheet hub. 🛍️
 • *Points expire after 12 months* from the date of credit.
 • *Points cannot be exchanged for cash.*
 
+🛡️ *Additional Terms & Conditions for Nest Points Redemption*
+1. Nest Points are account-specific and non-transferable. They can only be redeemed by the registered customer to whom they were credited.
+2. Nest Points cannot be exchanged for cash or transferred to another account.
+3. Redemption is permitted only on eligible purchases.
+4. Maximum redemption is capped at 125 Nest Points per order.
+5. Customers must have sufficient available points at checkout to redeem them.
+6. Once an order is successfully placed using Nest Points, the redeemed points must be deducted from the available balance.
+7. If an order is cancelled or refunded, redeemed points must be reinstated after verification, according to the applicable refund process.
+8. Cotton Nest reserves the right to reverse points credited incorrectly or obtained through fraudulent transactions.
+9. Nest Points have no independent cash value and cannot be redeemed outside the Cotton Nest website.
+10. Cotton Nest reserves the right to modify or discontinue the loyalty programme with reasonable notice.
+
 💖 *Thank you for shopping with Cotton Nest!*
 *Feel the Softness. 🌸*`,
 };
@@ -134,7 +146,19 @@ const UPDATED_LOYALTY_TC_BLOCK = `🎁 *LOYALTY REWARDS & NEST POINTS TERMS*
 • *Points credited only after successful delivery and full payment.*
 • *No points on delivery charges.*
 • *Points expire after 12 months* from the date of credit.
-• *Points cannot be exchanged for cash.*`;
+• *Points cannot be exchanged for cash.*
+
+🛡️ *Additional Terms & Conditions for Nest Points Redemption*
+1. Nest Points are account-specific and non-transferable. They can only be redeemed by the registered customer to whom they were credited.
+2. Nest Points cannot be exchanged for cash or transferred to another account.
+3. Redemption is permitted only on eligible purchases.
+4. Maximum redemption is capped at 125 Nest Points per order.
+5. Customers must have sufficient available points at checkout to redeem them.
+6. Once an order is successfully placed using Nest Points, the redeemed points must be deducted from the available balance.
+7. If an order is cancelled or refunded, redeemed points must be reinstated after verification, according to the applicable refund process.
+8. Cotton Nest reserves the right to reverse points credited incorrectly or obtained through fraudulent transactions.
+9. Nest Points have no independent cash value and cannot be redeemed outside the Cotton Nest website.
+10. Cotton Nest reserves the right to modify or discontinue the loyalty programme with reasonable notice.`;
 
 export function normalizeShippingInTerms(rawText?: string): string {
   const base = typeof rawText === 'string' && rawText.trim() !== ''
@@ -151,16 +175,18 @@ export function normalizeShippingInTerms(rawText?: string): string {
       'Flat ₹29 Across India (shipping charges applied at order placement: ₹29).'
     );
 
-  // Replace legacy 1 pt / ₹50 loyalty block if present
+  // Replace legacy loyalty block or normalize with the authoritative block including the 10 redemption terms
   if (/🎁\s*\*?LOYALTY REWARDS[\s\S]*?(?=\n\s*💖|$)/i.test(normalized)) {
     normalized = normalized.replace(
       /🎁\s*\*?LOYALTY REWARDS[\s\S]*?(?=\n\s*💖|$)/i,
       UPDATED_LOYALTY_TC_BLOCK
     );
+  } else if (!normalized.includes('Additional Terms & Conditions for Nest Points Redemption')) {
+    normalized = normalized.replace(
+      /(?=\n\s*💖|$)/i,
+      `\n\n${UPDATED_LOYALTY_TC_BLOCK}\n\n`
+    );
   }
 
   return normalized;
 }
-
-
-
