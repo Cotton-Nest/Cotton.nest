@@ -2086,7 +2086,7 @@ export default function App() {
                       viewport={{ once: true, margin: '-40px' }}
                       transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <StoreLocation />
+                      <StoreLocation products={products} />
                     </motion.div>
                   </>
                 )}
@@ -2143,7 +2143,7 @@ export default function App() {
                 )}
 
                 {/* TAB 4: STORE LOCATION & VISIT */}
-                {activeTab === 'store' && <StoreLocation />}
+                {activeTab === 'store' && <StoreLocation products={products} />}
 
                 {/* TAB 5: LIVE ORDERS FOR INDIVIDUAL CLIENT */}
                 {activeTab === 'orders' && (

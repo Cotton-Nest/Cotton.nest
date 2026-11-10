@@ -10,8 +10,9 @@ import {
   increment,
   query,
   orderBy,
+  onSnapshot,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db, handleFirestoreError, OperationType, isFirestoreWriteQuotaExhausted, markFirestoreWriteQuotaExhausted } from '../firebase';
 import { BedsheetProduct, BEDSHEETS_CATALOG, normalizeCustomPrice } from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from '../data/siteContent';
@@ -40,6 +41,7 @@ import {
   normalizePhoneDigits,
 } from '../data/complaints';
 import { LOYALTY_MAX_REDEMPTION_POINTS } from '../data/loyalty';
+import { EnquiryRecord, EnquiryStatus, generateEnquiryId } from '../data/enquiries';
 
 // Re-export Cloudinary & media service helpers
 export {
@@ -2765,6 +2767,284 @@ export async function evaluateWishlistReminderApi(payload: {
   }
   return { canSend: false, reason: 'Network error evaluating wishlist reminder' };
 }
+
+// ---------------- ENQUIRY ORDERS API (FIRESTORE 'enquiries' + EXPRESS MIRROR) ---------------- //
+
+const ENQUIRIES_LOCAL_KEY = 'cotton_nest_enquiries_v1';
+
+function readLocalEnquiries(): EnquiryRecord[] {
+  try {
+    const raw = localStorage.getItem(ENQUIRIES_LOCAL_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalEnquiries(list: EnquiryRecord[]): void {
+  try {
+    localStorage.setItem(ENQUIRIES_LOCAL_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+function mergeEnquiryLists(...lists: EnquiryRecord[][]): EnquiryRecord[] {
+  const byId = new Map<string, EnquiryRecord>();
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (!item || !item.id) continue;
+      const existing = byId.get(item.id);
+      if (!existing || (item.updatedAt || 0) >= (existing.updatedAt || 0)) {
+        byId.set(item.id, item);
+      }
+    }
+  }
+  return Array.from(byId.values()).sort(
+    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+  );
+}
+
+export async function getEnquiriesApi(): Promise<EnquiryRecord[]> {
+  const localList = readLocalEnquiries();
+  let serverList: EnquiryRecord[] = [];
+  let firestoreList: EnquiryRecord[] = [];
+
+  try {
+    const res = await fetch('/api/enquiries');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        serverList = data;
+      }
+    }
+  } catch {}
+
+  try {
+    const snap = await getDocs(collection(db, 'enquiries'));
+    if (!snap.empty) {
+      snap.forEach((d) => {
+        const raw = d.data() as EnquiryRecord;
+        if (raw && (raw.id || d.id)) {
+          firestoreList.push({ ...raw, id: raw.id || d.id });
+        }
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'enquiries');
+  }
+
+  const merged = mergeEnquiryLists(firestoreList, serverList, localList);
+  writeLocalEnquiries(merged);
+  return merged;
+}
+
+export async function saveEnquiryApi(
+  input: Partial<EnquiryRecord> & {
+    customerName: string;
+    customerPhone: string;
+    productId: string;
+    productName: string;
+  }
+): Promise<EnquiryRecord> {
+  const nowIso = new Date().toISOString();
+  const nowMs = Date.now();
+  const id = input.id && input.id.trim() ? input.id.trim() : generateEnquiryId();
+
+  const record: EnquiryRecord = {
+    id,
+    customerName: String(input.customerName || 'Website Visitor').trim(),
+    customerPhone: String(input.customerPhone || '').trim(),
+    customerEmail: input.customerEmail ? String(input.customerEmail).trim() : undefined,
+    customerAddress: input.customerAddress ? String(input.customerAddress).trim() : undefined,
+    productId: String(input.productId || 'general').trim(),
+    productName: String(input.productName || 'Cotton Nest Pure Cotton Bedsheet').trim(),
+    productImage: cleanLinkOnly(
+      input.productImage || '/images/exact_sheet1_pink_rose_1790997736396.jpg',
+      input.productId
+    ),
+    productPrice: Number(input.productPrice) || 1899,
+    productDimensions: input.productDimensions || '108 x 108 inches (274 x 108 cm)',
+    variantName: input.variantName ? String(input.variantName).trim() : undefined,
+    quantity: Math.max(1, Number(input.quantity) || 1),
+    message: String(
+      input.message || 'Interested in this bedsheet. Please confirm stock availability and details.'
+    ).trim(),
+    status: input.status || 'new',
+    adminNotes: input.adminNotes || '',
+    convertedOrderId: input.convertedOrderId,
+    convertedAt: input.convertedAt,
+    createdAt: input.createdAt || nowIso,
+    updatedAt: nowMs,
+    source: input.source || 'enquiry_tab',
+  };
+
+  // 1. Save to local cache immediately
+  const local = readLocalEnquiries();
+  const filtered = local.filter((e) => e.id !== record.id);
+  writeLocalEnquiries([record, ...filtered]);
+
+  // 2. Save to Express backend (/api/enquiries)
+  try {
+    await fetch('/api/enquiries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
+  } catch {}
+
+  // 3. Save to Firestore 'enquiries' collection (completely separate from 'orders')
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      await setDoc(doc(db, 'enquiries', record.id), stripUndefined(record), { merge: true });
+    } catch (err) {
+      markFirestoreWriteQuotaExhausted(err);
+      handleFirestoreError(err, OperationType.CREATE, `enquiries/${record.id}`);
+    }
+  }
+
+  return record;
+}
+
+export async function updateEnquiryApi(
+  enquiryId: string,
+  updates: Partial<EnquiryRecord> & { status?: EnquiryStatus; adminNotes?: string; convertedOrderId?: string; convertedAt?: string }
+): Promise<EnquiryRecord | null> {
+  const nowMs = Date.now();
+  const local = readLocalEnquiries();
+  let updatedRecord: EnquiryRecord | null = null;
+
+  const nextLocal = local.map((item) => {
+    if (item.id === enquiryId) {
+      updatedRecord = {
+        ...item,
+        ...updates,
+        id: enquiryId,
+        updatedAt: nowMs,
+      };
+      return updatedRecord;
+    }
+    return item;
+  });
+
+  if (updatedRecord) {
+    writeLocalEnquiries(nextLocal);
+  }
+
+  try {
+    const res = await fetch(`/api/enquiries/${encodeURIComponent(enquiryId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...updates, updatedAt: nowMs }),
+    });
+    if (res.ok) {
+      const serverData = await res.json();
+      if (serverData && serverData.id) {
+        updatedRecord = serverData;
+      }
+    }
+  } catch {}
+
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      await setDoc(
+        doc(db, 'enquiries', enquiryId),
+        stripUndefined({ ...updates, id: enquiryId, updatedAt: nowMs }),
+        { merge: true }
+      );
+    } catch (err) {
+      markFirestoreWriteQuotaExhausted(err);
+      handleFirestoreError(err, OperationType.UPDATE, `enquiries/${enquiryId}`);
+    }
+  }
+
+  return updatedRecord;
+}
+
+export async function deleteEnquiryApi(enquiryId: string): Promise<void> {
+  const local = readLocalEnquiries().filter((item) => item.id !== enquiryId);
+  writeLocalEnquiries(local);
+
+  try {
+    await fetch(`/api/enquiries/${encodeURIComponent(enquiryId)}`, {
+      method: 'DELETE',
+    });
+  } catch {}
+
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      await deleteDoc(doc(db, 'enquiries', enquiryId));
+    } catch (err) {
+      markFirestoreWriteQuotaExhausted(err);
+      handleFirestoreError(err, OperationType.DELETE, `enquiries/${enquiryId}`);
+    }
+  }
+}
+
+export function subscribeToEnquiries(
+  onUpdate: (enquiries: EnquiryRecord[]) => void
+): () => void {
+  let isUnsubscribed = false;
+  let latestFirestore: EnquiryRecord[] = [];
+  let latestServer: EnquiryRecord[] = [];
+
+  const emitMerged = () => {
+    if (isUnsubscribed) return;
+    const local = readLocalEnquiries();
+    const merged = mergeEnquiryLists(latestFirestore, latestServer, local);
+    writeLocalEnquiries(merged);
+    onUpdate(merged);
+  };
+
+  const fetchServer = async () => {
+    try {
+      const res = await fetch('/api/enquiries');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          latestServer = data;
+          emitMerged();
+        }
+      }
+    } catch {}
+  };
+
+  void fetchServer();
+
+  let unsubFirestore: (() => void) | null = null;
+  try {
+    unsubFirestore = onSnapshot(
+      collection(db, 'enquiries'),
+      (snapshot) => {
+        if (isUnsubscribed) return;
+        const list: EnquiryRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as EnquiryRecord;
+          if (data) {
+            list.push({ ...data, id: data.id || docSnap.id });
+          }
+        });
+        latestFirestore = list;
+        emitMerged();
+      },
+      (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'enquiries');
+        emitMerged();
+      }
+    );
+  } catch {
+    emitMerged();
+  }
+
+  return () => {
+    isUnsubscribed = true;
+    if (unsubFirestore) {
+      unsubFirestore();
+    }
+  };
+}
+
 
 
 

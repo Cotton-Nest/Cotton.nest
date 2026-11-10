@@ -241,6 +241,34 @@
         "updatedAt": { "type": "number", "description": "Last profile flush timestamp" }
       },
       "required": ["uid", "customerName", "lastActiveAt", "totalSessions", "totalTimeSpentSeconds"]
+    },
+    "Enquiry": {
+      "title": "Enquiry",
+      "description": "Customer product or consultation enquiry submitted through the website Enquiry tab or product enquiry buttons, stored separately from checkout orders.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique Enquiry ID (e.g. ENQ-...)" },
+        "customerName": { "type": "string", "description": "Customer full name" },
+        "customerPhone": { "type": "string", "description": "Customer mobile or WhatsApp number" },
+        "customerEmail": { "type": "string", "description": "Optional customer email address" },
+        "customerCity": { "type": "string", "description": "Optional customer city or address" },
+        "productId": { "type": "string", "description": "Product ID enquired about" },
+        "productName": { "type": "string", "description": "Product name enquired about" },
+        "productImage": { "type": "string", "description": "Product image URL" },
+        "productPrice": { "type": "number", "description": "Product price in INR" },
+        "productDimensions": { "type": "string", "description": "Product dimensions or size" },
+        "variantName": { "type": "string", "description": "Optional selected variant name" },
+        "quantity": { "type": "number", "description": "Enquired quantity" },
+        "message": { "type": "string", "description": "Customer enquiry message" },
+        "status": { "type": "string", "enum": ["new", "contacted", "negotiation", "converted", "closed"], "description": "Current enquiry status" },
+        "adminNotes": { "type": "string", "description": "Internal admin notes" },
+        "convertedOrderId": { "type": "string", "description": "Regular Order ID generated when converted to order" },
+        "convertedAt": { "type": "string", "description": "ISO timestamp when converted to order" },
+        "source": { "type": "string", "description": "Origin of the enquiry on the website" },
+        "createdAt": { "type": "string", "description": "ISO timestamp when enquiry was created" },
+        "updatedAt": { "type": "number", "description": "Epoch timestamp of last update" }
+      },
+      "required": ["id", "customerName", "customerPhone", "productId", "productName", "quantity", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -255,6 +283,10 @@
     "/orders/{orderId}": {
       "schema": "Order",
       "description": "Store customer orders"
+    },
+    "/enquiries/{enquiryId}": {
+      "schema": "Enquiry",
+      "description": "Customer product and consultation enquiries managed separately from regular checkout orders"
     },
     "/site_content/{contentId}": {
       "schema": "SiteContent",

@@ -215,11 +215,16 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({
                         type="button"
                         onClick={() => {
                           sendWhatsAppProductOrder({
+                            productId: item.productId,
                             productName: item.productName,
                             variantName: item.selectedVariantName,
                             dimensions: item.productDimensions || 'King Size',
                             price: item.productPrice,
                             imageUrl: item.productImage,
+                            customerName: customerProfile?.name || item.customerName,
+                            customerPhone: customerProfile?.phone || item.customerPhone,
+                            customerEmail: customerProfile?.email || item.customerEmail,
+                            source: 'wishlist_enquiry',
                           });
                         }}
                         className="py-1.5 px-2 bg-[#FAF7F2] text-[#2C2420] border border-[#DEC89B] text-[11px] font-medium rounded-lg hover:bg-[#F4EFE6] transition-colors cursor-pointer flex items-center gap-1"

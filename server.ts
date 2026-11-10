@@ -37,6 +37,7 @@ import {
   buildComplaintNotificationForCustomer,
   buildComplaintNotificationForAdmin,
 } from './src/data/notifications.ts';
+import { EnquiryRecord, generateEnquiryId } from './src/data/enquiries.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,6 +63,7 @@ interface StoreDatabase {
   loyaltyAccounts?: Record<string, LoyaltyAccount>;
   loyaltyTransactions?: LoyaltyTransaction[];
   customerActivity?: Record<string, any>;
+  enquiries?: EnquiryRecord[];
   wishlistNotificationSettings?: {
     enabled: boolean;
     dailyLimit: number;
@@ -124,6 +126,10 @@ function initDatabase(): StoreDatabase {
         }
         if (!parsed.wishlists || !Array.isArray(parsed.wishlists)) {
           parsed.wishlists = [];
+          needsSave = true;
+        }
+        if (!parsed.enquiries || !Array.isArray(parsed.enquiries)) {
+          parsed.enquiries = [];
           needsSave = true;
         }
         if (!parsed.loyaltyAccounts || typeof parsed.loyaltyAccounts !== 'object') {
@@ -3056,6 +3062,103 @@ async function startServer() {
       return res.json({ success: true, uid: profile.uid });
     } catch (err: any) {
       return res.status(500).json({ error: err?.message || 'Failed to save customer activity' });
+    }
+  });
+
+  // Enquiry Orders Management Endpoints (Completely separate from regular checkout orders)
+  app.get('/api/enquiries', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!Array.isArray(db.enquiries)) {
+      db.enquiries = [];
+    }
+    const sorted = [...db.enquiries].sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+    res.json(sorted);
+  });
+
+  app.post('/api/enquiries', (req, res) => {
+    try {
+      const payload = req.body || {};
+      if (!Array.isArray(db.enquiries)) {
+        db.enquiries = [];
+      }
+      const nowIso = new Date().toISOString();
+      const nowMs = Date.now();
+      const id = String(payload.id || generateEnquiryId()).trim();
+
+      const record: EnquiryRecord = {
+        id,
+        customerName: String(payload.customerName || 'Website Visitor').trim(),
+        customerPhone: String(payload.customerPhone || '').trim(),
+        customerEmail: payload.customerEmail ? String(payload.customerEmail).trim() : undefined,
+        customerAddress: payload.customerAddress ? String(payload.customerAddress).trim() : undefined,
+        productId: String(payload.productId || 'general').trim(),
+        productName: String(payload.productName || 'Cotton Nest Pure Cotton Bedsheet').trim(),
+        productImage: String(payload.productImage || '/images/exact_sheet1_pink_rose_1790997736396.jpg').trim(),
+        productPrice: Number(payload.productPrice) || 1899,
+        productDimensions: payload.productDimensions ? String(payload.productDimensions).trim() : '108 x 108 inches (274 x 274 cm)',
+        variantName: payload.variantName ? String(payload.variantName).trim() : undefined,
+        quantity: Math.max(1, Number(payload.quantity) || 1),
+        message: String(payload.message || 'Interested in this bedsheet. Please share stock availability and details.').trim(),
+        status: payload.status || 'new',
+        adminNotes: payload.adminNotes ? String(payload.adminNotes) : '',
+        convertedOrderId: payload.convertedOrderId ? String(payload.convertedOrderId) : undefined,
+        convertedAt: payload.convertedAt ? String(payload.convertedAt) : undefined,
+        createdAt: payload.createdAt || nowIso,
+        updatedAt: nowMs,
+        source: payload.source || 'enquiry_tab',
+      };
+
+      const existingIdx = db.enquiries.findIndex((e) => e && e.id === id);
+      if (existingIdx >= 0) {
+        db.enquiries[existingIdx] = { ...db.enquiries[existingIdx], ...record, updatedAt: nowMs };
+      } else {
+        db.enquiries.unshift(record);
+      }
+      saveDatabase();
+      return res.json(record);
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Failed to save enquiry' });
+    }
+  });
+
+  app.patch('/api/enquiries/:id', (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      const updates = req.body || {};
+      if (!Array.isArray(db.enquiries)) {
+        db.enquiries = [];
+      }
+      const idx = db.enquiries.findIndex((e) => e && e.id === id);
+      if (idx === -1) {
+        return res.status(404).json({ error: 'Enquiry not found' });
+      }
+      const updated: EnquiryRecord = {
+        ...db.enquiries[idx],
+        ...updates,
+        id,
+        updatedAt: Date.now(),
+      };
+      db.enquiries[idx] = updated;
+      saveDatabase();
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Failed to update enquiry' });
+    }
+  });
+
+  app.delete('/api/enquiries/:id', (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!Array.isArray(db.enquiries)) {
+        db.enquiries = [];
+      }
+      db.enquiries = db.enquiries.filter((e) => e && e.id !== id);
+      saveDatabase();
+      return res.json({ success: true, id });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Failed to delete enquiry' });
     }
   });
 

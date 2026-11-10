@@ -1,17 +1,46 @@
 import React from 'react';
 import { MapPin, Phone, MessageCircle, Clock, Navigation, CheckCircle2, Send } from 'lucide-react';
 import { motion } from 'motion/react';
-import { COMPANY_DETAILS } from '../data/products';
+import { COMPANY_DETAILS, BEDSHEETS_CATALOG, BedsheetProduct } from '../data/products';
+import { saveEnquiryApi } from '../services/api';
 
-export const StoreLocation: React.FC = () => {
+interface StoreLocationProps {
+  products?: BedsheetProduct[];
+}
+
+export const StoreLocation: React.FC<StoreLocationProps> = ({ products = BEDSHEETS_CATALOG }) => {
+  const catalogList = products && products.length > 0 ? products : BEDSHEETS_CATALOG;
   const [inquiryName, setInquiryName] = React.useState('');
   const [inquiryPhone, setInquiryPhone] = React.useState('');
+  const [inquiryEmail, setInquiryEmail] = React.useState('');
+  const [selectedProductId, setSelectedProductId] = React.useState<string>(catalogList[0]?.id || 'sheet-1');
+  const [inquiryQty, setInquiryQty] = React.useState<number>(1);
   const [inquiryMsg, setInquiryMsg] = React.useState('');
   const [submitted, setSubmitted] = React.useState(false);
 
   const handleSubmitVisit = (e: React.FormEvent) => {
     e.preventDefault();
-    const fullMsg = `Hi Cotton Nest! My name is ${inquiryName} (${inquiryPhone}). I would like to visit your Sector 46 Gurgaon store to see bedsheets. Note: ${inquiryMsg || 'Please share directions & visiting slot.'}`;
+    const matchedProd = catalogList.find((p) => p.id === selectedProductId) || catalogList[0];
+    const prodName = matchedProd ? matchedProd.name : 'General Cotton Nest Consultation';
+    const prodId = matchedProd ? matchedProd.id : 'general';
+    const prodImg = matchedProd ? matchedProd.image : '/images/exact_sheet1_pink_rose_1790997736396.jpg';
+    const prodPrice = matchedProd ? Number(matchedProd.price) || 1899 : 1899;
+
+    saveEnquiryApi({
+      customerName: inquiryName.trim() || 'Cotton Nest Visitor',
+      customerPhone: inquiryPhone.trim(),
+      customerEmail: inquiryEmail.trim() || undefined,
+      productId: prodId,
+      productName: prodName,
+      productImage: prodImg,
+      productPrice: prodPrice,
+      productDimensions: matchedProd?.dimensions || '108 x 108 inches (274 x 274 cm)',
+      quantity: Math.max(1, Number(inquiryQty) || 1),
+      message: inquiryMsg.trim() || `Enquiring about ${prodName} (Qty: ${inquiryQty}). Please share availability & details.`,
+      source: 'enquiry_tab',
+    }).catch(() => {});
+
+    const fullMsg = `Hi Cotton Nest! My name is ${inquiryName} (${inquiryPhone}${inquiryEmail ? `, ${inquiryEmail}` : ''}). I would like to enquire about ${prodName} (Qty: ${inquiryQty}) / visit your Sector 46 Gurgaon store. Note: ${inquiryMsg || 'Please share availability, directions & visiting slot.'}`;
     window.open(COMPANY_DETAILS.whatsappUrl(fullMsg), '_blank');
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 4000);
@@ -187,32 +216,80 @@ export const StoreLocation: React.FC = () => {
               </div>
 
               <form onSubmit={handleSubmitVisit} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
-                    Your Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ananya Kapoor"
-                    value={inquiryName}
-                    onChange={(e) => setInquiryName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420]"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
+                      Your Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ananya Kapoor"
+                      value={inquiryName}
+                      onChange={(e) => setInquiryName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
+                      Phone / WhatsApp Number
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="+91 98765 43210"
+                      value={inquiryPhone}
+                      onChange={(e) => setInquiryPhone(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
+                      Email Address (Optional)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="e.g. ananya@example.com"
+                      value={inquiryEmail}
+                      onChange={(e) => setInquiryEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={inquiryQty}
+                      onChange={(e) => setInquiryQty(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420] tabular-nums"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text, #2C2420)' }}>
-                    Phone / WhatsApp Number
+                    Bedsheet of Interest
                   </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+91 98765 43210"
-                    value={inquiryPhone}
-                    onChange={(e) => setInquiryPhone(e.target.value)}
+                  <select
+                    value={selectedProductId}
+                    onChange={(e) => setSelectedProductId(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl text-xs focus:outline-none liquid-glass-input text-[#2C2420]"
-                  />
+                  >
+                    {catalogList.map((prod) => (
+                      <option key={prod.id} value={prod.id}>
+                        {prod.name} (₹{Number(prod.price || 0).toLocaleString('en-IN')})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -238,7 +315,7 @@ export const StoreLocation: React.FC = () => {
 
                 {submitted && (
                   <p className="text-xs text-center text-emerald-700 font-medium">
-                    Opening WhatsApp to connect you with Cotton Nest studio!
+                    Enquiry saved &amp; opening WhatsApp to connect you with Cotton Nest studio!
                   </p>
                 )}
               </form>

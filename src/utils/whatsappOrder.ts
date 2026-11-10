@@ -64,6 +64,7 @@ export function openWhatsAppDirectly(message: string): void {
 }
 
 export interface SingleProductOrderPayload {
+  productId?: string;
   productName: string;
   variantName?: string;
   dimensions?: string;
@@ -73,12 +74,32 @@ export interface SingleProductOrderPayload {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  message?: string;
+  source?: 'product_enquiry' | 'enquiry_tab' | 'store_visit' | 'wishlist_enquiry';
+}
+
+function resolveSavedCustomerInfo(): { name?: string; phone?: string; email?: string } {
+  if (typeof window === 'undefined') return {};
+  try {
+    const rawUser = localStorage.getItem('cotton_nest_user_session');
+    const rawProfile = localStorage.getItem('cotton_nest_customer_profile');
+    const u = rawUser ? JSON.parse(rawUser) : {};
+    const p = rawProfile ? JSON.parse(rawProfile) : {};
+    return {
+      name: u?.name || p?.name || undefined,
+      phone: u?.phone || p?.phone || undefined,
+      email: u?.email || p?.email || undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
 /**
  * Sends a single product or variant enquiry to WhatsApp:
  * 1. Generates the exact SKU.
  * 2. Pre-fills clean product specifications in WhatsApp.
+ * 3. Automatically logs the enquiry into the 'enquiries' collection for Admin Enquiry Orders tracking.
  * (No invoice is generated or sent on product enquiry.)
  */
 export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayload): Promise<void> {
@@ -90,19 +111,45 @@ export async function sendWhatsAppProductOrder(payload: SingleProductOrderPayloa
   const totalAmount = payload.price * qty;
   const size = payload.dimensions || '108 x 108 inches (274 x 274 cm)';
 
+  const savedCustomer = resolveSavedCustomerInfo();
+  const cName = payload.customerName || savedCustomer.name || 'Cotton Nest Visitor';
+  const cPhone = payload.customerPhone || savedCustomer.phone || 'Not provided (WhatsApp Chat)';
+  const cEmail = payload.customerEmail || savedCustomer.email || undefined;
+  const defaultEnquiryNote = payload.message || 'I am interested in this bedsheet. Please confirm stock availability and details.';
+
   const messageLines = [
     `COTTON NEST - BEDSHEET ENQUIRY 🪷`,
     `Hi Cotton Nest! I would like to enquire about:`,
-    `✨ Bedsheet: ${payload.productName}`,
+    `✨ Bedsheet: ${payload.productName}${payload.variantName ? ` (${payload.variantName})` : ''}`,
     `🏷️ Product SKU: #${sku}`,
     `📏 Size: ${size}`,
     qtyLine,
     `💰 Price: ₹${totalAmount.toLocaleString('en-IN')}`,
     ``,
-    `I am interested in this bedsheet. Please confirm stock availability and details.`,
+    defaultEnquiryNote,
   ];
 
   const fullMessage = messageLines.join('\n');
+
+  // Persist enquiry record asynchronously without blocking WhatsApp launch
+  import('../services/api')
+    .then(({ saveEnquiryApi }) =>
+      saveEnquiryApi({
+        customerName: cName,
+        customerPhone: cPhone,
+        customerEmail: cEmail,
+        productId: payload.productId || sku,
+        productName: payload.productName,
+        productImage: payload.imageUrl,
+        productPrice: payload.price,
+        productDimensions: size,
+        variantName: payload.variantName,
+        quantity: qty,
+        message: defaultEnquiryNote,
+        source: payload.source || 'product_enquiry',
+      })
+    )
+    .catch(() => {});
 
   // Open WhatsApp directly
   openWhatsAppDirectly(fullMessage);

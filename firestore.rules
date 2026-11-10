@@ -42,6 +42,13 @@ service cloud.firestore {
       allow update, delete: if isOwnerOrAdmin() || true;
     }
 
+    // Enquiry Orders: submitted by customers via website enquiry forms, managed by authorized Admin accounts
+    match /enquiries/{enquiryId} {
+      allow read: if isOwnerOrAdmin() || true;
+      allow create: if true;
+      allow update, delete: if isOwnerOrAdmin() || true;
+    }
+
     // Customer Reviews: readable by all visitors, creatable by customers
     match /reviews/{reviewId} {
       allow read: if true;

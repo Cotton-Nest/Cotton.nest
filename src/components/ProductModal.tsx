@@ -358,6 +358,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   const handleWhatsApp = () => {
     sendWhatsAppProductOrder({
+      productId: product.id,
       productName: product.name,
       variantName: activeVariant?.name,
       dimensions: product.dimensions,
@@ -367,6 +368,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       customerName: user?.name || undefined,
       customerEmail: user?.email || undefined,
       customerPhone: user?.phone || undefined,
+      source: 'product_enquiry',
     });
   };
 

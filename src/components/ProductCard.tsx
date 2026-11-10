@@ -79,11 +79,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const handleWhatsAppEnquiry = (e: React.MouseEvent) => {
     e.stopPropagation();
     sendWhatsAppProductOrder({
+      productId: product.id,
       productName: product.name,
       variantName: activeVariant?.name,
       dimensions: product.dimensions,
       price: product.price,
       imageUrl: displayImage,
+      source: 'product_enquiry',
     });
   };
 

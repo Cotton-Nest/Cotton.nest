@@ -62,9 +62,12 @@ import { AdminCouponsSection } from './AdminCouponsSection';
 import { AdminNotificationsSection } from './AdminNotificationsSection';
 import { AdminWishlistsSection } from './AdminWishlistsSection';
 import { AdminCustomerAnalyticsSection } from './AdminCustomerAnalyticsSection';
+import { AdminEnquiriesSection } from './AdminEnquiriesSection';
 import { AdminComplaintsSubsection } from './AdminComplaintsSubsection';
 import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
+import { EnquiryRecord } from '../data/enquiries';
+import { subscribeToEnquiries } from '../services/api';
 import {
   Heart,
   Users,
@@ -167,8 +170,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateSeasonalConfig,
   reviews = [],
 }) => {
-  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
+  // Tabs: 'products' | 'orders' | 'enquiries' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'enquiries' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
+  const [adminEnquiries, setAdminEnquiries] = useState<EnquiryRecord[]>([]);
+
+  useEffect(() => {
+    const unsub = subscribeToEnquiries((list) => {
+      setAdminEnquiries(list);
+    });
+    return () => unsub();
+  }, []);
+
+  const newEnquiriesCount = adminEnquiries.filter((e) => e.status === 'new').length;
 
   // Seasonal Page state
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
@@ -2136,6 +2149,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               type="button"
+              onClick={() => setActiveAdminTab('enquiries')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'enquiries'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Enquiry Orders {newEnquiriesCount > 0 ? `(${newEnquiriesCount})` : ''}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveAdminTab('notifications')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
                 activeAdminTab === 'notifications'
@@ -2310,6 +2336,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {pendingOrdersCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('enquiries')}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative shrink-0"
+              style={
+                activeAdminTab === 'enquiries'
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
+            >
+              <MessageCircle
+                className="w-3.5 h-3.5"
+                style={{ color: activeAdminTab === 'enquiries' ? undefined : '#059669' }}
+              />
+              <span>Enquiry Orders</span>
+              {newEnquiriesCount > 0 ? (
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-600 text-white">
+                  {newEnquiriesCount}
+                </span>
+              ) : adminEnquiries.length > 0 ? (
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-stone-200 text-stone-700">
+                  {adminEnquiries.length}
+                </span>
+              ) : null}
             </button>
 
             <button
@@ -4353,7 +4410,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     >
                       {/* Order Header Row */}
                       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#EAE2D5]">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex flex-wrap items-center gap-2.5">
                           <span className="font-serif-luxury font-bold text-base text-[#2C2420]">
                             Order #{order.id}
                           </span>
@@ -4364,6 +4421,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           >
                             {safeStatus}
                           </span>
+                          {order.sourceEnquiryId && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveAdminTab('enquiries')}
+                              className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+                              title="Click to open Enquiry Orders section"
+                            >
+                              Converted from Enquiry #{order.sourceEnquiryId}
+                            </button>
+                          )}
                           <span className="text-xs text-[#8C7A70]">
                             {order.createdAt
                               ? new Date(order.createdAt).toLocaleString('en-IN', {
@@ -5595,6 +5662,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <AdminCustomerAnalyticsSection
             products={editableProducts}
             orders={editableOrders}
+            onToast={showToast}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 9: ENQUIRY ORDERS MANAGEMENT                         */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'enquiries' && (
+          <AdminEnquiriesSection
+            products={editableProducts}
+            shippingFee={normalizeShippingFee(editableContent.shippingFeeIndia)}
+            onOrderConverted={(newOrder) => {
+              const updatedOrders = [newOrder, ...editableOrders.filter((o) => o.id !== newOrder.id)];
+              setEditableOrders(updatedOrders);
+              onUpdateOrders(updatedOrders);
+            }}
+            onNavigateToOrders={() => setActiveAdminTab('orders')}
             onToast={showToast}
           />
         )}
