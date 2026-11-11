@@ -434,6 +434,96 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
           </div>
         </div>
 
+        {/* Luxury Bedsheet Unfolding Welcome Animation Settings */}
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-[#FFF9FB] via-[#FAF7F2] to-[#FAF7EE] border border-[#DEC89B] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#70252D]">
+                ✨ Luxury Bedsheet Unfolding Welcome Animation
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                  config.welcomeAnimationEnabled !== false
+                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                    : 'bg-stone-200 text-stone-700'
+                }`}
+              >
+                {config.welcomeAnimationEnabled !== false ? 'ENABLED' : 'DISABLED'}
+              </span>
+            </div>
+            <p className="text-xs text-[#6B5D55]">
+              Animates a realistic cotton bedsheet unfolding from the top of the screen (~3.4s) to reveal the <strong className="font-mono text-[#70252D]">{activeCouponCode}</strong> Welcome Offer. Includes Skip Intro &amp; reduced-motion support.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <select
+              value={config.welcomeAnimationFrequency || 'once_per_session'}
+              onChange={async (e) => {
+                const nextFreq = e.target.value as 'once_per_session' | 'first_visit_only' | 'every_visit';
+                const updated: WelcomeOfferConfig = {
+                  ...config,
+                  welcomeAnimationFrequency: nextFreq,
+                  updatedAt: Date.now(),
+                };
+                setConfig(updated);
+                await saveWelcomeOfferConfigApi(updated);
+                window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
+                onToast?.('✨ Welcome Animation playback frequency updated!');
+              }}
+              aria-label="Welcome animation playback frequency"
+              className="px-3 py-2 rounded-xl bg-white border border-[#DEC89B] text-xs font-semibold text-[#2C2420] cursor-pointer"
+            >
+              <option value="once_per_session">Play Once Per Session (Recommended)</option>
+              <option value="first_visit_only">Play on First Visit Only</option>
+              <option value="every_visit">Play on Every Page Load</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const nextAnimEnabled = config.welcomeAnimationEnabled === false;
+                const updated: WelcomeOfferConfig = {
+                  ...config,
+                  welcomeAnimationEnabled: nextAnimEnabled,
+                  updatedAt: Date.now(),
+                };
+                setConfig(updated);
+                await saveWelcomeOfferConfigApi(updated);
+                window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
+                onToast?.(
+                  nextAnimEnabled
+                    ? '✅ Bedsheet Unfolding Welcome Animation Enabled!'
+                    : '⏸️ Bedsheet Unfolding Welcome Animation Disabled.'
+                );
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                config.welcomeAnimationEnabled !== false
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-stone-200 hover:bg-stone-300 text-stone-800'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>
+                {config.welcomeAnimationEnabled !== false
+                  ? 'Animation Enabled'
+                  : 'Animation Disabled'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new Event('cotton-nest-preview-welcome-animation'));
+              }}
+              className="px-3.5 py-2 rounded-xl bg-[#70252D] hover:bg-[#591B22] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+            >
+              <Gift className="w-3.5 h-3.5 text-[#EAD09A]" />
+              <span>Preview Animation</span>
+            </button>
+          </div>
+        </div>
+
         {/* Live Calculation Reference Preview */}
         <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EAE2D5] text-xs space-y-2">
           <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A6458] block">

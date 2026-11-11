@@ -22,6 +22,8 @@ export type WelcomeOfferStatus =
   | 'ineligible_existing_customer'
   | 'ineligible_not_google_auth';
 
+export type WelcomeAnimationFrequency = 'once_per_session' | 'first_visit_only' | 'every_visit';
+
 export interface WelcomeOfferConfig {
   enabled: boolean;
   offerName: string;
@@ -31,6 +33,8 @@ export interface WelcomeOfferConfig {
   minOrderValue: number;
   maxDiscountAmount: number;
   maxDiscount: number;
+  welcomeAnimationEnabled?: boolean;
+  welcomeAnimationFrequency?: WelcomeAnimationFrequency;
   updatedAt: number;
   updatedBy?: string;
 }
@@ -64,6 +68,8 @@ export const DEFAULT_WELCOME_OFFER_CONFIG: WelcomeOfferConfig = {
   minOrderValue: DEFAULT_WELCOME_MIN_ORDER_VALUE,
   maxDiscountAmount: DEFAULT_WELCOME_MAX_DISCOUNT,
   maxDiscount: DEFAULT_WELCOME_MAX_DISCOUNT,
+  welcomeAnimationEnabled: true,
+  welcomeAnimationFrequency: 'once_per_session',
   updatedAt: Date.now(),
 };
 

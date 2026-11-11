@@ -17,6 +17,7 @@ import { Footer } from './components/Footer';
 import { OfferBanner } from './components/OfferBanner';
 import { WelcomeOfferBanner } from './components/WelcomeOfferBanner';
 import { WelcomeOfferModal } from './components/WelcomeOfferModal';
+import { WelcomeBedsheetAnimation } from './components/WelcomeBedsheetAnimation';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
@@ -2662,6 +2663,15 @@ export default function App() {
         onClose={() => setIsWelcomeOfferModalOpen(false)}
         onShopNow={() => {
           setIsWelcomeOfferModalOpen(false);
+          setActiveTab('catalogue');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
+
+      {/* Luxury Bedsheet Unfolding Welcome Animation Experience */}
+      <WelcomeBedsheetAnimation
+        config={welcomeOfferConfig}
+        onShopNow={() => {
           setActiveTab('catalogue');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}

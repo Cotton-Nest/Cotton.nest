@@ -249,6 +249,153 @@ textarea {
   border: 1px solid rgba(197, 160, 89, 0.25);
 }
 
+/* ==========================================================================
+   LUXURY COTTON BEDSHEET UNFOLDING & DRAPE PHYSICS ANIMATIONS
+   ========================================================================== */
+
+/* Realistic fine combed cotton weave micro-texture */
+.cotton-weave-texture {
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.35) 0px,
+      rgba(255, 255, 255, 0.35) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(226, 212, 192, 0.18) 0px,
+      rgba(226, 212, 192, 0.18) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+}
+
+/* Main bedsheet descending & spreading from top of viewport with air-billow curve */
+@keyframes bedsheetUnfoldSpread {
+  0% {
+    transform: perspective(1400px) translate3d(0, -104%, 0) rotateX(18deg) scaleY(0.88);
+  }
+  38% {
+    transform: perspective(1400px) translate3d(0, -36%, 0) rotateX(10deg) scaleY(0.96);
+  }
+  72% {
+    transform: perspective(1400px) translate3d(0, 1.5%, 0) rotateX(-3deg) scaleY(1.02);
+  }
+  88% {
+    transform: perspective(1400px) translate3d(0, -0.4%, 0) rotateX(1.2deg) scaleY(1.005);
+  }
+  100% {
+    transform: perspective(1400px) translate3d(0, 0%, 0) rotateX(0deg) scaleY(1);
+  }
+}
+
+/* Flowing horizontal fabric fold shadows & highlights rippling down the cotton sheet */
+@keyframes cottonFoldRipple {
+  0% {
+    background-position: 50% -140%;
+    opacity: 0.95;
+  }
+  55% {
+    background-position: 50% 40%;
+    opacity: 0.85;
+  }
+  82% {
+    background-position: 50% 95%;
+    opacity: 0.45;
+  }
+  100% {
+    background-position: 50% 120%;
+    opacity: 0.22;
+  }
+}
+
+/* Gentle secondary silk-cotton wave undulation while unfolding */
+@keyframes cottonHemWave {
+  0% {
+    transform: translate3d(-2%, 0, 0) scaleY(1.35);
+  }
+  35% {
+    transform: translate3d(1.5%, 0, 0) scaleY(1.15);
+  }
+  70% {
+    transform: translate3d(-1%, 0, 0) scaleY(0.85);
+  }
+  100% {
+    transform: translate3d(0%, 0, 0) scaleY(0.35);
+  }
+}
+
+/* Individual articulated pleat panels unfolding from accordion state to flat sheet */
+@keyframes cottonPleatFlatten {
+  0% {
+    transform: perspective(1000px) rotateX(-28deg) scaleY(0.82);
+    filter: brightness(0.92);
+  }
+  50% {
+    transform: perspective(1000px) rotateX(9deg) scaleY(1.03);
+    filter: brightness(1.03);
+  }
+  80% {
+    transform: perspective(1000px) rotateX(-2deg) scaleY(1);
+    filter: brightness(0.99);
+  }
+  100% {
+    transform: perspective(1000px) rotateX(0deg) scaleY(1);
+    filter: brightness(1);
+  }
+}
+
+/* Soft ambient breathing wave once settled */
+@keyframes settledCottonBreathe {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -3px, 0) scale(1.004);
+  }
+}
+
+.animate-bedsheet-unfold {
+  transform-origin: top center;
+  will-change: transform;
+  animation: bedsheetUnfoldSpread 2.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-cotton-fold-ripple {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(94, 25, 36, 0.06) 14%,
+    rgba(255, 255, 255, 0.65) 26%,
+    rgba(197, 160, 89, 0.14) 38%,
+    rgba(44, 36, 32, 0.09) 50%,
+    rgba(255, 255, 255, 0.72) 64%,
+    rgba(249, 211, 222, 0.28) 78%,
+    rgba(44, 36, 32, 0.06) 90%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 100% 220%;
+  will-change: background-position, opacity;
+  animation: cottonFoldRipple 2.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-cotton-hem-wave {
+  will-change: transform;
+  animation: cottonHemWave 2.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-cotton-pleat {
+  transform-origin: top center;
+  will-change: transform, filter;
+  animation: cottonPleatFlatten 2.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-settled-cotton {
+  animation: settledCottonBreathe 7s ease-in-out infinite;
+}
+
 /* Respect user reduced motion preferences */
 @media (prefers-reduced-motion: reduce) {
   html {
@@ -263,3 +410,4 @@ textarea {
     scroll-behavior: auto !important;
   }
 }
+
