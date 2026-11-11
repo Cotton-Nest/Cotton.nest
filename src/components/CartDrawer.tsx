@@ -1381,7 +1381,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">House / Flat No. / Building *</label>
                         <input
                           type="text"
-                          placeholder="e.g. House Number 2508, Ground Floor"
+                          placeholder="e.g. Flat / House No., Building Name"
                           value={newAddressHouse}
                           onChange={(e) => setNewAddressHouse(e.target.value)}
                           className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"

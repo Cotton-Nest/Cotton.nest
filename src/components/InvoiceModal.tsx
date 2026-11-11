@@ -10,7 +10,6 @@ import {
   AlertCircle,
   Truck,
   Sparkles,
-  MapPin,
   Phone,
   Calendar,
   Package,
@@ -35,8 +34,8 @@ export function buildOrderGmailUrl(order: Order): string {
   const subject = `Cotton Nest - Order #${order.id} Sale Invoice`;
 
   const lines: string[] = [];
-  lines.push(`COTTON NEST ATELIER - OFFICIAL SALE INVOICE`);
-  lines.push(`100% Pure Combed Cotton Bedding | Sector 46, Gurgaon`);
+  lines.push(`COTTON NEST BEDDING STUDIO - OFFICIAL SALE INVOICE`);
+  lines.push(`100% Pure Combed Cotton Bedding | Sector 46, Gurgaon, Haryana – 122003`);
   lines.push(`====================================================`);
   lines.push(`Order ID: #${order.id}`);
   lines.push(`Order Date: ${order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN') : new Date().toLocaleString('en-IN')}`);
@@ -292,13 +291,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
                     100% Pure Long-Staple Cotton Bedding
                   </span>
                   <h1 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-[#2C2420]">
-                    Cotton Nest Atelier
+                    Cotton Nest Bedding Studio
                   </h1>
                   <p className="text-xs text-[#7A6458] mt-1 max-w-sm">
-                    {COMPANY_DETAILS.address}
+                    Sector 46, Gurgaon, Haryana – 122003
                   </p>
                   <p className="text-xs text-[#7A6458] mt-0.5">
-                    Phone / WhatsApp: +91 7838625915 · Sector 46 Gurgaon
+                    Phone / WhatsApp: +91 7838625915
                   </p>
                   <p className="text-xs text-[#7A6458]">
                     Official Email: adityaa.451485@gmail.com
@@ -448,7 +447,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
                 Thank you for supporting handcrafted pure cotton bedding!
               </p>
               <p>
-                Cotton Nest Atelier · Sector 46 Gurgaon, Haryana · WhatsApp Helpline: +91 7838625915
+                Cotton Nest Bedding Studio · Sector 46, Gurgaon, Haryana – 122003 · WhatsApp Helpline: +91 7838625915
               </p>
             </div>
           </div>

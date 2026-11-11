@@ -196,10 +196,12 @@ export const POPULAR_BRANDS = [
 
 export const COMPANY_DETAILS = {
   name: "Cotton Nest",
+  studioName: "Cotton Nest Bedding Studio",
   tagline: "Pure Cotton Comfort, Everyday Elegance",
   phone: "+91 7838625915",
   rawPhone: "917838625915",
-  address: "House Number 2508, Ground Floor, Sector 46, Gurgaon, Haryana",
+  address: "Cotton Nest Bedding Studio, Sector 46, Gurgaon, Haryana – 122003",
+  streetAddress: "Sector 46, Gurgaon, Haryana – 122003",
   city: "Gurgaon, Haryana",
   pincode: "122003",
   whatsappUrl: (message?: string) => {
@@ -209,7 +211,6 @@ export const COMPANY_DETAILS = {
     return `https://wa.me/917838625915?text=${encoded}`;
   },
   callUrl: "tel:+917838625915",
-  mapQuery: "House+Number+2508+Ground+Floor+Sector+46+Gurgaon+Haryana",
 };
 
 /* ---------------- UNIQUE SKU MANAGEMENT & DEDUPLICATION SYSTEM ---------------- */

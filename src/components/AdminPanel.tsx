@@ -14,7 +14,7 @@ import {
   normalizeCustomPrice,
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
-import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingFee } from '../data/siteContent';
+import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingFee, normalizeStudioAddress } from '../data/siteContent';
 import {
   uploadImageApi,
   removeProduct,
@@ -97,7 +97,6 @@ import {
   Phone,
   MessageCircle,
   FileText,
-  MapPin,
   TrendingUp,
   Boxes,
   Truck,
@@ -594,7 +593,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     ...INITIAL_SITE_CONTENT,
     ...(siteContent || {}),
     shippingFeeIndia: normalizeShippingFee(siteContent?.shippingFeeIndia),
-    company: { ...INITIAL_SITE_CONTENT.company, ...(siteContent?.company || {}) },
+    company: {
+      ...INITIAL_SITE_CONTENT.company,
+      ...(siteContent?.company || {}),
+      address: normalizeStudioAddress(siteContent?.company?.address),
+    },
     announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(siteContent?.announcement || {}) },
     hero: { ...INITIAL_SITE_CONTENT.hero, ...(siteContent?.hero || {}) },
     story: { ...INITIAL_SITE_CONTENT.story, ...(siteContent?.story || {}) },
@@ -706,7 +709,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         ...INITIAL_SITE_CONTENT,
         ...siteContent,
         shippingFeeIndia: normalizeShippingFee(siteContent.shippingFeeIndia),
-        company: { ...INITIAL_SITE_CONTENT.company, ...(siteContent.company || {}) },
+        company: {
+          ...INITIAL_SITE_CONTENT.company,
+          ...(siteContent.company || {}),
+          address: normalizeStudioAddress(siteContent.company?.address),
+        },
         announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(siteContent.announcement || {}) },
         hero: { ...INITIAL_SITE_CONTENT.hero, ...(siteContent.hero || {}) },
         story: { ...INITIAL_SITE_CONTENT.story, ...(siteContent.story || {}) },
@@ -4794,7 +4801,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </div>
 
                           <div className="pt-2 text-[#6B5D55] leading-relaxed flex items-start gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-[#C29E57] shrink-0 mt-0.5" />
+                            <Truck className="w-3.5 h-3.5 text-[#C29E57] shrink-0 mt-0.5" />
                             <span>{order.customerAddress || 'Gurgaon'}</span>
                           </div>
 
@@ -5713,8 +5720,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             {/* Store & Contact Information */}
             <div className="space-y-4 pt-4 border-t border-[#EAE2D5]">
               <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[#C29E57]" />
-                Store Location, Phone &amp; Hours
+                <Sparkles className="w-4 h-4 text-[#C29E57]" />
+                Studio Address, Phone &amp; Hours
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, MapPin, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, Heart, Award, BarChart3 } from 'lucide-react';
+import { ShoppingBag, Phone, MessageCircle, Menu, X, Sparkles, SlidersHorizontal, Package, User, LogOut, Star, Gift, Bell, Heart, Award, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
@@ -1032,8 +1032,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </a>
               </div>
 
-              <div className="text-center text-[10px] text-[#8C7A70] pt-1">
-                House 2508, Ground Floor, Sector 46, Gurgaon · Open 7 Days
+              <div className="text-center text-[10px] text-[#8C7A70] pt-1 leading-relaxed">
+                <span className="font-semibold text-[#2C2420] block">Cotton Nest Bedding Studio</span>
+                <span>Sector 46, Gurgaon, Haryana – 122003 · Open 7 Days</span>
               </div>
             </motion.div>
           )}

@@ -33,7 +33,8 @@
       "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_bedsheet-mw6kryfg_1794113227",
       "id": "bedsheet-mw6kryfg",
       "productType": "Bedsheet",
-      "collection": "Nandani"
+      "collection": "Nandani",
+      "sku": "CN-NANDAN-108K"
     },
     {
       "order": 0,
@@ -68,7 +69,8 @@
       "pattern": "Artisanal Floral",
       "variants": [],
       "colorTone": "Ivory & Pastels",
-      "name": "Nandani"
+      "name": "Nandani",
+      "sku": "CN-NANDAN-108K-001"
     },
     {
       "colorTone": "Ivory & Pastels",
@@ -103,7 +105,8 @@
       "productType": "Bedsheet",
       "dimensions": "108 x 108 inches (274 x 274 cm)",
       "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_bedsheet-mw0si2eu_1793716517",
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1793716521/cotton_nest/bedsheets/sheet_bedsheet-mw0si2eu_1793716517.jpg"
+      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1793716521/cotton_nest/bedsheets/sheet_bedsheet-mw0si2eu_1793716517.jpg",
+      "sku": "CN-SANSKR-108K"
     },
     {
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
@@ -138,7 +141,8 @@
         "Includes 2 matching pillow shams",
         "100% pure breathable cotton",
         "Machine wash tested"
-      ]
+      ],
+      "sku": "CN-CHUNRI-108K"
     },
     {
       "name": "Chunri Patch",
@@ -173,7 +177,8 @@
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
       "dimensions": "108 x 108 inches (274 x 274 cm)",
       "originalPrice": 1200,
-      "price": 1200
+      "price": 1200,
+      "sku": "CN-CHUNRI-108K-001"
     },
     {
       "threadCount": "250 Thread Count",
@@ -208,7 +213,8 @@
         "100% pure breathable cotton",
         "Machine wash tested"
       ],
-      "dimensions": "108 x 108 inches (274 x 274 cm)"
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
+      "sku": "CN-CHUNRI-108K-002"
     },
     {
       "dimensions": "108 x 108 inches (274 x 274 cm) ",
@@ -243,7 +249,8 @@
       "price": 1150,
       "videoUrl": "",
       "description": "An elegant cream bedsheet featuring colourful traditional elephant motifs arranged in a repeating pattern. The rich red borders and matching pillow accents add a vibrant, ethnic touch to the overall design.",
-      "inStock": true
+      "inStock": true,
+      "sku": "CN-HANDWO-108K"
     },
     {
       "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794064703/cotton_nest/bedsheets/sheet_bedsheet-mw6jsvc5_1794064702.jpg",
@@ -278,7 +285,8 @@
         "Machine wash tested"
       ],
       "id": "bedsheet-mw6jsvc5",
-      "description": "Add a touch of traditional charm to your bedroom with this beautiful Chunri Patch bedsheet. Featuring intricate black and maroon patchwork-inspired motifs with vibrant orange floral accents on a soft beige base, it creates a distinctive blend of ethnic elegance and contemporary style. Crafted from 100% cotton, it offers breathable comfort and timeless appeal."
+      "description": "Add a touch of traditional charm to your bedroom with this beautiful Chunri Patch bedsheet. Featuring intricate black and maroon patchwork-inspired motifs with vibrant orange floral accents on a soft beige base, it creates a distinctive blend of ethnic elegance and contemporary style. Crafted from 100% cotton, it offers breathable comfort and timeless appeal.",
+      "sku": "CN-CHUNRI-108K-003"
     },
     {
       "availabilityType": "none",
@@ -313,7 +321,8 @@
       "price": 1150,
       "additionalImages": [],
       "updatedAt": 1794136795855,
-      "productType": "Bedsheet"
+      "productType": "Bedsheet",
+      "sku": "CN-SANSKR-108K-001"
     },
     {
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
@@ -348,7 +357,8 @@
         "Includes 2 matching pillow shams",
         "100% pure breathable cotton",
         "Machine wash tested"
-      ]
+      ],
+      "sku": "CN-CHUNRI-108K-004"
     },
     {
       "pattern": "Artisanal Floral",
@@ -383,7 +393,8 @@
       ],
       "videos": [],
       "description": "A cute cartoon animal print featuring adorable elephants, monkeys, lions, zebras, and giraffes arranged in a playful horizontal band. Soft pastel shades of pink, peach, lavender, and blue create a cheerful, dreamy, and child-friendly design",
-      "dimensions": "108 x 108 inches (274 x 274 cm)"
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
+      "sku": "CN-CALCIU-108K"
     },
     {
       "availabilityType": "none",
@@ -418,7 +429,8 @@
       "size": "Super King (108 × 108)",
       "price": 1200,
       "additionalImages": [],
-      "updatedAt": 1794136795855
+      "updatedAt": 1794136795855,
+      "sku": "CN-CHUNRI-108K-005"
     },
     {
       "threadCount": "250 Thread Count",
@@ -453,7 +465,8 @@
       "stockQuantity": 15,
       "brand": "Calcium",
       "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_bedsheet-mvwjayci_1793459204",
-      "collection": "Signature Collection"
+      "collection": "Signature Collection",
+      "sku": "CN-CALCIU-108K-001"
     },
     {
       "additionalImages": [],
@@ -488,7 +501,8 @@
       "availabilityType": "none",
       "description": "Featuring a beautiful blend of deep maroon and mustard ethnic motifs on a soft ivory base, this Chunri Patch bedsheet brings a touch of traditional Indian artistry to your bedroom. Its intricate patchwork-inspired patterns create a warm, elegant look, while the 100% pure cotton fabric ensures breathable comfort.",
       "originalPrice": 1200,
-      "pillowCovers": "2 Pillow Covers (45 x 70 cm)"
+      "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
+      "sku": "CN-CHUNRI-108K-006"
     },
     {
       "inStock": true,
@@ -523,7 +537,8 @@
       "threadCount": "300 Thread Count",
       "videos": [],
       "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1793458761/cotton_nest/bedsheets/sheet_bedsheet-mvwj1e22_1793458759.jpg",
-      "additionalImages": []
+      "additionalImages": [],
+      "sku": "CN-FLAMIN-108K"
     },
     {
       "features": [
@@ -559,7 +574,8 @@
       "price": 1320,
       "videos": [],
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
-      "availabilityType": "none"
+      "availabilityType": "none",
+      "sku": "CN-NANDIN-108K"
     },
     {
       "inStock": true,
@@ -589,7 +605,8 @@
       "brand": "Flamingo",
       "colorTone": "Ivory & Pastels",
       "stockQuantity": 5,
-      "dimensions": "108 x 108 inches (274 x 274 cm)"
+      "dimensions": "108 x 108 inches (274 x 274 cm)",
+      "sku": "CN-FLAMIN-108K-001"
     },
     {
       "originalPrice": 1360,
@@ -623,7 +640,8 @@
       "pillowCovers": "2 Pillow Covers (45 x 70 cm)",
       "updatedAt": 1794136795855,
       "productType": "Bedsheet",
-      "price": 1360
+      "price": 1360,
+      "sku": "CN-NANDIN-108K-001"
     },
     {
       "id": "ivory-garland-wreath",
@@ -658,7 +676,8 @@
       "collection": "Royal Heritage",
       "badge": "Customer Favorite",
       "videos": [],
-      "updatedAt": 1794136795855
+      "updatedAt": 1794136795855,
+      "sku": "CN-NANDIN-108K-002"
     },
     {
       "brand": "The Petals",
@@ -693,7 +712,8 @@
       "videoUrl": "",
       "badge": "Royal",
       "cloudinaryPublicId": "cotton_nest/bedsheets/sheet_petals-print-marigold_1792388479",
-      "fabric": "100% Luxury Percale Cotton"
+      "fabric": "100% Luxury Percale Cotton",
+      "sku": "CN-PETALS-108K"
     },
     {
       "price": 1220,
@@ -728,7 +748,8 @@
       "productType": "Bedsheet",
       "updatedAt": 1794136795855,
       "variants": [],
-      "id": "shivaura-trellis-slate"
+      "id": "shivaura-trellis-slate",
+      "sku": "CN-PETALS-108K-001"
     },
     {
       "inStock": true,
@@ -762,7 +783,8 @@
         "Soft pre-washed hand feel"
       ],
       "videos": [],
-      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390238/cotton_nest/bedsheets/sheet_milky-white-poppy_1792390238.jpg"
+      "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390238/cotton_nest/bedsheets/sheet_milky-white-poppy_1792390238.jpg",
+      "sku": "CN-POPPY-108K"
     },
     {
       "image": "https://res.cloudinary.com/ys2sgydi/image/upload/v1792390297/cotton_nest/bedsheets/sheet_amber-orchid-medallion_1792390297.jpg",
@@ -796,7 +818,8 @@
         "Includes 2 printed matching pillowcovers (45x70 cm)",
         "Zero polyester, 100% breathable pure cotton",
         "Easy wash and iron friendly"
-      ]
+      ],
+      "sku": "CN-HERITA-108K"
     },
     {
       "videos": [],
@@ -830,7 +853,8 @@
       "name": "Batik",
       "updatedAt": 1794136795855,
       "inStock": true,
-      "price": 1050
+      "price": 1050,
+      "sku": "CN-BATIK-108K"
     },
     {
       "name": "Rosemary Royal Blue Rose",
@@ -864,7 +888,8 @@
       "availabilityType": "none",
       "inStock": true,
       "productType": "Bedsheet",
-      "size": "King"
+      "size": "King",
+      "sku": "CN-BLUE-ROSE-108K"
     }
   ],
   "orders": [
@@ -2247,7 +2272,7 @@
       "tagline": "Pure Cotton Comfort, Everyday Elegance",
       "phone": "+91 7838625915",
       "rawPhone": "917838625915",
-      "address": "House Number 2508, Ground Floor, Sector 46, Gurgaon, Haryana",
+      "address": "Cotton Nest Bedding Studio, Sector 46, Gurgaon, Haryana – 122003",
       "city": "Gurgaon, Haryana",
       "pincode": "122003",
       "operatingHours": "Monday - Sunday · 10:00 AM - 8:30 PM IST"
@@ -2869,7 +2894,7 @@
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794285849870
+      "updatedAt": 1794368642653
     },
     "email_saurabh.451485@gmail.com": {
       "id": "email_saurabh.451485@gmail.com",
@@ -2883,7 +2908,7 @@
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794285157707
+      "updatedAt": 1794368642815
     },
     "y1rxtxbslayv453hafazltb2ion1": {
       "id": "y1rxtxbslayv453hafazltb2ion1",
@@ -2933,13 +2958,13 @@
       "phone": "7838625915",
       "email": "saurabh.451485@gmail.com",
       "userId": "ipMjoZQzuvg9Xdj8uylIwSwaUuC3",
-      "lifetimeEarned": 2775,
-      "lifetimeSpent": 0,
-      "pointsBalance": 2775,
+      "lifetimeEarned": 925,
+      "lifetimeSpent": 625,
+      "pointsBalance": 300,
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794285158503
+      "updatedAt": 1794368643007
     }
   },
   "loyaltyTransactions": [
@@ -3264,17 +3289,17 @@
       "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
-      "lastLoginAt": 1794285362042,
-      "lastActiveAt": 1794285710057,
-      "totalSessions": 3,
-      "totalTimeSpentSeconds": 3156,
-      "averageSessionDurationSeconds": 1052,
-      "totalPagesVisited": 7,
+      "lastLoginAt": 1794368636648,
+      "lastActiveAt": 1794368636648,
+      "totalSessions": 5,
+      "totalTimeSpentSeconds": 5519,
+      "averageSessionDurationSeconds": 1380,
+      "totalPagesVisited": 10,
       "pageVisitCounts": {
-        "Home Showcase": 2,
+        "Home Showcase": 4,
         "Admin Analytics": 1,
         "Terms & Privacy Policy": 2,
-        "Bedsheet Catalogue": 2
+        "Bedsheet Catalogue": 3
       },
       "mostVisitedPage": "Home Showcase",
       "totalProductViews": 0,
@@ -3318,12 +3343,42 @@
       },
       "sessions": [
         {
+          "sessionId": "sess_1794368636648_92zva",
+          "loginAt": 1794368636648,
+          "lastActiveAt": 1794368636648,
+          "durationSeconds": 0,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794324141314_d7175",
+          "loginAt": 1794324141314,
+          "lastActiveAt": 1794329229692,
+          "durationSeconds": 1598,
+          "pagesVisited": [
+            "Home Showcase",
+            "Bedsheet Catalogue"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
           "sessionId": "sess_1794285362042_s7ztq",
           "loginAt": 1794285362042,
-          "lastActiveAt": 1794285710057,
-          "durationSeconds": 246,
+          "lastActiveAt": 1794290124455,
+          "durationSeconds": 1011,
           "pagesVisited": [
-            "Bedsheet Catalogue"
+            "Bedsheet Catalogue",
+            "Home Showcase"
           ],
           "productsViewedCount": 0,
           "deviceType": "Desktop",
@@ -3365,6 +3420,42 @@
         }
       ],
       "timeline": [
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794368636648_92zva",
+          "timestamp": 1794368636648,
+          "id": "evt_1794368636648_qnabj"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794324141314_d7175",
+          "timestamp": 1794329229555,
+          "id": "evt_1794329229555_9ga59"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794324141314_d7175",
+          "timestamp": 1794325406764,
+          "id": "evt_1794325406764_fsy8v"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794324141314_d7175",
+          "timestamp": 1794324141314,
+          "id": "evt_1794324141314_hyinb"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794285362042_s7ztq",
+          "timestamp": 1794290124093,
+          "id": "evt_1794290124093_ngkfi"
+        },
         {
           "type": "login",
           "label": "User signed in (Google Chrome on Windows 10/11)",
@@ -3448,8 +3539,35 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794285722814,
+      "updatedAt": 1794368702396,
       "lastLogoutAt": 1794285339677
     }
-  }
+  },
+  "historicalSkus": [
+    "CN-NANDAN-108K",
+    "CN-NANDAN-108K-001",
+    "CN-SANSKR-108K",
+    "CN-CHUNRI-108K",
+    "CN-CHUNRI-108K-001",
+    "CN-CHUNRI-108K-002",
+    "CN-HANDWO-108K",
+    "CN-CHUNRI-108K-003",
+    "CN-SANSKR-108K-001",
+    "CN-CHUNRI-108K-004",
+    "CN-CALCIU-108K",
+    "CN-CHUNRI-108K-005",
+    "CN-CALCIU-108K-001",
+    "CN-CHUNRI-108K-006",
+    "CN-FLAMIN-108K",
+    "CN-NANDIN-108K",
+    "CN-FLAMIN-108K-001",
+    "CN-NANDIN-108K-001",
+    "CN-NANDIN-108K-002",
+    "CN-PETALS-108K",
+    "CN-PETALS-108K-001",
+    "CN-POPPY-108K",
+    "CN-HERITA-108K",
+    "CN-BATIK-108K",
+    "CN-BLUE-ROSE-108K"
+  ]
 }

@@ -13,7 +13,7 @@ import {
   generateUniqueProductSku,
 } from './src/data/products.ts';
 import { INITIAL_ORDERS } from './src/data/orders.ts';
-import { INITIAL_SITE_CONTENT, normalizeShippingInTerms } from './src/data/siteContent.ts';
+import { INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeStudioAddress } from './src/data/siteContent.ts';
 import { INITIAL_REVIEWS } from './src/data/reviews.ts';
 import { INITIAL_SEASONAL_CONFIG } from './src/data/seasonal.ts';
 import { INITIAL_COUPONS, CouponOffer } from './src/data/coupons.ts';
@@ -319,11 +319,20 @@ function initDatabase(): StoreDatabase {
         if (!parsed.siteContent) {
           parsed.siteContent = INITIAL_SITE_CONTENT;
           needsSave = true;
-        } else if (parsed.siteContent.termsAndConditions) {
-          const normalizedTc = normalizeShippingInTerms(parsed.siteContent.termsAndConditions);
-          if (normalizedTc !== parsed.siteContent.termsAndConditions) {
-            parsed.siteContent.termsAndConditions = normalizedTc;
-            needsSave = true;
+        } else {
+          if (parsed.siteContent.termsAndConditions) {
+            const normalizedTc = normalizeShippingInTerms(parsed.siteContent.termsAndConditions);
+            if (normalizedTc !== parsed.siteContent.termsAndConditions) {
+              parsed.siteContent.termsAndConditions = normalizedTc;
+              needsSave = true;
+            }
+          }
+          if (parsed.siteContent.company) {
+            const normalizedAddr = normalizeStudioAddress(parsed.siteContent.company.address);
+            if (normalizedAddr !== parsed.siteContent.company.address) {
+              parsed.siteContent.company.address = normalizedAddr;
+              needsSave = true;
+            }
           }
         }
         if (needsSave) {

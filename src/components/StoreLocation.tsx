@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Phone, MessageCircle, Clock, Navigation, CheckCircle2, Send } from 'lucide-react';
+import { Sparkles, Phone, MessageCircle, Clock, CheckCircle2, Send, Building2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { COMPANY_DETAILS } from '../data/products';
 
@@ -11,7 +11,7 @@ export const StoreLocation: React.FC = () => {
 
   const handleSubmitVisit = (e: React.FormEvent) => {
     e.preventDefault();
-    const fullMsg = `Hi Cotton Nest! My name is ${inquiryName} (${inquiryPhone}). I would like to visit your Sector 46 Gurgaon store / request swatch details. Note: ${inquiryMsg || 'Please share directions & visiting slot.'}`;
+    const fullMsg = `Hi Cotton Nest! My name is ${inquiryName} (${inquiryPhone}). I would like to visit Cotton Nest Bedding Studio in Sector 46, Gurgaon / request swatch details. Note: ${inquiryMsg || 'Please share visiting slot & fabric details.'}`;
     window.open(COMPANY_DETAILS.whatsappUrl(fullMsg), '_blank');
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 4000);
@@ -39,7 +39,7 @@ export const StoreLocation: React.FC = () => {
             className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-full liquid-glass-badge"
             style={{ color: 'var(--color-accent, #A8823B)' }}
           >
-            <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
+            <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
             Flagship Experience Studio
           </div>
           <h2
@@ -73,7 +73,7 @@ export const StoreLocation: React.FC = () => {
               
               <div className="flex items-start gap-4">
                 <div className="p-3 liquid-glass-badge text-[#B83F60] rounded-2xl shrink-0">
-                  <MapPin className="w-6 h-6" />
+                  <Building2 className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-bold text-[#A8823B] uppercase tracking-wider">
@@ -83,27 +83,16 @@ export const StoreLocation: React.FC = () => {
                     Cotton Nest Bedding Studio
                   </h3>
                   <p className="text-sm sm:text-base text-[#4A3E38] font-medium leading-relaxed">
-                    House Number 2508, Ground Floor,<br />
-                    Sector 46, Gurgaon, Haryana — 122003
+                    Sector 46, Gurgaon, Haryana – 122003
                   </p>
                   <p className="text-xs text-[#7A6458] pt-1">
-                    Easy ground floor access · Ample visitor parking available
+                    Open 7 days a week · Ample visitor parking available
                   </p>
                 </div>
               </div>
 
-              {/* Action Buttons for Map & Call */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-white/80">
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${COMPANY_DETAILS.mapQuery}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-2.5 px-3 liquid-glass-badge hover:bg-white text-[#2C2420] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <Navigation className="w-4 h-4 text-[#C29E57]" />
-                  <span>Google Maps</span>
-                </a>
-
+              {/* Action Buttons for Phone Call & WhatsApp */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/80">
                 <a
                   href={COMPANY_DETAILS.callUrl}
                   className="py-2.5 px-3 liquid-glass-badge hover:bg-white text-[#2C2420] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
@@ -113,7 +102,7 @@ export const StoreLocation: React.FC = () => {
                 </a>
 
                 <a
-                  href={COMPANY_DETAILS.whatsappUrl("Hello Cotton Nest! I would like to get directions to your Sector 46 Gurgaon store.")}
+                  href={COMPANY_DETAILS.whatsappUrl("Hello Cotton Nest! I would like to inquire about visiting Cotton Nest Bedding Studio in Sector 46, Gurgaon.")}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="py-2.5 px-3 bg-emerald-700/95 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"

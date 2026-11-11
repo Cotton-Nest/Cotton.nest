@@ -572,7 +572,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <div className="flex items-center justify-between py-1.5 border-b border-[#EAE2D5]">
                       <span className="text-[#2C2420] font-medium flex items-center gap-2">
                         <span className="text-[#4285F4] font-bold">G</span>
-                        Google Search &amp; Maps Local
+                        Google Search &amp; Organic Discovery
                       </span>
                       <span className="font-bold text-[#2C2420]">{trafficData.trafficSources.google}</span>
                     </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, MapPin, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon, Maximize2 } from 'lucide-react';
+import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon, Maximize2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS, normalizeAvailabilityType, normalizeCustomPrice } from '../data/products';
 import { ImageLightboxModal } from './ImageLightboxModal';

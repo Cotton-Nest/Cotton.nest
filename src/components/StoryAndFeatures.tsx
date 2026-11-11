@@ -126,7 +126,9 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
                 >
                   The Four Pillars of Cotton Nest
                 </h3>
-                <p className="text-xs text-[#7A6458] mt-0.5">Pure Natural Yarns · Sector 46 Gurgaon Atelier</p>
+                <p className="text-xs text-[#7A6458] mt-0.5">
+                  Cotton Nest Bedding Studio · Sector 46, Gurgaon, Haryana – 122003
+                </p>
               </div>
             </div>
 

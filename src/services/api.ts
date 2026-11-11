@@ -22,7 +22,7 @@ import {
   generateUniqueProductSku,
 } from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
-import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from '../data/siteContent';
+import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee, normalizeStudioAddress } from '../data/siteContent';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { uploadToCloudinary, uploadComplaintPhotoToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
 import { ProductReview, INITIAL_REVIEWS } from '../data/reviews';
@@ -1392,6 +1392,7 @@ export async function getSiteContent(): Promise<SiteContent> {
         const normalizedFee = normalizeShippingFee(data.shippingFeeIndia);
         data.termsAndConditions = normalizedTc;
         data.shippingFeeIndia = normalizedFee;
+        data.company.address = normalizeStudioAddress(data.company.address);
         return data;
       }
     }
@@ -1407,6 +1408,11 @@ export async function saveSiteContentApi(content: SiteContent): Promise<void> {
   try {
     const cleanContent = stripUndefined({
       ...content,
+      company: {
+        ...INITIAL_SITE_CONTENT.company,
+        ...(content.company || {}),
+        address: normalizeStudioAddress(content.company?.address),
+      },
       shippingFeeIndia: normalizeShippingFee(content.shippingFeeIndia),
       termsAndConditions: normalizeShippingInTerms(content.termsAndConditions),
       updatedAt: Date.now(),

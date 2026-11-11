@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, MessageCircle, MapPin, Heart, Lock, Unlock } from 'lucide-react';
+import { Phone, MessageCircle, Heart, Lock, Unlock } from 'lucide-react';
 import { COMPANY_DETAILS } from '../data/products';
 
 interface FooterProps {
@@ -55,12 +55,14 @@ export const Footer: React.FC<FooterProps> = ({
               and oversized 108″ × 108″ King proportions for Indian homes.
             </p>
 
-            <div className="space-y-1.5 text-xs opacity-85 pt-1">
-              <p className="flex items-start gap-2">
-                <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
-                <span>House Number 2508, Ground Floor, Sector 46, Gurgaon, Haryana</span>
-              </p>
-              <p className="flex items-center gap-2">
+            <div className="space-y-1.5 text-xs opacity-90 pt-1">
+              <div className="leading-relaxed">
+                <p className="font-semibold" style={{ color: 'var(--color-footer-text, #FAF7F2)' }}>
+                  Cotton Nest Bedding Studio
+                </p>
+                <p>Sector 46, Gurgaon, Haryana – 122003</p>
+              </div>
+              <p className="flex items-center gap-2 pt-0.5">
                 <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-accent, #B83F60)' }} />
                 <a href={COMPANY_DETAILS.callUrl} className="hover:underline font-semibold">
                   +91 7838625915

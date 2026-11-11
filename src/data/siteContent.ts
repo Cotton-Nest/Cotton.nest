@@ -51,6 +51,24 @@ export function normalizeShippingFee(rawFee?: unknown): number {
   return Math.round(num);
 }
 
+export const OFFICIAL_STUDIO_ADDRESS = "Cotton Nest Bedding Studio, Sector 46, Gurgaon, Haryana – 122003";
+
+export function normalizeStudioAddress(rawAddress?: string | null): string {
+  if (!rawAddress || typeof rawAddress !== 'string') return OFFICIAL_STUDIO_ADDRESS;
+  const trimmed = rawAddress.trim();
+  if (!trimmed) return OFFICIAL_STUDIO_ADDRESS;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.includes('2508') ||
+    lower.includes('ground floor') ||
+    lower === 'sector 46, gurgaon, haryana' ||
+    lower === 'sector 46, gurgaon'
+  ) {
+    return OFFICIAL_STUDIO_ADDRESS;
+  }
+  return trimmed;
+}
+
 export const INITIAL_SITE_CONTENT: SiteContent = {
   isMaintenanceMode: false,
   maintenanceNotice: "We're making some improvements! Cotton Nest will be back shortly. Thank you for your patience.",
@@ -59,7 +77,7 @@ export const INITIAL_SITE_CONTENT: SiteContent = {
     tagline: "Pure Cotton Comfort, Everyday Elegance",
     phone: "+91 7838625915",
     rawPhone: "917838625915",
-    address: "House Number 2508, Ground Floor, Sector 46, Gurgaon, Haryana",
+    address: OFFICIAL_STUDIO_ADDRESS,
     city: "Gurgaon, Haryana",
     pincode: "122003",
     operatingHours: "Monday - Sunday · 10:00 AM - 8:30 PM IST",

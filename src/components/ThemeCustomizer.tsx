@@ -1139,7 +1139,7 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
                   color: draftColors.footerText || getContrastTextColor(draftColors.footer),
                 }}
               >
-                <span>House 2508, Sector 46 Gurgaon</span>
+                <span>Cotton Nest Bedding Studio · Sector 46, Gurgaon, Haryana – 122003</span>
                 <span className="font-semibold">+91 7838625915</span>
               </div>
             </div>

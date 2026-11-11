@@ -49,7 +49,7 @@ import { useAuth, isOwnerEmail } from './context/AuthContext';
 import { useLoyalty } from './context/LoyaltyContext';
 import { LoyaltyRewardsModal } from './components/LoyaltyRewardsModal';
 import { Order, INITIAL_ORDERS } from './data/orders';
-import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee } from './data/siteContent';
+import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee, normalizeStudioAddress } from './data/siteContent';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from './data/seasonal';
 import {
   getProducts,
@@ -118,7 +118,7 @@ import {
   isValidHex,
 } from './data/theme';
 import { resolveBedsheetImage, isVideoMedia } from './utils/imageUrl';
-import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star, Bell, X, Wrench, MapPin } from 'lucide-react';
+import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star, Bell, X, Wrench } from 'lucide-react';
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -518,6 +518,9 @@ export default function App() {
             parsed.termsAndConditions = normalizeShippingInTerms(parsed.termsAndConditions);
           }
           parsed.shippingFeeIndia = normalizeShippingFee(parsed.shippingFeeIndia);
+          if (parsed.company) {
+            parsed.company.address = normalizeStudioAddress(parsed.company.address);
+          }
           return parsed;
         }
       }
@@ -1106,7 +1109,11 @@ export default function App() {
             isMaintenanceMode: Boolean(content.isMaintenanceMode),
             maintenanceNotice: content.maintenanceNotice || INITIAL_SITE_CONTENT.maintenanceNotice,
             shippingFeeIndia: normalizedFee,
-            company: { ...INITIAL_SITE_CONTENT.company, ...(content.company || {}) },
+            company: {
+              ...INITIAL_SITE_CONTENT.company,
+              ...(content.company || {}),
+              address: normalizeStudioAddress(content.company?.address),
+            },
             announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(content.announcement || {}) },
             hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
             story: { ...INITIAL_SITE_CONTENT.story, ...(content.story || {}) },
@@ -1135,7 +1142,11 @@ export default function App() {
               isMaintenanceMode: Boolean(content.isMaintenanceMode),
               maintenanceNotice: content.maintenanceNotice || INITIAL_SITE_CONTENT.maintenanceNotice,
               shippingFeeIndia: normalizedFee,
-              company: { ...INITIAL_SITE_CONTENT.company, ...(content.company || {}) },
+              company: {
+                ...INITIAL_SITE_CONTENT.company,
+                ...(content.company || {}),
+                address: normalizeStudioAddress(content.company?.address),
+              },
               announcement: { ...INITIAL_SITE_CONTENT.announcement, ...(content.announcement || {}) },
               hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
               story: { ...INITIAL_SITE_CONTENT.story, ...(content.story || {}) },
@@ -1850,9 +1861,9 @@ export default function App() {
               <Phone className="w-3.5 h-3.5 text-[#C29E57]" />
               <span>Call / WhatsApp: <strong>{siteContent.company?.phone || '+91 7838625915'}</strong></span>
             </div>
-            <div className="flex items-center gap-2 text-[#6B5D55]">
-              <MapPin className="w-3.5 h-3.5 text-[#C29E57]" />
-              <span>{siteContent.company?.address || 'House Number 2508, Ground Floor, Sector 46, Gurgaon'}</span>
+            <div className="flex flex-col text-[#6B5D55]">
+              <span className="font-semibold text-[#2C2420]">Cotton Nest Bedding Studio</span>
+              <span>Sector 46, Gurgaon, Haryana – 122003</span>
             </div>
           </div>
 

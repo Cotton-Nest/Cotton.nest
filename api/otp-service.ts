@@ -250,7 +250,7 @@ export function buildCottonNestOtpHtml(otp: string): string {
           <tr>
             <td style="padding:18px 28px;background-color:#FAF7F2;border-top:1px solid #EAE2D5;text-align:center;">
               <p style="margin:0;font-size:11px;color:#A89890;line-height:1.5;">
-                Cotton Nest Atelier · Sector 46, Gurgaon, Haryana · 100% Breathable Pure Cotton
+                Cotton Nest Bedding Studio · Sector 46, Gurgaon, Haryana – 122003 · 100% Breathable Pure Cotton
               </p>
             </td>
           </tr>
@@ -908,7 +908,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
           <tr>
             <td style="padding:20px 28px;background-color:#FAF7F2;border-top:1px solid #EAE2D5;text-align:center;">
               <p style="margin:0 0 4px;font-size:11px;color:#7A6458;font-weight:600;">
-                Cotton Nest Atelier · Sector 46, Gurgaon, Haryana
+                Cotton Nest Bedding Studio · Sector 46, Gurgaon, Haryana – 122003
               </p>
               <p style="margin:0;font-size:11px;color:#A89890;line-height:1.5;">
                 100% Breathable Pure Cotton · Handcrafted in India · Helpline: +91 7838625915
@@ -948,8 +948,8 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
   const pointsWorthInr = Math.floor(pointsEarned * 0.5);
 
   const lines = [
-    `COTTON NEST - OFFICIAL SALE INVOICE`,
-    `Feel The Softness · Sector 46, Gurgaon, Haryana`,
+    `COTTON NEST BEDDING STUDIO - OFFICIAL SALE INVOICE`,
+    `Sector 46, Gurgaon, Haryana – 122003`,
     `Logo: ${COTTON_NEST_LOGO_URL}`,
     ``,
     `Hello ${payload.customerName || 'Valued Customer'},`,
@@ -1023,7 +1023,7 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
   lines.push(`Thank you,`);
   lines.push(`Team Cotton Nest`);
   lines.push(``);
-  lines.push(`Cotton Nest Atelier · Sector 46, Gurgaon, Haryana · 100% Breathable Pure Cotton`);
+  lines.push(`Cotton Nest Bedding Studio · Sector 46, Gurgaon, Haryana – 122003 · 100% Breathable Pure Cotton`);
 
   return lines.join('\n');
 }

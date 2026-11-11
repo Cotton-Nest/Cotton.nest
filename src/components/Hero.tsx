@@ -1,7 +1,6 @@
 import React from 'react';
-import { ArrowRight, ShieldCheck, Sparkles, MapPin, MessageCircle, ChevronDown } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Sparkles, MessageCircle, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
-import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
 
 interface HeroProps {
@@ -82,7 +81,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
                 onClick={onVisitStore}
                 className="w-full sm:w-auto px-6 py-3.5 liquid-glass-dock hover:bg-white text-[var(--color-text,#2C2420)] text-sm font-medium rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <MapPin className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
+                <Sparkles className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
               </motion.button>
             </motion.div>
@@ -131,7 +130,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
                 {/* Top specular glass reflection */}
                 <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-white/35 to-transparent pointer-events-none" />
 
-                {/* Floating Apple Liquid Glass location card */}
+                {/* Floating Apple Liquid Glass studio card */}
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -141,10 +140,10 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
                   className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs liquid-glass-dock p-3.5 rounded-2xl text-left cursor-pointer"
                 >
                   <p className="text-[11px] font-semibold text-[#B83F60] uppercase tracking-wide">
-                    Gurgaon Flagship
+                    Cotton Nest Bedding Studio
                   </p>
                   <p className="text-xs text-[#2C2420] font-semibold leading-snug">
-                    Sector 46, Gurgaon · Ground Floor 2508
+                    Sector 46, Gurgaon, Haryana – 122003
                   </p>
                   <p className="text-[11px] text-[#7A6458] mt-0.5">
                     Try our fabrics in person or order direct via WhatsApp

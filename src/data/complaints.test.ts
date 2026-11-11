@@ -23,7 +23,7 @@ const SAMPLE_ORDER: Order = {
   customerPhone: '+91 9876543210',
   customerEmail: 'aarav@example.com',
   userId: 'usr_aarav_1',
-  customerAddress: 'House 2508, Sector 46, Gurgaon, Haryana - 122003',
+  customerAddress: 'Sector 46, Gurgaon, Haryana – 122003',
   paymentMethod: 'whatsapp',
   totalAmount: 2790,
   totalSavings: 400,
