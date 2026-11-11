@@ -15,6 +15,8 @@ import { StoreLocation } from './components/StoreLocation';
 import { StoryAndFeatures } from './components/StoryAndFeatures';
 import { Footer } from './components/Footer';
 import { OfferBanner } from './components/OfferBanner';
+import { WelcomeOfferBanner } from './components/WelcomeOfferBanner';
+import { WelcomeOfferModal } from './components/WelcomeOfferModal';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
@@ -84,7 +86,15 @@ import {
   removeWishlistItemApi,
   getSiteAnalyticsApi,
   recordPageVisitApi,
+  getWelcomeOfferStatusApi,
+  markWelcomePopupSeenApi,
 } from './services/api';
+import {
+  WelcomeOfferConfig,
+  WelcomeOfferCustomerRecord,
+  DEFAULT_WELCOME_OFFER_CONFIG,
+  evaluateCustomerWelcomeEligibility,
+} from './data/welcomeOffer';
 import { WishlistDrawer } from './components/WishlistDrawer';
 import { CustomerWishlistModal } from './components/CustomerWishlistModal';
 import { AnalyticsView } from './components/AnalyticsView';
@@ -197,6 +207,13 @@ export default function App() {
       });
     }
   }, [user]);
+
+  // Welcome Offer Config, Eligibility & One-Time Welcome Popup State
+  const [welcomeOfferConfig, setWelcomeOfferConfig] = useState<WelcomeOfferConfig>(DEFAULT_WELCOME_OFFER_CONFIG);
+  const [welcomeCustomerRecord, setWelcomeCustomerRecord] = useState<WelcomeOfferCustomerRecord | null>(null);
+  const [isWelcomeOfferModalOpen, setIsWelcomeOfferModalOpen] = useState<boolean>(false);
+
+
 
   // Automatically maintain signed-in customer activity profile & session analytics in Firebase
   useCustomerActivityTracker(
@@ -506,6 +523,69 @@ export default function App() {
     }
     return INITIAL_ORDERS;
   });
+
+  const welcomeEligibility = React.useMemo(() => {
+    return evaluateCustomerWelcomeEligibility({
+      user: user
+        ? {
+            id: user.id,
+            email: user.email,
+            phone: user.phone || customerProfile?.phone,
+            authProvider: user.authProvider,
+          }
+        : null,
+      orders,
+      redemptionRecord: welcomeCustomerRecord,
+      config: welcomeOfferConfig,
+    });
+  }, [user, customerProfile?.phone, orders, welcomeCustomerRecord, welcomeOfferConfig]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const syncWelcomeOffer = async () => {
+      try {
+        const res = await getWelcomeOfferStatusApi({
+          userId: user?.id,
+          email: user?.email,
+          phone: user?.phone || customerProfile?.phone,
+          authProvider: user?.authProvider,
+          existingOrders: orders,
+        });
+        if (!isMounted) return;
+        if (res.config) setWelcomeOfferConfig(res.config);
+        setWelcomeCustomerRecord(res.record || null);
+
+        // Show Welcome Popup ONCE for eligible new Google-signed-in customers
+        if (user?.id && res.eligibility?.eligible && res.config?.enabled) {
+          const popupSeenKey = `cotton_nest_welcome_popup_seen_${user.id}`;
+          const alreadySeenLocally = localStorage.getItem(popupSeenKey);
+          const alreadySeenInRecord = Boolean(res.record?.popupShownAt);
+          if (!alreadySeenLocally && !alreadySeenInRecord) {
+            localStorage.setItem(popupSeenKey, new Date().toISOString());
+            setIsWelcomeOfferModalOpen(true);
+            markWelcomePopupSeenApi({
+              uid: user.id,
+              email: user.email,
+              phone: user.phone,
+              customerName: user.name,
+            }).catch(() => {});
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    syncWelcomeOffer();
+    const handleWelcomeUpdate = () => {
+      syncWelcomeOffer();
+    };
+    window.addEventListener('cotton-nest-welcome-offer-updated', handleWelcomeUpdate);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('cotton-nest-welcome-offer-updated', handleWelcomeUpdate);
+    };
+  }, [user?.id, user?.email, user?.phone, user?.authProvider, orders.length]);
 
   // Dynamic Site Content & Story with local storage persistence
   const [siteContent, setSiteContent] = useState<SiteContent>(() => {
@@ -1945,13 +2025,28 @@ export default function App() {
                       content={siteContent}
                     />
 
+                    {/* New Customer 10% OFF Welcome Offer Banner */}
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 mb-4 relative z-10">
+                      <WelcomeOfferBanner
+                        config={welcomeOfferConfig}
+                        eligibility={welcomeEligibility}
+                        isSignedInWithGoogle={Boolean(user && user.authProvider === 'google')}
+                        onSignInClick={() => setIsAuthModalOpen(true)}
+                        onShopNowClick={() => {
+                          setActiveTab('catalogue');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        onOpenCartClick={() => setIsCartOpen(true)}
+                      />
+                    </div>
+
                     {/* Promotional Offers & Coupons Banner */}
                     <motion.div
                       initial={{ opacity: 0, y: 18 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, margin: '-20px' }}
                       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-2 sm:-mt-6 mb-6 relative z-10"
+                      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-2 mb-6 relative z-10"
                     >
                       <OfferBanner onOpenCart={() => setIsCartOpen(true)} />
                     </motion.div>
@@ -2557,6 +2652,19 @@ export default function App() {
         toast={cartToast}
         onClose={() => setCartToast(null)}
         onOpenCart={() => setIsCartOpen(true)}
+      />
+
+      {/* Welcome 10% OFF Gift Popup for Eligible New Customers */}
+      <WelcomeOfferModal
+        isOpen={isWelcomeOfferModalOpen}
+        config={welcomeOfferConfig}
+        customerName={user?.name}
+        onClose={() => setIsWelcomeOfferModalOpen(false)}
+        onShopNow={() => {
+          setIsWelcomeOfferModalOpen(false);
+          setActiveTab('catalogue');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
     </div>
   );

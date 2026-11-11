@@ -60,6 +60,7 @@ import {
 import { savePublishedThemeApi } from '../services/api';
 import { SeasonalConfig, SeasonalItemDiscount, INITIAL_SEASONAL_CONFIG } from '../data/seasonal';
 import { AdminCouponsSection } from './AdminCouponsSection';
+import { AdminWelcomeOfferSection } from './AdminWelcomeOfferSection';
 import { AdminNotificationsSection } from './AdminNotificationsSection';
 import { AdminWishlistsSection } from './AdminWishlistsSection';
 import { AdminCustomerAnalyticsSection } from './AdminCustomerAnalyticsSection';
@@ -173,8 +174,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateSeasonalConfig,
   reviews = [],
 }) => {
-  // Tabs: 'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
+  // Tabs: 'products' | 'orders' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
 
   // Seasonal Page state
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
@@ -2271,6 +2272,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               type="button"
+              onClick={() => setActiveAdminTab('welcome_offer')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'welcome_offer'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Gift className="w-3.5 h-3.5 text-[#C5A059]" />
+              <span>Welcome Offer</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveAdminTab('coupons')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
                 activeAdminTab === 'coupons'
@@ -2494,6 +2508,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Palette className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'appearance' ? undefined : 'var(--color-accent, #C29E57)' }} />
               <span>Website Appearance</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('welcome_offer')}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+              style={
+                activeAdminTab === 'welcome_offer'
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
+            >
+              <Gift className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'welcome_offer' ? undefined : 'var(--color-accent, #C29E57)' }} />
+              <span>Welcome Offer (10% OFF)</span>
             </button>
 
             <button
@@ -4852,22 +4885,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           {/* Order Total Footer */}
                           <div className="pt-2 border-t border-[#EAE2D5] space-y-1 text-xs">
-                            {Boolean(order.pointsUsed && order.pointsUsed > 0) && (
-                              <div className="flex items-center justify-between text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                <span>✨ Points Redeemed ({order.pointsUsed} pts):</span>
-                                <span className="font-semibold">-₹{order.pointsDiscount || order.pointsUsed}</span>
-                              </div>
-                            )}
-                            {Boolean(order.pointsEarned && order.pointsEarned > 0) && (
-                              <div className="flex items-center justify-between text-emerald-800 text-[11px]">
-                                <span>🎁 Nest Points ({order.status === 'delivered' ? 'Credited' : 'Pending Delivery'}):</span>
-                                <span className="font-bold text-emerald-900">+{order.pointsEarned} pts (5 pts / ₹100)</span>
-                              </div>
+                            {Boolean(order.welcomeOfferApplied || order.benefitType === 'welcome_offer' || (order.welcomeDiscount && order.welcomeDiscount > 0)) ? (
+                              <>
+                                <div className="flex items-center justify-between text-[#70252D] bg-[#FDEAF0] px-2 py-0.5 rounded border border-[#FAD1DC]">
+                                  <span>🎁 Benefit: Welcome to Cotton Nest (10% OFF):</span>
+                                  <span className="font-bold">-₹{Number(order.welcomeDiscount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[#7A6458] text-[11px]">
+                                  <span>Nest Points (Welcome Offer Applied):</span>
+                                  <span className="font-semibold text-[#2C2420]">0 pts earned · 0 pts redeemed</span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                {Boolean(order.pointsUsed && order.pointsUsed > 0) && (
+                                  <div className="flex items-center justify-between text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                    <span>✨ Benefit: Nest Points Redeemed ({order.pointsUsed} pts):</span>
+                                    <span className="font-semibold">-₹{order.pointsDiscount || order.pointsUsed}</span>
+                                  </div>
+                                )}
+                                {Boolean(order.pointsEarned && order.pointsEarned > 0) && (
+                                  <div className="flex items-center justify-between text-emerald-800 text-[11px]">
+                                    <span>🎁 Nest Points ({order.status === 'delivered' ? 'Credited' : 'Pending Delivery'}):</span>
+                                    <span className="font-bold text-emerald-900">+{order.pointsEarned} pts (5 pts / ₹100)</span>
+                                  </div>
+                                )}
+                              </>
                             )}
                             <div className="flex items-center justify-between">
                               <span className="text-[#7A6458]">Total Order Amount:</span>
                               <span className="text-base font-bold text-[#8C2E46] tabular-nums">
-                                ₹{orderTotal.toLocaleString('en-IN')}
+                                ₹{Number(orderTotal || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                               </span>
                             </div>
                           </div>
@@ -5882,6 +5930,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               if (onThemePublished) onThemePublished(newTheme);
             }}
             isOwnerAuthenticated={true}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB: WELCOME OFFER MANAGEMENT (10% OFF NEW CUSTOMERS)    */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'welcome_offer' && (
+          <AdminWelcomeOfferSection
+            orders={editableOrders}
+            onToast={showToast}
           />
         )}
 

@@ -165,6 +165,9 @@ export interface CartOrderPayload {
   customerEmail?: string;
   subtotal: number;
   totalSavings?: number;
+  benefitType?: 'welcome_offer' | 'nest_points' | 'coupon' | 'none';
+  welcomeOfferApplied?: boolean;
+  welcomeDiscount?: number;
   couponCode?: string;
   couponDiscount?: number;
   pointsUsed?: number;
@@ -183,6 +186,16 @@ export interface CartOrderPayload {
   }>;
 }
 
+function formatInr(amount: number): string {
+  const num = Number(amount);
+  if (!Number.isFinite(num)) return '0';
+  const rounded = Math.round(num * 100) / 100;
+  if (Math.abs(rounded - Math.round(rounded)) < 0.001) {
+    return Math.round(rounded).toLocaleString('en-IN');
+  }
+  return rounded.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /**
  * Sends complete cart order directly to WhatsApp with SKU references for every item.
  * IMPORTANT: Do NOT generate or send an invoice when an order is placed.
@@ -195,7 +208,7 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
       `${idx + 1}. ${item.name}`,
       `   • SKU: #${sku}`,
       `   • Size: ${item.dimensions || '108 x 108 inches (274 x 274 cm)'}`,
-      `   • Qty: ${item.quantity} · Price: ₹${(item.price * item.quantity).toLocaleString('en-IN')}`,
+      `   • Qty: ${item.quantity} · Price: ₹${formatInr(item.price * item.quantity)}`,
     ].join('\n');
   }).join('\n');
 
@@ -203,9 +216,15 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
     ? payload.orderId
     : `CN-${payload.orderId}`;
 
-  const couponDiscount = payload.couponDiscount || 0;
-  const pointsDiscount = payload.pointsDiscount || 0;
-  const finalTotal = Math.max(0, payload.subtotal - couponDiscount - pointsDiscount) + (payload.shippingCost || 0);
+  const isWelcomeOffer = Boolean(
+    payload.welcomeOfferApplied ||
+    payload.benefitType === 'welcome_offer' ||
+    (Number(payload.welcomeDiscount) || 0) > 0
+  );
+  const welcomeDiscount = isWelcomeOffer ? Math.round((Number(payload.welcomeDiscount) || 0) * 100) / 100 : 0;
+  const couponDiscount = isWelcomeOffer ? 0 : Math.round((Number(payload.couponDiscount) || 0) * 100) / 100;
+  const pointsDiscount = isWelcomeOffer ? 0 : Math.round((Number(payload.pointsDiscount) || 0) * 100) / 100;
+  const finalTotal = Math.round((Math.max(0, payload.subtotal - welcomeDiscount - couponDiscount - pointsDiscount) + (payload.shippingCost || 0)) * 100) / 100;
 
   const customerLines = [
     `* Name: ${payload.customerName}`,
@@ -224,32 +243,37 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
     `Bedsheets Ordered:`,
     itemsText,
     `--------------------------`,
-    `Bag Subtotal: ₹${payload.subtotal.toLocaleString('en-IN')}`,
+    `Bag Subtotal: ₹${formatInr(payload.subtotal)}`,
   ];
 
-  if (payload.couponCode && couponDiscount > 0) {
-    messageLines.push(`🎟️ Coupon Applied: ${payload.couponCode} (-₹${couponDiscount.toLocaleString('en-IN')})`);
-  }
+  if (isWelcomeOffer && welcomeDiscount > 0) {
+    messageLines.push(`🎁 Welcome to Cotton Nest (10% OFF): -₹${formatInr(welcomeDiscount)}`);
+  } else {
+    if (payload.couponCode && couponDiscount > 0) {
+      messageLines.push(`🎟️ Coupon Applied: ${payload.couponCode} (-₹${formatInr(couponDiscount)})`);
+    }
 
-  if (payload.pointsUsed && payload.pointsUsed > 0 && pointsDiscount > 0) {
-    messageLines.push(`✨ Loyalty Points Redeemed: ${payload.pointsUsed} pts (-₹${pointsDiscount.toLocaleString('en-IN')})`);
+    if (payload.pointsUsed && payload.pointsUsed > 0 && pointsDiscount > 0) {
+      messageLines.push(`✨ Loyalty Points Redeemed: ${payload.pointsUsed} pts (-₹${formatInr(pointsDiscount)})`);
+    }
   }
 
   if (payload.shippingCost && payload.shippingCost > 0) {
-    messageLines.push(`🚚 Shipping: +₹${payload.shippingCost.toLocaleString('en-IN')}`);
+    messageLines.push(`🚚 Shipping: +₹${formatInr(payload.shippingCost)}`);
   } else if (payload.shippingMethod) {
     messageLines.push(`🚚 Shipping: Free (${payload.shippingMethod})`);
   }
 
-  messageLines.push(`💰 Final Total: ₹${finalTotal.toLocaleString('en-IN')}`);
+  messageLines.push(`💰 Final Total: ₹${formatInr(finalTotal)}`);
 
-  if (payload.pointsEarned && payload.pointsEarned > 0) {
+  if (isWelcomeOffer) {
+    messageLines.push(`🎁 Nest Points: 0 pts (Nest Points cannot be earned or redeemed with Welcome Offer)`);
+  } else if (payload.pointsEarned && payload.pointsEarned > 0) {
     messageLines.push(`🎁 Nest Points to Earn: +${payload.pointsEarned} pts (5 pts per ₹100 · credited after delivery & payment)`);
   }
 
   if (payload.totalSavings && payload.totalSavings > 0) {
-    const totalAllSavings = payload.totalSavings + couponDiscount + pointsDiscount;
-    messageLines.push(`(Total Savings: ₹${totalAllSavings.toLocaleString('en-IN')})`);
+    messageLines.push(`(Total Savings: ₹${formatInr(payload.totalSavings)})`);
   }
 
   messageLines.push(``);

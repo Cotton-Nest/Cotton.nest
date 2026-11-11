@@ -3,7 +3,14 @@ import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from '
 import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award, Plus, Home, Briefcase, Bookmark, CheckSquare, Square, Mail, FileText } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
-import { saveOrder, getCouponsApi, validateCouponApi, recordCouponUseApi, isVideoMedia } from '../services/api';
+import {
+  saveOrder,
+  getCouponsApi,
+  validateCouponApi,
+  recordCouponUseApi,
+  isVideoMedia,
+  getWelcomeOfferStatusApi,
+} from '../services/api';
 import { sendWhatsAppCartOrder } from '../utils/whatsappOrder';
 import { useAuth } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
@@ -16,6 +23,15 @@ import {
   LOYALTY_MAX_REDEMPTION_POINTS,
   LOYALTY_POINTS_PER_100_INR,
 } from '../data/loyalty';
+import {
+  WelcomeOfferConfig,
+  WelcomeOfferCustomerRecord,
+  BenefitOptionType,
+  DEFAULT_WELCOME_OFFER_CONFIG,
+  formatRupeeAmount,
+  evaluateCustomerWelcomeEligibility,
+  calculateCentralizedCheckoutBreakdown,
+} from '../data/welcomeOffer';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, formatFullAddress } from '../data/addresses';
@@ -145,7 +161,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   orders = [],
   onOpenAuthModal,
 }) => {
-  const { user } = useAuth();
+  const { user, loginWithGoogle } = useAuth();
   const {
     pointsBalance,
     earnPoints,
@@ -165,6 +181,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     total: number;
     summary: string;
     whatsappUrl: string;
+    benefitType?: BenefitOptionType;
+    welcomeOfferApplied?: boolean;
+    welcomeDiscount?: number;
     pointsEarned?: number;
     pointsUsed?: number;
     pointsDiscount?: number;
@@ -173,16 +192,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   } | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState<boolean>(false);
 
-  // Loyalty Points State synced with Customer Account preference
-  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState<boolean>(false);
+  // Welcome Offer & Benefit Selection State
+  const [welcomeConfig, setWelcomeConfig] = useState<WelcomeOfferConfig>(DEFAULT_WELCOME_OFFER_CONFIG);
+  const [welcomeRecord, setWelcomeRecord] = useState<WelcomeOfferCustomerRecord | null>(null);
+  const [selectedBenefit, setSelectedBenefit] = useState<BenefitOptionType>('none');
+  const [userHasManuallySelectedBenefit, setUserHasManuallySelectedBenefit] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (preferRedeemAtCheckout && canRedeemPoints(pointsBalance)) {
-      setUseLoyaltyPoints(true);
-    } else if (!canRedeemPoints(pointsBalance)) {
-      setUseLoyaltyPoints(false);
-    }
-  }, [preferRedeemAtCheckout, pointsBalance]);
+  // Loyalty Points State synced with Customer Account preference (Never auto-deduct without customer consent)
+  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState<boolean>(false);
 
   // Coupon & Offer State
   const [couponCodeInput, setCouponCodeInput] = useState('');
@@ -196,6 +213,27 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
 
   const userKey = user?.email || user?.id || customerProfile?.id || null;
+
+  // Fetch customer's Welcome Offer status & config when drawer opens or user/orders change
+  useEffect(() => {
+    let isMounted = true;
+    getWelcomeOfferStatusApi({
+      userId: user?.id,
+      email: user?.email,
+      phone: user?.phone || customerPhone,
+      authProvider: user?.authProvider,
+      existingOrders: orders,
+    })
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.config) setWelcomeConfig(res.config);
+        setWelcomeRecord(res.record || null);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, user?.id, user?.email, user?.phone, user?.authProvider, orders.length]);
 
   // Saved Addresses State strictly scoped to the individual customer
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() =>
@@ -417,29 +455,136 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   }, [validItems]);
 
   const catalogSavings = Number(Math.max(0, originalSubtotal - subtotal).toFixed(2));
-  const effectiveCouponDiscount = Number((couponDiscount || 0).toFixed(2));
 
-  // Nest Points discount calculation: 100 points = ₹50 (₹0.50 per point), maximum 250 points per order
-  const netSubtotalAfterCoupon = Number(Math.max(0, subtotal - effectiveCouponDiscount).toFixed(2));
-  const maxRedeemablePoints = pointsBalance > 0
-    ? Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, pointsBalance), calculatePointsForRupeeDiscount(netSubtotalAfterCoupon))
-    : 0;
-  const canRedeemForThisOrder = maxRedeemablePoints > 0;
-  const pointsToRedeem = useLoyaltyPoints && canRedeemForThisOrder ? maxRedeemablePoints : 0;
-  const effectivePointsDiscount = calculatePointsDiscount(pointsToRedeem);
+  // Evaluate customer eligibility for the Welcome Offer (New customer signed in via Google, no delivered orders, not reserved/redeemed)
+  const customerWelcomeEligibility = React.useMemo(() => {
+    return evaluateCustomerWelcomeEligibility({
+      user: user
+        ? {
+            id: user.id,
+            email: user.email,
+            phone: user.phone || customerPhone,
+            authProvider: user.authProvider,
+          }
+        : null,
+      orders,
+      redemptionRecord: welcomeRecord,
+      config: welcomeConfig,
+    });
+  }, [user, customerPhone, orders, welcomeRecord, welcomeConfig]);
 
   const acrossIndiaFee =
     typeof shippingFee === 'number' && !isNaN(shippingFee) && shippingFee >= 0 && shippingFee !== 100
       ? Number(shippingFee.toFixed(2))
       : 29;
-  const totalSavings = Number((catalogSavings + effectiveCouponDiscount + effectivePointsDiscount).toFixed(2));
   const shippingCost = shippingOption === 'india' ? acrossIndiaFee : 0;
-  // Net merchandise amount strictly excludes delivery charges (No points on delivery charges)
-  const netMerchandiseAmount = Number(Math.max(0, subtotal - effectiveCouponDiscount - effectivePointsDiscount).toFixed(2));
-  const finalTotal = Number((netMerchandiseAmount + shippingCost).toFixed(2));
-  const pointsToEarn = calculateEarnedPoints(netMerchandiseAmount); // 5 points per ₹100 spent (excluding delivery charges)
 
-  // Auto-apply or re-validate coupons when bag items or subtotal change
+  // Determine active BenefitOptionType (strictly mutually exclusive: welcome_offer | nest_points | coupon | none)
+  const effectiveSelectedBenefit: BenefitOptionType = React.useMemo(() => {
+    if (selectedBenefit === 'welcome_offer') {
+      if (customerWelcomeEligibility.eligible && subtotal >= (welcomeConfig.minOrderValue || 1299)) {
+        return 'welcome_offer';
+      }
+      return useLoyaltyPoints ? 'nest_points' : appliedCoupon ? 'coupon' : 'none';
+    }
+    if (selectedBenefit === 'nest_points' || useLoyaltyPoints) {
+      return 'nest_points';
+    }
+    if (selectedBenefit === 'coupon' || appliedCoupon) {
+      return 'coupon';
+    }
+    return 'none';
+  }, [selectedBenefit, customerWelcomeEligibility.eligible, subtotal, welcomeConfig.minOrderValue, useLoyaltyPoints, appliedCoupon]);
+
+  // Automatically apply Welcome Offer for eligible new customers when subtotal >= ₹1,299 IF they haven't manually switched benefits yet
+  useEffect(() => {
+    if (userHasManuallySelectedBenefit) return;
+    if (customerWelcomeEligibility.eligible && subtotal >= (welcomeConfig.minOrderValue || 1299)) {
+      setSelectedBenefit('welcome_offer');
+      setUseLoyaltyPoints(false);
+    } else if (selectedBenefit === 'welcome_offer' && (!customerWelcomeEligibility.eligible || subtotal < (welcomeConfig.minOrderValue || 1299))) {
+      setSelectedBenefit('none');
+    }
+  }, [
+    userHasManuallySelectedBenefit,
+    customerWelcomeEligibility.eligible,
+    subtotal,
+    welcomeConfig.minOrderValue,
+    selectedBenefit,
+  ]);
+
+  // Centralized Discount Calculation Engine (Single source of truth)
+  const checkoutBreakdown = React.useMemo(() => {
+    return calculateCentralizedCheckoutBreakdown({
+      productSubtotal: subtotal,
+      deliveryCharge: shippingCost,
+      selectedBenefit: effectiveSelectedBenefit,
+      isCustomerEligibleForWelcome: customerWelcomeEligibility.eligible,
+      availableNestPoints: pointsBalance,
+      couponCode: appliedCoupon?.code,
+      couponDiscountAmount: couponDiscount || 0,
+      config: welcomeConfig,
+    });
+  }, [
+    subtotal,
+    shippingCost,
+    effectiveSelectedBenefit,
+    customerWelcomeEligibility.eligible,
+    pointsBalance,
+    appliedCoupon?.code,
+    couponDiscount,
+    welcomeConfig,
+  ]);
+
+  const isWelcomeOfferApplied = checkoutBreakdown.welcomeOfferApplied;
+  const welcomeDiscount = checkoutBreakdown.welcomeDiscount;
+  const effectiveCouponDiscount = checkoutBreakdown.couponDiscount;
+  const pointsToRedeem = checkoutBreakdown.pointsRedeemed;
+  const effectivePointsDiscount = checkoutBreakdown.pointsDiscount;
+  const maxRedeemablePoints = checkoutBreakdown.comparison.nestPointsOption.pointsToRedeem;
+  const canRedeemForThisOrder = checkoutBreakdown.comparison.nestPointsOption.eligible;
+  const netMerchandiseAmount = checkoutBreakdown.netMerchandiseAmount;
+  const finalTotal = checkoutBreakdown.finalPayableAmount;
+  const pointsToEarn = checkoutBreakdown.pointsEarned; // Strictly 0 when Welcome Offer is applied
+  const totalSavings = Number((catalogSavings + checkoutBreakdown.totalDiscount).toFixed(2));
+
+  // Handlers for switching between Welcome Offer and Nest Points (Mutually Exclusive)
+  const handleSelectWelcomeOffer = () => {
+    setUserHasManuallySelectedBenefit(true);
+    setSelectedBenefit('welcome_offer');
+    setUseLoyaltyPoints(false);
+    setPreferRedeemAtCheckout(false);
+    if (appliedCoupon) {
+      setAppliedCoupon(null);
+      setCouponDiscount(0);
+      setCouponSuccessMessage(null);
+    }
+  };
+
+  const handleRemoveWelcomeOffer = () => {
+    setUserHasManuallySelectedBenefit(true);
+    setSelectedBenefit('none');
+  };
+
+  const handleSelectNestPointsBenefit = (checked: boolean) => {
+    setUserHasManuallySelectedBenefit(true);
+    if (checked) {
+      setSelectedBenefit('nest_points');
+      setUseLoyaltyPoints(true);
+      setPreferRedeemAtCheckout(true);
+      if (appliedCoupon) {
+        setAppliedCoupon(null);
+        setCouponDiscount(0);
+        setCouponSuccessMessage(null);
+      }
+    } else {
+      setSelectedBenefit('none');
+      setUseLoyaltyPoints(false);
+      setPreferRedeemAtCheckout(false);
+    }
+  };
+
+  // Auto-apply or re-validate coupons when bag items or subtotal change (only when neither Welcome Offer nor Nest Points is active)
   useEffect(() => {
     if (!isOpen) return;
     if (validItems.length === 0) {
@@ -449,6 +594,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         setCouponSuccessMessage(null);
         setCouponError(null);
       }
+      return;
+    }
+
+    // Mutual exclusivity: Do not auto-apply coupons when Welcome Offer or Nest Points is selected
+    if (effectiveSelectedBenefit === 'welcome_offer' || effectiveSelectedBenefit === 'nest_points') {
       return;
     }
 
@@ -467,8 +617,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       return;
     }
 
-    // Check for automatic offers if no manual coupon is active
-    if (!appliedCoupon || appliedCoupon.isAutomatic) {
+    // Check for automatic offers if no manual coupon is active and customer is not eligible for Welcome Offer
+    if ((!appliedCoupon || appliedCoupon.isAutomatic) && !customerWelcomeEligibility.eligible) {
       const autoCoupons = availableCoupons.filter((c) => c && c.isActive && c.isAutomatic);
       let bestAuto: { coupon: CouponOffer; discount: number } | null = null;
 
@@ -483,6 +633,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         if (appliedCoupon?.id !== bestAuto.coupon.id || couponDiscount !== bestAuto.discount) {
           setAppliedCoupon(bestAuto.coupon);
           setCouponDiscount(bestAuto.discount);
+          setSelectedBenefit('coupon');
           setCouponSuccessMessage(`🎁 Auto-applied: ${bestAuto.coupon.title}`);
           setCouponError(null);
         }
@@ -492,7 +643,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         setCouponSuccessMessage(null);
       }
     }
-  }, [validItems.length, subtotal, availableCoupons.length, customerPhone, user?.email]);
+  }, [
+    isOpen,
+    validItems.length,
+    subtotal,
+    availableCoupons.length,
+    customerPhone,
+    user?.email,
+    effectiveSelectedBenefit,
+    customerWelcomeEligibility.eligible,
+  ]);
 
   const handleApplyCoupon = async (codeToApply?: string) => {
     const targetCode = (codeToApply || couponCodeInput).trim().toUpperCase();
@@ -513,9 +673,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       );
 
       if (result.valid && result.coupon) {
+        setUserHasManuallySelectedBenefit(true);
+        setSelectedBenefit('coupon');
+        setUseLoyaltyPoints(false);
         setAppliedCoupon(result.coupon);
         setCouponDiscount(result.discountAmount);
-        setCouponSuccessMessage(`✓ Coupon ${result.coupon.code} applied! ₹${result.discountAmount.toLocaleString('en-IN')} saved.`);
+        setCouponSuccessMessage(`✓ Coupon ${result.coupon.code} applied! ₹${formatRupeeAmount(result.discountAmount)} saved.`);
         setCouponError(null);
         setCouponCodeInput('');
       } else {
@@ -534,6 +697,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     setCouponSuccessMessage(null);
     setCouponError(null);
     setCouponCodeInput('');
+    if (selectedBenefit === 'coupon') {
+      setSelectedBenefit('none');
+    }
   };
 
   const shippingLabel =
@@ -566,11 +732,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       customerAddress: customerAddress.trim(),
       subtotal,
       totalSavings,
-      couponCode: appliedCoupon?.code,
-      couponDiscount: effectiveCouponDiscount,
-      pointsUsed: pointsToRedeem,
-      pointsDiscount: effectivePointsDiscount,
-      pointsEarned: pointsToEarn,
+      benefitType: checkoutBreakdown.selectedBenefit,
+      welcomeOfferApplied: isWelcomeOfferApplied,
+      welcomeDiscount: isWelcomeOfferApplied ? welcomeDiscount : 0,
+      couponCode: isWelcomeOfferApplied ? undefined : appliedCoupon?.code,
+      couponDiscount: isWelcomeOfferApplied ? 0 : effectiveCouponDiscount,
+      pointsUsed: isWelcomeOfferApplied ? 0 : pointsToRedeem,
+      pointsDiscount: isWelcomeOfferApplied ? 0 : effectivePointsDiscount,
+      pointsEarned: isWelcomeOfferApplied ? 0 : pointsToEarn,
       shippingMethod: shippingLabel,
       shippingCost,
       items: validItems.map((i) => ({
@@ -604,11 +773,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       totalAmount: finalTotal,
       shippingCost,
       totalSavings,
-      couponCode: appliedCoupon?.code,
-      couponDiscount: effectiveCouponDiscount,
-      pointsUsed: pointsToRedeem > 0 ? pointsToRedeem : undefined,
-      pointsDiscount: effectivePointsDiscount > 0 ? effectivePointsDiscount : undefined,
-      pointsEarned: pointsToEarn > 0 ? pointsToEarn : undefined,
+      benefitType: checkoutBreakdown.selectedBenefit,
+      welcomeOfferApplied: isWelcomeOfferApplied,
+      welcomeDiscount: isWelcomeOfferApplied ? welcomeDiscount : undefined,
+      couponCode: isWelcomeOfferApplied ? undefined : appliedCoupon?.code,
+      couponDiscount: isWelcomeOfferApplied ? 0 : effectiveCouponDiscount,
+      pointsUsed: !isWelcomeOfferApplied && pointsToRedeem > 0 ? pointsToRedeem : 0,
+      pointsDiscount: !isWelcomeOfferApplied && effectivePointsDiscount > 0 ? effectivePointsDiscount : 0,
+      pointsEarned: isWelcomeOfferApplied ? 0 : pointsToEarn,
       pointsCredited: false,
       items: validItems.map((i) => {
         const pName = i?.product?.name || 'Handcrafted Bedsheet';
@@ -654,22 +826,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       }
     }
 
-    // Process loyalty points redemption if applied (maximum 250 points per order enforced)
-    const finalPointsToRedeem = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, pointsToRedeem), pointsBalance);
-    if (finalPointsToRedeem > 0) {
-      try {
-        await redeemPoints(finalPointsToRedeem, orderId, customerPhone.trim());
-        window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
-      } catch (err) {
-        console.warn('Loyalty points redeem notice:', err);
+    // Process loyalty points redemption ONLY if Welcome Offer is NOT applied and Nest Points were selected
+    if (!isWelcomeOfferApplied) {
+      const finalPointsToRedeem = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, pointsToRedeem), pointsBalance);
+      if (finalPointsToRedeem > 0) {
+        try {
+          await redeemPoints(finalPointsToRedeem, orderId, customerPhone.trim());
+          window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
+        } catch (err) {
+          console.warn('Loyalty points redeem notice:', err);
+        }
       }
-    }
 
-    // Earned loyalty points (5 pts / ₹100 spent, excluding delivery) are credited strictly after order status becomes 'delivered'
-
-    // Record coupon usage in Firestore/backend if coupon was applied
-    if (appliedCoupon) {
-      recordCouponUseApi(appliedCoupon.id, customerPhone.trim() || user?.email).catch(() => {});
+      if (appliedCoupon) {
+        recordCouponUseApi(appliedCoupon.id, customerPhone.trim() || user?.email).catch(() => {});
+      }
+    } else {
+      window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
     }
 
     if (onOrderPlaced) {
@@ -681,9 +854,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       total: finalTotal,
       summary: fullMessage,
       whatsappUrl: waUrl,
-      pointsEarned: pointsToEarn,
-      pointsUsed: pointsToRedeem,
-      pointsDiscount: effectivePointsDiscount,
+      benefitType: checkoutBreakdown.selectedBenefit,
+      welcomeOfferApplied: isWelcomeOfferApplied,
+      welcomeDiscount: isWelcomeOfferApplied ? welcomeDiscount : 0,
+      pointsEarned: isWelcomeOfferApplied ? 0 : pointsToEarn,
+      pointsUsed: isWelcomeOfferApplied ? 0 : pointsToRedeem,
+      pointsDiscount: isWelcomeOfferApplied ? 0 : effectivePointsDiscount,
       order: createdOrder,
     });
 
@@ -1080,50 +1256,221 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   {formError}
                 </div>
               )}
-              <div className="p-3 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] text-xs space-y-2">
+              <div className="p-3 bg-[#F4EFE6] rounded-xl border border-[#EAE2D5] text-xs space-y-2.5">
                 <div className="flex items-center justify-between">
                   <p className="font-semibold text-[#2C2420]">Order Summary</p>
-                  <span className="font-bold text-[#8C2E46]">Payable: ₹{finalTotal.toLocaleString('en-IN')}</span>
+                  <span className="font-bold text-[#8C2E46]">Payable: ₹{formatRupeeAmount(finalTotal)}</span>
                 </div>
                 <p className="text-[#6B5D55]">
-                  {validItems.length} bedsheet{validItems.length > 1 ? 's' : ''} (Items Subtotal: ₹{subtotal.toLocaleString('en-IN')})
+                  {validItems.length} bedsheet{validItems.length > 1 ? 's' : ''} (Product Subtotal: ₹{formatRupeeAmount(subtotal)})
                 </p>
 
-                {/* Redeem Nest Points Option directly in Checkout Step */}
-                <div className="pt-2 border-t border-[#EAE2D5] flex items-center justify-between gap-2 text-[11px]">
-                  <div>
-                    <span className="font-semibold text-[#2C2420] flex items-center gap-1">
-                      <Award className="w-3.5 h-3.5 text-[#C29E57]" />
-                      <span>Nest Points Available: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{calculatePointsDiscount(pointsBalance)})</span>
-                    </span>
-                    <span className="text-[10px] text-[#7A6458] block">
-                      {canRedeemForThisOrder
-                        ? `Up to ${LOYALTY_MAX_REDEMPTION_POINTS} pts/order (100 pts = ₹50) · Earn +${pointsToEarn} pts on delivery`
-                        : `Min. ${LOYALTY_MIN_REDEMPTION_POINTS} pts required to redeem · Earn +${pointsToEarn} pts on delivery`}
-                    </span>
-                  </div>
-
-                  {canRedeemForThisOrder ? (
-                    <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-amber-300 hover:bg-amber-50 transition-colors shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={useLoyaltyPoints}
-                        onChange={(e) => {
-                          setUseLoyaltyPoints(e.target.checked);
-                          setPreferRedeemAtCheckout(e.target.checked);
-                        }}
-                        className="accent-[#70252D] w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span className="text-[10px] font-bold text-[#70252D]">
-                        {useLoyaltyPoints ? `Applied (-₹${effectivePointsDiscount})` : 'Redeem Points'}
+                {/* Smart Checkout Benefit Comparison: Welcome Offer vs Nest Points */}
+                {welcomeConfig.enabled && (customerWelcomeEligibility.eligible || !user || canRedeemForThisOrder) && (
+                  <div className="pt-2 border-t border-[#EAE2D5] space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#70252D] flex items-center gap-1">
+                        <Gift className="w-3.5 h-3.5 text-[#C5A059]" />
+                        <span>Smart Benefit Comparison</span>
                       </span>
-                    </label>
-                  ) : (
-                    <span className="text-[10px] font-semibold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200 shrink-0">
-                      Min {LOYALTY_MIN_REDEMPTION_POINTS} pts
-                    </span>
-                  )}
-                </div>
+                      <span className="text-[10px] font-semibold text-[#7A6458]">
+                        {checkoutBreakdown.comparison.subtext}
+                      </span>
+                    </div>
+
+                    {!user && (
+                      <div className="p-2.5 bg-white rounded-xl border border-[#DEC89B] flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-[11px] font-bold text-[#2C2420]">
+                            🎁 New Customer? Get {welcomeConfig.discountPercent}% OFF (up to ₹{welcomeConfig.maxDiscount})
+                          </p>
+                          <p className="text-[10px] text-[#7A6458]">
+                            Sign in with Google on orders ₹{welcomeConfig.minOrderValue.toLocaleString('en-IN')}+ to unlock your Welcome Gift.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await loginWithGoogle();
+                            } catch {
+                              onOpenAuthModal?.();
+                            }
+                          }}
+                          className="px-2.5 py-1.5 bg-[#70252D] text-white text-[10px] font-bold rounded-lg shrink-0 cursor-pointer hover:bg-[#591B22]"
+                        >
+                          Sign in with Google
+                        </button>
+                      </div>
+                    )}
+
+                    {user && (customerWelcomeEligibility.eligible || canRedeemForThisOrder) && (
+                      <>
+                        {checkoutBreakdown.comparison.recommendationText && (
+                          <div className="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] font-semibold text-emerald-900 flex items-center justify-between gap-2">
+                            <span>✨ {checkoutBreakdown.comparison.recommendationText}</span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {/* Option A: Welcome Offer */}
+                          <div
+                            onClick={() => {
+                              if (checkoutBreakdown.comparison.welcomeOption.eligible) {
+                                if (isWelcomeOfferApplied) {
+                                  handleRemoveWelcomeOffer();
+                                } else {
+                                  handleSelectWelcomeOffer();
+                                }
+                              }
+                            }}
+                            className={`p-2.5 rounded-xl border transition-all ${
+                              isWelcomeOfferApplied
+                                ? 'bg-[#FFFDF9] border-[#70252D] ring-1.5 ring-[#70252D] cursor-pointer'
+                                : checkoutBreakdown.comparison.welcomeOption.eligible
+                                ? 'bg-white border-[#DEC89B] hover:border-[#70252D] cursor-pointer'
+                                : 'bg-white/60 border-[#EAE2D5] opacity-75 cursor-not-allowed'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[11px] font-bold text-[#2C2420] flex items-center gap-1">
+                                <Gift className="w-3 h-3 text-[#70252D]" />
+                                <span>Welcome Offer ({welcomeConfig.discountPercent}% OFF)</span>
+                              </span>
+                              {checkoutBreakdown.comparison.recommendedOption === 'welcome_offer' && (
+                                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                  Best Value
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-bold text-[#70252D] mt-1">
+                              {checkoutBreakdown.comparison.welcomeOption.eligible
+                                ? `Save ₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)} OFF`
+                                : customerWelcomeEligibility.eligible
+                                ? `Add ₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.shortfallAmount)} more for 10% OFF`
+                                : customerWelcomeEligibility.reason}
+                            </p>
+                            <p className="text-[10px] text-[#7A6458] mt-0.5">
+                              0 Nest Points earned or redeemed
+                            </p>
+                            {checkoutBreakdown.comparison.welcomeOption.eligible && (
+                              <div className="mt-1.5 flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-[#70252D]">
+                                  {isWelcomeOfferApplied ? '✓ Applied (Click to remove)' : 'Select Welcome Offer'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Option B: Nest Points */}
+                          <div
+                            onClick={() => {
+                              if (canRedeemForThisOrder) {
+                                handleSelectNestPointsBenefit(!useLoyaltyPoints || isWelcomeOfferApplied);
+                              } else if (isWelcomeOfferApplied) {
+                                handleRemoveWelcomeOffer();
+                              }
+                            }}
+                            className={`p-2.5 rounded-xl border transition-all ${
+                              !isWelcomeOfferApplied && useLoyaltyPoints && canRedeemForThisOrder
+                                ? 'bg-[#FFFDF9] border-amber-700 ring-1.5 ring-amber-700 cursor-pointer'
+                                : canRedeemForThisOrder || isWelcomeOfferApplied
+                                ? 'bg-white border-[#DEC89B] hover:border-amber-700 cursor-pointer'
+                                : 'bg-white/60 border-[#EAE2D5] opacity-80'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[11px] font-bold text-[#2C2420] flex items-center gap-1">
+                                <Award className="w-3 h-3 text-[#C29E57]" />
+                                <span>Nest Points ({pointsBalance} pts)</span>
+                              </span>
+                              {checkoutBreakdown.comparison.recommendedOption === 'nest_points' && (
+                                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-900">
+                                  Recommended
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-bold text-amber-900 mt-1">
+                              {canRedeemForThisOrder
+                                ? `Save ₹${formatRupeeAmount(checkoutBreakdown.comparison.nestPointsOption.discountAmount)} OFF (${checkoutBreakdown.comparison.nestPointsOption.pointsToRedeem} pts)`
+                                : `0 pts redeemed (Min ${LOYALTY_MIN_REDEMPTION_POINTS} pts)`}
+                            </p>
+                            <p className="text-[10px] text-[#7A6458] mt-0.5">
+                              Earn +{checkoutBreakdown.comparison.nestPointsOption.pointsToEarn} Nest Points on delivery
+                            </p>
+                            <div className="mt-1.5">
+                              <span className="text-[10px] font-bold text-amber-900">
+                                {!isWelcomeOfferApplied && useLoyaltyPoints && canRedeemForThisOrder
+                                  ? '✓ Nest Points Applied'
+                                  : canRedeemForThisOrder
+                                  ? 'Select Nest Points'
+                                  : isWelcomeOfferApplied
+                                  ? 'Switch to Earn Nest Points'
+                                  : `Earn +${checkoutBreakdown.comparison.nestPointsOption.pointsToEarn} pts`}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Mandatory Notice When Welcome Offer Is Applied */}
+                {isWelcomeOfferApplied ? (
+                  <div className="p-2.5 rounded-xl bg-[#FDEAF0]/80 border border-[#FAD1DC] text-[11px] text-[#70252D] space-y-1">
+                    <div className="flex items-center justify-between font-bold">
+                      <span>🎁 Welcome to Cotton Nest ({welcomeConfig.discountPercent}% OFF): -₹{formatRupeeAmount(welcomeDiscount)}</span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveWelcomeOffer}
+                        className="text-[10px] underline hover:text-rose-700 cursor-pointer"
+                      >
+                        Remove Offer
+                      </button>
+                    </div>
+                    <p className="text-[10px] font-semibold text-[#70252D]">
+                      Nest Points cannot be earned or redeemed when using the Welcome Offer.
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-[#6B5D55] pt-0.5">
+                      <span>Nest Points Redeemed: <strong>0 pts</strong></span>
+                      <span>Nest Points Earned: <strong>0 pts</strong></span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Standard Nest Points Redemption Bar when Welcome Offer is NOT applied */
+                  <div className="pt-2 border-t border-[#EAE2D5] flex items-center justify-between gap-2 text-[11px]">
+                    <div>
+                      <span className="font-semibold text-[#2C2420] flex items-center gap-1">
+                        <Award className="w-3.5 h-3.5 text-[#C29E57]" />
+                        <span>Nest Points Available: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{formatRupeeAmount(calculatePointsDiscount(pointsBalance))})</span>
+                      </span>
+                      <span className="text-[10px] text-[#7A6458] block">
+                        {canRedeemForThisOrder
+                          ? `Up to ${LOYALTY_MAX_REDEMPTION_POINTS} pts/order (100 pts = ₹50) · Earn +${pointsToEarn} pts on delivery`
+                          : `Min. ${LOYALTY_MIN_REDEMPTION_POINTS} pts required to redeem · Earn +${pointsToEarn} pts on delivery`}
+                      </span>
+                    </div>
+
+                    {canRedeemForThisOrder ? (
+                      <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-amber-300 hover:bg-amber-50 transition-colors shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={useLoyaltyPoints && !isWelcomeOfferApplied}
+                          onChange={(e) => handleSelectNestPointsBenefit(e.target.checked)}
+                          className="accent-[#70252D] w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="text-[10px] font-bold text-[#70252D]">
+                          {useLoyaltyPoints ? `Applied (-₹${formatRupeeAmount(effectivePointsDiscount)})` : 'Redeem Points'}
+                        </span>
+                      </label>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200 shrink-0">
+                        Min {LOYALTY_MIN_REDEMPTION_POINTS} pts
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {!user && (
@@ -1500,19 +1847,25 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <div className="p-3.5 bg-white rounded-2xl border border-[#EAE2D5] text-left text-xs space-y-2">
                 <div className="flex justify-between border-b border-[#EAE2D5] pb-1.5 font-semibold text-[#2C2420]">
                   <span>Total Amount</span>
-                  <span>₹{lastOrderDetails.total.toLocaleString('en-IN')}</span>
+                  <span>₹{formatRupeeAmount(lastOrderDetails.total)}</span>
                 </div>
+                {lastOrderDetails.welcomeOfferApplied && (lastOrderDetails.welcomeDiscount || 0) > 0 && (
+                  <div className="flex justify-between text-[#70252D] font-semibold">
+                    <span>🎁 Welcome to Cotton Nest (10% OFF)</span>
+                    <span>-₹{formatRupeeAmount(lastOrderDetails.welcomeDiscount || 0)}</span>
+                  </div>
+                )}
                 <p className="text-[11px] text-[#6B5D55] leading-relaxed">
                   Your order has been recorded in our store management system. A WhatsApp chat with full item specifications has been prepared for you.
                 </p>
               </div>
 
-              {/* Loyalty Points Earned / Redeemed Feedback */}
+              {/* Loyalty Points / Welcome Offer Feedback */}
               <div className="p-3.5 bg-gradient-to-r from-amber-50 to-[#FAF7F2] rounded-2xl border border-amber-200 text-left text-xs space-y-1.5 shadow-2xs">
                 <div className="flex items-center justify-between font-bold text-amber-950">
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-[#C29E57]" />
-                    <span>Nest Points Loyalty Rewards</span>
+                    <span>{lastOrderDetails.welcomeOfferApplied ? 'Welcome Offer Benefit' : 'Nest Points Loyalty Rewards'}</span>
                   </span>
                   <button
                     type="button"
@@ -1522,18 +1875,26 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     View Wallet ({pointsBalance} pts)
                   </button>
                 </div>
-                {Boolean(lastOrderDetails.pointsEarned && lastOrderDetails.pointsEarned > 0) && (
-                  <p className="text-[11px] text-emerald-800 font-semibold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>
-                      🎁 +{lastOrderDetails.pointsEarned} Nest Points (₹{calculatePointsDiscount(Number(lastOrderDetails.pointsEarned) || 0)} value) will be credited upon delivery! Current available balance: <strong className="text-amber-950 font-bold">{pointsBalance} pts</strong>
-                    </span>
+                {lastOrderDetails.welcomeOfferApplied ? (
+                  <p className="text-[11px] text-[#70252D] font-semibold">
+                    🎁 Welcome Offer reserved (-₹{formatRupeeAmount(lastOrderDetails.welcomeDiscount || 0)}). Nest Points cannot be earned or redeemed when using the Welcome Offer (0 pts earned, 0 pts redeemed).
                   </p>
-                )}
-                {Boolean(lastOrderDetails.pointsUsed && lastOrderDetails.pointsUsed > 0) && (
-                  <p className="text-[11px] text-emerald-800 font-medium">
-                    ✨ {lastOrderDetails.pointsUsed} Nest Points redeemed for ₹{lastOrderDetails.pointsDiscount} discount (100 pts = ₹50).
-                  </p>
+                ) : (
+                  <>
+                    {Boolean(lastOrderDetails.pointsEarned && lastOrderDetails.pointsEarned > 0) && (
+                      <p className="text-[11px] text-emerald-800 font-semibold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          🎁 +{lastOrderDetails.pointsEarned} Nest Points (₹{formatRupeeAmount(calculatePointsDiscount(Number(lastOrderDetails.pointsEarned) || 0))} value) will be credited upon delivery! Current available balance: <strong className="text-amber-950 font-bold">{pointsBalance} pts</strong>
+                        </span>
+                      </p>
+                    )}
+                    {Boolean(lastOrderDetails.pointsUsed && lastOrderDetails.pointsUsed > 0) && (
+                      <p className="text-[11px] text-emerald-800 font-medium">
+                        ✨ {lastOrderDetails.pointsUsed} Nest Points redeemed for ₹{formatRupeeAmount(lastOrderDetails.pointsDiscount || 0)} discount (100 pts = ₹50).
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1666,144 +2027,244 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </button>
               </div>
             )}
-            {/* Promo Code & Offers Module */}
-            <div className="p-2 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-[#2C2420] flex items-center gap-1">
-                  <Tag className="w-3 h-3 text-[#C29E57]" />
-                  <span>Coupons &amp; Offers</span>
-                </span>
-                {availableCoupons.filter((c) => c.isActive).length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowOffersList(!showOffersList)}
-                    className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <Gift className="w-3 h-3" />
-                    <span>{showOffersList ? 'Hide Offers' : `View Offers (${availableCoupons.filter((c) => c.isActive).length})`}</span>
-                  </button>
-                )}
-              </div>
 
-              {/* Applied Coupon Pill */}
-              {appliedCoupon ? (
-                <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
-                      %
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold tracking-wider text-[#2C2420] text-[11px]">{appliedCoupon.code}</span>
-                        {appliedCoupon.isAutomatic && (
-                          <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
-                            Auto
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-emerald-700 font-medium leading-tight">
-                        Saving ₹{effectiveCouponDiscount.toLocaleString('en-IN')} on this order
+            {/* Smart Benefit Comparison & Welcome Offer Banner in Bag Footer */}
+            {welcomeConfig.enabled && (
+              <div className="p-2.5 bg-gradient-to-r from-[#FFFDF9] to-[#FAF7F2] rounded-xl border border-[#DEC89B] space-y-1.5">
+                {!user ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-[#70252D] flex items-center gap-1">
+                        <Gift className="w-3.5 h-3.5 text-[#C5A059] shrink-0" />
+                        <span>Welcome Offer: {welcomeConfig.discountPercent}% OFF (up to ₹{welcomeConfig.maxDiscount})</span>
+                      </p>
+                      <p className="text-[10px] text-[#7A6458] truncate">
+                        Sign in with Google to unlock 10% OFF on your first order (min ₹{welcomeConfig.minOrderValue.toLocaleString('en-IN')}).
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await loginWithGoogle();
+                        } catch {
+                          onOpenAuthModal?.();
+                        }
+                      }}
+                      className="px-2.5 py-1 bg-[#70252D] hover:bg-[#591B22] text-white text-[10px] font-bold rounded-lg shrink-0 cursor-pointer"
+                    >
+                      Sign In
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleRemoveCoupon}
-                    className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                    title="Remove coupon"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleApplyCoupon();
-                  }}
-                  className="flex items-center gap-1.5"
-                >
-                  <input
-                    type="text"
-                    value={couponCodeInput}
-                    onChange={(e) => {
-                      setCouponCodeInput(e.target.value.toUpperCase());
-                      setCouponError(null);
-                    }}
-                    placeholder="Enter Coupon Code"
-                    className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={couponLoading || !couponCodeInput.trim()}
-                    className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    {couponLoading ? '...' : 'Apply'}
-                  </button>
-                </form>
-              )}
-
-              {/* Status alerts */}
-              {couponSuccessMessage && (
-                <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-600" />
-                  <span>{couponSuccessMessage}</span>
-                </p>
-              )}
-              {couponError && (
-                <p className="text-[10px] font-medium text-rose-600">
-                  {couponError}
-                </p>
-              )}
-
-              {/* Expandable Offers Picker Drawer */}
-              {showOffersList && (
-                <div className="pt-1.5 border-t border-[#EAE2D5] space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                  {availableCoupons
-                    .filter((c) => c.isActive)
-                    .map((coupon) => {
-                      const isCurrent = appliedCoupon?.code === coupon.code;
-                      return (
-                        <div
-                          key={coupon.id}
-                          className="p-2 bg-white rounded-lg border border-[#EAE2D5] text-xs space-y-0.5"
+                ) : customerWelcomeEligibility.eligible ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#70252D] flex items-center gap-1">
+                        <Gift className="w-3.5 h-3.5 text-[#C5A059]" />
+                        <span>Welcome to Cotton Nest ({welcomeConfig.discountPercent}% OFF)</span>
+                      </span>
+                      {checkoutBreakdown.comparison.welcomeOption.eligible ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isWelcomeOfferApplied) {
+                              handleRemoveWelcomeOffer();
+                            } else {
+                              handleSelectWelcomeOffer();
+                            }
+                          }}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                            isWelcomeOfferApplied
+                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                              : 'bg-[#70252D] text-white hover:bg-[#591B22]'
+                          }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
-                              {coupon.code}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isCurrent) {
-                                  handleRemoveCoupon();
-                                } else {
-                                  handleApplyCoupon(coupon.code);
-                                }
-                              }}
-                              className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                                isCurrent
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-[#FAF7F2] text-[#8C2E46] border border-[#FAD1DC] hover:bg-[#8C2E46] hover:text-white'
-                              }`}
-                            >
-                              {isCurrent ? 'Applied ✓' : 'Apply Code'}
-                            </button>
-                          </div>
-                          <p className="text-[11px] text-[#2C2420] font-medium">{coupon.title}</p>
+                          {isWelcomeOfferApplied
+                            ? `✓ Applied (-₹${formatRupeeAmount(welcomeDiscount)})`
+                            : `Apply (-₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)})`}
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
+                          Add ₹{formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.shortfallAmount)} more for 10% OFF
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Smart Comparison Line: Option A vs Option B */}
+                    {(checkoutBreakdown.comparison.welcomeOption.eligible || canRedeemForThisOrder) && (
+                      <div className="pt-1 border-t border-[#EAE2D5] flex flex-col gap-1 text-[10px]">
+                        <div className="flex items-center justify-between text-[#2C2420]">
+                          <span>
+                            Welcome Offer: <strong className="text-[#70252D]">₹{formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)} OFF</strong>
+                            {' · '}
+                            Nest Points: <strong className="text-amber-900">₹{formatRupeeAmount(checkoutBreakdown.comparison.nestPointsOption.discountAmount)} OFF</strong>
+                          </span>
+                          <span className="font-semibold text-emerald-800">
+                            {checkoutBreakdown.comparison.recommendationText}
+                          </span>
                         </div>
-                      );
-                    })}
+                        <p className="text-[10px] text-[#7A6458]">
+                          {checkoutBreakdown.comparison.subtext}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-[10px] text-[#7A6458]">
+                    <span className="flex items-center gap-1">
+                      <Gift className="w-3 h-3 text-[#8C7A70]" />
+                      <span>Welcome Offer Status:</span>
+                    </span>
+                    <span className="font-medium text-[#2C2420]">{customerWelcomeEligibility.reason}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Promo Code & Offers Module (Hidden/disabled when Welcome Offer is active due to mutual exclusivity) */}
+            {!isWelcomeOfferApplied && (
+              <div className="p-2 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#2C2420] flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-[#C29E57]" />
+                    <span>Coupons &amp; Offers</span>
+                  </span>
+                  {availableCoupons.filter((c) => c.isActive).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowOffersList(!showOffersList)}
+                      className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Gift className="w-3 h-3" />
+                      <span>{showOffersList ? 'Hide Offers' : `View Offers (${availableCoupons.filter((c) => c.isActive).length})`}</span>
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* Applied Coupon Pill */}
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
+                        %
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold tracking-wider text-[#2C2420] text-[11px]">{appliedCoupon.code}</span>
+                          {appliedCoupon.isAutomatic && (
+                            <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
+                              Auto
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-emerald-700 font-medium leading-tight">
+                          Saving ₹{formatRupeeAmount(effectiveCouponDiscount)} on this order
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Remove coupon"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleApplyCoupon();
+                    }}
+                    className="flex items-center gap-1.5"
+                  >
+                    <input
+                      type="text"
+                      value={couponCodeInput}
+                      onChange={(e) => {
+                        setCouponCodeInput(e.target.value.toUpperCase());
+                        setCouponError(null);
+                      }}
+                      placeholder="Enter Coupon Code"
+                      className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={couponLoading || !couponCodeInput.trim()}
+                      className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {couponLoading ? '...' : 'Apply'}
+                    </button>
+                  </form>
+                )}
+
+                {/* Status alerts */}
+                {couponSuccessMessage && (
+                  <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span>{couponSuccessMessage}</span>
+                  </p>
+                )}
+                {couponError && (
+                  <p className="text-[10px] font-medium text-rose-600">
+                    {couponError}
+                  </p>
+                )}
+
+                {/* Expandable Offers Picker Drawer */}
+                {showOffersList && (
+                  <div className="pt-1.5 border-t border-[#EAE2D5] space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {availableCoupons
+                      .filter((c) => c.isActive)
+                      .map((coupon) => {
+                        const isCurrent = appliedCoupon?.code === coupon.code;
+                        return (
+                          <div
+                            key={coupon.id}
+                            className="p-2 bg-white rounded-lg border border-[#EAE2D5] text-xs space-y-0.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
+                                {coupon.code}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isCurrent) {
+                                    handleRemoveCoupon();
+                                  } else {
+                                    handleApplyCoupon(coupon.code);
+                                  }
+                                }}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                  isCurrent
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-[#FAF7F2] text-[#8C2E46] border border-[#FAD1DC] hover:bg-[#8C2E46] hover:text-white'
+                                }`}
+                              >
+                                {isCurrent ? 'Applied ✓' : 'Apply Code'}
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-[#2C2420] font-medium">{coupon.title}</p>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Compact Nest Points Rewards & Checkout Redemption Bar */}
             <div className="px-2.5 py-1.5 bg-gradient-to-r from-amber-50/90 to-[#FAF7F2] rounded-xl border border-amber-200/80 space-y-1">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-semibold text-[#2C2420] flex items-center gap-1">
                   <Award className="w-3.5 h-3.5 text-[#C29E57]" />
-                  <span>Nest Points: <strong className="text-amber-900">+{pointsToEarn} pts</strong> (5 pts/₹100 · on delivery)</span>
+                  {isWelcomeOfferApplied ? (
+                    <span>Nest Points Earned: <strong className="text-[#70252D]">0 pts</strong></span>
+                  ) : (
+                    <span>Nest Points Earned: <strong className="text-amber-900">+{pointsToEarn} pts</strong> (5 pts/₹100 · on delivery)</span>
+                  )}
                 </span>
                 <button
                   type="button"
@@ -1815,74 +2276,99 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </button>
               </div>
 
-              <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-[11px]">
-                <span className="text-[#6B5D55]">
-                  Available: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{calculatePointsDiscount(pointsBalance)})
-                </span>
-                {canRedeemForThisOrder ? (
-                  <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2 py-0.5 rounded-md border border-amber-300 hover:bg-amber-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={useLoyaltyPoints}
-                      onChange={(e) => {
-                        setUseLoyaltyPoints(e.target.checked);
-                        setPreferRedeemAtCheckout(e.target.checked);
-                      }}
-                      className="accent-[#70252D] w-3 h-3 cursor-pointer"
-                    />
-                    <span className="text-[10px] font-bold text-[#70252D]">
-                      {useLoyaltyPoints ? `Applied (-₹${effectivePointsDiscount})` : 'Redeem Points'}
-                    </span>
-                  </label>
-                ) : (
-                  <span className="text-[10px] text-amber-900 font-medium">
-                    Min. {LOYALTY_MIN_REDEMPTION_POINTS} pts to redeem
+              {isWelcomeOfferApplied ? (
+                <div className="pt-1 border-t border-amber-200/60 flex items-center justify-between gap-2 text-[10px]">
+                  <span className="text-[#70252D] font-semibold">
+                    Nest Points cannot be earned or redeemed when using the Welcome Offer.
                   </span>
-                )}
-              </div>
+                  {canRedeemForThisOrder && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectNestPointsBenefit(true)}
+                      className="text-[10px] font-bold text-amber-900 underline shrink-0 cursor-pointer"
+                    >
+                      Use Nest Points Instead
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-[11px]">
+                  <span className="text-[#6B5D55]">
+                    Available: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{formatRupeeAmount(calculatePointsDiscount(pointsBalance))})
+                  </span>
+                  {canRedeemForThisOrder ? (
+                    <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2 py-0.5 rounded-md border border-amber-300 hover:bg-amber-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={useLoyaltyPoints && !isWelcomeOfferApplied}
+                        onChange={(e) => handleSelectNestPointsBenefit(e.target.checked)}
+                        className="accent-[#70252D] w-3 h-3 cursor-pointer"
+                      />
+                      <span className="text-[10px] font-bold text-[#70252D]">
+                        {useLoyaltyPoints ? `Applied (-₹${formatRupeeAmount(effectivePointsDiscount)})` : 'Redeem Points'}
+                      </span>
+                    </label>
+                  ) : (
+                    <span className="text-[10px] text-amber-900 font-medium">
+                      Min. {LOYALTY_MIN_REDEMPTION_POINTS} pts to redeem
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-0.5 text-[11px]">
               <div className="flex justify-between text-[#7A6458]">
-                <span>Items Subtotal</span>
-                <span className="font-semibold text-[#2C2420]">₹{originalSubtotal.toLocaleString('en-IN')}</span>
+                <span>Product Subtotal</span>
+                <span className="font-semibold text-[#2C2420]">₹{formatRupeeAmount(subtotal)}</span>
               </div>
               {catalogSavings > 0 && (
                 <div className="flex justify-between text-[#8C7A70]">
                   <span>Catalog Discount</span>
-                  <span className="font-medium">-₹{catalogSavings.toLocaleString('en-IN')}</span>
+                  <span className="font-medium">-₹{formatRupeeAmount(catalogSavings)}</span>
                 </div>
               )}
-              {effectiveCouponDiscount > 0 && (
+              {isWelcomeOfferApplied && welcomeDiscount > 0 && (
+                <div className="flex justify-between text-[#70252D] bg-[#FDEAF0] px-1.5 py-0.5 rounded border border-[#FAD1DC] font-semibold">
+                  <span className="flex items-center gap-1">
+                    <Gift className="w-3 h-3 text-[#70252D]" />
+                    <span>Welcome Offer ({welcomeConfig.discountPercent}% OFF)</span>
+                  </span>
+                  <span>-₹{formatRupeeAmount(welcomeDiscount)}</span>
+                </div>
+              )}
+              {!isWelcomeOfferApplied && effectiveCouponDiscount > 0 && (
                 <div className="flex justify-between text-[#8C2E46] font-semibold">
                   <span className="flex items-center gap-1">
                     <Tag className="w-3 h-3" />
                     <span>Coupon ({appliedCoupon?.code || 'Offer'})</span>
                   </span>
-                  <span>-₹{effectiveCouponDiscount.toLocaleString('en-IN')}</span>
-                </div>
-              )}
-              {effectivePointsDiscount > 0 && (
-                <div className="flex justify-between text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
-                  <span className="flex items-center gap-1">
-                    <Award className="w-3 h-3 text-[#A8823B]" />
-                    <span>Loyalty Points Redeemed ({pointsToRedeem} pts)</span>
-                  </span>
-                  <span>-₹{effectivePointsDiscount.toLocaleString('en-IN')}</span>
+                  <span>-₹{formatRupeeAmount(effectiveCouponDiscount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-[#7A6458]">
                 <span className="flex items-center gap-1">
-                  <Truck className="w-3 h-3 text-[#B83F60]" />
-                  <span>Shipping ({shippingOption === 'india' ? 'Across India' : shippingOption === 'sector46' ? 'Sec 46' : 'Gurgaon'})</span>
+                  <Award className="w-3 h-3 text-[#A8823B]" />
+                  <span>Nest Points Redeemed</span>
                 </span>
                 <span className="font-semibold text-[#2C2420]">
-                  {shippingCost > 0 ? `+₹${shippingCost}` : shippingOption === 'sector46' ? 'FREE' : 'On Actuals / Pickup'}
+                  {!isWelcomeOfferApplied && pointsToRedeem > 0
+                    ? `${pointsToRedeem} pts (-₹${formatRupeeAmount(effectivePointsDiscount)})`
+                    : '0 pts'}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#7A6458]">
+                <span className="flex items-center gap-1">
+                  <Truck className="w-3 h-3 text-[#B83F60]" />
+                  <span>Delivery Charges ({shippingOption === 'india' ? 'Across India' : shippingOption === 'sector46' ? 'Sec 46' : 'Gurgaon'})</span>
+                </span>
+                <span className="font-semibold text-[#2C2420]">
+                  {shippingCost > 0 ? `₹${formatRupeeAmount(shippingCost)}` : shippingOption === 'sector46' ? 'FREE' : 'On Actuals / Pickup'}
                 </span>
               </div>
               <div className="flex justify-between text-xs font-bold text-[#2C2420] pt-1 border-t border-[#EAE2D5]">
-                <span>Order Total</span>
-                <span className="text-sm text-[#8C2E46]">₹{finalTotal.toLocaleString('en-IN')}</span>
+                <span>Final Payable Amount</span>
+                <span className="text-sm text-[#8C2E46]">₹{formatRupeeAmount(finalTotal)}</span>
               </div>
             </div>
 
@@ -1893,7 +2379,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               className="w-full py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>Proceed to WhatsApp Checkout (₹{finalTotal.toLocaleString('en-IN')})</span>
+              <span>Proceed to WhatsApp Checkout (₹{formatRupeeAmount(finalTotal)})</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </motion.button>
           </div>
@@ -1918,7 +2404,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               className="flex-1 py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>Send Order on WhatsApp (₹{finalTotal.toLocaleString('en-IN')})</span>
+              <span>Send Order on WhatsApp (₹{formatRupeeAmount(finalTotal)})</span>
             </motion.button>
           </div>
         )}

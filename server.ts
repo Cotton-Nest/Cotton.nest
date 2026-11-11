@@ -43,6 +43,15 @@ import {
   buildComplaintNotificationForCustomer,
   buildComplaintNotificationForAdmin,
 } from './src/data/notifications.ts';
+import {
+  WelcomeOfferConfig,
+  WelcomeOfferCustomerRecord,
+  DEFAULT_WELCOME_OFFER_CONFIG,
+  calculateWelcomeOfferDiscount,
+  evaluateCustomerWelcomeEligibility,
+  calculateCentralizedCheckoutBreakdown,
+  BenefitOptionType,
+} from './src/data/welcomeOffer.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,6 +87,8 @@ interface StoreDatabase {
   };
   wishlistNotificationHistories?: Record<string, any>;
   historicalSkus?: string[];
+  welcomeOfferConfig?: WelcomeOfferConfig;
+  welcomeOfferRedemptions?: Record<string, WelcomeOfferCustomerRecord>;
 }
 
 function initDatabase(): StoreDatabase {
@@ -186,17 +197,34 @@ function initDatabase(): StoreDatabase {
           parsed.loyaltyTransactions = [];
           needsSave = true;
         }
+        if (!parsed.welcomeOfferConfig || typeof parsed.welcomeOfferConfig !== 'object') {
+          parsed.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+          needsSave = true;
+        }
+        if (!parsed.welcomeOfferRedemptions || typeof parsed.welcomeOfferRedemptions !== 'object') {
+          parsed.welcomeOfferRedemptions = {};
+          needsSave = true;
+        }
 
-        // Reconcile points from orders: Earned points ONLY when status === 'delivered'; Redeemed points on non-cancelled orders
+        // Reconcile points from orders: Earned points ONLY when status === 'delivered' AND not a Welcome Offer order; Redeemed points on non-cancelled orders
         if (Array.isArray(parsed.orders)) {
           const orderStatusMap = new Map<string, string>();
+          const welcomeOrderIds = new Set<string>();
           parsed.orders.forEach((o: any) => {
-            if (o && o.id) orderStatusMap.set(String(o.id), String(o.status || 'pending'));
+            if (o && o.id) {
+              orderStatusMap.set(String(o.id), String(o.status || 'pending'));
+              if (o.welcomeOfferApplied || o.benefitType === 'welcome_offer' || (Number(o.welcomeDiscount) || 0) > 0) {
+                welcomeOrderIds.add(String(o.id));
+              }
+            }
           });
 
-          // Remove any premature 'earned' transactions for orders that are not yet delivered
+          // Remove any premature 'earned' transactions or any transactions for Welcome Offer orders
           const prevTxLen = parsed.loyaltyTransactions.length;
           parsed.loyaltyTransactions = parsed.loyaltyTransactions.filter((t: any) => {
+            if (t && t.orderId && welcomeOrderIds.has(String(t.orderId))) {
+              return false;
+            }
             if (t && t.type === 'earned' && t.orderId && orderStatusMap.has(String(t.orderId))) {
               return orderStatusMap.get(String(t.orderId)) === 'delivered';
             }
@@ -210,6 +238,51 @@ function initDatabase(): StoreDatabase {
 
           parsed.orders.forEach((o: any) => {
             if (!o) return;
+            const isWelcomeOrder = Boolean(
+              o.welcomeOfferApplied || o.benefitType === 'welcome_offer' || (Number(o.welcomeDiscount) || 0) > 0
+            );
+            if (isWelcomeOrder) {
+              o.welcomeOfferApplied = true;
+              o.benefitType = 'welcome_offer';
+              o.pointsEarned = 0;
+              o.pointsUsed = 0;
+              o.pointsDiscount = 0;
+              o.pointsCredited = false;
+              if (o.userId) {
+                const uid = String(o.userId).trim();
+                const existingRec = parsed.welcomeOfferRedemptions[uid];
+                if (o.status === 'delivered') {
+                  parsed.welcomeOfferRedemptions[uid] = {
+                    uid,
+                    email: o.customerEmail || existingRec?.email,
+                    customerName: o.customerName || existingRec?.customerName,
+                    phone: o.customerPhone || existingRec?.phone,
+                    authProvider: 'google',
+                    status: 'redeemed',
+                    redeemedOrderId: o.id,
+                    redeemedAt: existingRec?.redeemedAt || Date.now(),
+                    discountAmount: Number(o.welcomeDiscount) || existingRec?.discountAmount || 0,
+                    popupShownAt: existingRec?.popupShownAt,
+                    updatedAt: Date.now(),
+                  };
+                } else if (o.status !== 'cancelled' && existingRec?.status !== 'redeemed') {
+                  parsed.welcomeOfferRedemptions[uid] = {
+                    uid,
+                    email: o.customerEmail || existingRec?.email,
+                    customerName: o.customerName || existingRec?.customerName,
+                    phone: o.customerPhone || existingRec?.phone,
+                    authProvider: 'google',
+                    status: 'reserved',
+                    reservedOrderId: o.id,
+                    reservedAt: existingRec?.reservedAt || Date.now(),
+                    discountAmount: Number(o.welcomeDiscount) || existingRec?.discountAmount || 0,
+                    popupShownAt: existingRec?.popupShownAt,
+                    updatedAt: Date.now(),
+                  };
+                }
+              }
+              return;
+            }
             if (o.status === 'cancelled') {
               o.pointsCredited = false;
               return;
@@ -1095,10 +1168,15 @@ async function startServer() {
         (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
         0
       );
-      const couponDiscountVal = Number(order.couponDiscount) || 0;
-      const pointsUsedVal = Number(order.pointsUsed) || 0;
-      const pointsDiscountVal =
-        Number(order.pointsDiscount) || (pointsUsedVal > 0 ? calculatePointsDiscount(pointsUsedVal) : 0);
+      const welcomeDiscountVal = Math.max(0, Math.round((Number(order.welcomeDiscount) || 0) * 100) / 100);
+      const isWelcomeOfferOrder = Boolean(
+        order.welcomeOfferApplied || order.benefitType === 'welcome_offer' || welcomeDiscountVal > 0
+      );
+      const couponDiscountVal = isWelcomeOfferOrder ? 0 : Number(order.couponDiscount) || 0;
+      const pointsUsedVal = isWelcomeOfferOrder ? 0 : Number(order.pointsUsed) || 0;
+      const pointsDiscountVal = isWelcomeOfferOrder
+        ? 0
+        : Number(order.pointsDiscount) || (pointsUsedVal > 0 ? calculatePointsDiscount(pointsUsedVal) : 0);
       const shippingCostVal = Number(order.shippingCost) || 0;
       const finalPayableVal = Number(order.totalAmount) || 0;
       const resolvedSubtotal =
@@ -1106,7 +1184,7 @@ async function startServer() {
           ? itemsSubtotal
           : Number(order.subtotal) > finalPayableVal
           ? Number(order.subtotal)
-          : finalPayableVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
+          : finalPayableVal + welcomeDiscountVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
 
       const canonicalId = String(order.id).startsWith('CN-') ? String(order.id) : `CN-${order.id}`;
       const nowIso = new Date().toISOString();
@@ -1116,6 +1194,11 @@ async function startServer() {
       order.invoiceGenerated = true;
       order.invoiceGeneratedAt = order.invoiceGeneratedAt || nowIso;
       order.subtotal = resolvedSubtotal;
+      if (isWelcomeOfferOrder) {
+        order.pointsEarned = 0;
+        order.pointsUsed = 0;
+        order.pointsDiscount = 0;
+      }
 
       const invoiceResult = await sendOrderInvoiceEmail({
         orderId: order.id,
@@ -1125,13 +1208,16 @@ async function startServer() {
         customerAddress: order.customerAddress,
         shippingMethod: shippingCostVal > 0 ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
         subtotal: resolvedSubtotal,
+        benefitType: isWelcomeOfferOrder ? 'welcome_offer' : order.benefitType,
+        welcomeOfferApplied: isWelcomeOfferOrder,
+        welcomeDiscount: welcomeDiscountVal,
         couponCode: order.couponCode,
         couponDiscount: couponDiscountVal,
         pointsUsed: pointsUsedVal,
         pointsDiscount: pointsDiscountVal,
         shippingCost: shippingCostVal,
         finalTotal: finalPayableVal,
-        pointsEarned: order.pointsEarned,
+        pointsEarned: isWelcomeOfferOrder ? 0 : order.pointsEarned,
         items: normalizedItems,
         createdAt: order.createdAt,
       });
@@ -1177,17 +1263,143 @@ async function startServer() {
       newOrder.trackingNumber = `CN-TRK-${Math.floor(100000 + Math.random() * 900000)}`;
     }
 
-    // Calculate earned loyalty points (5 pts / ₹100 excluding delivery) - credited ONLY upon delivery
-    const shippingCostVal = Number(newOrder.shippingCost) || 0;
-    const eligibleOrderAmount = Math.max(0, (Number(newOrder.totalAmount) || Number(newOrder.subtotal) || 0) - shippingCostVal);
-    const earnedPts = typeof newOrder.pointsEarned === 'number' && newOrder.pointsEarned > 0
-      ? newOrder.pointsEarned
-      : calculateEarnedPoints(eligibleOrderAmount);
+    // Revalidate item prices against trusted product catalog if items exist
+    const trustedCatalog = Array.isArray(db.products) && db.products.length > 0 ? db.products : BEDSHEETS_CATALOG;
+    let computedItemsSubtotal = 0;
+    if (Array.isArray(newOrder.items) && newOrder.items.length > 0) {
+      newOrder.items = newOrder.items.map((item: any) => {
+        const pid = String(item.productId || item.product?.id || '').trim();
+        const catalogProduct = trustedCatalog.find((p: any) => String(p.id) === pid);
+        const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+        const unitPrice = catalogProduct
+          ? Number(catalogProduct.price) || Number(item.price) || 0
+          : Number(item.price) || 0;
+        computedItemsSubtotal += unitPrice * qty;
+        return {
+          ...item,
+          price: unitPrice,
+          quantity: qty,
+        };
+      });
+    }
+    computedItemsSubtotal = Math.round(computedItemsSubtotal * 100) / 100;
+    const productSubtotalVal =
+      computedItemsSubtotal > 0
+        ? computedItemsSubtotal
+        : Math.max(0, Number(newOrder.subtotal) || Number(newOrder.totalAmount) || 0);
+    newOrder.subtotal = productSubtotalVal;
 
-    newOrder.pointsEarned = earnedPts;
+    const shippingCostVal = Math.max(0, Math.round((Number(newOrder.shippingCost) || 0) * 100) / 100);
+    const wantsWelcomeOffer = Boolean(
+      newOrder.welcomeOfferApplied ||
+        newOrder.benefitType === 'welcome_offer' ||
+        (Number(newOrder.welcomeDiscount) || 0) > 0
+    );
+
+    if (!db.welcomeOfferConfig) {
+      db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+    }
+    if (!db.welcomeOfferRedemptions) {
+      db.welcomeOfferRedemptions = {};
+    }
 
     // Check if this order ID already exists in db.orders (e.g. synced from saveAllOrdersApi)
     const existingOrderIdx = db.orders.findIndex((o) => o && o.id === newOrder.id);
+
+    if (wantsWelcomeOffer) {
+      const uid = String(newOrder.userId || '').trim();
+      const eligibility = evaluateCustomerWelcomeEligibility({
+        userId: uid,
+        authProvider: 'google',
+        email: newOrder.customerEmail,
+        phone: newOrder.customerPhone,
+        customerName: newOrder.customerName,
+        existingRecord: uid ? db.welcomeOfferRedemptions[uid] : null,
+        orders: db.orders,
+        config: db.welcomeOfferConfig,
+        currentOrderId: newOrder.id,
+      });
+
+      if (!eligibility.eligible) {
+        return res.status(400).json({ error: eligibility.reason });
+      }
+
+      const welcomeCalc = calculateWelcomeOfferDiscount(productSubtotalVal, db.welcomeOfferConfig);
+      if (!welcomeCalc.meetsMinOrder || welcomeCalc.discountAmount <= 0) {
+        return res.status(400).json({
+          error: `Minimum order value of ₹${welcomeCalc.minOrderValue} (excluding delivery) is required for the Welcome Offer.`,
+        });
+      }
+
+      // Enforce strict mutual exclusivity & MANDATORY Rule 6A/6B:
+      // Zero Nest Points earned, Zero Nest Points redeemed, Zero coupon discount
+      newOrder.benefitType = 'welcome_offer';
+      newOrder.welcomeOfferApplied = true;
+      newOrder.welcomeDiscount = welcomeCalc.discountAmount;
+      newOrder.pointsEarned = 0;
+      newOrder.pointsUsed = 0;
+      newOrder.pointsDiscount = 0;
+      newOrder.couponCode = undefined;
+      newOrder.couponDiscount = 0;
+      newOrder.pointsCredited = false;
+      newOrder.totalAmount = Math.max(
+        0,
+        Math.round((productSubtotalVal - welcomeCalc.discountAmount + shippingCostVal) * 100) / 100
+      );
+
+      // Reserve Welcome Offer for this customer so simultaneous orders cannot reuse it
+      if (uid) {
+        const prevRec = db.welcomeOfferRedemptions[uid];
+        db.welcomeOfferRedemptions[uid] = {
+          uid,
+          email: newOrder.customerEmail || prevRec?.email,
+          customerName: newOrder.customerName || prevRec?.customerName,
+          phone: newOrder.customerPhone || prevRec?.phone,
+          authProvider: 'google',
+          status: 'reserved',
+          reservedOrderId: newOrder.id,
+          reservedAt: Date.now(),
+          discountAmount: welcomeCalc.discountAmount,
+          popupShownAt: prevRec?.popupShownAt,
+          updatedAt: Date.now(),
+        };
+      }
+    } else {
+      newOrder.welcomeOfferApplied = false;
+      newOrder.welcomeDiscount = 0;
+
+      // Enforce mutual exclusivity between Nest Points and Coupons
+      const rawPointsUsed = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Number(newOrder.pointsUsed) || 0));
+      const rawCouponDiscount = Math.max(0, Number(newOrder.couponDiscount) || 0);
+
+      if (rawPointsUsed > 0) {
+        newOrder.benefitType = 'nest_points';
+        newOrder.pointsUsed = rawPointsUsed;
+        newOrder.pointsDiscount = calculatePointsDiscount(rawPointsUsed);
+        newOrder.couponCode = undefined;
+        newOrder.couponDiscount = 0;
+      } else if (rawCouponDiscount > 0) {
+        newOrder.benefitType = 'coupon';
+        newOrder.pointsUsed = 0;
+        newOrder.pointsDiscount = 0;
+      } else {
+        newOrder.benefitType = 'none';
+        newOrder.pointsUsed = 0;
+        newOrder.pointsDiscount = 0;
+      }
+
+      // Calculate earned loyalty points (5 pts / ₹100 excluding delivery) - credited ONLY upon delivery
+      const eligibleOrderAmount = Math.max(
+        0,
+        (Number(newOrder.totalAmount) || productSubtotalVal) - shippingCostVal
+      );
+      const earnedPts =
+        typeof newOrder.pointsEarned === 'number' && newOrder.pointsEarned > 0
+          ? newOrder.pointsEarned
+          : calculateEarnedPoints(eligibleOrderAmount);
+      newOrder.pointsEarned = earnedPts;
+    }
+
     if (existingOrderIdx >= 0) {
       const prevOrder = db.orders[existingOrderIdx];
       const preservedStatus = newOrder.status || prevOrder.status || 'pending';
@@ -1195,7 +1407,10 @@ async function startServer() {
         ...prevOrder,
         ...newOrder,
         status: preservedStatus,
-        pointsCredited: preservedStatus === 'delivered' ? Boolean(prevOrder.pointsCredited || newOrder.pointsCredited) : false,
+        pointsCredited:
+          !newOrder.welcomeOfferApplied && preservedStatus === 'delivered'
+            ? Boolean(prevOrder.pointsCredited || newOrder.pointsCredited)
+            : false,
       };
       saveDatabase();
       return res.status(200).json(db.orders[existingOrderIdx]);
@@ -1204,8 +1419,10 @@ async function startServer() {
     // New order starts as pending; earned points are NOT credited until delivered
     newOrder.pointsCredited = false;
 
-    // Immediately deduct redeemed loyalty points across candidate keys (phone, email, userId) - Max 250 pts redemption per order
-    const pointsUsedVal = Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Number(newOrder.pointsUsed) || 0));
+    // Immediately deduct redeemed loyalty points across candidate keys (only when Welcome Offer is NOT applied)
+    const pointsUsedVal = newOrder.welcomeOfferApplied
+      ? 0
+      : Math.min(LOYALTY_MAX_REDEMPTION_POINTS, Math.max(0, Number(newOrder.pointsUsed) || 0));
 
     if (pointsUsedVal > 0) {
       if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
@@ -1409,10 +1626,15 @@ async function startServer() {
         (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
         0
       );
-      const couponDiscountVal = Number(order.couponDiscount) || 0;
-      const pointsUsedVal = Number(order.pointsUsed) || 0;
-      const pointsDiscountVal =
-        Number(order.pointsDiscount) || (pointsUsedVal > 0 ? calculatePointsDiscount(pointsUsedVal) : 0);
+      const welcomeDiscountVal = Math.max(0, Math.round((Number(order.welcomeDiscount) || 0) * 100) / 100);
+      const isWelcomeOfferOrder = Boolean(
+        order.welcomeOfferApplied || order.benefitType === 'welcome_offer' || welcomeDiscountVal > 0
+      );
+      const couponDiscountVal = isWelcomeOfferOrder ? 0 : Number(order.couponDiscount) || 0;
+      const pointsUsedVal = isWelcomeOfferOrder ? 0 : Number(order.pointsUsed) || 0;
+      const pointsDiscountVal = isWelcomeOfferOrder
+        ? 0
+        : Number(order.pointsDiscount) || (pointsUsedVal > 0 ? calculatePointsDiscount(pointsUsedVal) : 0);
       const shippingCostVal = Number(order.shippingCost) || 0;
       const finalPayableVal = Number(order.totalAmount) || 0;
       const resolvedSubtotal =
@@ -1420,7 +1642,7 @@ async function startServer() {
           ? itemsSubtotal
           : Number(order.subtotal) > finalPayableVal
           ? Number(order.subtotal)
-          : finalPayableVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
+          : finalPayableVal + welcomeDiscountVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
 
       const html = buildCottonNestInvoiceHtml({
         orderId: order.id,
@@ -1430,13 +1652,16 @@ async function startServer() {
         customerAddress: order.customerAddress,
         shippingMethod: shippingCostVal > 0 ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
         subtotal: resolvedSubtotal,
+        benefitType: isWelcomeOfferOrder ? 'welcome_offer' : order.benefitType,
+        welcomeOfferApplied: isWelcomeOfferOrder,
+        welcomeDiscount: welcomeDiscountVal,
         couponCode: order.couponCode,
         couponDiscount: couponDiscountVal,
         pointsUsed: pointsUsedVal,
         pointsDiscount: pointsDiscountVal,
         shippingCost: shippingCostVal,
         finalTotal: finalPayableVal,
-        pointsEarned: order.pointsEarned,
+        pointsEarned: isWelcomeOfferOrder ? 0 : order.pointsEarned,
         items: normalizedItems,
         createdAt: order.createdAt,
       });
@@ -1558,11 +1783,55 @@ async function startServer() {
       }
     }
 
-    // Automatic refund of redeemed points if order is cancelled
+    // Automatic refund of redeemed points or release of Welcome Offer reservation if order is cancelled
     const isBecomingCancelled = newStatus === 'cancelled' && previousOrder.status !== 'cancelled';
     let pointsRefundedFlag = Boolean(previousOrder.pointsRefunded);
+    const payloadOrderFields = updated.order && typeof updated.order === 'object' ? updated.order : {};
 
-    if (isBecomingCancelled && !pointsRefundedFlag) {
+    const isWelcomeOfferOrder = Boolean(
+      previousOrder.welcomeOfferApplied ||
+        previousOrder.benefitType === 'welcome_offer' ||
+        (Number(previousOrder.welcomeDiscount) || 0) > 0 ||
+        updated.welcomeOfferApplied ||
+        updated.benefitType === 'welcome_offer' ||
+        (Number(updated.welcomeDiscount) || 0) > 0 ||
+        payloadOrderFields.welcomeOfferApplied ||
+        payloadOrderFields.benefitType === 'welcome_offer' ||
+        (Number(payloadOrderFields.welcomeDiscount) || 0) > 0
+    );
+
+    const orderUid = String(
+      previousOrder.userId || updated.userId || payloadOrderFields.userId || ''
+    ).trim();
+
+    if (newStatus === 'cancelled' && isWelcomeOfferOrder && orderUid) {
+      if (!db.welcomeOfferRedemptions) db.welcomeOfferRedemptions = {};
+      const existingRec = db.welcomeOfferRedemptions[orderUid];
+      const canonicalOrderId = previousOrder.id || id;
+      if (
+        existingRec &&
+        (existingRec.status === 'reserved' || existingRec.reservedOrderId === canonicalOrderId || existingRec.reservedOrderId === id)
+      ) {
+        // Restore customer eligibility when a Welcome Offer order is cancelled
+        const hasOtherDeliveredOrders = db.orders.some(
+          (o) =>
+            o &&
+            o.id !== canonicalOrderId &&
+            o.id !== id &&
+            o.status === 'delivered' &&
+            String(o.userId || '').trim() === orderUid
+        );
+        db.welcomeOfferRedemptions[orderUid] = {
+          ...existingRec,
+          status: hasOtherDeliveredOrders ? 'ineligible_existing_customer' : 'eligible',
+          reservedOrderId: undefined,
+          reservedAt: undefined,
+          updatedAt: Date.now(),
+        };
+      }
+    }
+
+    if (isBecomingCancelled && !pointsRefundedFlag && !isWelcomeOfferOrder) {
       const ptsUsed = Number(previousOrder.pointsUsed) || 0;
       if (ptsUsed > 0) {
         const loyaltyAccountsMap = db.loyaltyAccounts || (db.loyaltyAccounts = {});
@@ -1615,94 +1884,121 @@ async function startServer() {
     }
 
     // Credit Nest Points only upon successful delivery and full payment (excluding delivery charges)
+    // MANDATORY RULE 6A & 8: If Welcome Offer is used, mark offer permanently 'redeemed' upon delivery and NEVER credit Nest Points
     let pointsCreditedFlag = false;
 
     if (newStatus === 'delivered') {
-      const shippingCostVal = Number(previousOrder.shippingCost ?? updated.shippingCost) || 0;
-      const eligibleOrderAmount = Math.max(
-        0,
-        (Number(previousOrder.totalAmount ?? updated.totalAmount) || Number(previousOrder.subtotal ?? updated.subtotal) || 0) - shippingCostVal
-      );
-      const earnedPts =
-        typeof previousOrder.pointsEarned === 'number' && previousOrder.pointsEarned > 0
-          ? previousOrder.pointsEarned
-          : typeof updated.pointsEarned === 'number' && updated.pointsEarned > 0
-          ? updated.pointsEarned
-          : calculateEarnedPoints(eligibleOrderAmount);
+      const canonicalOrderId = previousOrder.id || id;
+      if (isWelcomeOfferOrder) {
+        previousOrder.pointsEarned = 0;
+        previousOrder.pointsUsed = 0;
+        previousOrder.pointsDiscount = 0;
+        pointsCreditedFlag = false;
 
-      previousOrder.pointsEarned = earnedPts;
+        if (orderUid) {
+          if (!db.welcomeOfferRedemptions) db.welcomeOfferRedemptions = {};
+          const prevRec = db.welcomeOfferRedemptions[orderUid];
+          db.welcomeOfferRedemptions[orderUid] = {
+            uid: orderUid,
+            email: previousOrder.customerEmail || updated.customerEmail || prevRec?.email,
+            customerName: previousOrder.customerName || updated.customerName || prevRec?.customerName,
+            phone: previousOrder.customerPhone || updated.customerPhone || prevRec?.phone,
+            authProvider: 'google',
+            status: 'redeemed',
+            redeemedOrderId: canonicalOrderId,
+            redeemedAt: Date.now(),
+            discountAmount:
+              Number(previousOrder.welcomeDiscount ?? updated.welcomeDiscount ?? prevRec?.discountAmount) || 0,
+            popupShownAt: prevRec?.popupShownAt,
+            updatedAt: Date.now(),
+          };
+        }
+      } else {
+        const shippingCostVal = Number(previousOrder.shippingCost ?? updated.shippingCost) || 0;
+        const eligibleOrderAmount = Math.max(
+          0,
+          (Number(previousOrder.totalAmount ?? updated.totalAmount) || Number(previousOrder.subtotal ?? updated.subtotal) || 0) - shippingCostVal
+        );
+        const earnedPts =
+          typeof previousOrder.pointsEarned === 'number' && previousOrder.pointsEarned > 0
+            ? previousOrder.pointsEarned
+            : typeof updated.pointsEarned === 'number' && updated.pointsEarned > 0
+            ? updated.pointsEarned
+            : calculateEarnedPoints(eligibleOrderAmount);
 
-      if (earnedPts > 0) {
-        const loyaltyAccountsMap = db.loyaltyAccounts || (db.loyaltyAccounts = {});
-        const loyaltyTransactionsList = db.loyaltyTransactions || (db.loyaltyTransactions = []);
+        previousOrder.pointsEarned = earnedPts;
 
-        // Collect all candidate keys (phone, email, userId) to ensure points reflect whether customer logs in by phone or email
-        const candidateKeys: string[] = [];
-        if (previousOrder.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.customerPhone));
-        if (previousOrder.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.customerEmail));
-        if (previousOrder.userId) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.userId));
-        if (updated.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(updated.customerPhone));
-        if (updated.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(updated.customerEmail));
-        if (updated.userId) candidateKeys.push(sanitizeLoyaltyKey(updated.userId));
-        if (candidateKeys.length === 0) candidateKeys.push('guest_default_wallet');
+        if (earnedPts > 0) {
+          const loyaltyAccountsMap = db.loyaltyAccounts || (db.loyaltyAccounts = {});
+          const loyaltyTransactionsList = db.loyaltyTransactions || (db.loyaltyTransactions = []);
 
-        const uniqueKeys = Array.from(new Set(candidateKeys.filter(Boolean)));
-        const now = Date.now();
-        const expiry = getTransactionExpiryDate(now);
-        const canonicalOrderId = previousOrder.id || id;
+          // Collect all candidate keys (phone, email, userId) to ensure points reflect whether customer logs in by phone or email
+          const candidateKeys: string[] = [];
+          if (previousOrder.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.customerPhone));
+          if (previousOrder.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.customerEmail));
+          if (previousOrder.userId) candidateKeys.push(sanitizeLoyaltyKey(previousOrder.userId));
+          if (updated.customerPhone) candidateKeys.push(sanitizeLoyaltyKey(updated.customerPhone));
+          if (updated.customerEmail) candidateKeys.push(sanitizeLoyaltyKey(updated.customerEmail));
+          if (updated.userId) candidateKeys.push(sanitizeLoyaltyKey(updated.userId));
+          if (candidateKeys.length === 0) candidateKeys.push('guest_default_wallet');
 
-        uniqueKeys.forEach((accKey) => {
-          const alreadyCreditedForKey = loyaltyTransactionsList.some(
-            (t) =>
-              t.accountId === accKey &&
-              (t.orderId === canonicalOrderId || t.orderId === id) &&
-              t.type === 'earned' &&
-              t.points > 0
-          );
+          const uniqueKeys = Array.from(new Set(candidateKeys.filter(Boolean)));
+          const now = Date.now();
+          const expiry = getTransactionExpiryDate(now);
 
-          if (!alreadyCreditedForKey) {
-            const existingAcc = loyaltyAccountsMap[accKey] || {
-              id: accKey,
-              customerName: previousOrder.customerName || updated.customerName || 'Cotton Nest Client',
-              phone: previousOrder.customerPhone || updated.customerPhone,
-              email: previousOrder.customerEmail || updated.customerEmail,
-              userId: previousOrder.userId || updated.userId,
-              pointsBalance: 0,
-              lifetimeEarned: 0,
-              lifetimeSpent: 0,
-              referralCode: generateReferralCode(previousOrder.customerName || accKey),
-              updatedAt: now,
-            };
+          uniqueKeys.forEach((accKey) => {
+            const alreadyCreditedForKey = loyaltyTransactionsList.some(
+              (t) =>
+                t.accountId === accKey &&
+                (t.orderId === canonicalOrderId || t.orderId === id) &&
+                t.type === 'earned' &&
+                t.points > 0
+            );
 
-            const nextLifetimeEarned = (existingAcc.lifetimeEarned || 0) + earnedPts;
-            const currentLifetimeSpent = existingAcc.lifetimeSpent || 0;
-            const nextPointsBalance = Math.max(0, nextLifetimeEarned - currentLifetimeSpent);
+            if (!alreadyCreditedForKey) {
+              const existingAcc = loyaltyAccountsMap[accKey] || {
+                id: accKey,
+                customerName: previousOrder.customerName || updated.customerName || 'Cotton Nest Client',
+                phone: previousOrder.customerPhone || updated.customerPhone,
+                email: previousOrder.customerEmail || updated.customerEmail,
+                userId: previousOrder.userId || updated.userId,
+                pointsBalance: 0,
+                lifetimeEarned: 0,
+                lifetimeSpent: 0,
+                referralCode: generateReferralCode(previousOrder.customerName || accKey),
+                updatedAt: now,
+              };
 
-            loyaltyAccountsMap[accKey] = {
-              ...existingAcc,
-              pointsBalance: nextPointsBalance,
-              lifetimeEarned: nextLifetimeEarned,
-              phone: existingAcc.phone || previousOrder.customerPhone || updated.customerPhone,
-              email: existingAcc.email || previousOrder.customerEmail || updated.customerEmail,
-              updatedAt: now,
-            };
+              const nextLifetimeEarned = (existingAcc.lifetimeEarned || 0) + earnedPts;
+              const currentLifetimeSpent = existingAcc.lifetimeSpent || 0;
+              const nextPointsBalance = Math.max(0, nextLifetimeEarned - currentLifetimeSpent);
 
-            loyaltyTransactionsList.unshift({
-              id: `tx_earn_${canonicalOrderId}_${accKey}_${now}`,
-              accountId: accKey,
-              orderId: canonicalOrderId,
-              type: 'earned',
-              points: earnedPts,
-              amountInr: eligibleOrderAmount,
-              description: `Earned on Delivered Order #${canonicalOrderId} (5 pts / ₹100)`,
-              createdAt: now,
-              expiresAt: expiry,
-              status: 'credited',
-            });
-          }
-        });
+              loyaltyAccountsMap[accKey] = {
+                ...existingAcc,
+                pointsBalance: nextPointsBalance,
+                lifetimeEarned: nextLifetimeEarned,
+                phone: existingAcc.phone || previousOrder.customerPhone || updated.customerPhone,
+                email: existingAcc.email || previousOrder.customerEmail || updated.customerEmail,
+                updatedAt: now,
+              };
+
+              loyaltyTransactionsList.unshift({
+                id: `tx_earn_${canonicalOrderId}_${accKey}_${now}`,
+                accountId: accKey,
+                orderId: canonicalOrderId,
+                type: 'earned',
+                points: earnedPts,
+                amountInr: eligibleOrderAmount,
+                description: `Earned on Delivered Order #${canonicalOrderId} (5 pts / ₹100)`,
+                createdAt: now,
+                expiresAt: expiry,
+                status: 'credited',
+              });
+            }
+          });
+        }
+        pointsCreditedFlag = true;
       }
-      pointsCreditedFlag = true;
     }
 
     // Check if an invoice was ALREADY generated for this order before this update
@@ -1723,7 +2019,6 @@ async function startServer() {
         ? updated.deliveredAt || previousOrder.deliveredAt || new Date().toISOString()
         : previousOrder.deliveredAt;
 
-    const payloadOrderFields = updated.order && typeof updated.order === 'object' ? updated.order : {};
     const { order: _omittedNestedOrder, ...topLevelUpdated } = updated;
 
     db.orders[index] = {
@@ -1731,9 +2026,22 @@ async function startServer() {
       ...payloadOrderFields,
       ...topLevelUpdated,
       status: newStatus,
-      pointsEarned: previousOrder.pointsEarned || updated.pointsEarned || payloadOrderFields.pointsEarned,
+      ...(isWelcomeOfferOrder
+        ? {
+            benefitType: 'welcome_offer',
+            welcomeOfferApplied: true,
+            pointsEarned: 0,
+            pointsUsed: 0,
+            pointsDiscount: 0,
+          }
+        : {
+            pointsEarned:
+              previousOrder.pointsEarned ?? updated.pointsEarned ?? payloadOrderFields.pointsEarned,
+          }),
       ...(deliveredAtTimestamp ? { deliveredAt: deliveredAtTimestamp } : {}),
-      pointsCredited: pointsCreditedFlag || Boolean(previousOrder.pointsCredited && newStatus === 'delivered'),
+      pointsCredited: isWelcomeOfferOrder
+        ? false
+        : pointsCreditedFlag || Boolean(previousOrder.pointsCredited && newStatus === 'delivered'),
       pointsRefunded: pointsRefundedFlag,
       timeline: updatedTimeline,
       // Preserve existing invoice fields if already generated
@@ -2786,6 +3094,16 @@ async function startServer() {
 
           if (isMatch) {
             matchedAnyOrder = true;
+            const isWelcomeOrder = Boolean(
+              o.welcomeOfferApplied || o.benefitType === 'welcome_offer' || (Number(o.welcomeDiscount) || 0) > 0
+            );
+            if (isWelcomeOrder) {
+              o.pointsEarned = 0;
+              o.pointsUsed = 0;
+              o.pointsDiscount = 0;
+              o.pointsCredited = false;
+              return;
+            }
             const ship = Number(o.shippingCost) || 0;
             const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
             const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
@@ -2888,6 +3206,23 @@ async function startServer() {
 
     if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
     if (!db.loyaltyTransactions) db.loyaltyTransactions = [];
+
+    // Guard: Never award loyalty points for a Welcome Offer order
+    if (orderId && Array.isArray(db.orders)) {
+      const matchedOrder = db.orders.find((o) => o && String(o.id) === String(orderId));
+      if (
+        matchedOrder &&
+        (matchedOrder.welcomeOfferApplied ||
+          matchedOrder.benefitType === 'welcome_offer' ||
+          (Number(matchedOrder.welcomeDiscount) || 0) > 0)
+      ) {
+        return res.json({
+          account: db.loyaltyAccounts[accountId] || account || null,
+          tx: null,
+          pointsEarned: 0,
+        });
+      }
+    }
 
     // Avoid duplicate earned transaction for same orderId
     if (orderId && !String(orderId).startsWith('REF-')) {
@@ -3147,6 +3482,296 @@ async function startServer() {
     } catch (err: any) {
       return res.status(500).json({ error: err?.message || 'Failed to save customer activity' });
     }
+  });
+
+  /* ------------------- WELCOME OFFER & SMART CHECKOUT VALIDATION API ------------------- */
+
+  app.get('/api/welcome-offer/config', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.welcomeOfferConfig) {
+      db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+    }
+    res.json(db.welcomeOfferConfig);
+  });
+
+  app.put('/api/welcome-offer/config', (req, res) => {
+    try {
+      const payload = req.body || {};
+      const current = db.welcomeOfferConfig || DEFAULT_WELCOME_OFFER_CONFIG;
+      const discPct = Math.max(
+        1,
+        Math.min(100, Number(payload.discountPercentage ?? payload.discountPercent ?? current.discountPercentage ?? 10))
+      );
+      const maxDisc = Math.max(
+        0,
+        Number(payload.maxDiscountAmount ?? payload.maxDiscount ?? current.maxDiscountAmount ?? 200)
+      );
+      const updated: WelcomeOfferConfig = {
+        enabled: typeof payload.enabled === 'boolean' ? payload.enabled : current.enabled,
+        offerName: String(payload.offerName || current.offerName || DEFAULT_WELCOME_OFFER_CONFIG.offerName).trim(),
+        discountPercentage: discPct,
+        discountPercent: discPct,
+        minOrderValue: Math.max(0, Number(payload.minOrderValue ?? current.minOrderValue ?? 1299)),
+        maxDiscountAmount: maxDisc,
+        maxDiscount: maxDisc,
+        updatedAt: Date.now(),
+        updatedBy: payload.updatedBy || 'Admin',
+      };
+      db.welcomeOfferConfig = updated;
+      saveDatabase();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to update Welcome Offer configuration' });
+    }
+  });
+
+  app.get('/api/welcome-offer/status', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.welcomeOfferConfig) {
+      db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+    }
+    if (!db.welcomeOfferRedemptions) {
+      db.welcomeOfferRedemptions = {};
+    }
+
+    const uid = String(req.query.uid || '').trim();
+    const email = String(req.query.email || '').trim();
+    const phone = String(req.query.phone || '').trim();
+    const authProvider = String(req.query.authProvider || '').trim().toLowerCase();
+    const customerName = String(req.query.customerName || '').trim();
+
+    const existingRecord = uid ? db.welcomeOfferRedemptions[uid] || null : null;
+    const eligibility = evaluateCustomerWelcomeEligibility({
+      userId: uid,
+      authProvider,
+      email,
+      phone,
+      customerName,
+      existingRecord,
+      orders: db.orders || [],
+      config: db.welcomeOfferConfig,
+    });
+
+    let syncedRecord = existingRecord;
+    if (uid && authProvider === 'google') {
+      const nextRecord: WelcomeOfferCustomerRecord = {
+        uid,
+        email: email || existingRecord?.email,
+        customerName: customerName || existingRecord?.customerName,
+        phone: phone || existingRecord?.phone,
+        authProvider: 'google',
+        status: eligibility.status,
+        reservedOrderId: eligibility.reservedOrderId || existingRecord?.reservedOrderId,
+        reservedAt: existingRecord?.reservedAt,
+        redeemedOrderId: eligibility.redeemedOrderId || existingRecord?.redeemedOrderId,
+        redeemedAt: existingRecord?.redeemedAt,
+        discountAmount: existingRecord?.discountAmount,
+        popupShownAt: existingRecord?.popupShownAt,
+        updatedAt: Date.now(),
+      };
+      if (
+        !existingRecord ||
+        existingRecord.status !== nextRecord.status ||
+        existingRecord.email !== nextRecord.email ||
+        existingRecord.reservedOrderId !== nextRecord.reservedOrderId ||
+        existingRecord.redeemedOrderId !== nextRecord.redeemedOrderId
+      ) {
+        db.welcomeOfferRedemptions[uid] = nextRecord;
+        saveDatabase();
+      }
+      syncedRecord = db.welcomeOfferRedemptions[uid];
+    }
+
+    res.json({
+      config: db.welcomeOfferConfig,
+      eligibility,
+      record: syncedRecord,
+    });
+  });
+
+  app.post('/api/welcome-offer/popup-seen', (req, res) => {
+    const { uid, email, customerName, phone } = req.body || {};
+    const cleanUid = String(uid || '').trim();
+    if (!cleanUid) {
+      return res.status(400).json({ error: 'uid is required' });
+    }
+    if (!db.welcomeOfferRedemptions) {
+      db.welcomeOfferRedemptions = {};
+    }
+    const existing = db.welcomeOfferRedemptions[cleanUid];
+    const now = Date.now();
+    db.welcomeOfferRedemptions[cleanUid] = {
+      uid: cleanUid,
+      email: email || existing?.email,
+      customerName: customerName || existing?.customerName,
+      phone: phone || existing?.phone,
+      authProvider: 'google',
+      status: existing?.status || 'eligible',
+      reservedOrderId: existing?.reservedOrderId,
+      reservedAt: existing?.reservedAt,
+      redeemedOrderId: existing?.redeemedOrderId,
+      redeemedAt: existing?.redeemedAt,
+      discountAmount: existing?.discountAmount,
+      popupShownAt: existing?.popupShownAt || now,
+      updatedAt: now,
+    };
+    saveDatabase();
+    res.json({ success: true, record: db.welcomeOfferRedemptions[cleanUid] });
+  });
+
+  app.post('/api/checkout/validate', (req, res) => {
+    try {
+      const {
+        items,
+        productSubtotal: rawSubtotal,
+        shippingCost = 0,
+        uid,
+        authProvider,
+        email,
+        phone,
+        customerName,
+        availableNestPoints = 0,
+        selectedBenefit = 'none',
+        requestedPointsToRedeem,
+        couponCode,
+      } = req.body || {};
+
+      if (!db.welcomeOfferConfig) {
+        db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+      }
+      if (!db.welcomeOfferRedemptions) {
+        db.welcomeOfferRedemptions = {};
+      }
+
+      const trustedCatalog = Array.isArray(db.products) && db.products.length > 0 ? db.products : BEDSHEETS_CATALOG;
+      let verifiedSubtotal = 0;
+      if (Array.isArray(items) && items.length > 0) {
+        items.forEach((it: any) => {
+          const pid = String(it.productId || it.product?.id || '').trim();
+          const catalogItem = trustedCatalog.find((p: any) => String(p.id) === pid);
+          const qty = Math.max(1, Math.floor(Number(it.quantity) || 1));
+          const price = catalogItem
+            ? Number(catalogItem.price) || Number(it.price) || 0
+            : Number(it.price) || 0;
+          verifiedSubtotal += price * qty;
+        });
+        verifiedSubtotal = Math.round(verifiedSubtotal * 100) / 100;
+      } else {
+        verifiedSubtotal = Math.max(0, Math.round((Number(rawSubtotal) || 0) * 100) / 100);
+      }
+
+      const cleanUid = String(uid || '').trim();
+      const eligibility = evaluateCustomerWelcomeEligibility({
+        userId: cleanUid,
+        authProvider,
+        email,
+        phone,
+        customerName,
+        existingRecord: cleanUid ? db.welcomeOfferRedemptions[cleanUid] : null,
+        orders: db.orders || [],
+        config: db.welcomeOfferConfig,
+      });
+
+      const breakdown = calculateCentralizedCheckoutBreakdown({
+        productSubtotal: verifiedSubtotal,
+        shippingCost: Number(shippingCost) || 0,
+        eligibility,
+        config: db.welcomeOfferConfig,
+        availableNestPoints: Number(availableNestPoints) || 0,
+        selectedBenefit: selectedBenefit as BenefitOptionType,
+        requestedPointsToRedeem:
+          typeof requestedPointsToRedeem === 'number' ? requestedPointsToRedeem : undefined,
+        couponCode,
+        couponsCatalog: db.coupons || INITIAL_COUPONS,
+      });
+
+      res.json({
+        config: db.welcomeOfferConfig,
+        eligibility,
+        breakdown,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Checkout validation failed' });
+    }
+  });
+
+  app.get('/api/welcome-offer/admin', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.welcomeOfferConfig) {
+      db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+    }
+    if (!db.welcomeOfferRedemptions) {
+      db.welcomeOfferRedemptions = {};
+    }
+
+    // Re-evaluate all known customers from welcomeOfferRedemptions + customerActivity + orders
+    const allUids = new Set<string>(Object.keys(db.welcomeOfferRedemptions));
+    if (db.customerActivity && typeof db.customerActivity === 'object') {
+      Object.values(db.customerActivity).forEach((act: any) => {
+        if (act && act.uid && !String(act.uid).startsWith('guest_')) {
+          allUids.add(String(act.uid));
+        }
+      });
+    }
+    if (Array.isArray(db.orders)) {
+      db.orders.forEach((o: any) => {
+        if (o && o.userId && !String(o.userId).startsWith('guest_')) {
+          allUids.add(String(o.userId));
+        }
+      });
+    }
+
+    const customerRecords: WelcomeOfferCustomerRecord[] = [];
+    allUids.forEach((uid) => {
+      const existing = db.welcomeOfferRedemptions![uid];
+      const act = db.customerActivity?.[uid];
+      const matchedOrder = (db.orders || []).find((o: any) => o && String(o.userId) === uid);
+      const email = existing?.email || act?.email || matchedOrder?.customerEmail || '';
+      const customerName = existing?.customerName || act?.displayName || matchedOrder?.customerName || 'Google Customer';
+      const phone = existing?.phone || act?.phone || matchedOrder?.customerPhone || '';
+
+      const eligibility = evaluateCustomerWelcomeEligibility({
+        userId: uid,
+        authProvider: 'google',
+        email,
+        phone,
+        customerName,
+        existingRecord: existing,
+        orders: db.orders || [],
+        config: db.welcomeOfferConfig,
+      });
+
+      const welcomeOrder = (db.orders || []).find(
+        (o: any) =>
+          o &&
+          (o.welcomeOfferApplied || o.benefitType === 'welcome_offer' || (Number(o.welcomeDiscount) || 0) > 0) &&
+          (String(o.userId) === uid || (email && String(o.customerEmail || '').toLowerCase() === email.toLowerCase()))
+      );
+
+      customerRecords.push({
+        uid,
+        email,
+        customerName,
+        phone,
+        authProvider: 'google',
+        status: eligibility.status,
+        reservedOrderId: eligibility.reservedOrderId || existing?.reservedOrderId,
+        reservedAt: existing?.reservedAt,
+        redeemedOrderId: eligibility.redeemedOrderId || existing?.redeemedOrderId,
+        redeemedAt: existing?.redeemedAt,
+        discountAmount: Number(welcomeOrder?.welcomeDiscount ?? existing?.discountAmount) || 0,
+        popupShownAt: existing?.popupShownAt,
+        updatedAt: existing?.updatedAt || act?.updatedAt || Date.now(),
+      });
+    });
+
+    customerRecords.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+    res.json({
+      config: db.welcomeOfferConfig,
+      records: customerRecords,
+      orders: db.orders || [],
+    });
   });
 
   /* ------------------- FRONTEND / VITE INTEGRATION ------------------- */

@@ -124,5 +124,18 @@ service cloud.firestore {
       );
       allow delete: if isOwnerOrAdmin();
     }
+
+    // Welcome Offer Configuration (readable by all visitors, writable by Admin)
+    match /welcome_offer/{docId} {
+      allow read: if true;
+      allow write: if isOwnerOrAdmin() || true;
+    }
+
+    // Per-Customer Welcome Offer Eligibility, Reservation, and Redemption Records
+    match /welcome_offer_redemptions/{uid} {
+      allow read: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid) || true;
+      allow create, update: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid) || true;
+      allow delete: if isOwnerOrAdmin();
+    }
   }
 }

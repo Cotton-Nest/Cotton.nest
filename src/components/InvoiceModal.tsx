@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Order } from '../data/orders';
 import { COMPANY_DETAILS } from '../data/products';
+import { formatRupeeAmount } from '../data/welcomeOffer';
 
 interface InvoiceModalProps {
   order: Order | null;
@@ -54,7 +55,7 @@ export function buildOrderGmailUrl(order: Order): string {
     const dims = item.dimensions ? ` (${item.dimensions})` : '';
     const vName = item.variantName ? ` - ${item.variantName}` : '';
     lines.push(`${idx + 1}. ${item.productName}${vName}${dims}`);
-    lines.push(`   Quantity: ${qty} | Unit: ₹${price.toLocaleString('en-IN')} | Total: ₹${total.toLocaleString('en-IN')}`);
+    lines.push(`   Quantity: ${qty} | Unit: ₹${formatRupeeAmount(price)} | Total: ₹${formatRupeeAmount(total)}`);
     if (item.productImage) lines.push(`   Photo: ${item.productImage}`);
   });
 
@@ -62,9 +63,15 @@ export function buildOrderGmailUrl(order: Order): string {
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
     0
   );
-  const couponDiscount = Number(order.couponDiscount) || 0;
-  const pointsUsed = Number(order.pointsUsed) || 0;
-  const pointsDiscount = Number(order.pointsDiscount) || (pointsUsed > 0 ? Math.floor(pointsUsed * 0.5) : 0);
+  const isWelcomeOffer = Boolean(
+    order.welcomeOfferApplied ||
+    order.benefitType === 'welcome_offer' ||
+    (Number(order.welcomeDiscount) || 0) > 0
+  );
+  const welcomeDiscount = isWelcomeOffer ? Math.round((Number(order.welcomeDiscount) || 0) * 100) / 100 : 0;
+  const couponDiscount = isWelcomeOffer ? 0 : Number(order.couponDiscount) || 0;
+  const pointsUsed = isWelcomeOffer ? 0 : Number(order.pointsUsed) || 0;
+  const pointsDiscount = isWelcomeOffer ? 0 : Number(order.pointsDiscount) || (pointsUsed > 0 ? Math.round(pointsUsed * 0.5 * 100) / 100 : 0);
   const shippingCost = Number(order.shippingCost) || 0;
   const finalPayable = Number(order.totalAmount || 0);
   const resolvedSubtotal =
@@ -72,21 +79,27 @@ export function buildOrderGmailUrl(order: Order): string {
       ? itemsSubtotal
       : Number(order.subtotal) > finalPayable
       ? Number(order.subtotal)
-      : finalPayable + couponDiscount + pointsDiscount - shippingCost;
+      : finalPayable + welcomeDiscount + couponDiscount + pointsDiscount - shippingCost;
 
   lines.push(`----------------------------------------------------`);
   lines.push(`FINANCIAL SUMMARY:`);
-  lines.push(`Items Subtotal: ₹${resolvedSubtotal.toLocaleString('en-IN')}`);
-  if (couponDiscount > 0) {
-    lines.push(`Coupon Discount (${order.couponCode || 'APPLIED'}): -₹${couponDiscount.toLocaleString('en-IN')}`);
+  lines.push(`Items Subtotal: ₹${formatRupeeAmount(resolvedSubtotal)}`);
+  if (isWelcomeOffer && welcomeDiscount > 0) {
+    lines.push(`Welcome to Cotton Nest (10% OFF): -₹${formatRupeeAmount(welcomeDiscount)}`);
+  } else {
+    if (couponDiscount > 0) {
+      lines.push(`Coupon Discount (${order.couponCode || 'APPLIED'}): -₹${formatRupeeAmount(couponDiscount)}`);
+    }
+    if (pointsUsed > 0 || pointsDiscount > 0) {
+      lines.push(`Loyalty Points Used (${pointsUsed} pts): -₹${formatRupeeAmount(pointsDiscount)}`);
+    }
   }
-  if (pointsUsed > 0 || pointsDiscount > 0) {
-    lines.push(`Loyalty Points Used (${pointsUsed} pts): -₹${pointsDiscount.toLocaleString('en-IN')}`);
-  }
-  lines.push(`Delivery Charges: ${shippingCost > 0 ? `₹${shippingCost.toLocaleString('en-IN')}` : 'FREE'}`);
-  lines.push(`FINAL PAYABLE AMOUNT: ₹${finalPayable.toLocaleString('en-IN')}`);
+  lines.push(`Delivery Charges: ${shippingCost > 0 ? `₹${formatRupeeAmount(shippingCost)}` : 'FREE'}`);
+  lines.push(`FINAL PAYABLE AMOUNT: ₹${formatRupeeAmount(finalPayable)}`);
 
-  if (order.pointsEarned && order.pointsEarned > 0) {
+  if (isWelcomeOffer) {
+    lines.push(`🎁 Nest Points Earned: 0 pts (Welcome Offer applied — Nest Points cannot be earned or redeemed)`);
+  } else if (order.pointsEarned && order.pointsEarned > 0) {
     lines.push(`🎁 Nest Points Earned: +${order.pointsEarned} pts (5 pts per ₹100 spent)`);
   }
 
@@ -156,9 +169,15 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
     0
   );
-  const couponDiscountVal = Number(order.couponDiscount) || 0;
-  const pointsUsedVal = Number(order.pointsUsed) || 0;
-  const pointsDiscountVal = Number(order.pointsDiscount) || (pointsUsedVal > 0 ? Math.floor(pointsUsedVal * 0.5) : 0);
+  const isWelcomeOffer = Boolean(
+    order.welcomeOfferApplied ||
+    order.benefitType === 'welcome_offer' ||
+    (Number(order.welcomeDiscount) || 0) > 0
+  );
+  const welcomeDiscountVal = isWelcomeOffer ? Math.round((Number(order.welcomeDiscount) || 0) * 100) / 100 : 0;
+  const couponDiscountVal = isWelcomeOffer ? 0 : Number(order.couponDiscount) || 0;
+  const pointsUsedVal = isWelcomeOffer ? 0 : Number(order.pointsUsed) || 0;
+  const pointsDiscountVal = isWelcomeOffer ? 0 : Number(order.pointsDiscount) || (pointsUsedVal > 0 ? Math.round(pointsUsedVal * 0.5 * 100) / 100 : 0);
   const shippingCostVal = Number(order.shippingCost) || 0;
   const finalPayableVal = Number(order.totalAmount || 0);
   const resolvedSubtotal =
@@ -166,7 +185,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
       ? itemsSubtotal
       : Number(order.subtotal) > finalPayableVal
       ? Number(order.subtotal)
-      : finalPayableVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
+      : finalPayableVal + welcomeDiscountVal + couponDiscountVal + pointsDiscountVal - shippingCostVal;
 
   const handlePrint = () => {
     window.print();
@@ -187,13 +206,17 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
           customerPhone: order.customerPhone,
           customerAddress: order.customerAddress,
           shippingMethod: order.shippingCost ? 'Standard Delivery' : 'Sector 46 Complimentary',
-          subtotal: Number(order.totalAmount) || 0,
+          subtotal: resolvedSubtotal,
+          benefitType: order.benefitType,
+          welcomeOfferApplied: isWelcomeOffer,
+          welcomeDiscount: welcomeDiscountVal,
           couponCode: order.couponCode,
-          couponDiscount: Number(order.couponDiscount) || 0,
-          pointsUsed: Number(order.pointsUsed) || 0,
-          pointsDiscount: Number(order.pointsDiscount) || 0,
-          shippingCost: Number(order.shippingCost) || 0,
-          finalTotal: Number(order.totalAmount) || 0,
+          couponDiscount: couponDiscountVal,
+          pointsUsed: pointsUsedVal,
+          pointsDiscount: pointsDiscountVal,
+          pointsEarned: isWelcomeOffer ? 0 : Number(order.pointsEarned) || 0,
+          shippingCost: shippingCostVal,
+          finalTotal: finalPayableVal,
           items: (order.items || []).map((it) => ({
             name: it.productName,
             variantName: it.variantName,
@@ -402,40 +425,52 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
               <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 text-xs text-amber-950 space-y-1 max-w-sm">
                 <div className="flex items-center gap-1.5 font-bold text-amber-900">
                   <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
-                  <span>Nest Loyalty Points Earned</span>
+                  <span>{isWelcomeOffer ? 'Welcome Offer Applied · Nest Points' : 'Nest Loyalty Points Earned'}</span>
                 </div>
-                <p className="text-[11px] text-amber-900 font-semibold">
-                  🎁 +{order.pointsEarned || Math.floor((Number(order.totalAmount || 0) / 100) * 5)} Nest Points credited to customer balance (5 pts / ₹100 spent).
-                </p>
+                {isWelcomeOffer ? (
+                  <p className="text-[11px] text-amber-900 font-semibold">
+                    🎁 0 Nest Points earned or redeemed (Nest Points cannot be earned or redeemed when using the Welcome Offer).
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-900 font-semibold">
+                    🎁 +{order.pointsEarned || Math.floor((Number(order.totalAmount || 0) / 100) * 5)} Nest Points credited to customer balance (5 pts / ₹100 spent).
+                  </p>
+                )}
               </div>
 
               <div className="w-full sm:w-64 space-y-1.5 text-xs">
                 <div className="flex justify-between text-[#6B5D55]">
                   <span>Items Subtotal</span>
-                  <span>₹{resolvedSubtotal.toLocaleString('en-IN')}</span>
+                  <span>₹{formatRupeeAmount(resolvedSubtotal)}</span>
                 </div>
-                {Boolean(couponDiscountVal > 0) && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>Coupon Discount{order.couponCode ? ` (${order.couponCode})` : ''}</span>
-                    <span>-₹{couponDiscountVal.toLocaleString('en-IN')}</span>
+                {isWelcomeOffer && welcomeDiscountVal > 0 && (
+                  <div className="flex justify-between text-[#70252D] font-semibold">
+                    <span>Welcome to Cotton Nest (10% OFF)</span>
+                    <span>-₹{formatRupeeAmount(welcomeDiscountVal)}</span>
                   </div>
                 )}
-                {Boolean(pointsUsedVal > 0 || pointsDiscountVal > 0) && (
+                {!isWelcomeOffer && Boolean(couponDiscountVal > 0) && (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Coupon Discount{order.couponCode ? ` (${order.couponCode})` : ''}</span>
+                    <span>-₹{formatRupeeAmount(couponDiscountVal)}</span>
+                  </div>
+                )}
+                {!isWelcomeOffer && Boolean(pointsUsedVal > 0 || pointsDiscountVal > 0) && (
                   <div className="flex justify-between text-amber-800 font-medium">
                     <span>Loyalty Points Used{pointsUsedVal > 0 ? ` (${pointsUsedVal} pts)` : ''}</span>
-                    <span>-₹{pointsDiscountVal.toLocaleString('en-IN')}</span>
+                    <span>-₹{formatRupeeAmount(pointsDiscountVal)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-[#6B5D55]">
                   <span>Delivery Charges</span>
                   <span className="text-emerald-700 font-semibold">
-                    {shippingCostVal > 0 ? `₹${shippingCostVal.toLocaleString('en-IN')}` : 'FREE'}
+                    {shippingCostVal > 0 ? `₹${formatRupeeAmount(shippingCostVal)}` : 'FREE'}
                   </span>
                 </div>
                 <div className="border-t border-[#DEC89B] pt-2 flex justify-between text-base font-bold text-[#2C2420]">
                   <span>Final Payable Amount</span>
                   <span className="text-[#8C2E46]">
-                    ₹{finalPayableVal.toLocaleString('en-IN')}
+                    ₹{formatRupeeAmount(finalPayableVal)}
                   </span>
                 </div>
               </div>

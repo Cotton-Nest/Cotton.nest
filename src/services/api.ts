@@ -11,6 +11,7 @@ import {
   query,
   orderBy,
   onSnapshot,
+  runTransaction,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, isFirestoreWriteQuotaExhausted, markFirestoreWriteQuotaExhausted } from '../firebase';
 import {
@@ -48,6 +49,16 @@ import {
   normalizePhoneDigits,
 } from '../data/complaints';
 import { LOYALTY_MAX_REDEMPTION_POINTS } from '../data/loyalty';
+import {
+  WelcomeOfferConfig,
+  WelcomeOfferCustomerRecord,
+  DEFAULT_WELCOME_OFFER_CONFIG,
+  CustomerEligibilityResult,
+  CentralizedCheckoutBreakdown,
+  BenefitOptionType,
+  evaluateCustomerWelcomeEligibility,
+  calculateCentralizedCheckoutBreakdown,
+} from '../data/welcomeOffer';
 
 // Re-export Cloudinary & media service helpers
 export {
@@ -824,10 +835,30 @@ export async function getOrders(): Promise<Order[]> {
 export async function saveOrder(order: Order): Promise<void> {
   const path = `orders/${order.id}`;
 
+  const isWelcomeOfferApplied = Boolean(
+    order.welcomeOfferApplied || order.benefitType === 'welcome_offer' || (Number(order.welcomeDiscount) || 0) > 0
+  );
+
   // Rule 1 & 6: Never generate or send an invoice when an order is placed.
+  // Rule 6A & 6B: If Welcome Offer is applied, force pointsEarned = 0, pointsUsed = 0, pointsDiscount = 0, couponDiscount = 0.
   const safeOrder: Order = stripUndefined({
     ...order,
     status: 'pending',
+    benefitType: isWelcomeOfferApplied
+      ? 'welcome_offer'
+      : (Number(order.pointsUsed) || 0) > 0
+      ? 'nest_points'
+      : (Number(order.couponDiscount) || 0) > 0
+      ? 'coupon'
+      : 'none',
+    welcomeOfferApplied: isWelcomeOfferApplied,
+    welcomeDiscount: isWelcomeOfferApplied ? Math.round((Number(order.welcomeDiscount) || 0) * 100) / 100 : 0,
+    pointsEarned: isWelcomeOfferApplied ? 0 : order.pointsEarned,
+    pointsUsed: isWelcomeOfferApplied ? 0 : order.pointsUsed,
+    pointsDiscount: isWelcomeOfferApplied ? 0 : order.pointsDiscount,
+    couponCode: isWelcomeOfferApplied ? undefined : order.couponCode,
+    couponDiscount: isWelcomeOfferApplied ? 0 : order.couponDiscount,
+    pointsCredited: false,
     invoiceGenerated: false,
     invoiceSent: false,
     invoiceStatus: 'pending_confirmation',
@@ -856,7 +887,27 @@ export async function saveOrder(order: Order): Promise<void> {
     }
   }
 
-  // 1. Optimistically update local storage
+  // 1. Validate & dual-write to Express server backend (/api/orders) first so server-side eligibility & reservation rules run
+  try {
+    const serverRes = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(safeOrder),
+    });
+    if (!serverRes.ok && serverRes.status === 400) {
+      const errBody = await serverRes.json().catch(() => null);
+      if (errBody?.error) {
+        throw new Error(errBody.error);
+      }
+    }
+  } catch (serverErr: any) {
+    if (serverErr?.message && (serverErr.message.includes('Welcome Offer') || serverErr.message.includes('Minimum order'))) {
+      throw serverErr;
+    }
+    console.warn('Dual-write to /api/orders notice:', serverErr);
+  }
+
+  // 2. Update local storage
   try {
     const cached = localStorage.getItem('cotton_nest_orders');
     let currentList: Order[] = cached ? JSON.parse(cached) : [];
@@ -865,31 +916,54 @@ export async function saveOrder(order: Order): Promise<void> {
     localStorage.setItem('cotton_nest_orders', JSON.stringify(currentList));
   } catch {}
 
-  // 2. Dual-write to Express server backend (/api/orders)
+  // 3. Write to Firestore (and atomically reserve Welcome Offer in welcome_offer_redemptions/{uid} when applicable)
   try {
-    await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(safeOrder),
-    });
-  } catch (serverErr) {
-    console.warn('Dual-write to /api/orders notice:', serverErr);
-  }
-
-  // 3. Write to Firestore
-  try {
-    await setDoc(doc(db, 'orders', safeOrder.id), firestoreDoc, { merge: true });
-  } catch (error) {
+    if (isWelcomeOfferApplied && safeOrder.userId && !isFirestoreWriteQuotaExhausted()) {
+      const redemptionRef = doc(db, 'welcome_offer_redemptions', safeOrder.userId);
+      const orderRef = doc(db, 'orders', safeOrder.id);
+      await runTransaction(db, async (tx) => {
+        const redSnap = await tx.get(redemptionRef);
+        const existingData = redSnap.exists() ? (redSnap.data() as WelcomeOfferCustomerRecord) : null;
+        if (existingData?.status === 'redeemed' && existingData.redeemedOrderId !== safeOrder.id) {
+          throw new Error('You have already redeemed your one-time Welcome Offer.');
+        }
+        tx.set(
+          redemptionRef,
+          stripUndefined({
+            uid: safeOrder.userId,
+            email: safeOrder.customerEmail || existingData?.email,
+            customerName: safeOrder.customerName || existingData?.customerName,
+            phone: safeOrder.customerPhone || existingData?.phone,
+            authProvider: 'google',
+            status: 'reserved',
+            reservedOrderId: safeOrder.id,
+            reservedAt: Date.now(),
+            discountAmount: safeOrder.welcomeDiscount || 0,
+            popupShownAt: existingData?.popupShownAt,
+            updatedAt: Date.now(),
+          }),
+          { merge: true }
+        );
+        tx.set(orderRef, firestoreDoc, { merge: true });
+      });
+    } else {
+      await setDoc(doc(db, 'orders', safeOrder.id), firestoreDoc, { merge: true });
+    }
+  } catch (error: any) {
+    if (error?.message && error.message.includes('already redeemed')) {
+      throw error;
+    }
     handleFirestoreError(error, OperationType.CREATE, path);
-    // Don't throw if server or localStorage already has it
     console.warn('Firestore order save error (saved to backend):', error);
   }
 
-  // 3b. If user applied Nest Points at checkout (pointsUsed > 0), calculate deduction and update user's loyalty balance in Firestore
-  const pointsToRedeemVal = Math.min(
-    LOYALTY_MAX_REDEMPTION_POINTS,
-    Math.max(0, Number(safeOrder.pointsUsed) || 0)
-  );
+  // 3b. If user applied Nest Points at checkout (pointsUsed > 0 AND Welcome Offer is NOT applied), deduct from loyalty balance
+  const pointsToRedeemVal = isWelcomeOfferApplied
+    ? 0
+    : Math.min(
+        LOYALTY_MAX_REDEMPTION_POINTS,
+        Math.max(0, Number(safeOrder.pointsUsed) || 0)
+      );
   if (pointsToRedeemVal > 0) {
     try {
       const { redeemLoyaltyPointsApi } = await import('./loyaltyApi');
@@ -913,6 +987,12 @@ export async function saveOrder(order: Order): Promise<void> {
     } catch (redeemErr) {
       console.warn('Failed to redeem Nest Points in saveOrder:', redeemErr);
     }
+  }
+
+  if (isWelcomeOfferApplied) {
+    try {
+      window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
+    } catch {}
   }
 
   // 4. Create in-app + device notification bar alert for newly placed order
@@ -1181,6 +1261,12 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
   }
 
   // 2b. Fallback to /api/send-invoice ONLY if status is 'confirmed', invoice was NOT already generated before, and Express didn't handle it
+  const isWelcomeOfferOrder = Boolean(
+    targetOrder?.welcomeOfferApplied ||
+      targetOrder?.benefitType === 'welcome_offer' ||
+      (Number(targetOrder?.welcomeDiscount) || 0) > 0
+  );
+
   if (status === 'confirmed' && !alreadyHadInvoice && targetOrder && !serverHandledInvoice) {
     try {
       const itemsSubtotal = (targetOrder.items || []).reduce(
@@ -1199,13 +1285,16 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
           customerAddress: targetOrder.customerAddress,
           shippingMethod: targetOrder.shippingCost ? 'Express Courier Across India' : 'Sector 46 Complimentary Express Delivery',
           subtotal: itemsSubtotal > 0 ? itemsSubtotal : Number(targetOrder.subtotal) || Number(targetOrder.totalAmount) || 0,
-          couponCode: targetOrder.couponCode,
-          couponDiscount: Number(targetOrder.couponDiscount) || 0,
-          pointsUsed: Number(targetOrder.pointsUsed) || 0,
-          pointsDiscount: Number(targetOrder.pointsDiscount) || 0,
+          benefitType: isWelcomeOfferOrder ? 'welcome_offer' : targetOrder.benefitType,
+          welcomeOfferApplied: isWelcomeOfferOrder,
+          welcomeDiscount: isWelcomeOfferOrder ? Number(targetOrder.welcomeDiscount) || 0 : 0,
+          couponCode: isWelcomeOfferOrder ? undefined : targetOrder.couponCode,
+          couponDiscount: isWelcomeOfferOrder ? 0 : Number(targetOrder.couponDiscount) || 0,
+          pointsUsed: isWelcomeOfferOrder ? 0 : Number(targetOrder.pointsUsed) || 0,
+          pointsDiscount: isWelcomeOfferOrder ? 0 : Number(targetOrder.pointsDiscount) || 0,
           shippingCost: Number(targetOrder.shippingCost) || 0,
           finalTotal: Number(targetOrder.totalAmount) || 0,
-          pointsEarned: targetOrder.pointsEarned,
+          pointsEarned: isWelcomeOfferOrder ? 0 : targetOrder.pointsEarned,
           items: (targetOrder.items || []).map((it: any) => ({
             name: it.productName || it.name || 'Pure Cotton Bedsheet',
             variantName: it.variantName,
@@ -1222,31 +1311,65 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
     }
   }
 
-  // 3. When order is marked delivered, credit Nest Points across all customer keys (idempotent per orderId + accountId)
+  // 3. When order is marked delivered:
+  // - If Welcome Offer was used: mark Welcome Offer permanently 'redeemed' in Firestore and NEVER credit Nest Points (Rule 6A & 8).
+  // - Otherwise: credit Nest Points across all customer keys.
   if (status === 'delivered' && targetOrder) {
-    const rawKeys: string[] = [];
-    if (targetOrder.customerPhone) rawKeys.push(targetOrder.customerPhone);
-    if (targetOrder.customerEmail) rawKeys.push(targetOrder.customerEmail);
-    if (targetOrder.userId) rawKeys.push(targetOrder.userId);
-    if (rawKeys.length === 0) rawKeys.push('guest_default_wallet');
-
-    const shippingCostVal = Number(targetOrder.shippingCost) || 0;
-    const eligibleAmount = Math.max(0, (Number(targetOrder.totalAmount) || 0) - shippingCostVal);
-
-    if (eligibleAmount > 0 || (targetOrder.pointsEarned && targetOrder.pointsEarned > 0)) {
-      try {
-        const { earnLoyaltyPointsApi } = await import('./loyaltyApi');
-        for (const k of rawKeys) {
-          await earnLoyaltyPointsApi(k, eligibleAmount, orderId, {
-            name: targetOrder.customerName,
-            phone: targetOrder.customerPhone,
-            email: targetOrder.customerEmail,
-            userId: targetOrder.userId,
-            explicitPoints: targetOrder.pointsEarned,
-          }).catch(() => {});
+    if (isWelcomeOfferOrder) {
+      targetOrder.pointsEarned = 0;
+      targetOrder.pointsUsed = 0;
+      targetOrder.pointsDiscount = 0;
+      targetOrder.pointsCredited = false;
+      if (targetOrder.userId && !isFirestoreWriteQuotaExhausted()) {
+        try {
+          await setDoc(
+            doc(db, 'welcome_offer_redemptions', targetOrder.userId),
+            stripUndefined({
+              uid: targetOrder.userId,
+              email: targetOrder.customerEmail,
+              customerName: targetOrder.customerName,
+              phone: targetOrder.customerPhone,
+              authProvider: 'google',
+              status: 'redeemed',
+              redeemedOrderId: orderId,
+              redeemedAt: Date.now(),
+              discountAmount: Number(targetOrder.welcomeDiscount) || 0,
+              updatedAt: Date.now(),
+            }),
+            { merge: true }
+          );
+        } catch (wErr) {
+          console.warn('Welcome offer redemption Firestore update notice:', wErr);
         }
-      } catch (err) {
-        console.warn('Failed to credit Nest Points upon delivery:', err);
+      }
+      try {
+        window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
+      } catch {}
+    } else {
+      const rawKeys: string[] = [];
+      if (targetOrder.customerPhone) rawKeys.push(targetOrder.customerPhone);
+      if (targetOrder.customerEmail) rawKeys.push(targetOrder.customerEmail);
+      if (targetOrder.userId) rawKeys.push(targetOrder.userId);
+      if (rawKeys.length === 0) rawKeys.push('guest_default_wallet');
+
+      const shippingCostVal = Number(targetOrder.shippingCost) || 0;
+      const eligibleAmount = Math.max(0, (Number(targetOrder.totalAmount) || 0) - shippingCostVal);
+
+      if (eligibleAmount > 0 || (targetOrder.pointsEarned && targetOrder.pointsEarned > 0)) {
+        try {
+          const { earnLoyaltyPointsApi } = await import('./loyaltyApi');
+          for (const k of rawKeys) {
+            await earnLoyaltyPointsApi(k, eligibleAmount, orderId, {
+              name: targetOrder.customerName,
+              phone: targetOrder.customerPhone,
+              email: targetOrder.customerEmail,
+              userId: targetOrder.userId,
+              explicitPoints: targetOrder.pointsEarned,
+            }).catch(() => {});
+          }
+        } catch (err) {
+          console.warn('Failed to credit Nest Points upon delivery:', err);
+        }
       }
     }
 
@@ -1259,27 +1382,53 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       );
     } catch {}
   } else if ((status === 'cancelled' || status === 'refunded') && targetOrder) {
-    const ptsUsed = Number(targetOrder.pointsUsed) || 0;
-    if (ptsUsed > 0 && !targetOrder.pointsRefunded) {
-      try {
-        const { refundLoyaltyPointsApi } = await import('./loyaltyApi');
-        const rawKeys: string[] = [];
-        if (targetOrder.customerPhone) rawKeys.push(targetOrder.customerPhone);
-        if (targetOrder.customerEmail) rawKeys.push(targetOrder.customerEmail);
-        if (targetOrder.userId) rawKeys.push(targetOrder.userId);
-        if (rawKeys.length === 0) rawKeys.push('guest_default_wallet');
-
-        for (const k of Array.from(new Set(rawKeys))) {
-          await refundLoyaltyPointsApi(k, ptsUsed, orderId, {
-            name: targetOrder.customerName,
-            phone: targetOrder.customerPhone,
-            email: targetOrder.customerEmail,
-            userId: targetOrder.userId,
-          }).catch(() => {});
+    if (isWelcomeOfferOrder) {
+      if (targetOrder.userId && !isFirestoreWriteQuotaExhausted()) {
+        try {
+          await setDoc(
+            doc(db, 'welcome_offer_redemptions', targetOrder.userId),
+            stripUndefined({
+              uid: targetOrder.userId,
+              email: targetOrder.customerEmail,
+              customerName: targetOrder.customerName,
+              phone: targetOrder.customerPhone,
+              authProvider: 'google',
+              status: 'eligible',
+              reservedOrderId: '',
+              updatedAt: Date.now(),
+            }),
+            { merge: true }
+          );
+        } catch (wErr) {
+          console.warn('Welcome offer reservation release notice:', wErr);
         }
-        targetOrder.pointsRefunded = true;
-      } catch (refundErr) {
-        console.warn('Failed to refund Nest Points on cancellation:', refundErr);
+      }
+      try {
+        window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
+      } catch {}
+    } else {
+      const ptsUsed = Number(targetOrder.pointsUsed) || 0;
+      if (ptsUsed > 0 && !targetOrder.pointsRefunded) {
+        try {
+          const { refundLoyaltyPointsApi } = await import('./loyaltyApi');
+          const rawKeys: string[] = [];
+          if (targetOrder.customerPhone) rawKeys.push(targetOrder.customerPhone);
+          if (targetOrder.customerEmail) rawKeys.push(targetOrder.customerEmail);
+          if (targetOrder.userId) rawKeys.push(targetOrder.userId);
+          if (rawKeys.length === 0) rawKeys.push('guest_default_wallet');
+
+          for (const k of Array.from(new Set(rawKeys))) {
+            await refundLoyaltyPointsApi(k, ptsUsed, orderId, {
+              name: targetOrder.customerName,
+              phone: targetOrder.customerPhone,
+              email: targetOrder.customerEmail,
+              userId: targetOrder.userId,
+            }).catch(() => {});
+          }
+          targetOrder.pointsRefunded = true;
+        } catch (refundErr) {
+          console.warn('Failed to refund Nest Points on cancellation:', refundErr);
+        }
       }
     }
     try {
@@ -1322,7 +1471,8 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
           }),
       ...(status === 'delivered'
         ? {
-            pointsCredited: true,
+            pointsCredited: isWelcomeOfferOrder ? false : true,
+            ...(isWelcomeOfferOrder ? { pointsEarned: 0 } : {}),
             deliveredAt: resolvedDeliveredAt || nowIso,
           }
         : {}),
@@ -2823,3 +2973,239 @@ export async function evaluateWishlistReminderApi(payload: {
   }
   return { canSend: false, reason: 'Network error evaluating wishlist reminder' };
 }
+
+// ---------------- WELCOME OFFER & SMART CHECKOUT VALIDATION API ---------------- //
+export async function getWelcomeOfferConfigApi(): Promise<WelcomeOfferConfig> {
+  try {
+    const res = await fetch('/api/welcome-offer/config', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data.discountPercentage === 'number') {
+        localStorage.setItem('cotton_nest_welcome_offer_config', JSON.stringify(data));
+        return data;
+      }
+    }
+  } catch {}
+  try {
+    const snap = await getDoc(doc(db, 'welcome_offer', 'config'));
+    if (snap.exists()) {
+      return snap.data() as WelcomeOfferConfig;
+    }
+  } catch {}
+  try {
+    const cached = localStorage.getItem('cotton_nest_welcome_offer_config');
+    if (cached) return JSON.parse(cached);
+  } catch {}
+  return DEFAULT_WELCOME_OFFER_CONFIG;
+}
+
+export async function saveWelcomeOfferConfigApi(
+  config: Partial<WelcomeOfferConfig>
+): Promise<WelcomeOfferConfig> {
+  let savedConfig: WelcomeOfferConfig = {
+    ...DEFAULT_WELCOME_OFFER_CONFIG,
+    ...config,
+    updatedAt: Date.now(),
+  };
+
+  try {
+    const res = await fetch('/api/welcome-offer/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(savedConfig),
+    });
+    if (res.ok) {
+      savedConfig = await res.json();
+    }
+  } catch (err) {
+    console.warn('Welcome offer config server save notice:', err);
+  }
+
+  try {
+    localStorage.setItem('cotton_nest_welcome_offer_config', JSON.stringify(savedConfig));
+  } catch {}
+
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      await setDoc(doc(db, 'welcome_offer', 'config'), stripUndefined(savedConfig), { merge: true });
+    } catch (err) {
+      console.warn('Welcome offer config Firestore save notice:', err);
+    }
+  }
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
+  } catch {}
+
+  return savedConfig;
+}
+
+export async function getWelcomeOfferStatusApi(params: {
+  uid?: string | null;
+  userId?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  authProvider?: string | null;
+  customerName?: string | null;
+  existingOrders?: Order[];
+}): Promise<{
+  config: WelcomeOfferConfig;
+  eligibility: CustomerEligibilityResult;
+  record: WelcomeOfferCustomerRecord | null;
+}> {
+  const uid = String(params.uid ?? params.userId ?? '').trim();
+  const email = String(params.email || '').trim();
+  const phone = String(params.phone || '').trim();
+  const authProvider = String(params.authProvider || '').trim();
+  const customerName = String(params.customerName || '').trim();
+
+  try {
+    const qs = new URLSearchParams();
+    if (uid) qs.set('uid', uid);
+    if (email) qs.set('email', email);
+    if (phone) qs.set('phone', phone);
+    if (authProvider) qs.set('authProvider', authProvider);
+    if (customerName) qs.set('customerName', customerName);
+
+    const res = await fetch(`/api/welcome-offer/status?${qs.toString()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.config && data.eligibility) {
+        return data;
+      }
+    }
+  } catch {}
+
+  // Fallback evaluation using Firestore / cached config & orders
+  const config = await getWelcomeOfferConfigApi();
+  let existingRecord: WelcomeOfferCustomerRecord | null = null;
+  if (uid) {
+    try {
+      const snap = await getDoc(doc(db, 'welcome_offer_redemptions', uid));
+      if (snap.exists()) {
+        existingRecord = snap.data() as WelcomeOfferCustomerRecord;
+      }
+    } catch {}
+  }
+  let cachedOrders: Order[] = Array.isArray(params.existingOrders) ? params.existingOrders : [];
+  if (cachedOrders.length === 0) {
+    try {
+      const raw = localStorage.getItem('cotton_nest_orders');
+      if (raw) cachedOrders = JSON.parse(raw);
+    } catch {}
+  }
+
+  const eligibility = evaluateCustomerWelcomeEligibility({
+    userId: uid,
+    authProvider,
+    email,
+    phone,
+    customerName,
+    existingRecord,
+    orders: cachedOrders,
+    config,
+  });
+
+  return { config, eligibility, record: existingRecord };
+}
+
+export async function markWelcomePopupSeenApi(payload: {
+  uid: string;
+  email?: string;
+  customerName?: string;
+  phone?: string;
+}): Promise<void> {
+  const cleanUid = String(payload.uid || '').trim();
+  if (!cleanUid) return;
+
+  try {
+    localStorage.setItem(`cotton_nest_welcome_popup_seen_${cleanUid}`, 'true');
+  } catch {}
+
+  try {
+    await fetch('/api/welcome-offer/popup-seen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch {}
+
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      await setDoc(
+        doc(db, 'welcome_offer_redemptions', cleanUid),
+        stripUndefined({
+          uid: cleanUid,
+          email: payload.email,
+          customerName: payload.customerName,
+          phone: payload.phone,
+          authProvider: 'google',
+          popupShownAt: Date.now(),
+          updatedAt: Date.now(),
+        }),
+        { merge: true }
+      );
+    } catch {}
+  }
+}
+
+export async function validateCheckoutServerApi(payload: {
+  items?: Array<{ productId?: string; price?: number; quantity?: number }>;
+  productSubtotal: number;
+  shippingCost: number;
+  uid?: string;
+  authProvider?: string;
+  email?: string;
+  phone?: string;
+  customerName?: string;
+  availableNestPoints: number;
+  selectedBenefit: BenefitOptionType;
+  requestedPointsToRedeem?: number;
+  couponCode?: string;
+}): Promise<{
+  config: WelcomeOfferConfig;
+  eligibility: CustomerEligibilityResult;
+  breakdown: CentralizedCheckoutBreakdown;
+} | null> {
+  try {
+    const res = await fetch('/api/checkout/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {}
+  return null;
+}
+
+export async function getWelcomeOfferAdminDataApi(): Promise<{
+  config: WelcomeOfferConfig;
+  records: WelcomeOfferCustomerRecord[];
+  redemptions: WelcomeOfferCustomerRecord[];
+  orders: Order[];
+}> {
+  try {
+    const res = await fetch('/api/welcome-offer/admin', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      const list = Array.isArray(data.records)
+        ? data.records
+        : Array.isArray(data.redemptions)
+        ? data.redemptions
+        : [];
+      return {
+        config: data.config || DEFAULT_WELCOME_OFFER_CONFIG,
+        records: list,
+        redemptions: list,
+        orders: Array.isArray(data.orders) ? data.orders : [],
+      };
+    }
+  } catch {}
+  const config = await getWelcomeOfferConfigApi();
+  const orders = await getOrders();
+  return { config, records: [], redemptions: [], orders };
+}
+
+

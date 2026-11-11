@@ -656,6 +656,9 @@ export interface InvoiceOrderPayload {
   shippingMethod?: string;
   subtotal: number;
   totalSavings?: number;
+  benefitType?: 'welcome_offer' | 'nest_points' | 'coupon' | 'none';
+  welcomeOfferApplied?: boolean;
+  welcomeDiscount?: number;
   couponCode?: string;
   couponDiscount?: number;
   pointsUsed?: number;
@@ -672,6 +675,14 @@ export interface InvoiceOrderPayload {
     imageUrl: string;
   }>;
   createdAt?: string;
+}
+
+function formatInvoiceCurrency(val: number): string {
+  const safe = Number.isFinite(val) ? Math.round(val * 100) / 100 : 0;
+  if (Math.abs(safe - Math.round(safe)) > 0.001) {
+    return safe.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  return Math.round(safe).toLocaleString('en-IN');
 }
 
 export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string {
@@ -692,15 +703,23 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
       });
 
   const refId = payload.orderId.startsWith('CN-') ? payload.orderId : `CN-${payload.orderId}`;
+  const welcomeDiscount = Math.max(0, Math.round((Number(payload.welcomeDiscount) || 0) * 100) / 100);
+  const isWelcomeOffer = Boolean(
+    payload.welcomeOfferApplied || payload.benefitType === 'welcome_offer' || welcomeDiscount > 0
+  );
   const eligibleAmount = Math.max(0, payload.finalTotal - (payload.shippingCost || 0));
-  const pointsEarned = typeof payload.pointsEarned === 'number' && payload.pointsEarned > 0
+  const pointsEarned = isWelcomeOffer
+    ? 0
+    : typeof payload.pointsEarned === 'number' && payload.pointsEarned >= 0
     ? payload.pointsEarned
     : calculateEarnedPoints(eligibleAmount);
-  const pointsWorthInr = Math.floor(pointsEarned * 0.5);
+  const pointsWorthInr = Math.round(pointsEarned * 0.5 * 100) / 100;
 
-  const couponDiscount = Number(payload.couponDiscount) || 0;
-  const pointsUsed = Number(payload.pointsUsed) || 0;
-  const pointsDiscount = Number(payload.pointsDiscount) || (pointsUsed > 0 ? Math.floor(pointsUsed * 0.5) : 0);
+  const couponDiscount = isWelcomeOffer ? 0 : Number(payload.couponDiscount) || 0;
+  const pointsUsed = isWelcomeOffer ? 0 : Number(payload.pointsUsed) || 0;
+  const pointsDiscount = isWelcomeOffer
+    ? 0
+    : Number(payload.pointsDiscount) || (pointsUsed > 0 ? Math.round(pointsUsed * 0.5 * 100) / 100 : 0);
   const shippingCost = Number(payload.shippingCost) || 0;
   const itemsSum = (payload.items || []).reduce(
     (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
@@ -711,7 +730,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
       ? itemsSum
       : Number(payload.subtotal) > Number(payload.finalTotal)
       ? Number(payload.subtotal)
-      : Number(payload.finalTotal) + couponDiscount + pointsDiscount - shippingCost;
+      : Number(payload.finalTotal) + welcomeDiscount + couponDiscount + pointsDiscount - shippingCost;
 
   const itemRowsHtml = (payload.items || [])
     .map((item) => {
@@ -735,7 +754,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
           ${qty}
         </td>
         <td style="padding:14px 12px;border-bottom:1px solid #EAE2D5;vertical-align:middle;text-align:right;color:#2C2420;font-weight:bold;font-size:13px;">
-          ₹${lineTotal.toLocaleString('en-IN')}
+          ₹${formatInvoiceCurrency(lineTotal)}
         </td>
       </tr>`;
     })
@@ -785,7 +804,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
               <h2 style="margin:0 0 14px;font-size:19px;color:#8C2E46;font-family:Georgia,serif;font-weight:600;">Official Sale Invoice &amp; Order Receipt</h2>
               <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4A3B32;">Hello ${payload.customerName || 'Valued Customer'},</p>
               <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#4A3B32;">
-                Thank you for choosing Cotton Nest. Your order for 100% breathable pure cotton bedding has been confirmed by our atelier. Below is your official sale invoice with itemized details and earned Nest Points.
+                Thank you for choosing Cotton Nest. Your order for 100% breathable pure cotton bedding has been confirmed by our atelier. Below is your official sale invoice with itemized details.
               </p>
 
               <!-- Order Number & Status Highlight Box -->
@@ -795,7 +814,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
                   #${refId}
                 </span>
                 <div style="margin-top:10px;font-size:18px;font-weight:bold;color:#2C2420;">
-                  Total Amount Paid: ₹${payload.finalTotal.toLocaleString('en-IN')}
+                  Total Amount Paid: ₹${formatInvoiceCurrency(payload.finalTotal)}
                 </div>
                 <div style="margin-top:6px;display:inline-block;padding:3px 10px;background-color:#E8F5E9;border:1px solid #C8E6C9;border-radius:20px;font-size:11px;color:#2E7D32;font-weight:600;">
                   ✓ Order Confirmed by Cotton Nest Atelier
@@ -839,32 +858,47 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.9;color:#4A3B32;">
                   <tr>
                     <td>Items Subtotal</td>
-                    <td align="right" style="font-weight:600;color:#2C2420;">₹${displaySubtotal.toLocaleString('en-IN')}</td>
+                    <td align="right" style="font-weight:600;color:#2C2420;">₹${formatInvoiceCurrency(displaySubtotal)}</td>
                   </tr>
+                  ${welcomeDiscount > 0 ? `<tr>
+                    <td style="color:#8C2E46;font-weight:600;">🎁 Welcome to Cotton Nest (10% OFF)</td>
+                    <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${formatInvoiceCurrency(welcomeDiscount)}</td>
+                  </tr>` : ''}
                   ${couponDiscount > 0 ? `<tr>
                     <td style="color:#8C2E46;">Coupon Discount (${payload.couponCode || 'Applied'})</td>
-                    <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${couponDiscount.toLocaleString('en-IN')}</td>
+                    <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${formatInvoiceCurrency(couponDiscount)}</td>
                   </tr>` : ''}
                   ${(pointsUsed > 0 || pointsDiscount > 0) ? `<tr>
                     <td style="color:#8C2E46;">Loyalty Points Used${pointsUsed > 0 ? ` (${pointsUsed} pts)` : ''}</td>
-                    <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${pointsDiscount.toLocaleString('en-IN')}</td>
+                    <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${formatInvoiceCurrency(pointsDiscount)}</td>
                   </tr>` : ''}
                   <tr>
                     <td>Delivery Charges</td>
-                    <td align="right" style="font-weight:600;color:#2C2420;">${shippingCost > 0 ? `₹${shippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}</td>
+                    <td align="right" style="font-weight:600;color:#2C2420;">${shippingCost > 0 ? `₹${formatInvoiceCurrency(shippingCost)}` : 'FREE Express Delivery'}</td>
                   </tr>
                   <tr style="border-top:1px solid #DEC89B;font-size:15px;font-weight:bold;">
                     <td style="padding-top:10px;color:#8C2E46;">Final Payable Amount</td>
-                    <td align="right" style="padding-top:10px;color:#8C2E46;font-size:18px;">₹${payload.finalTotal.toLocaleString('en-IN')}</td>
+                    <td align="right" style="padding-top:10px;color:#8C2E46;font-size:18px;">₹${formatInvoiceCurrency(payload.finalTotal)}</td>
                   </tr>
                 </table>
               </div>
 
-              <!-- Loyalty Points Earned Feature Card -->
+              <!-- Loyalty Points / Welcome Offer Feature Card -->
               <div style="background-color:#FFFBF0;border:1.5px solid #DEC89B;border-radius:16px;padding:18px 20px;margin-bottom:22px;text-align:center;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                   <tr>
                     <td align="center">
+                      ${isWelcomeOffer ? `
+                      <div style="display:inline-block;padding:6px 14px;background-color:#FDEAF0;border:1px solid #C29E57;border-radius:20px;font-size:11px;font-weight:700;color:#8C2E46;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">
+                        🎁 WELCOME TO COTTON NEST BENEFIT APPLIED
+                      </div>
+                      <h3 style="margin:0 0 6px;font-size:18px;color:#8C2E46;font-family:Georgia,serif;font-weight:bold;">
+                        You Saved ₹${formatInvoiceCurrency(welcomeDiscount)} with Your First-Order Welcome Gift!
+                      </h3>
+                      <p style="margin:0;font-size:12px;color:#7A6458;line-height:1.5;">
+                        Nest Points Earned: <strong>0 pts</strong> · Nest Points Redeemed: <strong>0 pts</strong> (Nest Points cannot be earned or redeemed when using the Welcome Offer).
+                      </p>
+                      ` : `
                       <div style="display:inline-block;padding:6px 14px;background-color:#FAF7F2;border:1px solid #C29E57;border-radius:20px;font-size:11px;font-weight:700;color:#8C2E46;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">
                         ✨ NEST REWARDS LOYALTY CLUB
                       </div>
@@ -875,11 +909,12 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
                         You have earned <strong>5 Nest Points for every ₹100 spent</strong> on this purchase (excluding shipping).
                       </p>
                       <div style="display:inline-block;background-color:#FFFFFF;border:1px solid #DEC89B;border-radius:10px;padding:6px 14px;font-size:12px;color:#2C2420;font-weight:600;">
-                        Worth ₹${pointsWorthInr} discount on your next handcrafted bedsheet order
+                        Worth ₹${formatInvoiceCurrency(pointsWorthInr)} discount on your next handcrafted bedsheet order
                       </div>
                       <p style="margin:8px 0 0;font-size:11px;color:#7A6458;">
-                        Points are credited instantly to your account and valid for 12 months.
+                        Points are credited upon successful delivery and valid for 12 months.
                       </p>
+                      `}
                     </td>
                   </tr>
                 </table>
@@ -941,11 +976,17 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
         minute: '2-digit',
       });
 
+  const welcomeDiscount = Math.max(0, Math.round((Number(payload.welcomeDiscount) || 0) * 100) / 100);
+  const isWelcomeOffer = Boolean(
+    payload.welcomeOfferApplied || payload.benefitType === 'welcome_offer' || welcomeDiscount > 0
+  );
   const eligibleAmount = Math.max(0, payload.finalTotal - (payload.shippingCost || 0));
-  const pointsEarned = typeof payload.pointsEarned === 'number' && payload.pointsEarned > 0
+  const pointsEarned = isWelcomeOffer
+    ? 0
+    : typeof payload.pointsEarned === 'number' && payload.pointsEarned >= 0
     ? payload.pointsEarned
     : calculateEarnedPoints(eligibleAmount);
-  const pointsWorthInr = Math.floor(pointsEarned * 0.5);
+  const pointsWorthInr = Math.round(pointsEarned * 0.5 * 100) / 100;
 
   const lines = [
     `COTTON NEST BEDDING STUDIO - OFFICIAL SALE INVOICE`,
@@ -960,7 +1001,7 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
     `SALE INVOICE NUMBER: #${refId}`,
     `Order Date & Time: ${dateStr}`,
     `Status: Confirmed by Cotton Nest Atelier`,
-    `Total Amount: ₹${payload.finalTotal.toLocaleString('en-IN')}`,
+    `Total Amount: ₹${formatInvoiceCurrency(payload.finalTotal)}`,
     `====================================================`,
     `CUSTOMER & DELIVERY DETAILS:`,
     `Name: ${payload.customerName}`,
@@ -981,7 +1022,7 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
     const variantStr = item.variantName ? ` (${item.variantName})` : '';
     const dimsStr = item.dimensions ? ` - Size: ${item.dimensions}` : '';
     lines.push(`${idx + 1}. ${item.name}${variantStr}${dimsStr}`);
-    lines.push(`   Quantity: ${qty} Set(s) | Price: ₹${price.toLocaleString('en-IN')} | Total: ₹${total.toLocaleString('en-IN')}`);
+    lines.push(`   Quantity: ${qty} Set(s) | Price: ₹${formatInvoiceCurrency(price)} | Total: ₹${formatInvoiceCurrency(total)}`);
     if (item.imageUrl) {
       lines.push(`   Photo: ${item.imageUrl}`);
     }
@@ -991,33 +1032,44 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
     (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
     0
   );
-  const textCouponDiscount = Number(payload.couponDiscount) || 0;
-  const textPointsUsed = Number(payload.pointsUsed) || 0;
-  const textPointsDiscount = Number(payload.pointsDiscount) || (textPointsUsed > 0 ? Math.floor(textPointsUsed * 0.5) : 0);
+  const textCouponDiscount = isWelcomeOffer ? 0 : Number(payload.couponDiscount) || 0;
+  const textPointsUsed = isWelcomeOffer ? 0 : Number(payload.pointsUsed) || 0;
+  const textPointsDiscount = isWelcomeOffer
+    ? 0
+    : Number(payload.pointsDiscount) || (textPointsUsed > 0 ? Math.round(textPointsUsed * 0.5 * 100) / 100 : 0);
   const textShippingCost = Number(payload.shippingCost) || 0;
   const textSubtotal =
     textItemsSum > 0
       ? textItemsSum
       : Number(payload.subtotal) > Number(payload.finalTotal)
       ? Number(payload.subtotal)
-      : Number(payload.finalTotal) + textCouponDiscount + textPointsDiscount - textShippingCost;
+      : Number(payload.finalTotal) + welcomeDiscount + textCouponDiscount + textPointsDiscount - textShippingCost;
 
   lines.push(`----------------------------------------------------`);
   lines.push(`FINANCIAL SUMMARY:`);
-  lines.push(`Items Subtotal: ₹${textSubtotal.toLocaleString('en-IN')}`);
+  lines.push(`Items Subtotal: ₹${formatInvoiceCurrency(textSubtotal)}`);
 
+  if (welcomeDiscount > 0) {
+    lines.push(`Welcome to Cotton Nest (10% OFF): -₹${formatInvoiceCurrency(welcomeDiscount)}`);
+  }
   if (textCouponDiscount > 0) {
-    lines.push(`Coupon Discount (${payload.couponCode || 'Applied'}): -₹${textCouponDiscount.toLocaleString('en-IN')}`);
+    lines.push(`Coupon Discount (${payload.couponCode || 'Applied'}): -₹${formatInvoiceCurrency(textCouponDiscount)}`);
   }
   if (textPointsUsed > 0 || textPointsDiscount > 0) {
-    lines.push(`Loyalty Points Used (${textPointsUsed} pts): -₹${textPointsDiscount.toLocaleString('en-IN')}`);
+    lines.push(`Loyalty Points Used (${textPointsUsed} pts): -₹${formatInvoiceCurrency(textPointsDiscount)}`);
   }
-  lines.push(`Delivery Charges: ${textShippingCost > 0 ? `+₹${textShippingCost.toLocaleString('en-IN')}` : 'FREE Express Delivery'}`);
-  lines.push(`FINAL PAYABLE AMOUNT: ₹${payload.finalTotal.toLocaleString('en-IN')}`);
+  lines.push(`Delivery Charges: ${textShippingCost > 0 ? `+₹${formatInvoiceCurrency(textShippingCost)}` : 'FREE Express Delivery'}`);
+  lines.push(`FINAL PAYABLE AMOUNT: ₹${formatInvoiceCurrency(payload.finalTotal)}`);
   lines.push(`----------------------------------------------------`);
-  lines.push(`🎁 NEST LOYALTY POINTS EARNED:`);
-  lines.push(`+${pointsEarned} Points Credited (worth ₹${pointsWorthInr} discount on future orders)`);
-  lines.push(`Earning Rate: 5 Nest Points per ₹100 spent (excluding shipping)`);
+  if (isWelcomeOffer) {
+    lines.push(`🎁 WELCOME TO COTTON NEST (10% OFF) APPLIED:`);
+    lines.push(`Nest Points Earned: 0 pts | Nest Points Redeemed: 0 pts`);
+    lines.push(`(Nest Points cannot be earned or redeemed when using the Welcome Offer)`);
+  } else {
+    lines.push(`🎁 NEST LOYALTY POINTS EARNED:`);
+    lines.push(`+${pointsEarned} Points (worth ₹${formatInvoiceCurrency(pointsWorthInr)} discount on future orders)`);
+    lines.push(`Earning Rate: 5 Nest Points per ₹100 spent (excluding shipping)`);
+  }
   lines.push(`----------------------------------------------------`);
   lines.push(``);
   lines.push(`Thank you,`);

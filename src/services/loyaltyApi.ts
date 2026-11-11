@@ -263,11 +263,17 @@ export async function getLoyaltyAccountApi(
       const parsedOrders = JSON.parse(rawOrders);
       if (Array.isArray(parsedOrders)) {
         const orderStatusMap = new Map<string, string>();
+        const welcomeOrderIds = new Set<string>();
         parsedOrders.forEach((o) => {
-          if (o && o.id) orderStatusMap.set(String(o.id), String(o.status || 'pending'));
+          if (o && o.id) {
+            orderStatusMap.set(String(o.id), String(o.status || 'pending'));
+            if (o.welcomeOfferApplied || o.benefitType === 'welcome_offer' || (Number(o.welcomeDiscount) || 0) > 0) {
+              welcomeOrderIds.add(String(o.id));
+            }
+          }
         });
 
-        // Clean up any premature local 'earned' transactions or legacy 1pt/50 records
+        // Clean up any premature local 'earned' transactions, Welcome Offer order transactions, or legacy 1pt/50 records
         try {
           const rawTxs = localStorage.getItem(LOCAL_STORAGE_TX_KEY);
           if (rawTxs) {
@@ -275,6 +281,7 @@ export async function getLoyaltyAccountApi(
             if (Array.isArray(txList)) {
               const filtered = txList.filter((t) => {
                 if (!t) return false;
+                if (t.orderId && welcomeOrderIds.has(String(t.orderId))) return false;
                 if (t.description && String(t.description).includes('1 pt / ₹50')) return false;
                 if (t.type === 'earned' && t.orderId && orderStatusMap.has(String(t.orderId))) {
                   return orderStatusMap.get(String(t.orderId)) === 'delivered';
@@ -312,6 +319,11 @@ export async function getLoyaltyAccountApi(
 
         parsedOrders.forEach((o) => {
           if (!o || o.status === 'cancelled') return;
+          const isWelcomeOrder = Boolean(
+            o.welcomeOfferApplied || o.benefitType === 'welcome_offer' || (Number(o.welcomeDiscount) || 0) > 0
+          );
+          if (isWelcomeOrder) return;
+
           const oEmail = (o.customerEmail || '').toLowerCase().trim();
           const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
           const isMatch =
@@ -324,7 +336,7 @@ export async function getLoyaltyAccountApi(
             matchedAnyOrder = true;
             const ship = Number(o.shippingCost) || 0;
             const net = Math.max(0, (Number(o.totalAmount) || Number(o.subtotal) || 0) - ship);
-            const pts = typeof o.pointsEarned === 'number' && o.pointsEarned > 0 ? o.pointsEarned : calculateEarnedPoints(net);
+            const pts = typeof o.pointsEarned === 'number' && o.pointsEarned >= 0 ? o.pointsEarned : calculateEarnedPoints(net);
 
             if (o.status === 'delivered') {
               deliveredOrderEarned += pts;
@@ -397,6 +409,7 @@ export async function getLoyaltyAccountApi(
 /**
  * Record earned Nest Points from a delivered & paid purchase:
  * Rule: 5 points per ₹100 spent (excluding delivery charges). Valid for 12 months.
+ * Note: Orders with Welcome Offer applied earn ZERO Nest Points.
  */
 export async function earnLoyaltyPointsApi(
   rawKey: string,
@@ -404,11 +417,30 @@ export async function earnLoyaltyPointsApi(
   orderId: string,
   extra?: { name?: string; phone?: string; email?: string; userId?: string; explicitPoints?: number }
 ): Promise<{ account: LoyaltyAccount; pointsEarned: number; tx: LoyaltyTransaction }> {
+  const accountId = sanitizeLoyaltyKey(rawKey);
+  const current = await getLoyaltyAccountApi(accountId, extra);
+
+  if (extra?.explicitPoints === 0) {
+    return {
+      account: current,
+      pointsEarned: 0,
+      tx: {
+        id: `tx_none_${orderId}`,
+        accountId,
+        orderId,
+        type: 'earned',
+        points: 0,
+        amountInr: 0,
+        description: 'Welcome Offer applied — 0 Nest Points earned',
+        createdAt: Date.now(),
+      },
+    };
+  }
+
   const pointsEarned =
     typeof extra?.explicitPoints === 'number' && extra.explicitPoints > 0
       ? Math.floor(extra.explicitPoints)
       : calculateEarnedPoints(eligibleRupeesExcludingDelivery);
-  const accountId = sanitizeLoyaltyKey(rawKey);
 
   // Check server & Firestore transactions before crediting to prevent duplicates
   const existingTxs = await getLoyaltyTransactionsApi(accountId);
@@ -416,7 +448,6 @@ export async function earnLoyaltyPointsApi(
     (t) => t.accountId === accountId && t.orderId === orderId && t.type === 'earned' && t.points > 0
   );
 
-  const current = await getLoyaltyAccountApi(accountId, extra);
   if (alreadyCredited) {
     return { account: current, pointsEarned: alreadyCredited.points, tx: alreadyCredited };
   }

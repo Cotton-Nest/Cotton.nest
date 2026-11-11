@@ -107,11 +107,15 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
           customerPhone: order.customerPhone,
           customerAddress: order.customerAddress,
           shippingMethod: order.shippingCost ? 'Standard Delivery' : 'Sector 46 Complimentary',
-          subtotal: Number(order.totalAmount) || 0,
+          subtotal: Number(order.subtotal || order.totalAmount) || 0,
+          benefitType: order.benefitType,
+          welcomeOfferApplied: Boolean(order.welcomeOfferApplied || (order.welcomeDiscount && order.welcomeDiscount > 0)),
+          welcomeDiscount: Number(order.welcomeDiscount) || 0,
           couponCode: order.couponCode,
           couponDiscount: Number(order.couponDiscount) || 0,
-          pointsUsed: Number(order.pointsUsed) || 0,
-          pointsDiscount: Number(order.pointsDiscount) || 0,
+          pointsUsed: order.welcomeOfferApplied ? 0 : Number(order.pointsUsed) || 0,
+          pointsDiscount: order.welcomeOfferApplied ? 0 : Number(order.pointsDiscount) || 0,
+          pointsEarned: order.welcomeOfferApplied ? 0 : Number(order.pointsEarned) || 0,
           shippingCost: Number(order.shippingCost) || 0,
           finalTotal: Number(order.totalAmount) || 0,
           items: (order.items || []).map((it) => ({
@@ -1081,32 +1085,47 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                                 : currentSelectedOrder.paymentMethod.toUpperCase()}
                             </span>
                           </div>
+                          {Boolean(currentSelectedOrder.welcomeOfferApplied || (currentSelectedOrder.welcomeDiscount && currentSelectedOrder.welcomeDiscount > 0)) && (
+                            <div className="flex justify-between text-[#70252D] font-semibold bg-[#FDEAF0] px-2 py-0.5 rounded border border-[#FAD1DC]">
+                              <span>🎁 Welcome to Cotton Nest (10% OFF)</span>
+                              <span>-₹{Number(currentSelectedOrder.welcomeDiscount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
                           {currentSelectedOrder.totalSavings > 0 && (
                             <div className="flex justify-between text-emerald-700 font-medium">
                               <span>Atelier Savings</span>
-                              <span>-₹{currentSelectedOrder.totalSavings.toLocaleString('en-IN')}</span>
+                              <span>-₹{Number(currentSelectedOrder.totalSavings || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
                             </div>
                           )}
-                          {Boolean(currentSelectedOrder.pointsUsed && currentSelectedOrder.pointsUsed > 0) && (
+                          {!currentSelectedOrder.welcomeOfferApplied && Boolean(currentSelectedOrder.pointsUsed && currentSelectedOrder.pointsUsed > 0) && (
                             <div className="flex justify-between text-amber-800 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                               <span>Loyalty Points Redeemed ({currentSelectedOrder.pointsUsed} pts)</span>
                               <span>-₹{currentSelectedOrder.pointsDiscount || currentSelectedOrder.pointsUsed}</span>
                             </div>
                           )}
-                          {Boolean(currentSelectedOrder.pointsEarned && currentSelectedOrder.pointsEarned > 0) && (
+                          {currentSelectedOrder.welcomeOfferApplied ? (
+                            <div className="flex justify-between text-[#7A6458] font-medium text-[11px]">
+                              <span>Nest Points (Welcome Offer Applied)</span>
+                              <span className="font-bold text-[#2C2420]">0 pts</span>
+                            </div>
+                          ) : Boolean(currentSelectedOrder.pointsEarned && currentSelectedOrder.pointsEarned > 0) ? (
                             <div className="flex justify-between text-amber-900 font-semibold text-[11px]">
                               <span>Nest Points ({currentSelectedOrder.status === 'delivered' ? 'Credited' : 'Credited on Delivery'})</span>
                               <span className="font-bold text-amber-950">+{currentSelectedOrder.pointsEarned} pts (5 pts / ₹100)</span>
                             </div>
-                          )}
+                          ) : null}
                           <div className="flex justify-between text-[#6B5D55]">
-                            <span>Delivery (Gurgaon / NCR)</span>
-                            <span className="text-emerald-700 font-semibold">FREE</span>
+                            <span>Delivery Charges</span>
+                            <span className="text-emerald-700 font-semibold">
+                              {currentSelectedOrder.shippingCost && currentSelectedOrder.shippingCost > 0
+                                ? `₹${currentSelectedOrder.shippingCost.toLocaleString('en-IN')}`
+                                : 'FREE'}
+                            </span>
                           </div>
                           <div className="border-t border-[#EAE2D5] pt-1.5 flex justify-between text-sm font-bold text-[#2C2420]">
                             <span>Total Paid / Payable</span>
                             <span className="text-[#B83F60]">
-                              ₹{currentSelectedOrder.totalAmount.toLocaleString('en-IN')}
+                              ₹{Number(currentSelectedOrder.totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                             </span>
                           </div>
                         </div>

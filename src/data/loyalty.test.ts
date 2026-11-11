@@ -18,10 +18,10 @@ test('Loyalty points business logic & ledger formatting', () => {
   assert.equal(calculatePointsDiscount(100), 50);
   assert.equal(calculatePointsDiscount(200), 100);
 
-  // Minimum 200 points required for redemption
-  assert.equal(canRedeemPoints(150), false);
-  assert.equal(canRedeemPoints(200), true);
-  assert.equal(canRedeemPoints(450), true);
+  // Minimum 1 point required for redemption (up to 125 points per order)
+  assert.equal(canRedeemPoints(0), false);
+  assert.equal(canRedeemPoints(125), true);
+  assert.equal(canRedeemPoints(300), true);
 
   // Expiry calculation: exactly 12 months after credit
   const creditTime = new Date('2026-01-15T10:00:00Z').getTime();

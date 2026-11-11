@@ -241,6 +241,41 @@
         "updatedAt": { "type": "number", "description": "Last profile flush timestamp" }
       },
       "required": ["uid", "customerName", "lastActiveAt", "totalSessions", "totalTimeSpentSeconds"]
+    },
+    "WelcomeOfferConfig": {
+      "title": "WelcomeOfferConfig",
+      "description": "Configuration for the Welcome to Cotton Nest 10% OFF first-order offer",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Whether the Welcome Offer is active" },
+        "offerName": { "type": "string", "description": "Name of the offer (Welcome to Cotton Nest)" },
+        "discountPercentage": { "type": "number", "description": "Discount percentage (default 10)" },
+        "minOrderValue": { "type": "number", "description": "Minimum eligible product subtotal (default 1299)" },
+        "maxDiscountAmount": { "type": "number", "description": "Maximum discount cap in INR (default 200)" },
+        "updatedAt": { "type": "number", "description": "Last configuration update timestamp" }
+      },
+      "required": ["enabled", "offerName", "discountPercentage", "minOrderValue", "maxDiscountAmount", "updatedAt"]
+    },
+    "WelcomeOfferRedemption": {
+      "title": "WelcomeOfferRedemption",
+      "description": "Tracks customer eligibility, reservation, and one-time redemption of the Welcome to Cotton Nest offer by Firebase UID",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Customer Firebase UID" },
+        "email": { "type": "string", "description": "Customer Google email" },
+        "customerName": { "type": "string", "description": "Customer display name" },
+        "phone": { "type": "string", "description": "Customer mobile number" },
+        "authProvider": { "type": "string", "description": "Authentication provider (google)" },
+        "status": { "type": "string", "enum": ["eligible", "reserved", "redeemed", "ineligible_existing_customer", "ineligible_not_google_auth"], "description": "Current offer eligibility/redemption state" },
+        "reservedOrderId": { "type": "string", "description": "Order ID that currently reserves the offer" },
+        "reservedAt": { "type": "number", "description": "Timestamp when offer was reserved" },
+        "redeemedOrderId": { "type": "string", "description": "Order ID that permanently redeemed the offer upon delivery" },
+        "redeemedAt": { "type": "number", "description": "Timestamp when offer was permanently redeemed" },
+        "discountAmount": { "type": "number", "description": "Discount amount applied in INR" },
+        "popupShownAt": { "type": "number", "description": "Timestamp when welcome popup was shown to customer" },
+        "updatedAt": { "type": "number", "description": "Last status update timestamp" }
+      },
+      "required": ["uid", "status", "updatedAt"]
     }
   },
   "firestore": {
@@ -291,6 +326,14 @@
     "/customer_activity/{userId}": {
       "schema": "CustomerActivityProfile",
       "description": "Individual signed-in customer activity profiles and session analytics"
+    },
+    "/welcome_offer/{docId}": {
+      "schema": "WelcomeOfferConfig",
+      "description": "Welcome to Cotton Nest 10% OFF offer configuration"
+    },
+    "/welcome_offer_redemptions/{uid}": {
+      "schema": "WelcomeOfferRedemption",
+      "description": "Per-customer Welcome Offer eligibility, reservation, and redemption records"
     }
   }
 }
