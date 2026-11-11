@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'motion/react';
-import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award, Plus, Home, Briefcase, Bookmark, CheckSquare, Square, Mail, FileText } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award, Plus, Home, Briefcase, Bookmark, CheckSquare, Square, Mail, FileText, ChevronDown } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
 import { Order } from '../data/orders';
 import {
@@ -214,6 +214,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [availableCoupons, setAvailableCoupons] = useState<CouponOffer[]>([]);
   const [showOffersList, setShowOffersList] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isPriceBreakdownExpanded, setIsPriceBreakdownExpanded] = useState<boolean>(false);
 
   const userKey = user?.email || user?.id || customerProfile?.id || null;
 
@@ -773,6 +774,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       customerEmail: customerEmail.trim() || user?.email || customerProfile?.email || undefined,
       customerAddress: customerAddress.trim(),
       subtotal,
+      finalTotal,
       totalSavings,
       benefitType: checkoutBreakdown.selectedBenefit,
       welcomeOfferApplied: isWelcomeOfferApplied,
@@ -1226,6 +1228,127 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 <p className="text-[#6B5D55]">
                   {validItems.length} bedsheet{validItems.length > 1 ? 's' : ''} (Product Subtotal: ₹{formatRupeeAmount(subtotal)})
                 </p>
+
+                {/* Expandable Detailed Price Breakdown */}
+                <div className="pt-2 border-t border-[#EAE2D5]">
+                  <button
+                    type="button"
+                    onClick={() => setIsPriceBreakdownExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between text-left group cursor-pointer focus:outline-none py-0.5"
+                    aria-expanded={isPriceBreakdownExpanded}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-semibold text-[#8C2E46] group-hover:text-[#70252D] transition-colors">
+                        View Price Breakdown
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-[#8C2E46] transition-transform duration-200 ${
+                          isPriceBreakdownExpanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </div>
+
+                    {/* Collapsed Preview Badge */}
+                    {!isPriceBreakdownExpanded && totalSavings > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                        You're saving ₹{formatRupeeAmount(totalSavings)} on this order
+                      </span>
+                    )}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {isPriceBreakdownExpanded && (
+                      <motion.div
+                        key="whatsapp-price-breakdown-details"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.22, ease: 'easeInOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 p-3 bg-white/95 rounded-xl border border-[#DEC89B] space-y-2 text-xs shadow-2xs">
+                          {/* 1. Original Product Price */}
+                          <div className="flex items-center justify-between text-[#2C2420]">
+                            <span className="text-[11px] font-medium">Original Product Price:</span>
+                            <span className="font-semibold">₹{formatRupeeAmount(originalSubtotal)}</span>
+                          </div>
+
+                          {/* Catalogue / Bedsheet Offer Discount (if applicable) */}
+                          {catalogSavings > 0 && (
+                            <div className="flex items-center justify-between text-emerald-700">
+                              <span className="text-[11px] font-medium">Bedsheet Offer Discount:</span>
+                              <span className="font-semibold">-₹{formatRupeeAmount(catalogSavings)}</span>
+                            </div>
+                          )}
+
+                          {/* 2. Welcome Offer Discount (if applied) */}
+                          {isWelcomeOfferApplied && welcomeDiscount > 0 && (
+                            <div className="flex items-center justify-between text-emerald-700">
+                              <span className="text-[11px] font-medium">
+                                Welcome Offer Discount ({welcomeCouponCode}):
+                              </span>
+                              <span className="font-semibold">-₹{formatRupeeAmount(welcomeDiscount)}</span>
+                            </div>
+                          )}
+
+                          {/* 3. Other Coupon Discount (if applied) */}
+                          {!isWelcomeOfferApplied && appliedCoupon && effectiveCouponDiscount > 0 && (
+                            <div className="flex items-center justify-between text-emerald-700">
+                              <span className="text-[11px] font-medium">
+                                Coupon Discount ({appliedCoupon.code}):
+                              </span>
+                              <span className="font-semibold">-₹{formatRupeeAmount(effectiveCouponDiscount)}</span>
+                            </div>
+                          )}
+
+                          {/* 4. Nest Points Discount */}
+                          {!isWelcomeOfferApplied && useLoyaltyPoints && effectivePointsDiscount > 0 ? (
+                            <div className="flex items-center justify-between text-amber-800">
+                              <span className="text-[11px] font-medium">
+                                Nest Points Discount ({pointsToRedeem} pts):
+                              </span>
+                              <span className="font-semibold">-₹{formatRupeeAmount(effectivePointsDiscount)}</span>
+                            </div>
+                          ) : isWelcomeOfferApplied ? (
+                            <div className="flex items-center justify-between text-[#7A6458]">
+                              <span className="text-[11px] font-medium">Nest Points Discount:</span>
+                              <span className="font-medium">-₹0</span>
+                            </div>
+                          ) : null}
+
+                          {/* Delivery / Shipping Charges */}
+                          {shippingCost > 0 ? (
+                            <div className="flex items-center justify-between text-[#2C2420]">
+                              <span className="text-[11px]">
+                                Delivery Charges ({shippingOption === 'india' ? 'Standard India' : shippingLabel}):
+                              </span>
+                              <span className="font-medium">+₹{formatRupeeAmount(shippingCost)}</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between text-[#7A6458]">
+                              <span className="text-[11px]">Delivery Charges:</span>
+                              <span className="font-medium text-emerald-700">Free ({shippingLabel})</span>
+                            </div>
+                          )}
+
+                          {/* 5. Total Savings */}
+                          {totalSavings > 0 && (
+                            <div className="pt-1.5 border-t border-[#EAE2D5] flex items-center justify-between text-emerald-700 font-bold">
+                              <span className="text-[11px]">Total Savings:</span>
+                              <span>₹{formatRupeeAmount(totalSavings)}</span>
+                            </div>
+                          )}
+
+                          {/* 6. Final Payable Amount (highlighted in bold) */}
+                          <div className="pt-2 border-t border-[#DEC89B] flex items-center justify-between text-[#2C2420]">
+                            <span className="font-bold text-xs uppercase tracking-wide">Final Payable Amount:</span>
+                            <span className="font-bold text-sm text-[#8C2E46]">₹{formatRupeeAmount(finalTotal)}</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
 
                 {/* Smart Checkout Benefit Comparison: Welcome Offer vs Nest Points */}
                 {welcomeConfig.enabled && (customerWelcomeEligibility.eligible || !user || canRedeemForThisOrder) && (

@@ -164,6 +164,7 @@ export interface CartOrderPayload {
   customerAddress: string;
   customerEmail?: string;
   subtotal: number;
+  finalTotal?: number;
   totalSavings?: number;
   benefitType?: 'welcome_offer' | 'nest_points' | 'coupon' | 'none';
   welcomeOfferApplied?: boolean;
@@ -226,7 +227,9 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
   const welcomeCouponCode = (payload.welcomeCouponCode || 'WELCOME10').trim().toUpperCase() || 'WELCOME10';
   const couponDiscount = isWelcomeOffer ? 0 : Math.round((Number(payload.couponDiscount) || 0) * 100) / 100;
   const pointsDiscount = isWelcomeOffer ? 0 : Math.round((Number(payload.pointsDiscount) || 0) * 100) / 100;
-  const finalTotal = Math.round((Math.max(0, payload.subtotal - welcomeDiscount - couponDiscount - pointsDiscount) + (payload.shippingCost || 0)) * 100) / 100;
+  const finalTotal = typeof payload.finalTotal === 'number' && !isNaN(payload.finalTotal)
+    ? payload.finalTotal
+    : Math.round((Math.max(0, payload.subtotal - welcomeDiscount - couponDiscount - pointsDiscount) + (payload.shippingCost || 0)) * 100) / 100;
 
   const customerLines = [
     `* Name: ${payload.customerName}`,
