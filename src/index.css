@@ -182,8 +182,7 @@ textarea {
   box-shadow:
     0 6px 20px -4px rgba(30, 22, 18, 0.06),
     inset 0 0 0 1px rgba(197, 160, 89, 0.10);
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+  transition: box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
               border-color 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 

@@ -68,6 +68,8 @@ interface CatalogueViewProps {
   isWishlisted?: (productId: string) => boolean;
   onToggleWishlist?: (product: BedsheetProduct, variant?: BedsheetVariant) => void;
   reviews?: ProductReview[];
+  enableHangerAnimation?: boolean;
+  onToggleHangerAnimation?: () => void;
 }
 
 // Parses search text in real-time to detect price expressions, material keywords, and names
@@ -206,6 +208,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
   isWishlisted,
   onToggleWishlist,
   reviews = [],
+  enableHangerAnimation = true,
+  onToggleHangerAnimation,
 }) => {
   // Search & Sorting state
   const [searchQuery, setSearchQuery] = useState('');
@@ -1200,14 +1204,33 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
             <div className="absolute inset-x-2 top-0.5 h-0.5 bg-white/40 rounded-full" />
             <div className="w-2.5 h-4.5 -mr-2.5 rounded-sm bg-gradient-to-b from-[#A88B4A] to-[#5C4518] shadow-md border-l border-[#F4E2A8]/60" />
           </div>
-          <div className="flex items-center justify-between mt-1.5 px-1 text-[11px] text-[#8C7A70]">
+          <div className="flex items-center justify-between mt-1.5 px-1 text-[11px] text-[#8C7A70] flex-wrap gap-2">
             <span className="font-serif-luxury italic flex items-center gap-1.5 text-[#5E1924]">
               <Sparkles className="w-3.5 h-3.5 text-[#C5A059]" />
               <span>Boutique Wardrobe Collection · Bedsheets hanging on luxury hangers</span>
             </span>
-            <span className="hidden sm:inline-block text-[10px] text-[#7A6458]">
-              Hover or tap any bedsheet to experience natural fabric sway
-            </span>
+            <div className="flex items-center gap-2.5">
+              <span className="hidden sm:inline-block text-[10px] text-[#7A6458]">
+                {enableHangerAnimation ? 'Hover or tap any bedsheet to experience natural fabric sway' : 'Hanger sway animation is paused'}
+              </span>
+              {onToggleHangerAnimation && (
+                <button
+                  type="button"
+                  onClick={onToggleHangerAnimation}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-all cursor-pointer ${
+                    enableHangerAnimation
+                      ? 'bg-[#FAF6F0] text-[#70252D] border-[#DEC89B] shadow-2xs'
+                      : 'bg-white/80 text-[#8C7A70] border-[#EAE2D5] hover:bg-[#FAF7F2]'
+                  }`}
+                  title={enableHangerAnimation ? 'Turn off hanger animation' : 'Turn on hanger animation'}
+                >
+                  <span>Hanger Sway:</span>
+                  <span className={`px-1.5 py-0.2 rounded-full font-bold ${enableHangerAnimation ? 'bg-[#70252D] text-white' : 'bg-[#EAE2D5] text-[#6B5D55]'}`}>
+                    {enableHangerAnimation ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1255,6 +1278,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                   isWishlisted={isWishlisted ? isWishlisted(product.id) : false}
                   onToggleWishlist={onToggleWishlist}
                   reviews={reviews}
+                  enableHangerAnimation={enableHangerAnimation}
                 />
               </motion.div>
             ))}

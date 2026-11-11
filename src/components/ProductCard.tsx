@@ -26,6 +26,7 @@ interface ProductCardProps {
   onToggleWishlist?: (product: BedsheetProduct, variant?: BedsheetVariant) => void;
   viewMode?: ProductCardViewMode;
   priority?: boolean;
+  enableHangerAnimation?: boolean;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -45,10 +46,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onToggleWishlist,
   viewMode = 'single',
   priority = false,
+  enableHangerAnimation = true,
 }) => {
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const shouldAnimateHanger = Boolean(enableHangerAnimation && isHovered);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const ratingSummary = getProductRatingSummary(product.id, reviews);
@@ -110,35 +113,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       }}
       initial={false}
       animate={{
-        rotate: isHovered ? [0, 2.4, -2.2, 1.8, -1.2, 0.7, -0.3, 0] : 0,
-        x: isHovered ? [0, 1.5, -1.3, 1.0, -0.7, 0.4, -0.2, 0] : 0,
-        y: isHovered ? -4 : 0,
+        y: isHovered ? -3 : 0,
       }}
-      transition={
-        isHovered
-          ? {
-              rotate: {
-                duration: 2.5,
-                ease: [0.42, 0, 0.58, 1],
-                repeat: Infinity,
-                repeatDelay: 0.1,
-              },
-              x: {
-                duration: 2.5,
-                ease: [0.42, 0, 0.58, 1],
-                repeat: Infinity,
-                repeatDelay: 0.1,
-              },
-              y: { duration: 0.22, ease: 'easeOut' },
-            }
-          : { type: 'spring', stiffness: 320, damping: 24 }
-      }
+      transition={{
+        y: { duration: 0.25, ease: 'easeOut' },
+      }}
       style={{
         transformOrigin: '50% 2px',
         willChange: 'transform',
       }}
       whileTap={{ scale: 0.995 }}
-      className={`group relative liquid-glass-product-card rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer pt-1 ${
+      className={`group relative liquid-glass-product-card rounded-2xl overflow-hidden transition-colors duration-300 cursor-pointer pt-1.5 ${
         viewMode === 'list' ? 'flex flex-col sm:flex-row' : 'flex flex-col'
       } ${
         viewMode === 'single' ? 'sm:rounded-3xl' : ''
@@ -152,27 +137,70 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       {/* Dynamic Wardrobe Sway Shadow beneath */}
       <motion.div
         animate={{
-          opacity: isHovered ? 0.35 : 0.12,
-          scale: isHovered ? 1.05 : 0.98,
-          x: isHovered ? [-1.5, 2.2, -2.0, 1.4, -0.8, 0] : 0,
+          opacity: shouldAnimateHanger ? 0.35 : 0.12,
+          scale: shouldAnimateHanger ? 1.05 : 0.98,
+          x: shouldAnimateHanger ? [-1.5, 2.2, -2.0, 1.4, -0.8, 0] : 0,
         }}
         transition={{
           duration: 2.5,
-          repeat: isHovered ? Infinity : 0,
+          repeat: shouldAnimateHanger ? Infinity : 0,
           ease: 'easeInOut',
         }}
         className="absolute inset-x-8 bottom-0 h-4 bg-black/40 blur-md rounded-full pointer-events-none -z-10"
       />
 
-      {/* Boutique Wardrobe Hanger Fixture (Metallic Brass Hook + Wooden Shoulder Bar) */}
-      <div className="relative w-full flex flex-col items-center z-20 pointer-events-none pt-0.5 pb-0.5">
+      {/* Hanging Bedsheet Assembly (Hanger Fixture + Draped Bedsheet Image) */}
+      <motion.div
+        initial={{ rotate: 0, x: 0 }}
+        animate={
+          shouldAnimateHanger
+            ? {
+                rotate: [-2.2, 2.2, -2.2],
+                x: [-1.2, 1.2, -1.2],
+              }
+            : { rotate: 0, x: 0 }
+        }
+        transition={{
+          rotate: shouldAnimateHanger
+            ? {
+                duration: 2.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }
+            : {
+                duration: 0.45,
+                ease: [0.16, 1, 0.3, 1],
+              },
+          x: shouldAnimateHanger
+            ? {
+                duration: 2.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }
+            : {
+                duration: 0.45,
+                ease: [0.16, 1, 0.3, 1],
+              },
+        }}
+        style={{
+          transformOrigin: '50% 2px',
+          willChange: 'transform',
+        }}
+        className={`relative flex flex-col items-center shrink-0 overflow-visible z-10 ${
+          viewMode === 'list'
+            ? 'w-full sm:w-72 md:w-80 lg:w-84 bg-[#FAF7F2] border-b sm:border-b-0 sm:border-r border-[#EAE2D5]'
+            : 'w-full'
+        }`}
+      >
+        {/* Boutique Wardrobe Hanger Fixture (Metallic Brass Hook + Wooden Shoulder Bar) */}
+        <div className="relative w-full flex flex-col items-center z-20 pointer-events-none pt-0.5 pb-0.5 overflow-visible">
         {/* Brass Hook anchored on rod */}
-        <div className="relative w-5 h-5 -mb-0.5 flex items-center justify-center">
+        <div className="relative w-5 h-5 -mb-0.5 flex items-center justify-center overflow-visible">
           <svg
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="w-5 h-5 drop-shadow-[0_2px_3px_rgba(0,0,0,0.22)]"
+            className="w-5 h-5 drop-shadow-[0_2px_3px_rgba(0,0,0,0.22)] overflow-visible"
           >
             <circle cx="12" cy="2.5" r="2.2" fill="#FAF6F0" stroke="#C5A059" strokeWidth="1.4" />
             <circle cx="12" cy="2.5" r="1.1" fill="#C5A059" opacity="0.6" />
@@ -209,16 +237,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="w-[82%] h-1 bg-[#DDCBB5] rounded-b-sm shadow-inner border-x border-b border-[#C5A059]/40 -mt-0.5 z-10" />
       </div>
 
-      {/* Product Image / Video Slot */}
-      <div
-        className={`relative bg-[#F4EFE6] overflow-hidden shrink-0 ${
-          viewMode === 'list'
-            ? 'w-full sm:w-64 md:w-72 lg:w-80 aspect-[4/3] sm:aspect-auto sm:self-stretch min-h-[200px] sm:min-h-[240px]'
-            : viewMode === 'single'
-            ? 'aspect-[4/3] sm:aspect-[16/10]'
-            : 'aspect-[4/3]'
-        }`}
-      >
+        {/* Product Image / Video Slot */}
+        <div
+          className={`relative w-full bg-[#F4EFE6] overflow-hidden ${
+            viewMode === 'list'
+              ? 'aspect-[4/3] rounded-b-xl sm:rounded-b-none'
+              : viewMode === 'single'
+              ? 'aspect-[4/3] sm:aspect-[16/10]'
+              : 'aspect-[4/3]'
+          }`}
+        >
         {/* Placeholder Skeleton */}
         {!imageLoaded && !isDisplayVideo && (
           <div className="absolute inset-0 bg-[#F4EFE6] flex items-center justify-center overflow-hidden z-0">
@@ -365,6 +393,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </button>
         </div>
       </div>
+    </motion.div>
 
       {/* Card Content & Metadata */}
       <div
