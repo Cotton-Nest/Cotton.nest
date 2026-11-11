@@ -216,28 +216,6 @@ export default function App() {
   const [welcomeCustomerRecord, setWelcomeCustomerRecord] = useState<WelcomeOfferCustomerRecord | null>(null);
   const [isWelcomeOfferModalOpen, setIsWelcomeOfferModalOpen] = useState<boolean>(false);
 
-  // Boutique Hanger Sway Animation Toggle (defaults to true; persisted in localStorage)
-  const [enableHangerAnimation, setEnableHangerAnimation] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('cotton_nest_hanger_animation');
-      return saved !== null ? saved === 'true' : true;
-    } catch {
-      return true;
-    }
-  });
-
-  const handleToggleHangerAnimation = () => {
-    setEnableHangerAnimation((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('cotton_nest_hanger_animation', String(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  };
-
 
 
   // Automatically maintain signed-in customer activity profile & session analytics in Firebase
@@ -2086,73 +2064,20 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-3 flex-wrap self-start md:self-auto">
-                            {/* Hanger Sway Animation On/Off Button */}
-                            <motion.button
-                              whileHover={{ scale: 1.03 }}
-                              whileTap={{ scale: 0.97 }}
-                              onClick={handleToggleHangerAnimation}
-                              type="button"
-                              className={`inline-flex items-center gap-2 text-xs font-semibold px-3.5 py-2.5 rounded-full transition-all cursor-pointer border ${
-                                enableHangerAnimation
-                                  ? 'bg-[#FAF6F0] text-[#70252D] border-[#DEC89B] shadow-xs'
-                                  : 'bg-white text-[#8C7A70] border-[#EAE2D5] hover:bg-[#FAF7F2]'
-                              }`}
-                              title={enableHangerAnimation ? 'Turn off hanger animation' : 'Turn on hanger animation'}
-                              aria-label={`Hanger animation: ${enableHangerAnimation ? 'ON' : 'OFF'}`}
-                            >
-                              <span className="relative flex items-center justify-center">
-                                <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-[#C5A059]" stroke="currentColor" strokeWidth="2">
-                                  <circle cx="12" cy="4" r="2" />
-                                  <path d="M12 6c3 0 9 7 9 9H3c0-2 6-9 9-9z" />
-                                  <line x1="3" y1="18" x2="21" y2="18" strokeWidth="1.5" />
-                                </svg>
-                              </span>
-                              <span>Hanger Sway:</span>
-                              <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${
-                                  enableHangerAnimation
-                                    ? 'bg-[#70252D] text-white shadow-2xs'
-                                    : 'bg-[#EAE2D5] text-[#6B5D55]'
-                                }`}
-                              >
-                                {enableHangerAnimation ? 'ON' : 'OFF'}
-                              </span>
-                            </motion.button>
-
-                            <motion.button
-                              whileHover={{ x: 3, scale: 1.02 }}
-                              whileTap={{ scale: 0.97 }}
-                              onClick={() => {
-                                setActiveTab('catalogue');
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                              style={{ color: 'var(--color-primary, #70252D)' }}
-                              className="inline-flex items-center gap-2 text-xs font-semibold px-4 py-2.5 rounded-full liquid-glass-badge hover:bg-white transition-all cursor-pointer group"
-                            >
-                              <span>Browse All {products.length} Bedsheets in Catalogue</span>
-                              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                            </motion.button>
-                          </div>
+                          <motion.button
+                            whileHover={{ x: 3, scale: 1.02 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => {
+                              setActiveTab('catalogue');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            style={{ color: 'var(--color-primary, #70252D)' }}
+                            className="inline-flex items-center gap-2 text-xs font-semibold px-4 py-2.5 rounded-full liquid-glass-badge hover:bg-white transition-all cursor-pointer group self-start md:self-auto"
+                          >
+                            <span>Browse All {products.length} Bedsheets in Catalogue</span>
+                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                          </motion.button>
                         </motion.div>
-
-                        {/* Boutique Wardrobe Closet Rod Presentation on Home Page */}
-                        <div className="relative pt-1 pb-3 mb-4">
-                          <div className="h-2 w-full rounded-full bg-gradient-to-r from-[#8C6D2D] via-[#F4E2A8] via-[#C5A059] to-[#8C6D2D] shadow-xs relative flex items-center justify-between px-2">
-                            <div className="w-2 h-3.5 -ml-2 rounded-xs bg-gradient-to-b from-[#A88B4A] to-[#5C4518] shadow-sm border-r border-[#F4E2A8]/60" />
-                            <div className="absolute inset-x-2 top-0.5 h-0.5 bg-white/40 rounded-full" />
-                            <div className="w-2 h-3.5 -mr-2 rounded-xs bg-gradient-to-b from-[#A88B4A] to-[#5C4518] shadow-sm border-l border-[#F4E2A8]/60" />
-                          </div>
-                          <div className="flex items-center justify-between mt-1.5 px-1 text-[11px] text-[#8C7A70] flex-wrap gap-2">
-                            <span className="font-serif-luxury italic flex items-center gap-1.5 text-[#5E1924]">
-                              <Sparkles className="w-3.5 h-3.5 text-[#C5A059]" />
-                              <span>Boutique Wardrobe Collection · Featured bedsheets on luxury hangers</span>
-                            </span>
-                            <span className="hidden sm:inline-block text-[10px] text-[#7A6458]">
-                              {enableHangerAnimation ? 'Hover bedsheet to experience natural fabric sway' : 'Hanger sway is off · click button above to turn ON'}
-                            </span>
-                          </div>
-                        </div>
 
                         {/* 3 Featured Cards Grid with Staggered Scroll Animations */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -2180,7 +2105,6 @@ export default function App() {
                                 onNotifyStock={handleNotifyStock}
                                 isWishlisted={isProductWishlisted(product.id)}
                                 onToggleWishlist={handleToggleWishlist}
-                                enableHangerAnimation={enableHangerAnimation}
                               />
                             </motion.div>
                           ))}
@@ -2269,8 +2193,6 @@ export default function App() {
                     isWishlisted={isProductWishlisted}
                     onToggleWishlist={handleToggleWishlist}
                     reviews={reviews}
-                    enableHangerAnimation={enableHangerAnimation}
-                    onToggleHangerAnimation={handleToggleHangerAnimation}
                   />
                 )}
 

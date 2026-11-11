@@ -26,7 +26,6 @@ interface ProductCardProps {
   onToggleWishlist?: (product: BedsheetProduct, variant?: BedsheetVariant) => void;
   viewMode?: ProductCardViewMode;
   priority?: boolean;
-  enableHangerAnimation?: boolean;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -46,12 +45,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onToggleWishlist,
   viewMode = 'single',
   priority = false,
-  enableHangerAnimation = true,
 }) => {
   const [imageLoaded, setImageLoaded] = React.useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const shouldAnimateHanger = Boolean(enableHangerAnimation && isHovered);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const ratingSummary = getProductRatingSummary(product.id, reviews);
@@ -118,12 +115,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       transition={{
         y: { duration: 0.25, ease: 'easeOut' },
       }}
-      style={{
-        transformOrigin: '50% 2px',
-        willChange: 'transform',
-      }}
       whileTap={{ scale: 0.995 }}
-      className={`group relative liquid-glass-product-card rounded-2xl overflow-hidden transition-colors duration-300 cursor-pointer pt-1.5 ${
+      className={`group relative liquid-glass-product-card rounded-2xl overflow-hidden transition-colors duration-300 cursor-pointer ${
         viewMode === 'list' ? 'flex flex-col sm:flex-row' : 'flex flex-col'
       } ${
         viewMode === 'single' ? 'sm:rounded-3xl' : ''
@@ -134,119 +127,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       {/* Top 24K Champagne Gold Luxury Accent Hairline */}
       <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#C5A059] to-transparent opacity-70 group-hover:opacity-100 transition-opacity z-20 pointer-events-none" />
 
-      {/* Dynamic Wardrobe Sway Shadow beneath */}
-      <motion.div
-        animate={{
-          opacity: shouldAnimateHanger ? 0.35 : 0.12,
-          scale: shouldAnimateHanger ? 1.05 : 0.98,
-          x: shouldAnimateHanger ? [-1.5, 2.2, -2.0, 1.4, -0.8, 0] : 0,
-        }}
-        transition={{
-          duration: 2.5,
-          repeat: shouldAnimateHanger ? Infinity : 0,
-          ease: 'easeInOut',
-        }}
-        className="absolute inset-x-8 bottom-0 h-4 bg-black/40 blur-md rounded-full pointer-events-none -z-10"
-      />
-
-      {/* Hanging Bedsheet Assembly (Hanger Fixture + Draped Bedsheet Image) */}
-      <motion.div
-        initial={{ rotate: 0, x: 0 }}
-        animate={
-          shouldAnimateHanger
-            ? {
-                rotate: [-2.2, 2.2, -2.2],
-                x: [-1.2, 1.2, -1.2],
-              }
-            : { rotate: 0, x: 0 }
-        }
-        transition={{
-          rotate: shouldAnimateHanger
-            ? {
-                duration: 2.4,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }
-            : {
-                duration: 0.45,
-                ease: [0.16, 1, 0.3, 1],
-              },
-          x: shouldAnimateHanger
-            ? {
-                duration: 2.4,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }
-            : {
-                duration: 0.45,
-                ease: [0.16, 1, 0.3, 1],
-              },
-        }}
-        style={{
-          transformOrigin: '50% 2px',
-          willChange: 'transform',
-        }}
-        className={`relative flex flex-col items-center shrink-0 overflow-visible z-10 ${
+      {/* Product Image / Video Slot */}
+      <div
+        className={`relative bg-[#F4EFE6] overflow-hidden shrink-0 ${
           viewMode === 'list'
-            ? 'w-full sm:w-72 md:w-80 lg:w-84 bg-[#FAF7F2] border-b sm:border-b-0 sm:border-r border-[#EAE2D5]'
-            : 'w-full'
+            ? 'w-full sm:w-72 md:w-80 lg:w-84 aspect-[4/3] border-b sm:border-b-0 sm:border-r border-[#EAE2D5]'
+            : viewMode === 'single'
+            ? 'w-full aspect-[4/3] sm:aspect-[16/10]'
+            : 'w-full aspect-[4/3]'
         }`}
       >
-        {/* Boutique Wardrobe Hanger Fixture (Metallic Brass Hook + Wooden Shoulder Bar) */}
-        <div className="relative w-full flex flex-col items-center z-20 pointer-events-none pt-0.5 pb-0.5 overflow-visible">
-        {/* Brass Hook anchored on rod */}
-        <div className="relative w-5 h-5 -mb-0.5 flex items-center justify-center overflow-visible">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-5 h-5 drop-shadow-[0_2px_3px_rgba(0,0,0,0.22)] overflow-visible"
-          >
-            <circle cx="12" cy="2.5" r="2.2" fill="#FAF6F0" stroke="#C5A059" strokeWidth="1.4" />
-            <circle cx="12" cy="2.5" r="1.1" fill="#C5A059" opacity="0.6" />
-            <path
-              d="M12 4.7 C12 7.8 17.5 8.2 17.5 12.4 C17.5 15.6 13.2 17.5 12 21.5"
-              stroke={`url(#catalogueBrassGradient-${product.id || 'card'})`}
-              strokeWidth="2.3"
-              strokeLinecap="round"
-            />
-            <defs>
-              <linearGradient id={`catalogueBrassGradient-${product.id || 'card'}`} x1="12" y1="4" x2="16" y2="21" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#FBF0D3" />
-                <stop offset="0.45" stopColor="#C5A059" />
-                <stop offset="1" stopColor="#73541A" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
-
-        {/* Contoured Wooden Hanger Shoulders */}
-        <div className="w-[88%] h-3 rounded-t-full bg-gradient-to-r from-[#C99E66] via-[#F4E9D5] to-[#C99E66] border border-[#B88E52] shadow-[0_2px_4px_rgba(44,36,32,0.18)] flex items-center justify-between px-2 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-white/50 via-transparent to-black/15 pointer-events-none" />
-          <div className="w-1 h-1.5 rounded-full bg-[#C5A059] shadow-inner" />
-          <div className="flex items-center gap-0.5 bg-[#FAF6F0]/95 px-1.5 py-0.2 rounded-full border border-[#C5A059]/70 shadow-2xs z-10">
-            <span className="w-1 h-1 rounded-full bg-[#8C2E46]" />
-            <span className="text-[6.5px] font-serif-luxury font-bold tracking-widest text-[#5E1924] uppercase">
-              COTTON NEST
-            </span>
-          </div>
-          <div className="w-1 h-1.5 rounded-full bg-[#C5A059] shadow-inner" />
-        </div>
-
-        {/* Horizontal Cloth Drape Bar */}
-        <div className="w-[82%] h-1 bg-[#DDCBB5] rounded-b-sm shadow-inner border-x border-b border-[#C5A059]/40 -mt-0.5 z-10" />
-      </div>
-
-        {/* Product Image / Video Slot */}
-        <div
-          className={`relative w-full bg-[#F4EFE6] overflow-hidden ${
-            viewMode === 'list'
-              ? 'aspect-[4/3] rounded-b-xl sm:rounded-b-none'
-              : viewMode === 'single'
-              ? 'aspect-[4/3] sm:aspect-[16/10]'
-              : 'aspect-[4/3]'
-          }`}
-        >
         {/* Placeholder Skeleton */}
         {!imageLoaded && !isDisplayVideo && (
           <div className="absolute inset-0 bg-[#F4EFE6] flex items-center justify-center overflow-hidden z-0">
@@ -393,7 +283,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </button>
         </div>
       </div>
-    </motion.div>
 
       {/* Card Content & Metadata */}
       <div
