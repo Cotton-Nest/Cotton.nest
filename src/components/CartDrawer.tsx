@@ -215,6 +215,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [showOffersList, setShowOffersList] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isPriceBreakdownExpanded, setIsPriceBreakdownExpanded] = useState<boolean>(false);
+  const isExpanded = isPriceBreakdownExpanded;
 
   const userKey = user?.email || user?.id || customerProfile?.id || null;
 
@@ -1229,44 +1230,51 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   {validItems.length} bedsheet{validItems.length > 1 ? 's' : ''} (Product Subtotal: ₹{formatRupeeAmount(subtotal)})
                 </p>
 
-                {/* Expandable Detailed Price Breakdown */}
+                {/* Expandable Detailed Price Breakdown (Smooth Accordion Animation) */}
                 <div className="pt-2 border-t border-[#EAE2D5]">
                   <button
                     type="button"
                     onClick={() => setIsPriceBreakdownExpanded((prev) => !prev)}
-                    className="w-full flex items-center justify-between text-left group cursor-pointer focus:outline-none py-0.5"
+                    className="w-full flex items-center justify-between text-left group cursor-pointer focus:outline-none -mx-1 px-1 py-1 rounded-lg hover:bg-white/60 active:scale-[0.99] transition-all"
                     aria-expanded={isPriceBreakdownExpanded}
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] font-semibold text-[#8C2E46] group-hover:text-[#70252D] transition-colors">
                         View Price Breakdown
                       </span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-[#8C2E46] transition-transform duration-200 ${
-                          isPriceBreakdownExpanded ? 'rotate-180' : ''
-                        }`}
-                      />
+                      <motion.span
+                        animate={{ rotate: isPriceBreakdownExpanded ? 180 : 0 }}
+                        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                        className="inline-flex items-center justify-center"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5 text-[#8C2E46]" />
+                      </motion.span>
                     </div>
 
                     {/* Collapsed Preview Badge */}
-                    {!isPriceBreakdownExpanded && totalSavings > 0 && (
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                        You're saving ₹{formatRupeeAmount(totalSavings)} on this order
-                      </span>
-                    )}
+                    <AnimatePresence>
+                      {!isPriceBreakdownExpanded && totalSavings > 0 && (
+                        <motion.span
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2, ease: 'easeOut' }}
+                          className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs"
+                        >
+                          You're saving ₹{formatRupeeAmount(totalSavings)} on this order
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </button>
 
-                  <AnimatePresence initial={false}>
-                    {isPriceBreakdownExpanded && (
-                      <motion.div
-                        key="whatsapp-price-breakdown-details"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.22, ease: 'easeInOut' }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-2 p-3 bg-white/95 rounded-xl border border-[#DEC89B] space-y-2 text-xs shadow-2xs">
+                  {/* Framer Motion smooth accordion-style animation for price breakdown */}
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: isExpanded ? 'auto' : 0, opacity: isExpanded ? 1 : 0 }}
+                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-2 p-3 bg-white/95 rounded-xl border border-[#DEC89B] space-y-2 text-xs shadow-2xs">
                           {/* 1. Original Product Price */}
                           <div className="flex items-center justify-between text-[#2C2420]">
                             <span className="text-[11px] font-medium">Original Product Price:</span>
@@ -1346,9 +1354,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           </div>
                         </div>
                       </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                    </div>
 
                 {/* Smart Checkout Benefit Comparison: Welcome Offer vs Nest Points */}
                 {welcomeConfig.enabled && (customerWelcomeEligibility.eligible || !user || canRedeemForThisOrder) && (
