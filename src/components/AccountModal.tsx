@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
+import { AnimatedPointsCounter } from './AnimatedPointsCounter';
 import {
   LOYALTY_POINTS_PER_100_INR,
   LOYALTY_MIN_REDEMPTION_POINTS,
@@ -493,7 +494,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 <div className="flex items-baseline justify-between pt-1 flex-wrap gap-2">
                   <div>
                     <span className="text-3xl font-extrabold font-mono text-[#70252D]">
-                      {pointsBalance}
+                      <AnimatedPointsCounter value={pointsBalance} />
                     </span>
                     <span className="text-xs font-semibold text-amber-900 ml-1.5">Available Nest Points</span>
                   </div>
