@@ -9,11 +9,12 @@ import {
   writeBatch,
   increment,
   query,
+  where,
   orderBy,
   onSnapshot,
   runTransaction,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, isFirestoreWriteQuotaExhausted, markFirestoreWriteQuotaExhausted } from '../firebase';
+import { db, handleFirestoreError, OperationType, isFirestoreWriteQuotaExhausted, markFirestoreWriteQuotaExhausted, primaryAuth, previewAuth } from '../firebase';
 import {
   BedsheetProduct,
   BEDSHEETS_CATALOG,
@@ -770,13 +771,24 @@ export async function saveAllProducts(
 }
 
 // ---------------- ORDERS API (FIRESTORE & BACKEND AUTHORITATIVE) ---------------- //
-export async function getOrders(): Promise<Order[]> {
-  const path = 'orders';
+// ---------------- ORDERS API (STRICT ACCOUNT ISOLATION) ---------------- //
+
+/**
+ * Fetches orders strictly belonging to a specific authenticated Firebase UID.
+ * Never fetches or merges orders using email, name, phone, or shared records.
+ */
+export async function getUserOrders(userId?: string | null): Promise<Order[]> {
+  const cleanUid = (userId || primaryAuth.currentUser?.uid || previewAuth.currentUser?.uid || '').trim();
+  if (!cleanUid) {
+    return [];
+  }
+
   const orderMap = new Map<string, Order>();
 
-  // 1. Fetch from Firestore
+  // 1. Fetch strictly by UID from Firestore
   try {
-    const snap = await getDocs(collection(db, path));
+    const q = query(collection(db, 'orders'), where('userId', '==', cleanUid));
+    const snap = await getDocs(q);
     if (!snap.empty) {
       snap.forEach((docSnap) => {
         const data = docSnap.data() as Order;
@@ -786,18 +798,19 @@ export async function getOrders(): Promise<Order[]> {
       });
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
+    try {
+      handleFirestoreError(error, OperationType.LIST, 'orders');
+    } catch {}
   }
 
-  // 2. Fetch from Express server backend (/api/orders)
+  // 2. Fetch strictly by UID from server backend (/api/orders?userId=...)
   try {
-    const res = await fetch('/api/orders');
+    const res = await fetch(`/api/orders?userId=${encodeURIComponent(cleanUid)}`);
     if (res.ok) {
       const serverOrders: Order[] = await res.json();
       if (Array.isArray(serverOrders)) {
         serverOrders.forEach((o) => {
-          if (o && o.id) {
-            // Keep existing from Firestore or insert
+          if (o && o.id && o.userId === cleanUid) {
             if (!orderMap.has(o.id)) {
               orderMap.set(o.id, o);
             }
@@ -809,13 +822,191 @@ export async function getOrders(): Promise<Order[]> {
     console.warn('Backend /api/orders fetch notice:', err);
   }
 
-  // 3. Check local storage cache
+  // 3. Check account-specific local cache
   try {
-    const cached = localStorage.getItem('cotton_nest_orders');
+    const cached = localStorage.getItem(`cotton_nest_orders_${cleanUid}`);
     if (cached) {
       const localOrders: Order[] = JSON.parse(cached);
       if (Array.isArray(localOrders)) {
         localOrders.forEach((o) => {
+          if (o && o.id && o.userId === cleanUid && !orderMap.has(o.id)) {
+            orderMap.set(o.id, o);
+          }
+        });
+      }
+    }
+  } catch {}
+
+  const userOrders = Array.from(orderMap.values()).filter((o) => o.userId === cleanUid);
+  userOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+  // Cache strictly into account-scoped key
+  try {
+    if (userOrders.length > 0) {
+      localStorage.setItem(`cotton_nest_orders_${cleanUid}`, JSON.stringify(userOrders));
+    }
+  } catch {}
+
+  return userOrders;
+}
+
+/**
+ * Subscribes to real-time updates strictly for the authenticated UID.
+ * Returns an unsubscribe cleanup function.
+ */
+export function subscribeUserOrders(
+  userId: string,
+  onUpdate: (orders: Order[]) => void
+): () => void {
+  const cleanUid = (userId || '').trim();
+  if (!cleanUid) {
+    onUpdate([]);
+    return () => {};
+  }
+
+  let active = true;
+  const q = query(collection(db, 'orders'), where('userId', '==', cleanUid));
+
+  const unsub = onSnapshot(
+    q,
+    (snapshot) => {
+      if (!active) return;
+      const orderMap = new Map<string, Order>();
+      if (!snapshot.empty) {
+        snapshot.forEach((d) => {
+          const raw = d.data() as Order;
+          if (raw && d.id && raw.userId === cleanUid) {
+            orderMap.set(d.id, { ...raw, id: d.id });
+          }
+        });
+      }
+
+      // Also merge with backend server for this UID
+      fetch(`/api/orders?userId=${encodeURIComponent(cleanUid)}`)
+        .then((res) => (res.ok ? res.json() : []))
+        .then((serverOrders: Order[]) => {
+          if (!active) return;
+          if (Array.isArray(serverOrders)) {
+            serverOrders.forEach((o) => {
+              if (o && o.id && o.userId === cleanUid && !orderMap.has(o.id)) {
+                orderMap.set(o.id, o);
+              }
+            });
+          }
+          const sorted = Array.from(orderMap.values()).sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+          onUpdate(sorted);
+          try {
+            localStorage.setItem(`cotton_nest_orders_${cleanUid}`, JSON.stringify(sorted));
+          } catch {}
+        })
+        .catch(() => {
+          if (!active) return;
+          const sorted = Array.from(orderMap.values()).sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+          onUpdate(sorted);
+        });
+    },
+    (err) => {
+      try {
+        handleFirestoreError(err, OperationType.GET, 'orders');
+      } catch {}
+    }
+  );
+
+  return () => {
+    active = false;
+    unsub();
+  };
+}
+
+/**
+ * Direct lookup for a single order with strict authorization verification.
+ * Non-admins can ONLY view their own order.
+ */
+export async function getSingleOrder(
+  orderId: string,
+  currentUid?: string | null,
+  isOwner: boolean = false
+): Promise<Order | null> {
+  const cleanId = orderId.trim();
+  if (!cleanId) return null;
+
+  try {
+    const snap = await getDoc(doc(db, 'orders', cleanId));
+    if (snap.exists()) {
+      const data = snap.data() as Order;
+      // Enforce strict ownership: non-admin can only access if data.userId === currentUid
+      if (!isOwner && data.userId && data.userId !== currentUid) {
+        return null;
+      }
+      return { ...data, id: snap.id };
+    }
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.GET, `orders/${cleanId}`);
+    } catch {}
+  }
+
+  // Fallback to server endpoint
+  try {
+    const res = await fetch(`/api/orders?orderId=${encodeURIComponent(cleanId)}&userId=${encodeURIComponent(currentUid || '')}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const ord = data[0];
+        if (!isOwner && ord.userId && ord.userId !== currentUid) {
+          return null;
+        }
+        return ord;
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+/**
+ * Store Owner / Admin order list fetching.
+ * Restricted strictly to authorized store owner/admin sessions.
+ */
+export async function getOrders(isAdmin: boolean = false): Promise<Order[]> {
+  if (!isAdmin) {
+    // Customers must use getUserOrders(uid) to prevent order mixing
+    const currentUid = (primaryAuth.currentUser?.uid || previewAuth.currentUser?.uid || '').trim();
+    if (currentUid) {
+      return getUserOrders(currentUid);
+    }
+    return [];
+  }
+
+  const path = 'orders';
+  const orderMap = new Map<string, Order>();
+
+  try {
+    const snap = await getDocs(collection(db, path));
+    if (!snap.empty) {
+      snap.forEach((docSnap) => {
+        const data = docSnap.data() as Order;
+        if (data && docSnap.id) {
+          orderMap.set(docSnap.id, { ...data, id: docSnap.id });
+        }
+      });
+    }
+  } catch (error) {
+    try {
+      handleFirestoreError(error, OperationType.LIST, path);
+    } catch {}
+  }
+
+  try {
+    const res = await fetch('/api/orders?admin=true');
+    if (res.ok) {
+      const serverOrders: Order[] = await res.json();
+      if (Array.isArray(serverOrders)) {
+        serverOrders.forEach((o) => {
           if (o && o.id && !orderMap.has(o.id)) {
             orderMap.set(o.id, o);
           }
@@ -826,19 +1017,13 @@ export async function getOrders(): Promise<Order[]> {
 
   const merged = Array.from(orderMap.values());
   merged.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-
-  // Cache merged list
-  try {
-    if (merged.length > 0) {
-      localStorage.setItem('cotton_nest_orders', JSON.stringify(merged));
-    }
-  } catch {}
-
-  return merged.length > 0 ? merged : INITIAL_ORDERS;
+  return merged;
 }
 
 export async function saveOrder(order: Order): Promise<void> {
   const path = `orders/${order.id}`;
+
+  const activeUid = (order.userId || primaryAuth.currentUser?.uid || previewAuth.currentUser?.uid || '').trim();
 
   const isWelcomeOfferApplied = Boolean(
     order.welcomeOfferApplied ||
@@ -853,6 +1038,7 @@ export async function saveOrder(order: Order): Promise<void> {
   // Rule 6A & 6B: If Welcome Offer is applied, force pointsEarned = 0, pointsUsed = 0, pointsDiscount = 0, couponDiscount = 0.
   const safeOrder: Order = stripUndefined({
     ...order,
+    userId: activeUid || undefined,
     status: 'pending',
     benefitType: isWelcomeOfferApplied
       ? 'welcome_offer'
@@ -878,7 +1064,6 @@ export async function saveOrder(order: Order): Promise<void> {
     customerPhone: order.customerPhone?.trim() || '',
     customerAddress: order.customerAddress?.trim() || '',
     notes: order.notes?.trim() || undefined,
-    userId: order.userId?.trim() || undefined,
     timeline: order.timeline && order.timeline.length > 0 ? order.timeline : [
       {
         status: 'pending',
@@ -918,13 +1103,20 @@ export async function saveOrder(order: Order): Promise<void> {
     console.warn('Dual-write to /api/orders notice:', serverErr);
   }
 
-  // 2. Update local storage
+  // 2. Update account-scoped local storage cache (never global shared key)
+  if (activeUid) {
+    try {
+      const cacheKey = `cotton_nest_orders_${activeUid}`;
+      const cached = localStorage.getItem(cacheKey);
+      let currentList: Order[] = cached ? JSON.parse(cached) : [];
+      if (!Array.isArray(currentList)) currentList = [];
+      currentList = [safeOrder, ...currentList.filter((o) => o.id !== safeOrder.id)];
+      localStorage.setItem(cacheKey, JSON.stringify(currentList));
+    } catch {}
+  }
+  // Remove legacy shared cache to prevent leak
   try {
-    const cached = localStorage.getItem('cotton_nest_orders');
-    let currentList: Order[] = cached ? JSON.parse(cached) : [];
-    if (!Array.isArray(currentList)) currentList = [];
-    currentList = [safeOrder, ...currentList.filter((o) => o.id !== safeOrder.id)];
-    localStorage.setItem('cotton_nest_orders', JSON.stringify(currentList));
+    localStorage.removeItem('cotton_nest_orders');
   } catch {}
 
   // 3. Write to Firestore (and atomically reserve Welcome Offer in welcome_offer_redemptions/{uid} when applicable)
@@ -968,6 +1160,7 @@ export async function saveOrder(order: Order): Promise<void> {
     handleFirestoreError(error, OperationType.CREATE, path);
     console.warn('Firestore order save error (saved to backend):', error);
   }
+
 
   // 3b. If user applied Nest Points at checkout (pointsUsed > 0 AND Welcome Offer is NOT applied), deduct from loyalty balance
   const pointsToRedeemVal = isWelcomeOfferApplied

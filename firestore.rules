@@ -14,7 +14,7 @@ service cloud.firestore {
       return isSignedIn() && (
         request.auth.token.email == 'adityaa.451485@gmail.com' ||
         request.auth.token.email == 'adityaa.22082011@gmail.com' ||
-        request.auth.token.email_verified == true
+        request.auth.token.email == 'cottonnest.atelier@gmail.com'
       );
     }
 
@@ -35,11 +35,25 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Orders: readable and manageable, creatable by checkout
+    // Orders: strictly isolated by owner UID. Only owner of order or admin can read.
     match /orders/{orderId} {
-      allow read: if true;
-      allow create: if true;
-      allow update, delete: if isOwnerOrAdmin() || true;
+      // Customers can read only their own orders; admins can read all
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isOwnerOrAdmin());
+
+      // Customers can create orders only with their own UID as owner
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isOwnerOrAdmin());
+
+      // Customers cannot change order owner's UID or modify protected fields (status, totalAmount, paymentMethod)
+      allow update: if isOwnerOrAdmin() || (
+        isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.status == resource.data.status &&
+        request.resource.data.totalAmount == resource.data.totalAmount
+      );
+
+      // Only authorized administrators can delete orders
+      allow delete: if isOwnerOrAdmin();
     }
 
     // Customer Reviews: readable by all visitors, creatable by customers

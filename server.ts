@@ -1084,44 +1084,53 @@ async function startServer() {
     res.json({ success: true, id });
   });
 
-  // Orders API with User-Specific Filtering & Live Admin Sync
+  // Orders API with Strict Account-Wise Isolation & Admin Sync
   app.get('/api/orders', (req, res) => {
-    const { email, phone, userId, orderId } = req.query as Record<string, string | undefined>;
+    const { userId, orderId, admin } = req.query as Record<string, string | undefined>;
 
-    let result = db.orders;
-
-    // If specific order ID requested
+    // 1. Direct Order ID lookup: enforce that customers can ONLY view their own order
     if (orderId) {
-      result = result.filter(
-        (o) => o.id?.toLowerCase() === orderId.toLowerCase()
+      const targetId = orderId.trim().toLowerCase();
+      const matched = db.orders.find(
+        (o) => o.id?.toLowerCase() === targetId
       );
-      return res.json(result);
-    }
-
-    // If user identification filters provided, match that person's orders, or fallback to all orders if none matched
-    if (email || phone || userId) {
-      const cleanEmail = email ? email.trim().toLowerCase() : '';
-      const cleanPhone = phone ? phone.replace(/[^0-9]/g, '') : '';
-      const cleanUserId = userId ? userId.trim() : '';
-
-      const filtered = result.filter((o) => {
-        const oEmail = o.customerEmail ? o.customerEmail.trim().toLowerCase() : '';
-        const oPhone = o.customerPhone ? o.customerPhone.replace(/[^0-9]/g, '') : '';
-        const oUserId = o.userId ? o.userId.trim() : '';
-
-        const matchesEmail = cleanEmail && oEmail && oEmail === cleanEmail;
-        const matchesPhone = cleanPhone && oPhone && (oPhone.endsWith(cleanPhone) || cleanPhone.endsWith(oPhone));
-        const matchesUserId = cleanUserId && oUserId && oUserId === cleanUserId;
-
-        return matchesEmail || matchesPhone || matchesUserId;
-      });
-
-      if (filtered.length > 0) {
-        result = filtered;
+      if (!matched) {
+        return res.status(404).json({ error: 'Order not found' });
       }
+
+      // If user is not admin, verify ownership strictly by UID
+      if (admin !== 'true') {
+        const cleanUserId = userId ? userId.trim() : '';
+        if (!cleanUserId || (matched.userId && matched.userId.trim() !== cleanUserId)) {
+          return res.status(403).json({ error: 'Forbidden: You do not have permission to view this order.' });
+        }
+      }
+
+      return res.json([matched]);
     }
 
-    res.json(result);
+    // 2. Strict UID-based customer order fetching
+    if (userId) {
+      const cleanUserId = userId.trim();
+      // Strictly match only orders owned by this authenticated UID
+      const userOrders = db.orders.filter(
+        (o) => o.userId && o.userId.trim() === cleanUserId
+      );
+      userOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      // CRITICAL: NEVER fall back to all orders! If account has 0 orders, return []
+      return res.json(userOrders);
+    }
+
+    // 3. Authorized Admin panel access
+    if (admin === 'true') {
+      const allOrders = [...db.orders].sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      return res.json(allOrders);
+    }
+
+    // 4. Default safe fallback for unauthenticated queries without userId: empty list (zero data leak)
+    return res.json([]);
   });
 
   async function dispatchOrderSaleInvoice(order: any, options?: { forceResend?: boolean }) {

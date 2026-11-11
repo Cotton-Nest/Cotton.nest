@@ -54,7 +54,7 @@ import { resolveBedsheetImage } from '../utils/imageUrl';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, setDefaultAddress, formatFullAddress } from '../data/addresses';
 import { OrderComplaintSection } from './OrderComplaintSection';
-import { getOrders } from '../services/api';
+import { getUserOrders } from '../services/api';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
 
 interface AccountModalProps {
@@ -149,23 +149,27 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       ? sanitizeLoyaltyKey(activeCustomerPhone)
       : (user?.email ? sanitizeLoyaltyKey(user.email) : undefined);
 
-    getOrders()
-      .then((res) => {
-        if (Array.isArray(res)) {
-          setFetchedOrders(res);
-          try {
-            localStorage.setItem('cotton_nest_orders', JSON.stringify(res));
-          } catch {}
-        }
-        refreshLoyalty(explicitAccKey);
-        loadTransactions(explicitAccKey);
-      })
-      .catch(() => {
-        refreshLoyalty(explicitAccKey);
-        loadTransactions(explicitAccKey);
-      });
+    const currentUid = (user?.id || '').trim();
+    if (currentUid) {
+      getUserOrders(currentUid)
+        .then((res) => {
+          if (Array.isArray(res)) {
+            setFetchedOrders(res);
+          }
+          refreshLoyalty(explicitAccKey);
+          loadTransactions(explicitAccKey);
+        })
+        .catch(() => {
+          refreshLoyalty(explicitAccKey);
+          loadTransactions(explicitAccKey);
+        });
+    } else {
+      setFetchedOrders([]);
+      refreshLoyalty(explicitAccKey);
+      loadTransactions(explicitAccKey);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, userKey, activeTab, customerProfile?.phone, user?.phone]);
+  }, [isOpen, userKey, activeTab, customerProfile?.phone, user?.phone, user?.id]);
 
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
@@ -342,12 +346,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
   );
 
-  // Filter orders relevant to this user/phone/email
-  const customerOrders = allMergedOrders.filter((o) => {
-    if (user?.email && o.customerEmail?.toLowerCase() === user.email.toLowerCase()) return true;
-    if (customerProfile?.phone && o.customerPhone === customerProfile.phone) return true;
-    return true; // fallback to show recent store orders
-  }).slice(0, 10);
+  // Filter orders strictly owned by this authenticated UID
+  const currentAuthUid = (user?.id || '').trim();
+  const customerOrders = (currentAuthUid
+    ? allMergedOrders.filter((o) => o.userId && o.userId.trim() === currentAuthUid)
+    : []
+  ).slice(0, 10);
 
   // Delivered orders for this customer with calculated earned points
   const deliveredCustomerOrders = customerOrders

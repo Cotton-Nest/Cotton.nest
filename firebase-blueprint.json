@@ -44,12 +44,14 @@
     },
     "Order": {
       "title": "Order",
-      "description": "Customer purchase order.",
+      "description": "Customer purchase order strictly identified by Firebase Authentication UID.",
       "type": "object",
       "properties": {
         "id": { "type": "string", "description": "Order reference ID" },
+        "userId": { "type": "string", "description": "Firebase Authentication UID of the customer account who placed the order" },
         "customerName": { "type": "string", "description": "Customer full name" },
         "phone": { "type": "string", "description": "Customer contact phone" },
+        "customerEmail": { "type": "string", "description": "Customer email" },
         "address": { "type": "string", "description": "Delivery address" },
         "pincode": { "type": "string", "description": "Postal pincode" },
         "items": { "type": "array", "description": "Cart items" },
@@ -59,7 +61,7 @@
         "deliveredAt": { "type": "string", "description": "ISO timestamp when order was delivered" },
         "createdAt": { "type": "string", "description": "Order timestamp" }
       },
-      "required": ["id", "customerName", "phone", "totalAmount", "status"]
+      "required": ["id", "userId", "customerName", "totalAmount", "status"]
     },
     "SiteContent": {
       "title": "SiteContent",

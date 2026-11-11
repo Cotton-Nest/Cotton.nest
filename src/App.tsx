@@ -58,6 +58,9 @@ import {
   saveAllProducts,
   updateSingleProduct,
   getOrders,
+  getUserOrders,
+  subscribeUserOrders,
+  getSingleOrder,
   saveOrder,
   saveAllOrdersApi,
   updateOrderStatus,
@@ -508,20 +511,13 @@ export default function App() {
     productsRef.current = products;
   }, [products]);
 
-  // Dynamic Orders state with local storage persistence
+  // Strict Account-Wise Orders state (isolated by authenticated UID)
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
-      const saved = localStorage.getItem('cotton_nest_orders');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return INITIAL_ORDERS;
+      // Purge any legacy un-scoped orders cache
+      localStorage.removeItem('cotton_nest_orders');
+    } catch {}
+    return [];
   });
 
   const welcomeEligibility = React.useMemo(() => {
@@ -1075,74 +1071,6 @@ export default function App() {
       }
     );
 
-    // Initial fetch from merged Express + Firestore + local orders
-    getOrders()
-      .then((merged) => {
-        if (Array.isArray(merged) && merged.length > 0) {
-          setOrders((prev) => {
-            const byId = new Map<string, Order>();
-            for (const o of merged) {
-              if (o && o.id) byId.set(o.id, o);
-            }
-            for (const o of prev) {
-              if (o && o.id && !byId.has(o.id)) byId.set(o.id, o);
-            }
-            return Array.from(byId.values()).sort(
-              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            );
-          });
-        }
-      })
-      .catch(() => {});
-
-    // 4. Authoritative Orders listener from Firestore (merged with Express /api/orders)
-    const unsubOrders = onSnapshot(
-      collection(db, 'orders'),
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const loadedOrders: Order[] = [];
-          snapshot.forEach((d) => {
-            const raw = d.data() as Order;
-            if (!raw) return;
-            loadedOrders.push({
-              ...raw,
-              id: d.id,
-              customerName: String(raw.customerName || 'Atelier Customer'),
-              customerPhone: String(raw.customerPhone || ''),
-              customerAddress: String(raw.customerAddress || ''),
-              items: Array.isArray(raw.items) ? raw.items : [],
-              totalAmount: Number(raw.totalAmount) || 0,
-              status: raw.status || 'pending',
-              createdAt: raw.createdAt || new Date().toISOString(),
-            });
-          });
-          getOrders()
-            .then((apiMerged) => {
-              const byId = new Map<string, Order>();
-              for (const o of loadedOrders) {
-                if (o && o.id) byId.set(o.id, o);
-              }
-              for (const o of apiMerged) {
-                if (o && o.id && !byId.has(o.id)) byId.set(o.id, o);
-              }
-              const combined = Array.from(byId.values()).sort(
-                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-              );
-              setOrders(combined);
-            })
-            .catch(() => {
-              loadedOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-              setOrders(loadedOrders);
-            });
-        }
-      },
-      (error) => {
-        try {
-          handleFirestoreError(error, OperationType.GET, 'orders');
-        } catch {}
-      }
-    );
-
     // 5. Authoritative Reviews listener from Firestore
     const unsubReviews = onSnapshot(
       collection(db, 'reviews'),
@@ -1346,13 +1274,62 @@ export default function App() {
       unsubProducts();
       unsubTheme();
       unsubSeasonal();
-      unsubOrders();
       unsubReviews();
       unsubContent();
       unsubCustomImages();
       unsubNotifications();
     };
   }, []);
+
+  // Strict Account-Wise Orders Separation:
+  // Immediately clear previous account's orders from React state, unsubscribe previous listeners,
+  // detect the newly authenticated UID, and fetch fresh orders strictly for the new UID without browser refresh.
+  const activeOrdersUnsubRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    // 1. Unsubscribe from any previous account-specific Firebase listener
+    if (activeOrdersUnsubRef.current) {
+      activeOrdersUnsubRef.current();
+      activeOrdersUnsubRef.current = null;
+    }
+
+    // 2. Immediately clear previous account's order data from React state
+    setOrders([]);
+
+    const currentUid = (user?.id || '').trim();
+
+    // If unauthenticated: orders remain strictly empty
+    if (!currentUid) {
+      return;
+    }
+
+    // If store owner / admin mode: load all orders for administration
+    if (isOwnerMode) {
+      getOrders(true)
+        .then((all) => setOrders(all))
+        .catch(() => {});
+      return;
+    }
+
+    // 3. For customer: fetch fresh orders using ONLY the authenticated UID
+    getUserOrders(currentUid)
+      .then((userOrders) => {
+        setOrders(userOrders);
+      })
+      .catch(() => {});
+
+    // 4. Attach real-time listener strictly for this UID
+    activeOrdersUnsubRef.current = subscribeUserOrders(currentUid, (updatedOrders) => {
+      setOrders(updatedOrders);
+    });
+
+    return () => {
+      if (activeOrdersUnsubRef.current) {
+        activeOrdersUnsubRef.current();
+        activeOrdersUnsubRef.current = null;
+      }
+    };
+  }, [user?.id, isOwnerMode]);
 
   // Secret Owner Access Listeners: ?admin=true in URL & Ctrl+Shift+A shortcut (always requires PIN page first)
   useEffect(() => {

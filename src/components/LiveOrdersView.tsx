@@ -26,7 +26,7 @@ import {
 import { Order, OrderStatus } from '../data/orders';
 import { COMPANY_DETAILS } from '../data/products';
 import { useAuth } from '../context/AuthContext';
-import { getOrders, updateOrderStatus } from '../services/api';
+import { getUserOrders, subscribeUserOrders, getSingleOrder, updateOrderStatus } from '../services/api';
 import { normalizePhoneDigits } from '../data/complaints';
 import { OrderComplaintSection } from './OrderComplaintSection';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
@@ -156,93 +156,85 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
     }
   };
 
-  // Fetch orders for current authenticated user
-  const fetchUserOrders = async (silent: boolean = false) => {
-    if (!silent) setIsLoading(true);
-    setIsAutoSyncing(true);
+  const ordersListenerUnsubRef = useRef<(() => void) | null>(null);
 
-    try {
-      let url = '/api/orders';
-      const params = new URLSearchParams();
+  // Strict account-wise order separation and switching
+  useEffect(() => {
+    // 1. Immediately unsubscribe from previous account-specific listener
+    if (ordersListenerUnsubRef.current) {
+      ordersListenerUnsubRef.current();
+      ordersListenerUnsubRef.current = null;
+    }
 
-      if (user?.email) params.append('email', user.email);
-      if (user?.phone) params.append('phone', user.phone);
-      if (user?.id) params.append('userId', user.id);
+    // 2. Immediately clear previous account's order data from React state
+    setOrders([]);
+    setSelectedOrderId(null);
+    selectedOrderIdRef.current = null;
+    setSearchedOrder(null);
+    setSearchError('');
+    setIsLoading(true);
 
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
+    const currentUid = (user?.id || '').trim();
 
-      const res = await fetch(url);
-      let serverOrders: Order[] = [];
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) serverOrders = data;
-      }
+    if (!currentUid) {
+      setIsLoading(false);
+      return;
+    }
 
-      // Also merge matching orders from Firestore/local cache so orders are never missed
-      const allKnown = await getOrders().catch(() => [] as Order[]);
-      const cleanEmail = user?.email ? user.email.trim().toLowerCase() : '';
-      const cleanPhone = normalizePhoneDigits(user?.phone);
-      const cleanUserId = user?.id ? user.id.trim() : '';
-
-      let matchingFirestoreOrders = allKnown.filter((o) => {
-        if (!cleanEmail && !cleanPhone && !cleanUserId) return true;
-        const oEmail = o.customerEmail ? o.customerEmail.trim().toLowerCase() : '';
-        const oPhone = normalizePhoneDigits(o.customerPhone);
-        const oUserId = o.userId ? o.userId.trim() : '';
-        return (
-          Boolean(cleanEmail && oEmail && oEmail === cleanEmail) ||
-          Boolean(cleanPhone && oPhone && oPhone === cleanPhone) ||
-          Boolean(cleanUserId && oUserId && oUserId === cleanUserId)
-        );
+    // 3. Fetch fresh orders using ONLY the authenticated UID
+    getUserOrders(currentUid)
+      .then((userOrders) => {
+        setOrders(userOrders);
+        if (userOrders.length > 0) {
+          setSelectedOrderId(userOrders[0].id);
+          selectedOrderIdRef.current = userOrders[0].id;
+        }
+        setLastSyncedTime(new Date());
+      })
+      .catch((err) => {
+        console.warn('Could not fetch user orders:', err);
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
 
-      // Fallback: if strict filtering matched 0 orders (e.g. user logged in with alternate email), show all known orders so data never disappears
-      if (matchingFirestoreOrders.length === 0 && allKnown.length > 0) {
-        matchingFirestoreOrders = allKnown;
-      }
-
-      const mergedMap = new Map<string, Order>();
-      [...serverOrders, ...matchingFirestoreOrders].forEach((o) => {
-        if (o && o.id) mergedMap.set(o.id, o);
-      });
-      const mergedList = Array.from(mergedMap.values()).sort(
-        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-      );
-
-      setOrders(mergedList);
+    // 4. Attach real-time listener strictly for the new authenticated UID
+    ordersListenerUnsubRef.current = subscribeUserOrders(currentUid, (updatedOrders) => {
+      setOrders(updatedOrders);
       setLastSyncedTime(new Date());
-
-      // Pin and preserve the customer's selected order; do NOT reset to mergedList[0].id on background sync
       setSelectedOrderId((prevSelected) => {
         const currentTarget = prevSelected || selectedOrderIdRef.current;
-        if (currentTarget && mergedList.some((o) => o.id === currentTarget)) {
+        if (currentTarget && updatedOrders.some((o) => o.id === currentTarget)) {
           return currentTarget;
         }
-        return mergedList.length > 0 ? mergedList[0].id : null;
+        return updatedOrders.length > 0 ? updatedOrders[0].id : null;
       });
-    } catch (err) {
-      console.warn('Could not fetch user live orders:', err);
+    });
+
+    return () => {
+      if (ordersListenerUnsubRef.current) {
+        ordersListenerUnsubRef.current();
+        ordersListenerUnsubRef.current = null;
+      }
+    };
+  }, [user?.id]);
+
+  const handleManualRefresh = async () => {
+    const currentUid = (user?.id || '').trim();
+    if (!currentUid) return;
+    setIsAutoSyncing(true);
+    try {
+      const refreshed = await getUserOrders(currentUid);
+      setOrders(refreshed);
+      setLastSyncedTime(new Date());
+    } catch (e) {
+      console.warn('Manual refresh error:', e);
     } finally {
-      if (!silent) setIsLoading(false);
       setIsAutoSyncing(false);
     }
   };
 
-  // Initial fetch and automatic live sync interval every 4 seconds
-  useEffect(() => {
-    fetchUserOrders(false);
-
-    const interval = setInterval(() => {
-      fetchUserOrders(true);
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [user?.email, user?.phone, isAuthenticated]);
-
-  // Handle direct manual Order ID search (for guests or quick tracking)
+  // Handle direct manual Order ID search with strict account ownership validation
   const handleManualSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualOrderId.trim()) return;
@@ -253,22 +245,16 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
 
     try {
       const targetId = manualOrderId.trim();
-      const res = await fetch(`/api/orders?orderId=${encodeURIComponent(targetId)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setSearchedOrder(data[0]);
-          setSelectedOrderId(data[0].id);
-          return;
-        }
-      }
-      const allKnown = await getOrders().catch(() => [] as Order[]);
-      const found = allKnown.find((o) => o.id?.toLowerCase() === targetId.toLowerCase());
-      if (found) {
+      const currentUid = (user?.id || '').trim();
+
+      // Non-admins can strictly only fetch orders belonging to their own account
+      const found = await getSingleOrder(targetId, currentUid, false);
+
+      if (found && found.userId === currentUid) {
         setSearchedOrder(found);
         setSelectedOrderId(found.id);
       } else {
-        setSearchError(`No order found matching "${manualOrderId}". Please check your order ID.`);
+        setSearchError(`No order found matching "${manualOrderId}" under your authenticated account.`);
       }
     } catch {
       setSearchError('Network error while searching for order.');
@@ -630,7 +616,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                 <div className="flex items-center gap-2 text-xs text-[#7A6458]">
                   <span>Last live update: {lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                   <button
-                    onClick={() => fetchUserOrders(false)}
+                    onClick={handleManualRefresh}
                     title="Refresh Now"
                     className="p-1 hover:text-[#2C2420] transition-colors cursor-pointer"
                   >
