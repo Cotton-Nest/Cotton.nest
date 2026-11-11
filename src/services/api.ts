@@ -53,6 +53,11 @@ import {
   WelcomeOfferConfig,
   WelcomeOfferCustomerRecord,
   DEFAULT_WELCOME_OFFER_CONFIG,
+  DEFAULT_WELCOME_COUPON_CODE,
+  normalizeWelcomeCouponCode,
+  isWelcomeOfferCouponCode,
+  calculateWelcomeOfferDiscount,
+  formatRupeeAmount,
   CustomerEligibilityResult,
   CentralizedCheckoutBreakdown,
   BenefitOptionType,
@@ -836,8 +841,13 @@ export async function saveOrder(order: Order): Promise<void> {
   const path = `orders/${order.id}`;
 
   const isWelcomeOfferApplied = Boolean(
-    order.welcomeOfferApplied || order.benefitType === 'welcome_offer' || (Number(order.welcomeDiscount) || 0) > 0
+    order.welcomeOfferApplied ||
+      order.benefitType === 'welcome_offer' ||
+      (Number(order.welcomeDiscount) || 0) > 0 ||
+      isWelcomeOfferCouponCode(order.couponCode) ||
+      isWelcomeOfferCouponCode(order.welcomeCouponCode)
   );
+  const resolvedWelcomeCode = normalizeWelcomeCouponCode(order.welcomeCouponCode || order.couponCode);
 
   // Rule 1 & 6: Never generate or send an invoice when an order is placed.
   // Rule 6A & 6B: If Welcome Offer is applied, force pointsEarned = 0, pointsUsed = 0, pointsDiscount = 0, couponDiscount = 0.
@@ -852,6 +862,7 @@ export async function saveOrder(order: Order): Promise<void> {
       ? 'coupon'
       : 'none',
     welcomeOfferApplied: isWelcomeOfferApplied,
+    welcomeCouponCode: isWelcomeOfferApplied ? resolvedWelcomeCode : undefined,
     welcomeDiscount: isWelcomeOfferApplied ? Math.round((Number(order.welcomeDiscount) || 0) * 100) / 100 : 0,
     pointsEarned: isWelcomeOfferApplied ? 0 : order.pointsEarned,
     pointsUsed: isWelcomeOfferApplied ? 0 : order.pointsUsed,
@@ -935,6 +946,7 @@ export async function saveOrder(order: Order): Promise<void> {
             customerName: safeOrder.customerName || existingData?.customerName,
             phone: safeOrder.customerPhone || existingData?.phone,
             authProvider: 'google',
+            couponCode: resolvedWelcomeCode,
             status: 'reserved',
             reservedOrderId: safeOrder.id,
             reservedAt: Date.now(),
@@ -1854,13 +1866,42 @@ export async function validateCouponApi(
   code: string,
   items: CartItemLike[],
   subtotal: number,
-  customerIdentifier?: string
-): Promise<{ valid: boolean; coupon?: CouponOffer; discountAmount: number; error?: string }> {
+  customerIdentifier?: string,
+  welcomeContext?: {
+    uid?: string | null;
+    authProvider?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    customerName?: string | null;
+    orders?: Order[];
+    config?: Partial<WelcomeOfferConfig>;
+    existingRecord?: WelcomeOfferCustomerRecord | null;
+  }
+): Promise<{
+  valid: boolean;
+  coupon?: CouponOffer;
+  isWelcomeOffer?: boolean;
+  welcomeCouponCode?: string;
+  discountAmount: number;
+  message?: string;
+  error?: string;
+}> {
+  const cleanCode = code.trim().toUpperCase();
   try {
     const res = await fetch('/api/coupons/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: code.trim().toUpperCase(), items, subtotal, customerIdentifier }),
+      body: JSON.stringify({
+        code: cleanCode,
+        items,
+        subtotal,
+        customerIdentifier,
+        uid: welcomeContext?.uid,
+        authProvider: welcomeContext?.authProvider,
+        email: welcomeContext?.email,
+        phone: welcomeContext?.phone,
+        customerName: welcomeContext?.customerName,
+      }),
     });
 
     if (res.ok) {
@@ -1869,11 +1910,16 @@ export async function validateCouponApi(
         return {
           valid: true,
           coupon: data.coupon,
+          isWelcomeOffer: Boolean(data.isWelcomeOffer),
+          welcomeCouponCode: data.welcomeCouponCode,
           discountAmount: Number(data.discountAmount) || 0,
+          message: data.message,
         };
       } else {
         return {
           valid: false,
+          isWelcomeOffer: Boolean(data.isWelcomeOffer),
+          welcomeCouponCode: data.welcomeCouponCode,
           discountAmount: 0,
           error: data.error || 'Coupon is not eligible for this order.',
         };
@@ -1883,10 +1929,49 @@ export async function validateCouponApi(
     console.warn('Backend coupon validation fallback:', err);
   }
 
-  // Fallback: Validate directly against Firestore coupon docs if backend is unreachable
+  // Fallback: Check if the code matches the Welcome Offer coupon code (e.g. WELCOME10)
   try {
+    const welcomeCfg = welcomeContext?.config || (await getWelcomeOfferConfigApi());
+    if (isWelcomeOfferCouponCode(cleanCode, welcomeCfg)) {
+      const eligibility = evaluateCustomerWelcomeEligibility({
+        userId: welcomeContext?.uid,
+        authProvider: welcomeContext?.authProvider,
+        email: welcomeContext?.email,
+        phone: welcomeContext?.phone,
+        customerName: welcomeContext?.customerName,
+        existingRecord: welcomeContext?.existingRecord,
+        orders: welcomeContext?.orders || [],
+        config: welcomeCfg,
+      });
+      if (!eligibility.eligible) {
+        return {
+          valid: false,
+          isWelcomeOffer: true,
+          welcomeCouponCode: eligibility.couponCode,
+          discountAmount: 0,
+          error: eligibility.reason,
+        };
+      }
+      const welcomeCalc = calculateWelcomeOfferDiscount(subtotal, welcomeCfg);
+      if (!welcomeCalc.meetsMinOrder || welcomeCalc.discountAmount <= 0) {
+        return {
+          valid: false,
+          isWelcomeOffer: true,
+          welcomeCouponCode: welcomeCalc.couponCode,
+          discountAmount: 0,
+          error: `Minimum product subtotal of ₹${formatRupeeAmount(welcomeCalc.minOrderValue)} (excluding delivery) required for code ${welcomeCalc.couponCode}. Add ₹${formatRupeeAmount(welcomeCalc.shortfallAmount)} more to apply.`,
+        };
+      }
+      return {
+        valid: true,
+        isWelcomeOffer: true,
+        welcomeCouponCode: welcomeCalc.couponCode,
+        discountAmount: welcomeCalc.discountAmount,
+        message: `Welcome Offer code ${welcomeCalc.couponCode} applied! ₹${formatRupeeAmount(welcomeCalc.discountAmount)} saved.`,
+      };
+    }
+
     const coupons = await getCouponsApi();
-    const cleanCode = code.trim().toUpperCase();
     const matched = coupons.find((c) => c.code.toUpperCase() === cleanCode);
     if (!matched) {
       return { valid: false, discountAmount: 0, error: 'Invalid coupon code. Please verify the spelling.' };
@@ -2981,20 +3066,37 @@ export async function getWelcomeOfferConfigApi(): Promise<WelcomeOfferConfig> {
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data.discountPercentage === 'number') {
-        localStorage.setItem('cotton_nest_welcome_offer_config', JSON.stringify(data));
-        return data;
+        const normalized: WelcomeOfferConfig = {
+          ...DEFAULT_WELCOME_OFFER_CONFIG,
+          ...data,
+          couponCode: normalizeWelcomeCouponCode(data.couponCode ?? DEFAULT_WELCOME_COUPON_CODE),
+        };
+        localStorage.setItem('cotton_nest_welcome_offer_config', JSON.stringify(normalized));
+        return normalized;
       }
     }
   } catch {}
   try {
     const snap = await getDoc(doc(db, 'welcome_offer', 'config'));
     if (snap.exists()) {
-      return snap.data() as WelcomeOfferConfig;
+      const data = snap.data() as WelcomeOfferConfig;
+      return {
+        ...DEFAULT_WELCOME_OFFER_CONFIG,
+        ...data,
+        couponCode: normalizeWelcomeCouponCode(data.couponCode ?? DEFAULT_WELCOME_COUPON_CODE),
+      };
     }
   } catch {}
   try {
     const cached = localStorage.getItem('cotton_nest_welcome_offer_config');
-    if (cached) return JSON.parse(cached);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return {
+        ...DEFAULT_WELCOME_OFFER_CONFIG,
+        ...parsed,
+        couponCode: normalizeWelcomeCouponCode(parsed?.couponCode ?? DEFAULT_WELCOME_COUPON_CODE),
+      };
+    }
   } catch {}
   return DEFAULT_WELCOME_OFFER_CONFIG;
 }
@@ -3005,6 +3107,7 @@ export async function saveWelcomeOfferConfigApi(
   let savedConfig: WelcomeOfferConfig = {
     ...DEFAULT_WELCOME_OFFER_CONFIG,
     ...config,
+    couponCode: normalizeWelcomeCouponCode(config.couponCode ?? DEFAULT_WELCOME_COUPON_CODE),
     updatedAt: Date.now(),
   };
 

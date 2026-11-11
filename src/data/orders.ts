@@ -37,6 +37,7 @@ export interface Order {
   couponDiscount?: number;
   benefitType?: 'welcome_offer' | 'nest_points' | 'coupon' | 'none';
   welcomeOfferApplied?: boolean;
+  welcomeCouponCode?: string;
   welcomeDiscount?: number;
   pointsUsed?: number;
   pointsDiscount?: number;

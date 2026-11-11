@@ -168,6 +168,7 @@ export interface CartOrderPayload {
   benefitType?: 'welcome_offer' | 'nest_points' | 'coupon' | 'none';
   welcomeOfferApplied?: boolean;
   welcomeDiscount?: number;
+  welcomeCouponCode?: string;
   couponCode?: string;
   couponDiscount?: number;
   pointsUsed?: number;
@@ -222,6 +223,7 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
     (Number(payload.welcomeDiscount) || 0) > 0
   );
   const welcomeDiscount = isWelcomeOffer ? Math.round((Number(payload.welcomeDiscount) || 0) * 100) / 100 : 0;
+  const welcomeCouponCode = (payload.welcomeCouponCode || 'WELCOME10').trim().toUpperCase() || 'WELCOME10';
   const couponDiscount = isWelcomeOffer ? 0 : Math.round((Number(payload.couponDiscount) || 0) * 100) / 100;
   const pointsDiscount = isWelcomeOffer ? 0 : Math.round((Number(payload.pointsDiscount) || 0) * 100) / 100;
   const finalTotal = Math.round((Math.max(0, payload.subtotal - welcomeDiscount - couponDiscount - pointsDiscount) + (payload.shippingCost || 0)) * 100) / 100;
@@ -247,7 +249,7 @@ export async function sendWhatsAppCartOrder(payload: CartOrderPayload): Promise<
   ];
 
   if (isWelcomeOffer && welcomeDiscount > 0) {
-    messageLines.push(`🎁 Welcome to Cotton Nest (10% OFF): -₹${formatInr(welcomeDiscount)}`);
+    messageLines.push(`🎁 Welcome to Cotton Nest (${welcomeCouponCode} · 10% OFF): -₹${formatInr(welcomeDiscount)}`);
   } else {
     if (payload.couponCode && couponDiscount > 0) {
       messageLines.push(`🎟️ Coupon Applied: ${payload.couponCode} (-₹${formatInr(couponDiscount)})`);

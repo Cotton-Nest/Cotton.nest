@@ -9,6 +9,7 @@ import { evaluateCouponEligibility, CouponOffer, INITIAL_COUPONS } from './coupo
 import type { Order } from './orders';
 
 export const WELCOME_OFFER_NAME = 'Welcome to Cotton Nest';
+export const DEFAULT_WELCOME_COUPON_CODE = 'WELCOME10';
 export const DEFAULT_WELCOME_DISCOUNT_PERCENTAGE = 10;
 export const DEFAULT_WELCOME_MIN_ORDER_VALUE = 1299;
 export const DEFAULT_WELCOME_MAX_DISCOUNT = 200;
@@ -24,6 +25,7 @@ export type WelcomeOfferStatus =
 export interface WelcomeOfferConfig {
   enabled: boolean;
   offerName: string;
+  couponCode: string;
   discountPercentage: number;
   discountPercent: number;
   minOrderValue: number;
@@ -41,6 +43,7 @@ export interface WelcomeOfferCustomerRecord {
   name?: string;
   phone?: string;
   authProvider?: string;
+  couponCode?: string;
   status: WelcomeOfferStatus;
   reservedOrderId?: string;
   reservedAt?: number;
@@ -55,6 +58,7 @@ export interface WelcomeOfferCustomerRecord {
 export const DEFAULT_WELCOME_OFFER_CONFIG: WelcomeOfferConfig = {
   enabled: true,
   offerName: WELCOME_OFFER_NAME,
+  couponCode: DEFAULT_WELCOME_COUPON_CODE,
   discountPercentage: DEFAULT_WELCOME_DISCOUNT_PERCENTAGE,
   discountPercent: DEFAULT_WELCOME_DISCOUNT_PERCENTAGE,
   minOrderValue: DEFAULT_WELCOME_MIN_ORDER_VALUE,
@@ -62,6 +66,31 @@ export const DEFAULT_WELCOME_OFFER_CONFIG: WelcomeOfferConfig = {
   maxDiscount: DEFAULT_WELCOME_MAX_DISCOUNT,
   updatedAt: Date.now(),
 };
+
+/**
+ * Normalizes a Welcome Offer coupon code (defaults to WELCOME10).
+ */
+export function normalizeWelcomeCouponCode(code?: string | null): string {
+  const cleaned = String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, '');
+  return cleaned || DEFAULT_WELCOME_COUPON_CODE;
+}
+
+/**
+ * Checks whether a user-entered coupon code matches the configured Welcome Offer code (e.g. WELCOME10).
+ */
+export function isWelcomeOfferCouponCode(
+  enteredCode?: string | null,
+  config?: Partial<WelcomeOfferConfig> | null
+): boolean {
+  if (!enteredCode) return false;
+  const cleanEntered = String(enteredCode).trim().toUpperCase();
+  if (!cleanEntered) return false;
+  const configuredCode = normalizeWelcomeCouponCode(config?.couponCode);
+  return cleanEntered === configuredCode;
+}
 
 /**
  * Formats a currency value cleanly: preserves up to 2 decimal places when fractional
@@ -111,6 +140,7 @@ export function calculateWelcomeOfferDiscount(
   effectivePercentage: number;
   minOrderValue: number;
   maxDiscountAmount: number;
+  couponCode: string;
 } {
   const safeSubtotal = Math.max(0, Math.round((Number(productSubtotal) || 0) * 100) / 100);
   const minOrderValue = Math.max(0, Number(config?.minOrderValue ?? DEFAULT_WELCOME_MIN_ORDER_VALUE));
@@ -125,6 +155,7 @@ export function calculateWelcomeOfferDiscount(
       Number(config?.discountPercentage ?? config?.discountPercent ?? DEFAULT_WELCOME_DISCOUNT_PERCENTAGE)
     )
   );
+  const couponCode = normalizeWelcomeCouponCode(config?.couponCode);
 
   if (config?.enabled === false) {
     return {
@@ -134,6 +165,7 @@ export function calculateWelcomeOfferDiscount(
       effectivePercentage: discountPercentage,
       minOrderValue,
       maxDiscountAmount,
+      couponCode,
     };
   }
 
@@ -146,6 +178,7 @@ export function calculateWelcomeOfferDiscount(
       effectivePercentage: discountPercentage,
       minOrderValue,
       maxDiscountAmount,
+      couponCode,
     };
   }
 
@@ -160,6 +193,7 @@ export function calculateWelcomeOfferDiscount(
     effectivePercentage: discountPercentage,
     minOrderValue,
     maxDiscountAmount,
+    couponCode,
   };
 }
 
@@ -187,6 +221,7 @@ export interface CustomerEligibilityResult {
   eligible: boolean;
   status: WelcomeOfferStatus;
   reason: string;
+  couponCode: string;
   reservedOrderId?: string;
   redeemedOrderId?: string;
   hasDeliveredOrder: boolean;
@@ -194,7 +229,7 @@ export interface CustomerEligibilityResult {
 }
 
 /**
- * Evaluates whether a customer is eligible for the Welcome Offer.
+ * Evaluates whether a customer is eligible for the Welcome Offer (Code: WELCOME10).
  * Rules:
  * 1. Welcome Offer must be enabled in config.
  * 2. Customer must be signed in via Google authentication (authProvider === 'google' and valid userId).
@@ -206,6 +241,7 @@ export function evaluateCustomerWelcomeEligibility(
   input: CustomerEligibilityInput
 ): CustomerEligibilityResult {
   const config = { ...DEFAULT_WELCOME_OFFER_CONFIG, ...(input.config || {}) };
+  const couponCode = normalizeWelcomeCouponCode(config.couponCode);
   const uid = String(input.userId ?? input.user?.id ?? '').trim();
   const authProvider = String(input.authProvider ?? input.user?.authProvider ?? '')
     .trim()
@@ -220,7 +256,8 @@ export function evaluateCustomerWelcomeEligibility(
     return {
       eligible: false,
       status: record?.status || 'ineligible_existing_customer',
-      reason: 'The Welcome Offer is currently disabled.',
+      reason: `Coupon code ${couponCode} (${config.offerName}) is currently disabled.`,
+      couponCode,
       hasDeliveredOrder: false,
       hasActiveReservedOrder: false,
     };
@@ -230,7 +267,8 @@ export function evaluateCustomerWelcomeEligibility(
     return {
       eligible: false,
       status: 'ineligible_not_google_auth',
-      reason: 'Sign in with Google to check eligibility and unlock your 10% Welcome Offer.',
+      reason: `Sign in with Google to check eligibility and unlock code ${couponCode} (${config.discountPercentage}% OFF).`,
+      couponCode,
       hasDeliveredOrder: false,
       hasActiveReservedOrder: false,
     };
@@ -252,14 +290,20 @@ export function evaluateCustomerWelcomeEligibility(
   );
 
   const deliveredWelcomeOrder = deliveredOrders.find(
-    (o) => o.welcomeOfferApplied || o.benefitType === 'welcome_offer' || (o.welcomeDiscount ?? 0) > 0
+    (o) =>
+      o.welcomeOfferApplied ||
+      o.benefitType === 'welcome_offer' ||
+      (o.welcomeDiscount ?? 0) > 0 ||
+      isWelcomeOfferCouponCode(o.couponCode, config) ||
+      isWelcomeOfferCouponCode(o.welcomeCouponCode, config)
   );
 
   if (record?.status === 'redeemed' && (!currentOrderId || record.redeemedOrderId !== currentOrderId)) {
     return {
       eligible: false,
       status: 'redeemed',
-      reason: 'You have already redeemed your one-time Welcome Offer.',
+      reason: `You have already redeemed your one-time Welcome Offer (${couponCode}).`,
+      couponCode,
       redeemedOrderId: record.redeemedOrderId,
       hasDeliveredOrder: deliveredOrders.length > 0,
       hasActiveReservedOrder: false,
@@ -270,7 +314,8 @@ export function evaluateCustomerWelcomeEligibility(
     return {
       eligible: false,
       status: 'redeemed',
-      reason: 'You have already redeemed your one-time Welcome Offer.',
+      reason: `You have already redeemed your one-time Welcome Offer (${couponCode}).`,
+      couponCode,
       redeemedOrderId: deliveredWelcomeOrder.id,
       hasDeliveredOrder: true,
       hasActiveReservedOrder: false,
@@ -281,7 +326,8 @@ export function evaluateCustomerWelcomeEligibility(
     return {
       eligible: false,
       status: 'ineligible_existing_customer',
-      reason: 'The Welcome Offer is exclusively for first-time Cotton Nest customers.',
+      reason: `Code ${couponCode} is exclusively for new Cotton Nest customers on their first order.`,
+      couponCode,
       hasDeliveredOrder: true,
       hasActiveReservedOrder: false,
     };
@@ -293,7 +339,11 @@ export function evaluateCustomerWelcomeEligibility(
       o &&
       o.status !== 'cancelled' &&
       (!currentOrderId || o.id !== currentOrderId) &&
-      (o.welcomeOfferApplied || o.benefitType === 'welcome_offer' || (o.welcomeDiscount ?? 0) > 0) &&
+      (o.welcomeOfferApplied ||
+        o.benefitType === 'welcome_offer' ||
+        (o.welcomeDiscount ?? 0) > 0 ||
+        isWelcomeOfferCouponCode(o.couponCode, config) ||
+        isWelcomeOfferCouponCode(o.welcomeCouponCode, config)) &&
       matchesCustomer(o)
   );
 
@@ -301,7 +351,8 @@ export function evaluateCustomerWelcomeEligibility(
     return {
       eligible: false,
       status: 'reserved',
-      reason: `Your Welcome Offer is currently reserved on active order #${activeReservedOrder.id}.`,
+      reason: `Your Welcome Offer (${couponCode}) is currently reserved on active order #${activeReservedOrder.id}.`,
+      couponCode,
       reservedOrderId: activeReservedOrder.id,
       hasDeliveredOrder: false,
       hasActiveReservedOrder: true,
@@ -319,7 +370,8 @@ export function evaluateCustomerWelcomeEligibility(
       return {
         eligible: false,
         status: 'reserved',
-        reason: `Your Welcome Offer is currently reserved on order #${record.reservedOrderId}.`,
+        reason: `Your Welcome Offer (${couponCode}) is currently reserved on order #${record.reservedOrderId}.`,
+        couponCode,
         reservedOrderId: record.reservedOrderId,
         hasDeliveredOrder: false,
         hasActiveReservedOrder: true,
@@ -330,7 +382,8 @@ export function evaluateCustomerWelcomeEligibility(
   return {
     eligible: true,
     status: 'eligible',
-    reason: 'You are eligible for the 10% Welcome Offer!',
+    reason: `You are eligible for the ${config.discountPercentage}% Welcome Offer (Code: ${couponCode})!`,
+    couponCode,
     hasDeliveredOrder: false,
     hasActiveReservedOrder: false,
   };
@@ -356,6 +409,7 @@ export interface BenefitComparisonSummary {
   welcomeOfferMeetsMinSubtotal: boolean;
   welcomeOfferShortfall: number;
   welcomeOfferDiscount: number;
+  welcomeCouponCode: string;
   nestPointsEligible: boolean;
   maxRedeemablePoints: number;
   maxNestPointsDiscount: number;
@@ -372,6 +426,7 @@ export interface BenefitComparisonSummary {
     meetsMinOrder: boolean;
     discountAmount: number;
     shortfallAmount: number;
+    couponCode: string;
   };
   nestPointsOption: {
     eligible: boolean;
@@ -386,6 +441,7 @@ export interface CentralizedCheckoutBreakdown {
   shippingCost: number;
   selectedBenefit: BenefitOptionType;
   welcomeOfferApplied: boolean;
+  welcomeCouponCode: string;
   welcomeDiscount: number;
   pointsUsed: number;
   pointsRedeemed: number;
@@ -403,14 +459,18 @@ export interface CentralizedCheckoutBreakdown {
 
 /**
  * Single Source of Truth for Checkout Benefit Comparison, Mutual Exclusivity,
- * Welcome Offer Calculation, and Nest Points Earning/Redemption Rules.
+ * Welcome Offer (Code: WELCOME10) Calculation, and Nest Points Earning/Redemption Rules.
+ * Both automatic and manual WELCOME10 applications route through the exact same 'welcome_offer' branch
+ * and never create duplicate discounts.
  */
 export function calculateCentralizedCheckoutBreakdown(
   input: CentralizedCheckoutInput
 ): CentralizedCheckoutBreakdown {
+  const normalizedCode = normalizeWelcomeCouponCode(input.config?.couponCode);
   const config: WelcomeOfferConfig = {
     ...DEFAULT_WELCOME_OFFER_CONFIG,
     ...(input.config || {}),
+    couponCode: normalizedCode,
     discountPercentage: Number(
       input.config?.discountPercentage ?? input.config?.discountPercent ?? DEFAULT_WELCOME_DISCOUNT_PERCENTAGE
     ),
@@ -430,7 +490,7 @@ export function calculateCentralizedCheckoutBreakdown(
   const shippingCost = Math.max(0, Math.round((Number(rawShipping) || 0) * 100) / 100);
   const availableNestPoints = Math.max(0, Math.floor(Number(input.availableNestPoints) || 0));
 
-  // 1. Evaluate Option A: Welcome Offer
+  // 1. Evaluate Option A: Welcome Offer (Code: WELCOME10)
   const welcomeCalc = calculateWelcomeOfferDiscount(productSubtotal, config);
   const isCustEligible = Boolean(
     input.eligibility ? input.eligibility.eligible : input.isCustomerEligibleForWelcome
@@ -464,19 +524,19 @@ export function calculateCentralizedCheckoutBreakdown(
     savingsDifference = diff;
     if (welcomeOfferDiscount > maxNestPointsDiscount) {
       recommendedBenefit = 'welcome_offer';
-      recommendationHeadline = `Recommendation: Welcome Offer saves ₹${formatRupeeAmount(diff)} more.`;
+      recommendationHeadline = `Recommendation: Welcome Offer (${config.couponCode}) saves ₹${formatRupeeAmount(diff)} more.`;
     } else if (maxNestPointsDiscount > welcomeOfferDiscount) {
       recommendedBenefit = 'nest_points';
       recommendationHeadline = `Recommendation: Nest Points saves ₹${formatRupeeAmount(diff)} more.`;
     } else {
       recommendedBenefit = 'equal';
       recommendationHeadline = 'Both options offer equal immediate discount!';
-      recommendationSubtext = 'Select either Welcome Offer or Nest Points below.';
+      recommendationSubtext = `Select either Welcome Offer (${config.couponCode}) or Nest Points below.`;
     }
   } else if (welcomeOfferDiscount > 0) {
     recommendedBenefit = 'welcome_offer';
     savingsDifference = welcomeOfferDiscount;
-    recommendationHeadline = `Recommendation: Welcome Offer saves you ₹${formatRupeeAmount(welcomeOfferDiscount)} on your first order.`;
+    recommendationHeadline = `Recommendation: Welcome Offer (${config.couponCode}) saves you ₹${formatRupeeAmount(welcomeOfferDiscount)} on your first order.`;
   } else if (maxNestPointsDiscount > 0) {
     recommendedBenefit = 'nest_points';
     savingsDifference = maxNestPointsDiscount;
@@ -488,6 +548,7 @@ export function calculateCentralizedCheckoutBreakdown(
     welcomeOfferMeetsMinSubtotal,
     welcomeOfferShortfall: welcomeCalc.shortfallAmount,
     welcomeOfferDiscount,
+    welcomeCouponCode: config.couponCode,
     nestPointsEligible,
     maxRedeemablePoints,
     maxNestPointsDiscount,
@@ -504,6 +565,7 @@ export function calculateCentralizedCheckoutBreakdown(
       meetsMinOrder: welcomeCalc.meetsMinOrder,
       discountAmount: welcomeOfferDiscount,
       shortfallAmount: welcomeCalc.shortfallAmount,
+      couponCode: config.couponCode,
     },
     nestPointsOption: {
       eligible: nestPointsEligible,
@@ -514,7 +576,16 @@ export function calculateCentralizedCheckoutBreakdown(
   };
 
   // 4. Apply strictly mutually exclusive selected benefit
+  // Requirement 5: If user manually entered WELCOME10 as a coupon, unify it into 'welcome_offer' so it shares
+  // the exact same offer, eligibility, and redemption record and NEVER creates a duplicate discount.
   let effectiveBenefit: BenefitOptionType = input.selectedBenefit || 'none';
+  if (
+    effectiveBenefit === 'coupon' &&
+    isWelcomeOfferCouponCode(input.couponCode, config)
+  ) {
+    effectiveBenefit = 'welcome_offer';
+  }
+
   let welcomeOfferApplied = false;
   let welcomeDiscount = 0;
   let pointsUsed = 0;
@@ -525,10 +596,12 @@ export function calculateCentralizedCheckoutBreakdown(
 
   if (effectiveBenefit === 'welcome_offer') {
     if (!welcomeOfferEligible) {
-      validationError = input.eligibility?.reason || 'Customer is not eligible for the Welcome Offer.';
+      validationError =
+        input.eligibility?.reason ||
+        `Coupon code ${config.couponCode} is exclusively for new Cotton Nest customers on their first order.`;
       effectiveBenefit = 'none';
     } else if (!welcomeCalc.meetsMinOrder) {
-      validationError = `Minimum order value for the Welcome Offer is ₹${formatRupeeAmount(welcomeCalc.minOrderValue)} (excluding delivery). Add ₹${formatRupeeAmount(welcomeCalc.shortfallAmount)} more to apply it.`;
+      validationError = `Minimum product subtotal for code ${config.couponCode} is ₹${formatRupeeAmount(welcomeCalc.minOrderValue)} (excluding delivery). Add ₹${formatRupeeAmount(welcomeCalc.shortfallAmount)} more to apply it.`;
       effectiveBenefit = 'none';
     } else {
       welcomeOfferApplied = true;
@@ -615,6 +688,7 @@ export function calculateCentralizedCheckoutBreakdown(
     shippingCost,
     selectedBenefit: effectiveBenefit,
     welcomeOfferApplied,
+    welcomeCouponCode: config.couponCode,
     welcomeDiscount,
     pointsUsed,
     pointsRedeemed: pointsUsed,

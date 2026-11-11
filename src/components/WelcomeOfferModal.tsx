@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gift, Sparkles, X, ShoppingBag, CheckCircle2 } from 'lucide-react';
+import { Gift, Sparkles, X, ShoppingBag, CheckCircle2, Copy, Check, Tag } from 'lucide-react';
 import {
   WelcomeOfferConfig,
   DEFAULT_WELCOME_OFFER_CONFIG,
+  normalizeWelcomeCouponCode,
   formatRupeeAmount,
 } from '../data/welcomeOffer';
 
@@ -22,7 +23,19 @@ export const WelcomeOfferModal: React.FC<WelcomeOfferModalProps> = ({
   config = DEFAULT_WELCOME_OFFER_CONFIG,
   customerName,
 }) => {
+  const [copied, setCopied] = useState(false);
+
   if (!config?.enabled) return null;
+
+  const couponCode = normalizeWelcomeCouponCode(config.couponCode);
+
+  const handleCopyCode = () => {
+    try {
+      navigator.clipboard?.writeText(couponCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
 
   return (
     <AnimatePresence>
@@ -53,10 +66,10 @@ export const WelcomeOfferModal: React.FC<WelcomeOfferModalProps> = ({
               <X className="w-4 h-4" />
             </button>
 
-            <div className="px-6 pt-7 pb-7 space-y-5">
+            <div className="px-6 pt-7 pb-7 space-y-4">
               {/* Gift Icon Badge */}
-              <div className="mx-auto w-16 h-16 rounded-2xl bg-[#FDEAF0] border border-[#DEC89B] flex items-center justify-center shadow-sm">
-                <Gift className="w-8 h-8 text-[#8C2E46]" />
+              <div className="mx-auto w-14 h-14 rounded-2xl bg-[#FDEAF0] border border-[#DEC89B] flex items-center justify-center shadow-sm">
+                <Gift className="w-7 h-7 text-[#8C2E46]" />
               </div>
 
               {/* Tag */}
@@ -66,7 +79,7 @@ export const WelcomeOfferModal: React.FC<WelcomeOfferModalProps> = ({
               </div>
 
               {/* Title & Promotional Message */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <h2
                   id="welcome-offer-modal-title"
                   className="font-serif-luxury text-2xl sm:text-3xl font-bold text-[#2C2420]"
@@ -86,11 +99,44 @@ export const WelcomeOfferModal: React.FC<WelcomeOfferModalProps> = ({
                 </p>
               </div>
 
+              {/* Prominent Coupon Code Voucher Box */}
+              <div className="bg-[#FFF9FB] rounded-2xl border-2 border-dashed border-[#8C2E46]/70 p-3.5 space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#7A6458] block">
+                  Your Exclusive First-Order Coupon Code
+                </span>
+                <div className="flex items-center justify-center gap-2.5">
+                  <span className="inline-flex items-center gap-1.5 font-mono text-xl font-extrabold tracking-widest text-[#8C2E46] bg-white px-4 py-1.5 rounded-xl border border-[#DEC89B] shadow-2xs">
+                    <Tag className="w-4 h-4 text-[#C29E57]" />
+                    {couponCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyCode}
+                    className="px-3 py-2 rounded-xl bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[11px] text-[#6B5D55]">
+                  Auto-applied at checkout on eligible orders, or enter <strong className="font-mono text-[#8C2E46]">{couponCode}</strong> manually.
+                </p>
+              </div>
+
               {/* Offer Terms Box */}
               <div className="bg-white rounded-2xl border border-[#DEC89B] p-4 space-y-2 text-left shadow-2xs">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#6B5D55]">Welcome Benefit:</span>
-                  <span className="font-bold text-[#8C2E46]">{config.discountPercentage}% OFF First Order</span>
+                  <span className="text-[#6B5D55]">Coupon Code:</span>
+                  <span className="font-mono font-bold text-[#8C2E46]">{couponCode} ({config.discountPercentage}% OFF)</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-[#6B5D55]">Minimum Order Value:</span>

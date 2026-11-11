@@ -30,8 +30,8 @@ export const INITIAL_COUPONS: CouponOffer[] = [
   {
     id: 'coupon-nest10',
     code: 'NEST10',
-    title: '10% Welcome Discount',
-    description: 'Get 10% off on all pure cotton bedsheets for orders above ₹1,500 (Max discount ₹400).',
+    title: '10% Signature Bedding Offer',
+    description: 'Get 10% off on pure cotton bedsheets for orders above ₹1,500 (Max discount ₹400).',
     discountType: 'percentage',
     discountValue: 10,
     minOrderValue: 1500,

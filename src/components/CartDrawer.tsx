@@ -28,6 +28,8 @@ import {
   WelcomeOfferCustomerRecord,
   BenefitOptionType,
   DEFAULT_WELCOME_OFFER_CONFIG,
+  normalizeWelcomeCouponCode,
+  isWelcomeOfferCouponCode,
   formatRupeeAmount,
   evaluateCustomerWelcomeEligibility,
   calculateCentralizedCheckoutBreakdown,
@@ -536,6 +538,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     welcomeConfig,
   ]);
 
+  const welcomeCouponCode = normalizeWelcomeCouponCode(welcomeConfig.couponCode);
   const isWelcomeOfferApplied = checkoutBreakdown.welcomeOfferApplied;
   const welcomeDiscount = checkoutBreakdown.welcomeDiscount;
   const effectiveCouponDiscount = checkoutBreakdown.couponDiscount;
@@ -554,6 +557,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     setSelectedBenefit('welcome_offer');
     setUseLoyaltyPoints(false);
     setPreferRedeemAtCheckout(false);
+    setCouponError(null);
     if (appliedCoupon) {
       setAppliedCoupon(null);
       setCouponDiscount(0);
@@ -564,10 +568,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const handleRemoveWelcomeOffer = () => {
     setUserHasManuallySelectedBenefit(true);
     setSelectedBenefit('none');
+    setCouponSuccessMessage(null);
+    setCouponError(null);
   };
 
   const handleSelectNestPointsBenefit = (checked: boolean) => {
     setUserHasManuallySelectedBenefit(true);
+    setCouponSuccessMessage(null);
+    setCouponError(null);
     if (checked) {
       setSelectedBenefit('nest_points');
       setUseLoyaltyPoints(true);
@@ -575,7 +583,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       if (appliedCoupon) {
         setAppliedCoupon(null);
         setCouponDiscount(0);
-        setCouponSuccessMessage(null);
       }
     } else {
       setSelectedBenefit('none');
@@ -669,8 +676,41 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         targetCode,
         validItems,
         subtotal,
-        customerPhone.trim() || user?.email
+        customerPhone.trim() || user?.email,
+        {
+          uid: user?.id,
+          authProvider: user?.authProvider,
+          email: user?.email,
+          phone: customerPhone.trim() || user?.phone,
+          customerName: customerName.trim() || user?.name,
+          orders,
+          config: welcomeConfig,
+          existingRecord: welcomeRecord,
+        }
       );
+
+      // Requirement 4 & 5: Manual entry of WELCOME10 uses the exact same Welcome Offer & redemption record (no duplicate discount)
+      if (result.isWelcomeOffer || isWelcomeOfferCouponCode(targetCode, welcomeConfig)) {
+        if (result.valid) {
+          const alreadyActive = isWelcomeOfferApplied;
+          handleSelectWelcomeOffer();
+          setCouponSuccessMessage(
+            alreadyActive
+              ? `✓ Code ${welcomeCouponCode} (${welcomeConfig.discountPercent}% Welcome Offer) is active — saving ₹${formatRupeeAmount(result.discountAmount)}!`
+              : `✓ Welcome Offer code ${welcomeCouponCode} applied! ₹${formatRupeeAmount(result.discountAmount)} saved.`
+          );
+          setCouponError(null);
+          setCouponCodeInput('');
+        } else {
+          setCouponError(
+            result.error ||
+              customerWelcomeEligibility.reason ||
+              `Code ${welcomeCouponCode} is exclusively for new Cotton Nest customers on orders ₹${formatRupeeAmount(welcomeConfig.minOrderValue)}+.`
+          );
+          setCouponSuccessMessage(null);
+        }
+        return;
+      }
 
       if (result.valid && result.coupon) {
         setUserHasManuallySelectedBenefit(true);
@@ -683,6 +723,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         setCouponCodeInput('');
       } else {
         setCouponError(result.error || 'This coupon code could not be applied.');
+        setCouponSuccessMessage(null);
       }
     } catch {
       setCouponError('Failed to validate coupon. Please try again.');
@@ -734,6 +775,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       totalSavings,
       benefitType: checkoutBreakdown.selectedBenefit,
       welcomeOfferApplied: isWelcomeOfferApplied,
+      welcomeCouponCode: isWelcomeOfferApplied ? welcomeCouponCode : undefined,
       welcomeDiscount: isWelcomeOfferApplied ? welcomeDiscount : 0,
       couponCode: isWelcomeOfferApplied ? undefined : appliedCoupon?.code,
       couponDiscount: isWelcomeOfferApplied ? 0 : effectiveCouponDiscount,
@@ -775,6 +817,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       totalSavings,
       benefitType: checkoutBreakdown.selectedBenefit,
       welcomeOfferApplied: isWelcomeOfferApplied,
+      welcomeCouponCode: isWelcomeOfferApplied ? welcomeCouponCode : undefined,
       welcomeDiscount: isWelcomeOfferApplied ? welcomeDiscount : undefined,
       couponCode: isWelcomeOfferApplied ? undefined : appliedCoupon?.code,
       couponDiscount: isWelcomeOfferApplied ? 0 : effectiveCouponDiscount,
@@ -1282,10 +1325,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <div className="p-2.5 bg-white rounded-xl border border-[#DEC89B] flex items-center justify-between gap-2">
                         <div>
                           <p className="text-[11px] font-bold text-[#2C2420]">
-                            🎁 New Customer? Get {welcomeConfig.discountPercent}% OFF (up to ₹{welcomeConfig.maxDiscount})
+                            🎁 New Customer? Code <span className="font-mono text-[#70252D]">{welcomeCouponCode}</span> — {welcomeConfig.discountPercent}% OFF (up to ₹{welcomeConfig.maxDiscount})
                           </p>
                           <p className="text-[10px] text-[#7A6458]">
-                            Sign in with Google on orders ₹{welcomeConfig.minOrderValue.toLocaleString('en-IN')}+ to unlock your Welcome Gift.
+                            Sign in with Google on orders ₹{welcomeConfig.minOrderValue.toLocaleString('en-IN')}+ to auto-apply {welcomeCouponCode}.
                           </p>
                         </div>
                         <button
@@ -1313,7 +1356,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {/* Option A: Welcome Offer */}
+                          {/* Option A: Welcome Offer (Code: WELCOME10) */}
                           <div
                             onClick={() => {
                               if (checkoutBreakdown.comparison.welcomeOption.eligible) {
@@ -1335,7 +1378,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             <div className="flex items-center justify-between gap-1">
                               <span className="text-[11px] font-bold text-[#2C2420] flex items-center gap-1">
                                 <Gift className="w-3 h-3 text-[#70252D]" />
-                                <span>Welcome Offer ({welcomeConfig.discountPercent}% OFF)</span>
+                                <span>Welcome Offer ({welcomeCouponCode})</span>
                               </span>
                               {checkoutBreakdown.comparison.recommendedOption === 'welcome_offer' && (
                                 <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
@@ -1345,9 +1388,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             </div>
                             <p className="text-xs font-bold text-[#70252D] mt-1">
                               {checkoutBreakdown.comparison.welcomeOption.eligible
-                                ? `Save ₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)} OFF`
+                                ? `Save ₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)} OFF (${welcomeConfig.discountPercent}% OFF)`
                                 : customerWelcomeEligibility.eligible
-                                ? `Add ₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.shortfallAmount)} more for 10% OFF`
+                                ? `Add ₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.shortfallAmount)} more for ${welcomeCouponCode}`
                                 : customerWelcomeEligibility.reason}
                             </p>
                             <p className="text-[10px] text-[#7A6458] mt-0.5">
@@ -1356,7 +1399,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             {checkoutBreakdown.comparison.welcomeOption.eligible && (
                               <div className="mt-1.5 flex items-center justify-between">
                                 <span className="text-[10px] font-bold text-[#70252D]">
-                                  {isWelcomeOfferApplied ? '✓ Applied (Click to remove)' : 'Select Welcome Offer'}
+                                  {isWelcomeOfferApplied ? `✓ ${welcomeCouponCode} Applied (Click to remove)` : `Apply ${welcomeCouponCode}`}
                                 </span>
                               </div>
                             )}
@@ -1416,11 +1459,51 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </div>
                 )}
 
+                {/* Manual Coupon Code Entry in Checkout Step (Supports WELCOME10 & Promotional Codes) */}
+                <div className="pt-2 border-t border-[#EAE2D5] space-y-1.5">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleApplyCoupon();
+                    }}
+                    className="flex items-center gap-1.5"
+                  >
+                    <input
+                      type="text"
+                      value={couponCodeInput}
+                      onChange={(e) => {
+                        setCouponCodeInput(e.target.value.toUpperCase());
+                        setCouponError(null);
+                      }}
+                      placeholder={`Have a code? Enter ${welcomeCouponCode} or Promo Code`}
+                      className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={couponLoading || !couponCodeInput.trim()}
+                      className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {couponLoading ? '...' : 'Apply'}
+                    </button>
+                  </form>
+                  {couponSuccessMessage && (
+                    <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span>{couponSuccessMessage}</span>
+                    </p>
+                  )}
+                  {couponError && (
+                    <p className="text-[10px] font-medium text-rose-600">
+                      {couponError}
+                    </p>
+                  )}
+                </div>
+
                 {/* Mandatory Notice When Welcome Offer Is Applied */}
                 {isWelcomeOfferApplied ? (
                   <div className="p-2.5 rounded-xl bg-[#FDEAF0]/80 border border-[#FAD1DC] text-[11px] text-[#70252D] space-y-1">
                     <div className="flex items-center justify-between font-bold">
-                      <span>🎁 Welcome to Cotton Nest ({welcomeConfig.discountPercent}% OFF): -₹{formatRupeeAmount(welcomeDiscount)}</span>
+                      <span>🎁 Welcome to Cotton Nest ({welcomeCouponCode} · {welcomeConfig.discountPercent}% OFF): -₹{formatRupeeAmount(welcomeDiscount)}</span>
                       <button
                         type="button"
                         onClick={handleRemoveWelcomeOffer}
@@ -2036,10 +2119,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div className="min-w-0">
                       <p className="text-[11px] font-bold text-[#70252D] flex items-center gap-1">
                         <Gift className="w-3.5 h-3.5 text-[#C5A059] shrink-0" />
-                        <span>Welcome Offer: {welcomeConfig.discountPercent}% OFF (up to ₹{welcomeConfig.maxDiscount})</span>
+                        <span>Welcome Offer (<span className="font-mono">{welcomeCouponCode}</span>): {welcomeConfig.discountPercent}% OFF (up to ₹{welcomeConfig.maxDiscount})</span>
                       </p>
                       <p className="text-[10px] text-[#7A6458] truncate">
-                        Sign in with Google to unlock 10% OFF on your first order (min ₹{welcomeConfig.minOrderValue.toLocaleString('en-IN')}).
+                        Sign in with Google to auto-apply <span className="font-mono font-semibold">{welcomeCouponCode}</span> (min ₹{welcomeConfig.minOrderValue.toLocaleString('en-IN')}).
                       </p>
                     </div>
                     <button
@@ -2061,7 +2144,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-bold text-[#70252D] flex items-center gap-1">
                         <Gift className="w-3.5 h-3.5 text-[#C5A059]" />
-                        <span>Welcome to Cotton Nest ({welcomeConfig.discountPercent}% OFF)</span>
+                        <span>Welcome Offer · Code: <span className="font-mono bg-[#FDEAF0] px-1.5 py-0.5 rounded border border-[#FAD1DC]">{welcomeCouponCode}</span> ({welcomeConfig.discountPercent}% OFF)</span>
                       </span>
                       {checkoutBreakdown.comparison.welcomeOption.eligible ? (
                         <button
@@ -2080,12 +2163,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           }`}
                         >
                           {isWelcomeOfferApplied
-                            ? `✓ Applied (-₹${formatRupeeAmount(welcomeDiscount)})`
-                            : `Apply (-₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)})`}
+                            ? `✓ ${welcomeCouponCode} Applied (-₹${formatRupeeAmount(welcomeDiscount)})`
+                            : `Apply ${welcomeCouponCode} (-₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)})`}
                         </button>
                       ) : (
                         <span className="text-[10px] font-semibold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
-                          Add ₹{formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.shortfallAmount)} more for 10% OFF
+                          Add ₹{formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.shortfallAmount)} more for {welcomeCouponCode}
                         </span>
                       )}
                     </div>
@@ -2095,7 +2178,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <div className="pt-1 border-t border-[#EAE2D5] flex flex-col gap-1 text-[10px]">
                         <div className="flex items-center justify-between text-[#2C2420]">
                           <span>
-                            Welcome Offer: <strong className="text-[#70252D]">₹{formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)} OFF</strong>
+                            {welcomeCouponCode}: <strong className="text-[#70252D]">₹{formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)} OFF</strong>
                             {' · '}
                             Nest Points: <strong className="text-amber-900">₹{formatRupeeAmount(checkoutBreakdown.comparison.nestPointsOption.discountAmount)} OFF</strong>
                           </span>
@@ -2113,7 +2196,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <div className="flex items-center justify-between text-[10px] text-[#7A6458]">
                     <span className="flex items-center gap-1">
                       <Gift className="w-3 h-3 text-[#8C7A70]" />
-                      <span>Welcome Offer Status:</span>
+                      <span>Welcome Offer ({welcomeCouponCode}):</span>
                     </span>
                     <span className="font-medium text-[#2C2420]">{customerWelcomeEligibility.reason}</span>
                   </div>
@@ -2121,139 +2204,194 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </div>
             )}
 
-            {/* Promo Code & Offers Module (Hidden/disabled when Welcome Offer is active due to mutual exclusivity) */}
-            {!isWelcomeOfferApplied && (
-              <div className="p-2 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-[#2C2420] flex items-center gap-1">
-                    <Tag className="w-3 h-3 text-[#C29E57]" />
-                    <span>Coupons &amp; Offers</span>
-                  </span>
-                  {availableCoupons.filter((c) => c.isActive).length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowOffersList(!showOffersList)}
-                      className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <Gift className="w-3 h-3" />
-                      <span>{showOffersList ? 'Hide Offers' : `View Offers (${availableCoupons.filter((c) => c.isActive).length})`}</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Applied Coupon Pill */}
-                {appliedCoupon ? (
-                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
-                        %
-                      </span>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold tracking-wider text-[#2C2420] text-[11px]">{appliedCoupon.code}</span>
-                          {appliedCoupon.isAutomatic && (
-                            <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
-                              Auto
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-emerald-700 font-medium leading-tight">
-                          Saving ₹{formatRupeeAmount(effectiveCouponDiscount)} on this order
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleRemoveCoupon}
-                      className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                      title="Remove coupon"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleApplyCoupon();
-                    }}
-                    className="flex items-center gap-1.5"
+            {/* Promo Code & Manual WELCOME10 Entry Module */}
+            <div className="p-2 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-[#2C2420] flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-[#C29E57]" />
+                  <span>Coupon Code (e.g. <span className="font-mono text-[#8C2E46]">{welcomeCouponCode}</span>)</span>
+                </span>
+                {availableCoupons.filter((c) => c.isActive).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOffersList(!showOffersList)}
+                    className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
                   >
-                    <input
-                      type="text"
-                      value={couponCodeInput}
-                      onChange={(e) => {
-                        setCouponCodeInput(e.target.value.toUpperCase());
-                        setCouponError(null);
-                      }}
-                      placeholder="Enter Coupon Code"
-                      className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
-                    />
-                    <button
-                      type="submit"
-                      disabled={couponLoading || !couponCodeInput.trim()}
-                      className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {couponLoading ? '...' : 'Apply'}
-                    </button>
-                  </form>
-                )}
-
-                {/* Status alerts */}
-                {couponSuccessMessage && (
-                  <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
-                    <Check className="w-3 h-3 text-emerald-600" />
-                    <span>{couponSuccessMessage}</span>
-                  </p>
-                )}
-                {couponError && (
-                  <p className="text-[10px] font-medium text-rose-600">
-                    {couponError}
-                  </p>
-                )}
-
-                {/* Expandable Offers Picker Drawer */}
-                {showOffersList && (
-                  <div className="pt-1.5 border-t border-[#EAE2D5] space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {availableCoupons
-                      .filter((c) => c.isActive)
-                      .map((coupon) => {
-                        const isCurrent = appliedCoupon?.code === coupon.code;
-                        return (
-                          <div
-                            key={coupon.id}
-                            className="p-2 bg-white rounded-lg border border-[#EAE2D5] text-xs space-y-0.5"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
-                                {coupon.code}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (isCurrent) {
-                                    handleRemoveCoupon();
-                                  } else {
-                                    handleApplyCoupon(coupon.code);
-                                  }
-                                }}
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                                  isCurrent
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-[#FAF7F2] text-[#8C2E46] border border-[#FAD1DC] hover:bg-[#8C2E46] hover:text-white'
-                                }`}
-                              >
-                                {isCurrent ? 'Applied ✓' : 'Apply Code'}
-                              </button>
-                            </div>
-                            <p className="text-[11px] text-[#2C2420] font-medium">{coupon.title}</p>
-                          </div>
-                        );
-                      })}
-                  </div>
+                    <Gift className="w-3 h-3" />
+                    <span>{showOffersList ? 'Hide Offers' : 'View Codes'}</span>
+                  </button>
                 )}
               </div>
-            )}
+
+              {/* Active Welcome Offer or Promotional Coupon Badge */}
+              {isWelcomeOfferApplied ? (
+                <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
+                      %
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold tracking-wider text-[#70252D] text-[11px]">{welcomeCouponCode}</span>
+                        <span className="text-[9px] bg-[#FDEAF0] text-[#70252D] font-bold px-1.5 py-0.2 rounded border border-[#FAD1DC]">
+                          Welcome {welcomeConfig.discountPercent}% OFF
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-emerald-700 font-medium leading-tight">
+                        Saving ₹{formatRupeeAmount(welcomeDiscount)} on your first order
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveWelcomeOffer}
+                    className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                    title={`Remove ${welcomeCouponCode}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : appliedCoupon ? (
+                <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
+                      %
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold tracking-wider text-[#2C2420] text-[11px]">{appliedCoupon.code}</span>
+                        {appliedCoupon.isAutomatic && (
+                          <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
+                            Auto
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-emerald-700 font-medium leading-tight">
+                        Saving ₹{formatRupeeAmount(effectiveCouponDiscount)} on this order
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Remove coupon"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : null}
+
+              {/* Manual Coupon Input Form */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleApplyCoupon();
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={couponCodeInput}
+                  onChange={(e) => {
+                    setCouponCodeInput(e.target.value.toUpperCase());
+                    setCouponError(null);
+                  }}
+                  placeholder={`Enter Code (e.g. ${welcomeCouponCode})`}
+                  className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
+                />
+                <button
+                  type="submit"
+                  disabled={couponLoading || !couponCodeInput.trim()}
+                  className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {couponLoading ? '...' : 'Apply'}
+                </button>
+              </form>
+
+              {/* Status alerts */}
+              {couponSuccessMessage && (
+                <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span>{couponSuccessMessage}</span>
+                </p>
+              )}
+              {couponError && (
+                <p className="text-[10px] font-medium text-rose-600">
+                  {couponError}
+                </p>
+              )}
+
+              {/* Expandable Offers Picker Drawer */}
+              {showOffersList && (
+                <div className="pt-1.5 border-t border-[#EAE2D5] space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {welcomeConfig.enabled && (
+                    <div className="p-2 bg-[#FFF9FB] rounded-lg border border-[#FAD1DC] text-xs space-y-0.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold tracking-wider text-[#70252D] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
+                          {welcomeCouponCode}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isWelcomeOfferApplied) {
+                              handleRemoveWelcomeOffer();
+                            } else {
+                              handleApplyCoupon(welcomeCouponCode);
+                            }
+                          }}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                            isWelcomeOfferApplied
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-[#70252D] text-white hover:bg-[#591B22]'
+                          }`}
+                        >
+                          {isWelcomeOfferApplied ? 'Applied ✓' : 'Apply Code'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-[#2C2420] font-medium">
+                        {welcomeConfig.offerName} — {welcomeConfig.discountPercent}% OFF First Order (Min ₹{welcomeConfig.minOrderValue}, Max ₹{welcomeConfig.maxDiscount})
+                      </p>
+                    </div>
+                  )}
+                  {availableCoupons
+                    .filter((c) => c.isActive)
+                    .map((coupon) => {
+                      const isCurrent = !isWelcomeOfferApplied && appliedCoupon?.code === coupon.code;
+                      return (
+                        <div
+                          key={coupon.id}
+                          className="p-2 bg-white rounded-lg border border-[#EAE2D5] text-xs space-y-0.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
+                              {coupon.code}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isCurrent) {
+                                  handleRemoveCoupon();
+                                } else {
+                                  handleApplyCoupon(coupon.code);
+                                }
+                              }}
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                isCurrent
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-[#FAF7F2] text-[#8C2E46] border border-[#FAD1DC] hover:bg-[#8C2E46] hover:text-white'
+                              }`}
+                            >
+                              {isCurrent ? 'Applied ✓' : 'Apply Code'}
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-[#2C2420] font-medium">{coupon.title}</p>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
 
             {/* Compact Nest Points Rewards & Checkout Redemption Bar */}
             <div className="px-2.5 py-1.5 bg-gradient-to-r from-amber-50/90 to-[#FAF7F2] rounded-xl border border-amber-200/80 space-y-1">
@@ -2332,7 +2470,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 <div className="flex justify-between text-[#70252D] bg-[#FDEAF0] px-1.5 py-0.5 rounded border border-[#FAD1DC] font-semibold">
                   <span className="flex items-center gap-1">
                     <Gift className="w-3 h-3 text-[#70252D]" />
-                    <span>Welcome Offer ({welcomeConfig.discountPercent}% OFF)</span>
+                    <span>Welcome Offer ({welcomeCouponCode} · {welcomeConfig.discountPercent}% OFF)</span>
                   </span>
                   <span>-₹{formatRupeeAmount(welcomeDiscount)}</span>
                 </div>

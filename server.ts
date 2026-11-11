@@ -47,6 +47,10 @@ import {
   WelcomeOfferConfig,
   WelcomeOfferCustomerRecord,
   DEFAULT_WELCOME_OFFER_CONFIG,
+  DEFAULT_WELCOME_COUPON_CODE,
+  normalizeWelcomeCouponCode,
+  isWelcomeOfferCouponCode,
+  formatRupeeAmount,
   calculateWelcomeOfferDiscount,
   evaluateCustomerWelcomeEligibility,
   calculateCentralizedCheckoutBreakdown,
@@ -199,6 +203,9 @@ function initDatabase(): StoreDatabase {
         }
         if (!parsed.welcomeOfferConfig || typeof parsed.welcomeOfferConfig !== 'object') {
           parsed.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+          needsSave = true;
+        } else if (!parsed.welcomeOfferConfig.couponCode) {
+          parsed.welcomeOfferConfig.couponCode = DEFAULT_WELCOME_COUPON_CODE;
           needsSave = true;
         }
         if (!parsed.welcomeOfferRedemptions || typeof parsed.welcomeOfferRedemptions !== 'object') {
@@ -1290,18 +1297,22 @@ async function startServer() {
     newOrder.subtotal = productSubtotalVal;
 
     const shippingCostVal = Math.max(0, Math.round((Number(newOrder.shippingCost) || 0) * 100) / 100);
-    const wantsWelcomeOffer = Boolean(
-      newOrder.welcomeOfferApplied ||
-        newOrder.benefitType === 'welcome_offer' ||
-        (Number(newOrder.welcomeDiscount) || 0) > 0
-    );
-
     if (!db.welcomeOfferConfig) {
       db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+    } else if (!db.welcomeOfferConfig.couponCode) {
+      db.welcomeOfferConfig.couponCode = DEFAULT_WELCOME_COUPON_CODE;
     }
     if (!db.welcomeOfferRedemptions) {
       db.welcomeOfferRedemptions = {};
     }
+
+    const wantsWelcomeOffer = Boolean(
+      newOrder.welcomeOfferApplied ||
+        newOrder.benefitType === 'welcome_offer' ||
+        (Number(newOrder.welcomeDiscount) || 0) > 0 ||
+        isWelcomeOfferCouponCode(newOrder.couponCode, db.welcomeOfferConfig) ||
+        isWelcomeOfferCouponCode(newOrder.welcomeCouponCode, db.welcomeOfferConfig)
+    );
 
     // Check if this order ID already exists in db.orders (e.g. synced from saveAllOrdersApi)
     const existingOrderIdx = db.orders.findIndex((o) => o && o.id === newOrder.id);
@@ -1327,14 +1338,15 @@ async function startServer() {
       const welcomeCalc = calculateWelcomeOfferDiscount(productSubtotalVal, db.welcomeOfferConfig);
       if (!welcomeCalc.meetsMinOrder || welcomeCalc.discountAmount <= 0) {
         return res.status(400).json({
-          error: `Minimum order value of ₹${welcomeCalc.minOrderValue} (excluding delivery) is required for the Welcome Offer.`,
+          error: `Minimum product subtotal of ₹${welcomeCalc.minOrderValue} (excluding delivery) is required for code ${welcomeCalc.couponCode}.`,
         });
       }
 
       // Enforce strict mutual exclusivity & MANDATORY Rule 6A/6B:
-      // Zero Nest Points earned, Zero Nest Points redeemed, Zero coupon discount
+      // Zero Nest Points earned, Zero Nest Points redeemed, Zero separate coupon discount
       newOrder.benefitType = 'welcome_offer';
       newOrder.welcomeOfferApplied = true;
+      newOrder.welcomeCouponCode = welcomeCalc.couponCode;
       newOrder.welcomeDiscount = welcomeCalc.discountAmount;
       newOrder.pointsEarned = 0;
       newOrder.pointsUsed = 0;
@@ -1356,6 +1368,7 @@ async function startServer() {
           customerName: newOrder.customerName || prevRec?.customerName,
           phone: newOrder.customerPhone || prevRec?.phone,
           authProvider: 'google',
+          couponCode: welcomeCalc.couponCode,
           status: 'reserved',
           reservedOrderId: newOrder.id,
           reservedAt: Date.now(),
@@ -2758,15 +2771,96 @@ async function startServer() {
     res.json({ success: true, id });
   });
 
-  // 4. Secure Server-side Coupon Validation
+  // 4. Secure Server-side Coupon Validation (Supports both WELCOME10 Welcome Offer and promotional coupons)
   app.post('/api/coupons/validate', (req, res) => {
-    const { code, items, subtotal, customerIdentifier } = req.body;
+    const {
+      code,
+      items,
+      subtotal,
+      customerIdentifier,
+      uid,
+      authProvider,
+      email,
+      phone,
+      customerName,
+    } = req.body || {};
     if (!code || typeof code !== 'string') {
       return res.status(400).json({ valid: false, error: 'Coupon code is required.' });
     }
 
-    if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
+    if (!db.welcomeOfferConfig) {
+      db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+    } else if (!db.welcomeOfferConfig.couponCode) {
+      db.welcomeOfferConfig.couponCode = DEFAULT_WELCOME_COUPON_CODE;
+    }
+    if (!db.welcomeOfferRedemptions) {
+      db.welcomeOfferRedemptions = {};
+    }
+
     const cleanCode = code.trim().toUpperCase();
+
+    // Check if the entered code is the Welcome Offer coupon code (e.g. WELCOME10)
+    if (isWelcomeOfferCouponCode(cleanCode, db.welcomeOfferConfig)) {
+      const trustedCatalog = Array.isArray(db.products) && db.products.length > 0 ? db.products : BEDSHEETS_CATALOG;
+      let verifiedSubtotal = 0;
+      if (Array.isArray(items) && items.length > 0) {
+        items.forEach((it: any) => {
+          const pid = String(it.product?.id || it.productId || '').trim();
+          const catalogItem = trustedCatalog.find((p: any) => String(p.id) === pid);
+          const qty = Math.max(1, Math.floor(Number(it.quantity) || 1));
+          const price = catalogItem
+            ? Number(catalogItem.price) || Number(it.product?.price || it.price) || 0
+            : Number(it.product?.price || it.price) || 0;
+          verifiedSubtotal += price * qty;
+        });
+        verifiedSubtotal = Math.round(verifiedSubtotal * 100) / 100;
+      } else {
+        verifiedSubtotal = Math.max(0, Math.round((Number(subtotal) || 0) * 100) / 100);
+      }
+
+      const cleanUid = String(uid || '').trim();
+      const eligibility = evaluateCustomerWelcomeEligibility({
+        userId: cleanUid,
+        authProvider,
+        email: email || (String(customerIdentifier || '').includes('@') ? customerIdentifier : undefined),
+        phone: phone || (!String(customerIdentifier || '').includes('@') ? customerIdentifier : undefined),
+        customerName,
+        existingRecord: cleanUid ? db.welcomeOfferRedemptions[cleanUid] : null,
+        orders: db.orders || [],
+        config: db.welcomeOfferConfig,
+      });
+
+      if (!eligibility.eligible) {
+        return res.json({
+          valid: false,
+          isWelcomeOffer: true,
+          welcomeCouponCode: eligibility.couponCode,
+          discountAmount: 0,
+          error: eligibility.reason,
+        });
+      }
+
+      const welcomeCalc = calculateWelcomeOfferDiscount(verifiedSubtotal, db.welcomeOfferConfig);
+      if (!welcomeCalc.meetsMinOrder || welcomeCalc.discountAmount <= 0) {
+        return res.json({
+          valid: false,
+          isWelcomeOffer: true,
+          welcomeCouponCode: welcomeCalc.couponCode,
+          discountAmount: 0,
+          error: `Minimum product subtotal of ₹${formatRupeeAmount(welcomeCalc.minOrderValue)} (excluding delivery) required for code ${welcomeCalc.couponCode}. Add ₹${formatRupeeAmount(welcomeCalc.shortfallAmount)} more to apply.`,
+        });
+      }
+
+      return res.json({
+        valid: true,
+        isWelcomeOffer: true,
+        welcomeCouponCode: welcomeCalc.couponCode,
+        discountAmount: welcomeCalc.discountAmount,
+        message: `Welcome Offer code ${welcomeCalc.couponCode} applied! ₹${formatRupeeAmount(welcomeCalc.discountAmount)} saved.`,
+      });
+    }
+
+    if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
     const coupon = db.coupons.find((c) => c.code.toUpperCase() === cleanCode);
 
     if (!coupon) {
@@ -3490,6 +3584,8 @@ async function startServer() {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     if (!db.welcomeOfferConfig) {
       db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
+    } else if (!db.welcomeOfferConfig.couponCode) {
+      db.welcomeOfferConfig.couponCode = DEFAULT_WELCOME_COUPON_CODE;
     }
     res.json(db.welcomeOfferConfig);
   });
@@ -3509,6 +3605,7 @@ async function startServer() {
       const updated: WelcomeOfferConfig = {
         enabled: typeof payload.enabled === 'boolean' ? payload.enabled : current.enabled,
         offerName: String(payload.offerName || current.offerName || DEFAULT_WELCOME_OFFER_CONFIG.offerName).trim(),
+        couponCode: normalizeWelcomeCouponCode(payload.couponCode ?? current.couponCode ?? DEFAULT_WELCOME_COUPON_CODE),
         discountPercentage: discPct,
         discountPercent: discPct,
         minOrderValue: Math.max(0, Number(payload.minOrderValue ?? current.minOrderValue ?? 1299)),

@@ -12,12 +12,15 @@ import {
   Percent,
   Users,
   AlertCircle,
+  Ticket,
 } from 'lucide-react';
 import { Order } from '../data/orders';
 import {
   WelcomeOfferConfig,
   WelcomeOfferCustomerRecord,
   DEFAULT_WELCOME_OFFER_CONFIG,
+  DEFAULT_WELCOME_COUPON_CODE,
+  normalizeWelcomeCouponCode,
   formatRupeeAmount,
 } from '../data/welcomeOffer';
 import {
@@ -43,11 +46,18 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
   const [benefitFilter, setBenefitFilter] = useState<'all' | 'welcome_offer' | 'nest_points' | 'coupon' | 'none'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  const activeCouponCode = normalizeWelcomeCouponCode(config.couponCode);
+
   const fetchAdminData = async (silent: boolean = false) => {
     if (!silent) setIsLoading(true);
     try {
       const data = await getWelcomeOfferAdminDataApi();
-      if (data.config) setConfig(data.config);
+      if (data.config) {
+        setConfig({
+          ...data.config,
+          couponCode: normalizeWelcomeCouponCode(data.config.couponCode),
+        });
+      }
       if (Array.isArray(data.redemptions)) setRedemptions(data.redemptions);
       if (Array.isArray(data.orders) && data.orders.length > 0) {
         setAdminOrders(data.orders);
@@ -71,9 +81,11 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
     try {
       const discPct = Math.max(1, Math.min(90, Number(config.discountPercent ?? config.discountPercentage) || 10));
       const maxDisc = Math.max(1, Number(config.maxDiscount ?? config.maxDiscountAmount) || 200);
+      const cleanCouponCode = normalizeWelcomeCouponCode(config.couponCode);
       const sanitized: WelcomeOfferConfig = {
         ...config,
         offerName: (config.offerName || 'Welcome to Cotton Nest').trim(),
+        couponCode: cleanCouponCode,
         discountPercentage: discPct,
         discountPercent: discPct,
         minOrderValue: Math.max(0, Number(config.minOrderValue) || 1299),
@@ -84,7 +96,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
       const saved = await saveWelcomeOfferConfigApi(sanitized);
       setConfig(saved);
       window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
-      onToast?.('🎁 Welcome Offer settings saved and synced across Website & Firestore!');
+      onToast?.(`🎁 Welcome Offer (${saved.couponCode || cleanCouponCode}) saved and synced across Website & Firestore!`);
     } catch (err) {
       console.warn('Failed to save Welcome Offer config:', err);
       onToast?.('Failed to save Welcome Offer settings.');
@@ -106,6 +118,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
           userId: key,
           name: rec.name || rec.customerName,
           customerName: rec.customerName || rec.name,
+          couponCode: rec.couponCode || activeCouponCode,
         });
       }
     }
@@ -136,6 +149,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
             customerName: order.customerName || existing?.customerName || existing?.name,
             authProvider: existing?.authProvider || 'google',
             status: computedStatus,
+            couponCode: order.welcomeCouponCode || existing?.couponCode || activeCouponCode,
             reservedOrderId: computedStatus === 'reserved' ? order.id : existing?.reservedOrderId,
             redeemedOrderId: computedStatus === 'redeemed' ? order.id : existing?.redeemedOrderId,
             discountAmount: Number(order.welcomeDiscount) || existing?.discountAmount || 0,
@@ -153,13 +167,14 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
           customerName: order.customerName,
           authProvider: 'google',
           status: 'eligible',
+          couponCode: activeCouponCode,
           updatedAt: Date.now(),
         });
       }
     }
 
     return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  }, [redemptions, adminOrders]);
+  }, [redemptions, adminOrders, activeCouponCode]);
 
   const filteredCustomerRecords = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -173,6 +188,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
         recName.toLowerCase().includes(q) ||
         (rec.email || '').toLowerCase().includes(q) ||
         (rec.phone || '').toLowerCase().includes(q) ||
+        (rec.couponCode || '').toLowerCase().includes(q) ||
         (rec.reservedOrderId || '').toLowerCase().includes(q) ||
         (rec.redeemedOrderId || '').toLowerCase().includes(q)
       );
@@ -203,7 +219,8 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
         (o.userId || '').toLowerCase().includes(q) ||
         (o.customerName || '').toLowerCase().includes(q) ||
         (o.customerEmail || '').toLowerCase().includes(q) ||
-        (o.customerPhone || '').toLowerCase().includes(q)
+        (o.customerPhone || '').toLowerCase().includes(q) ||
+        (o.welcomeCouponCode || '').toLowerCase().includes(q)
       );
     });
   }, [adminOrders, benefitFilter, searchQuery]);
@@ -223,15 +240,21 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#5E1924] via-[#70252D] to-[#4A121B] text-[#FAF6F0] rounded-3xl p-6 sm:p-8 border border-[#C5A059]/40 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-[#C5A059]/40 text-xs font-semibold text-[#EAD09A]">
-            <Gift className="w-3.5 h-3.5 text-[#C5A059]" />
-            <span>NEW CUSTOMER WELCOME OFFER MANAGEMENT</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-[#C5A059]/40 text-xs font-semibold text-[#EAD09A]">
+              <Gift className="w-3.5 h-3.5 text-[#C5A059]" />
+              <span>NEW CUSTOMER WELCOME OFFER MANAGEMENT</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C5A059]/20 border border-[#C5A059] text-xs font-mono font-bold text-[#FCE8B2]">
+              <Ticket className="w-3.5 h-3.5 text-[#FCE8B2]" />
+              <span>Coupon Code: {activeCouponCode}</span>
+            </div>
           </div>
           <h2 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-white">
-            {config.offerName || 'Welcome to Cotton Nest'} ({config.discountPercent}% OFF)
+            {config.offerName || 'Welcome to Cotton Nest'} ({activeCouponCode} · {config.discountPercent}% OFF)
           </h2>
           <p className="text-xs sm:text-sm text-[#FAF6F0]/85 max-w-2xl">
-            Manage the one-time Welcome Offer for new Google-authenticated customers. Strictly mutually exclusive with Nest Points (0 Nest Points earned or redeemed when Welcome Offer is applied).
+            Manage the one-time Welcome Offer ({activeCouponCode}) for new Google-authenticated customers. Automatically applied or manually entered at checkout using the same redemption record. Strictly mutually exclusive with Nest Points.
           </p>
         </div>
 
@@ -336,7 +359,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-xs font-semibold text-[#2C2420] mb-1">
               Offer Name
@@ -346,6 +369,24 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
               value={config.offerName}
               onChange={(e) => setConfig({ ...config, offerName: e.target.value })}
               className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs font-semibold text-[#2C2420]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#2C2420] mb-1">
+              Coupon Code (Customer-Facing)
+            </label>
+            <input
+              type="text"
+              value={config.couponCode || DEFAULT_WELCOME_COUPON_CODE}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  couponCode: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''),
+                })
+              }
+              placeholder="WELCOME10"
+              className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#C5A059] rounded-xl text-xs font-mono font-bold tracking-wider text-[#70252D] uppercase"
             />
           </div>
 
@@ -396,7 +437,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
         {/* Live Calculation Reference Preview */}
         <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EAE2D5] text-xs space-y-2">
           <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A6458] block">
-            Live Discount Calculation Preview (2-Decimal Precision · Delivery Excluded)
+            Live Discount Calculation Preview (Code: {activeCouponCode} · 2-Decimal Precision · Delivery Excluded)
           </span>
           <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-[11px]">
             {[999, 1299, 1500, 1999, 2000, 3500].map((sampleSubtotal) => {
@@ -430,7 +471,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by Customer UID, Name, Email, Phone, or Order ID..."
+            placeholder="Search by Customer UID, Name, Email, Phone, Coupon Code, or Order ID..."
             className="w-full pl-9 pr-4 py-2 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#70252D]"
           />
         </div>
@@ -461,7 +502,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
               2. Customer Welcome Offer Status &amp; UID Ledger ({filteredCustomerRecords.length})
             </h3>
             <p className="text-[11px] text-[#7A6458]">
-              Tracks Firebase UID, order ID, discount amount, and one-time redemption lifecycle (Eligible → Reserved → Redeemed on Delivery).
+              Tracks Firebase UID, coupon code ({activeCouponCode}), order ID, discount amount, and one-time redemption lifecycle (Eligible → Reserved → Redeemed on Delivery).
             </p>
           </div>
         </div>
@@ -477,6 +518,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
                 <tr className="border-b border-[#EAE2D5] bg-[#FAF7F2]/60 text-[10px] uppercase tracking-wider text-[#7A6458]">
                   <th className="py-3 px-4">Customer &amp; Firebase UID</th>
                   <th className="py-3 px-4">Contact</th>
+                  <th className="py-3 px-4">Coupon Code</th>
                   <th className="py-3 px-4">Redemption Status</th>
                   <th className="py-3 px-4">Linked Order ID</th>
                   <th className="py-3 px-4 text-right">Welcome Discount</th>
@@ -487,6 +529,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
                   const orderId = rec.redeemedOrderId || rec.reservedOrderId || '—';
                   const recUid = rec.uid || rec.userId || 'unknown';
                   const recName = rec.name || rec.customerName || 'Cotton Nest Customer';
+                  const recCode = rec.couponCode || activeCouponCode;
                   return (
                     <tr key={recUid} className="hover:bg-[#FAF7F2]/50">
                       <td className="py-3 px-4">
@@ -496,6 +539,11 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
                       <td className="py-3 px-4 text-[#6B5D55]">
                         {rec.email && <p>{rec.email}</p>}
                         {rec.phone && <p>+91 {rec.phone}</p>}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FAF7F2] border border-[#C5A059] font-mono text-[10px] font-bold text-[#70252D]">
+                          {recCode}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
                         {rec.status === 'redeemed' && (
@@ -561,7 +609,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
                 {bf === 'all'
                   ? 'All Orders'
                   : bf === 'welcome_offer'
-                  ? 'Welcome Offer'
+                  ? `Welcome Offer (${activeCouponCode})`
                   : bf === 'nest_points'
                   ? 'Nest Points'
                   : bf === 'coupon'
@@ -617,7 +665,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
                         {bType === 'welcome_offer' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FDEAF0] text-[#70252D] border border-[#FAD1DC]">
                             <Gift className="w-3 h-3" />
-                            Welcome Offer (10% OFF)
+                            Welcome Offer ({order.welcomeCouponCode || activeCouponCode} · 10% OFF)
                           </span>
                         )}
                         {bType === 'nest_points' && (

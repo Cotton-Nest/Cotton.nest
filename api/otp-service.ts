@@ -659,6 +659,7 @@ export interface InvoiceOrderPayload {
   benefitType?: 'welcome_offer' | 'nest_points' | 'coupon' | 'none';
   welcomeOfferApplied?: boolean;
   welcomeDiscount?: number;
+  welcomeCouponCode?: string;
   couponCode?: string;
   couponDiscount?: number;
   pointsUsed?: number;
@@ -704,6 +705,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
 
   const refId = payload.orderId.startsWith('CN-') ? payload.orderId : `CN-${payload.orderId}`;
   const welcomeDiscount = Math.max(0, Math.round((Number(payload.welcomeDiscount) || 0) * 100) / 100);
+  const welcomeCouponCode = (payload.welcomeCouponCode || 'WELCOME10').trim().toUpperCase() || 'WELCOME10';
   const isWelcomeOffer = Boolean(
     payload.welcomeOfferApplied || payload.benefitType === 'welcome_offer' || welcomeDiscount > 0
   );
@@ -861,7 +863,7 @@ export function buildCottonNestInvoiceHtml(payload: InvoiceOrderPayload): string
                     <td align="right" style="font-weight:600;color:#2C2420;">₹${formatInvoiceCurrency(displaySubtotal)}</td>
                   </tr>
                   ${welcomeDiscount > 0 ? `<tr>
-                    <td style="color:#8C2E46;font-weight:600;">🎁 Welcome to Cotton Nest (10% OFF)</td>
+                    <td style="color:#8C2E46;font-weight:600;">🎁 Welcome to Cotton Nest (${welcomeCouponCode} · 10% OFF)</td>
                     <td align="right" style="color:#8C2E46;font-weight:bold;">-₹${formatInvoiceCurrency(welcomeDiscount)}</td>
                   </tr>` : ''}
                   ${couponDiscount > 0 ? `<tr>
@@ -977,6 +979,7 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
       });
 
   const welcomeDiscount = Math.max(0, Math.round((Number(payload.welcomeDiscount) || 0) * 100) / 100);
+  const welcomeCouponCode = (payload.welcomeCouponCode || 'WELCOME10').trim().toUpperCase() || 'WELCOME10';
   const isWelcomeOffer = Boolean(
     payload.welcomeOfferApplied || payload.benefitType === 'welcome_offer' || welcomeDiscount > 0
   );
@@ -1050,7 +1053,7 @@ export function buildCottonNestInvoiceText(payload: InvoiceOrderPayload): string
   lines.push(`Items Subtotal: ₹${formatInvoiceCurrency(textSubtotal)}`);
 
   if (welcomeDiscount > 0) {
-    lines.push(`Welcome to Cotton Nest (10% OFF): -₹${formatInvoiceCurrency(welcomeDiscount)}`);
+    lines.push(`Welcome to Cotton Nest (${welcomeCouponCode} · 10% OFF): -₹${formatInvoiceCurrency(welcomeDiscount)}`);
   }
   if (textCouponDiscount > 0) {
     lines.push(`Coupon Discount (${payload.couponCode || 'Applied'}): -₹${formatInvoiceCurrency(textCouponDiscount)}`);

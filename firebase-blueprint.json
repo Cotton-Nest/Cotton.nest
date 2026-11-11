@@ -244,21 +244,22 @@
     },
     "WelcomeOfferConfig": {
       "title": "WelcomeOfferConfig",
-      "description": "Configuration for the Welcome to Cotton Nest 10% OFF first-order offer",
+      "description": "Configuration for the Welcome to Cotton Nest 10% OFF first-order offer (Code: WELCOME10)",
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean", "description": "Whether the Welcome Offer is active" },
         "offerName": { "type": "string", "description": "Name of the offer (Welcome to Cotton Nest)" },
+        "couponCode": { "type": "string", "description": "Customer-facing coupon code (default WELCOME10)" },
         "discountPercentage": { "type": "number", "description": "Discount percentage (default 10)" },
         "minOrderValue": { "type": "number", "description": "Minimum eligible product subtotal (default 1299)" },
         "maxDiscountAmount": { "type": "number", "description": "Maximum discount cap in INR (default 200)" },
         "updatedAt": { "type": "number", "description": "Last configuration update timestamp" }
       },
-      "required": ["enabled", "offerName", "discountPercentage", "minOrderValue", "maxDiscountAmount", "updatedAt"]
+      "required": ["enabled", "offerName", "couponCode", "discountPercentage", "minOrderValue", "maxDiscountAmount", "updatedAt"]
     },
     "WelcomeOfferRedemption": {
       "title": "WelcomeOfferRedemption",
-      "description": "Tracks customer eligibility, reservation, and one-time redemption of the Welcome to Cotton Nest offer by Firebase UID",
+      "description": "Tracks customer eligibility, reservation, and one-time redemption of the Welcome to Cotton Nest offer (WELCOME10) by Firebase UID",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "description": "Customer Firebase UID" },
@@ -266,6 +267,7 @@
         "customerName": { "type": "string", "description": "Customer display name" },
         "phone": { "type": "string", "description": "Customer mobile number" },
         "authProvider": { "type": "string", "description": "Authentication provider (google)" },
+        "couponCode": { "type": "string", "description": "Welcome Offer coupon code redeemed (e.g. WELCOME10)" },
         "status": { "type": "string", "enum": ["eligible", "reserved", "redeemed", "ineligible_existing_customer", "ineligible_not_google_auth"], "description": "Current offer eligibility/redemption state" },
         "reservedOrderId": { "type": "string", "description": "Order ID that currently reserves the offer" },
         "reservedAt": { "type": "number", "description": "Timestamp when offer was reserved" },

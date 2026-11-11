@@ -231,7 +231,7 @@ test('Smart Checkout comparison, mutual exclusivity, and mandatory Nest Points r
   assert.equal(whenWelcomeSelected.comparison.savingsDifference, 87.5);
   assert.match(
     whenWelcomeSelected.comparison.recommendationHeadline,
-    /Recommendation: Welcome Offer saves ₹87\.50 more\./
+    /Recommendation: Welcome Offer \(WELCOME10\) saves ₹87\.50 more\./
   );
 
   // Verify Mandatory Rules 6A & 6B when Welcome Offer is selected:
@@ -278,3 +278,114 @@ test('Smart Checkout comparison, mutual exclusivity, and mandatory Nest Points r
   assert.equal(belowMinCartWithPoints.comparison.maxNestPointsDiscount, 62.5);
   assert.equal(belowMinCartWithPoints.comparison.recommendedBenefit, 'nest_points');
 });
+
+test('WELCOME10 coupon code: automatic & manual application share identical offer and never duplicate discounts', () => {
+  assert.equal(DEFAULT_WELCOME_OFFER_CONFIG.couponCode, 'WELCOME10');
+
+  const newCustomerEligibility = evaluateCustomerWelcomeEligibility({
+    userId: 'uid_welcome10_new',
+    authProvider: 'google',
+    email: 'newcustomer10@example.com',
+    orders: [],
+  });
+  assert.equal(newCustomerEligibility.eligible, true);
+
+  // 1. Automatic application via selectedBenefit = 'welcome_offer'
+  const autoApplied = calculateCentralizedCheckoutBreakdown({
+    productSubtotal: 1800,
+    shippingCost: 0,
+    eligibility: newCustomerEligibility,
+    availableNestPoints: 200,
+    selectedBenefit: 'welcome_offer',
+  });
+  assert.equal(autoApplied.selectedBenefit, 'welcome_offer');
+  assert.equal(autoApplied.welcomeOfferApplied, true);
+  assert.equal(autoApplied.welcomeCouponCode, 'WELCOME10');
+  assert.equal(autoApplied.welcomeDiscount, 180);
+  assert.equal(autoApplied.couponDiscount, 0);
+  assert.equal(autoApplied.pointsEarned, 0);
+  assert.equal(autoApplied.pointsUsed, 0);
+  assert.equal(autoApplied.finalTotal, 1620);
+
+  // 2. Manual entry of WELCOME10 via selectedBenefit = 'coupon' + couponCode = 'WELCOME10'
+  // Must unify into the exact same 'welcome_offer' state and never stack/double-discount
+  const manualApplied = calculateCentralizedCheckoutBreakdown({
+    productSubtotal: 1800,
+    shippingCost: 0,
+    eligibility: newCustomerEligibility,
+    availableNestPoints: 200,
+    selectedBenefit: 'coupon',
+    couponCode: 'welcome10',
+    couponDiscountAmount: 180,
+  });
+  assert.equal(manualApplied.selectedBenefit, 'welcome_offer');
+  assert.equal(manualApplied.welcomeOfferApplied, true);
+  assert.equal(manualApplied.welcomeCouponCode, 'WELCOME10');
+  assert.equal(manualApplied.welcomeDiscount, 180);
+  assert.equal(manualApplied.couponDiscount, 0);
+  assert.equal(manualApplied.netMerchandiseAmount, 1620);
+  assert.equal(manualApplied.finalTotal, 1620);
+  assert.equal(manualApplied.pointsEarned, 0);
+  assert.equal(manualApplied.pointsUsed, 0);
+
+  // 3. Existing customer manually entering WELCOME10 is rejected (₹0 discount)
+  const existingCustomerOrder: Order = {
+    id: 'CN-EXIST-100',
+    userId: 'uid_existing_customer',
+    customerName: 'Existing Buyer',
+    customerPhone: '9876543210',
+    customerEmail: 'existing10@example.com',
+    customerAddress: 'Sector 46, Gurgaon',
+    items: [],
+    subtotal: 2000,
+    shippingCost: 0,
+    totalAmount: 2000,
+    totalSavings: 0,
+    paymentMethod: 'upi',
+    status: 'delivered',
+    createdAt: new Date().toISOString(),
+  };
+
+  const existingEligibility = evaluateCustomerWelcomeEligibility({
+    userId: 'uid_existing_customer',
+    authProvider: 'google',
+    email: 'existing10@example.com',
+    orders: [existingCustomerOrder],
+  });
+  assert.equal(existingEligibility.eligible, false);
+
+  const rejectedManual = calculateCentralizedCheckoutBreakdown({
+    productSubtotal: 1800,
+    shippingCost: 0,
+    eligibility: existingEligibility,
+    availableNestPoints: 200,
+    selectedBenefit: 'coupon',
+    couponCode: 'WELCOME10',
+    couponDiscountAmount: 180,
+  });
+  assert.equal(rejectedManual.welcomeOfferApplied, false);
+  assert.equal(rejectedManual.welcomeDiscount, 0);
+  assert.equal(rejectedManual.couponDiscount, 0);
+  assert.equal(rejectedManual.finalTotal, 1800);
+
+  // 4. Admin-configured custom coupon code (e.g. FIRST10) works identically
+  const customConfig = {
+    ...DEFAULT_WELCOME_OFFER_CONFIG,
+    couponCode: 'FIRST10',
+  };
+  const customManual = calculateCentralizedCheckoutBreakdown({
+    productSubtotal: 2500,
+    shippingCost: 0,
+    eligibility: newCustomerEligibility,
+    availableNestPoints: 0,
+    selectedBenefit: 'coupon',
+    couponCode: 'FIRST10',
+    config: customConfig,
+  });
+  assert.equal(customManual.selectedBenefit, 'welcome_offer');
+  assert.equal(customManual.welcomeOfferApplied, true);
+  assert.equal(customManual.welcomeCouponCode, 'FIRST10');
+  assert.equal(customManual.welcomeDiscount, 200); // capped at ₹200
+  assert.equal(customManual.finalTotal, 2300);
+});
+
