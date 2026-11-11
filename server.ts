@@ -3584,16 +3584,8 @@ async function startServer() {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     if (!db.welcomeOfferConfig) {
       db.welcomeOfferConfig = { ...DEFAULT_WELCOME_OFFER_CONFIG };
-    } else {
-      if (!db.welcomeOfferConfig.couponCode) {
-        db.welcomeOfferConfig.couponCode = DEFAULT_WELCOME_COUPON_CODE;
-      }
-      if (typeof db.welcomeOfferConfig.welcomeAnimationEnabled !== 'boolean') {
-        db.welcomeOfferConfig.welcomeAnimationEnabled = true;
-      }
-      if (!db.welcomeOfferConfig.welcomeAnimationFrequency) {
-        db.welcomeOfferConfig.welcomeAnimationFrequency = 'once_per_session';
-      }
+    } else if (!db.welcomeOfferConfig.couponCode) {
+      db.welcomeOfferConfig.couponCode = DEFAULT_WELCOME_COUPON_CODE;
     }
     res.json(db.welcomeOfferConfig);
   });
@@ -3610,10 +3602,6 @@ async function startServer() {
         0,
         Number(payload.maxDiscountAmount ?? payload.maxDiscount ?? current.maxDiscountAmount ?? 200)
       );
-      const freqRaw = payload.welcomeAnimationFrequency ?? current.welcomeAnimationFrequency ?? 'once_per_session';
-      const validFreq =
-        freqRaw === 'first_visit_only' || freqRaw === 'every_visit' ? freqRaw : 'once_per_session';
-
       const updated: WelcomeOfferConfig = {
         enabled: typeof payload.enabled === 'boolean' ? payload.enabled : current.enabled,
         offerName: String(payload.offerName || current.offerName || DEFAULT_WELCOME_OFFER_CONFIG.offerName).trim(),
@@ -3623,13 +3611,6 @@ async function startServer() {
         minOrderValue: Math.max(0, Number(payload.minOrderValue ?? current.minOrderValue ?? 1299)),
         maxDiscountAmount: maxDisc,
         maxDiscount: maxDisc,
-        welcomeAnimationEnabled:
-          typeof payload.welcomeAnimationEnabled === 'boolean'
-            ? payload.welcomeAnimationEnabled
-            : typeof current.welcomeAnimationEnabled === 'boolean'
-            ? current.welcomeAnimationEnabled
-            : true,
-        welcomeAnimationFrequency: validFreq,
         updatedAt: Date.now(),
         updatedBy: payload.updatedBy || 'Admin',
       };
