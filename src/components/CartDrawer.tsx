@@ -2312,7 +2312,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       : 'border-[#EAE2D5] bg-white/70 hover:bg-white'
                   }`}
                 >
-                  <span className="text-[10px] font-bold text-[#2C2420] leading-tight">Sector 46</span>
+                  <span className="text-[10px] font-bold text-[#2C2420] leading-tight">Sec 46 Gurgaon</span>
                   <span className="text-[9.5px] font-bold text-[#2E7D46] uppercase">Free</span>
                 </button>
 
@@ -2325,7 +2325,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       : 'border-[#EAE2D5] bg-white/70 hover:bg-white'
                   }`}
                 >
-                  <span className="text-[10px] font-bold text-[#2C2420] leading-tight">Rest of GGN</span>
+                  <span className="text-[10px] font-bold text-[#2C2420] leading-tight">Rest of Gurgaon</span>
                   <span className="text-[9px] text-[#7A6458]">Pickup/Act.</span>
                 </button>
               </div>
