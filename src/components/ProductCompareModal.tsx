@@ -222,8 +222,8 @@ export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
                   Product Overview
                 </div>
 
-                {products.map((product) => (
-                  <div key={product.id} className="p-4 border-r border-[#EAE2D5] last:border-r-0 space-y-2 relative group">
+                {products.map((product, pIdx) => (
+                  <div key={`comp-overview-${product.id || 'p'}-${pIdx}`} className="p-4 border-r border-[#EAE2D5] last:border-r-0 space-y-2 relative group">
                     <button
                       type="button"
                       onClick={() => onRemoveFromCompare(product.id)}
@@ -299,9 +299,9 @@ export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
                     {attr.label}
                   </div>
 
-                  {products.map((product) => (
+                  {products.map((product, pIdx) => (
                     <div
-                      key={`${product.id}-${attr.label}`}
+                      key={`comp-cell-${product.id || 'p'}-${attr.label}-${pIdx}`}
                       className="p-3.5 border-r border-[#EAE2D5] last:border-r-0 flex items-center"
                     >
                       {attr.render(product)}

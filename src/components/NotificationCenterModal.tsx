@@ -482,7 +482,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                   </div>
                 </div>
               ) : (
-                filteredNotifications.map((item) => {
+                filteredNotifications.map((item, nIdx) => {
                   let icon = <Bell className="w-4 h-4 text-[#A8823B]" />;
                   let badgeBg = 'bg-[#FAF7F2] border-[#DEC89B] text-[#70252D]';
 
@@ -502,7 +502,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
 
                   return (
                     <div
-                      key={item.id}
+                      key={item.id ? `notif-${item.id}-${nIdx}` : `notif-${nIdx}`}
                       data-testid={`notification-item-${item.id}`}
                       onClick={() => handleNotificationClick(item)}
                       className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 relative group ${

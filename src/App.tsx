@@ -2106,7 +2106,7 @@ export default function App() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                           {products.slice(0, 3).map((product, idx) => (
                             <motion.div
-                              key={product.id}
+                              key={`${product.id || 'feat'}-${idx}`}
                               initial={{ opacity: 0, y: 28 }}
                               whileInView={{ opacity: 1, y: 0 }}
                               viewport={{ once: true, margin: '-40px' }}

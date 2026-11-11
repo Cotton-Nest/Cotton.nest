@@ -172,7 +172,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
 
         {/* Reviews Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredReviews.map((rev) => {
+          {filteredReviews.map((rev, rIdx) => {
             const formattedDate = new Date(rev.createdAt).toLocaleDateString('en-IN', {
               month: 'short',
               day: 'numeric',
@@ -182,7 +182,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
 
             return (
               <motion.div
-                key={rev.id}
+                key={rev.id ? `rev-${rev.id}-${rIdx}` : `rev-${rIdx}`}
                 initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 whileHover={{ y: -4 }}

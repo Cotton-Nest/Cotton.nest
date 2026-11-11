@@ -1224,9 +1224,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {product.variants.map((v) => (
+                      {product.variants.map((v, vIdx) => (
                         <button
-                          key={v.id}
+                          key={v.id ? `modal-var-${v.id}-${vIdx}` : `modal-var-${vIdx}`}
                           type="button"
                           onClick={() => setSelectedVariantId(selectedVariantId === v.id ? null : v.id)}
                           className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${

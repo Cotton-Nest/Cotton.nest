@@ -1549,11 +1549,11 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {addressBook.map((addr) => {
+                    {addressBook.map((addr, aIdx) => {
                       const AddressIcon = addr.label === 'Home' ? Home : addr.label === 'Work' ? Briefcase : MapPin;
                       return (
                         <div
-                          key={addr.id}
+                          key={addr.id ? `addr-${addr.id}-${aIdx}` : `addr-${aIdx}`}
                           className={`p-3 rounded-xl border transition-all ${
                             addr.isDefault
                               ? 'border-[#C29E57] bg-[#FCFBF8]'

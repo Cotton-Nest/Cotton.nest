@@ -28,6 +28,7 @@ const SAMPLE_ORDER: Order = {
   totalAmount: 2790,
   totalSavings: 400,
   status: 'delivered',
+  deliveredAt: new Date().toISOString(),
   items: [
     {
       productId: 'sheet-jaipuri-1',

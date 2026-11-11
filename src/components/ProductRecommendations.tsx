@@ -61,7 +61,7 @@ export const ProductRecommendations: React.FC<ProductRecommendationsProps> = ({
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {displayItems.map((p) => {
+        {displayItems.map((p, idx) => {
           const displayImg = resolveBedsheetImage(p.image, p.id);
           const pPrice = Number(p.price) || 1320;
           const pOrigPrice = Number(p.originalPrice) || pPrice;
@@ -69,7 +69,7 @@ export const ProductRecommendations: React.FC<ProductRecommendationsProps> = ({
 
           return (
             <div
-              key={p.id}
+              key={`${p.id || 'rec'}-${idx}`}
               onClick={() => onSelectProduct(p)}
               className="group p-2.5 bg-white rounded-2xl border border-[#EAE2D5] shadow-2xs hover:shadow-md hover:border-[#DEC89B] transition-all cursor-pointer flex flex-col justify-between"
             >

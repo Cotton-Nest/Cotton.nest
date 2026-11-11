@@ -568,10 +568,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <>
                       {/* Click outside backdrop */}
                       <div
+                        key="mobile-user-backdrop"
                         className="fixed inset-0 z-40"
                         onClick={() => setMobileUserDropdownOpen(false)}
                       />
                       <motion.div
+                        key="mobile-user-dropdown"
                         initial={{ opacity: 0, y: -6, scale: 0.96 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -6, scale: 0.96 }}

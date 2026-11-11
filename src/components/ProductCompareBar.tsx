@@ -32,9 +32,9 @@ export const ProductCompareBar: React.FC<ProductCompareBarProps> = ({
 
         {/* Thumbnails */}
         <div className="flex items-center gap-1.5">
-          {products.map((p) => (
+          {products.map((p, pIdx) => (
             <div
-              key={p.id}
+              key={p.id ? `compare-${p.id}-${pIdx}` : `compare-${pIdx}`}
               className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-lg overflow-hidden border border-[#DEC89B]/50 shrink-0 bg-[#FAF7F2] group"
               title={p.name}
             >

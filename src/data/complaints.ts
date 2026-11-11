@@ -419,20 +419,20 @@ export function validateComplaintSubmission(
     return { valid: false, error: ownershipCheck.error || 'Order verification failed.' };
   }
 
+  // 2. Verify request type (Cotton Nest policy: Exchange or Product Complaint only; returns not accepted)
+  if (!COMPLAINT_REQUEST_TYPES.includes(input.requestType as any)) {
+    return {
+      valid: false,
+      error: 'Invalid request type. As per Cotton Nest Terms & Conditions, we offer Defect Exchanges or Product Complaints only (no returns/refunds).',
+    };
+  }
+
   // 1b. Verify order has been delivered and is within the 48-hour exchange window from delivery date & time
   const exchangeEligibility = getOrderExchangeEligibility(order);
   if (!exchangeEligibility.canRequestExchange) {
     return {
       valid: false,
       error: exchangeEligibility.message,
-    };
-  }
-
-  // 2. Verify request type (Cotton Nest policy: Exchange or Product Complaint only; returns not accepted)
-  if (!COMPLAINT_REQUEST_TYPES.includes(input.requestType as any)) {
-    return {
-      valid: false,
-      error: 'Invalid request type. As per Cotton Nest Terms & Conditions, we offer Defect Exchanges or Product Complaints only (no returns/refunds).',
     };
   }
 

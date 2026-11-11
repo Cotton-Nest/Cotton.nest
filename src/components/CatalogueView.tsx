@@ -1193,6 +1193,24 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           </div>
         </div>
 
+        {/* Boutique Wardrobe Closet Rod Presentation */}
+        <div className="relative pt-1 pb-3 mb-2">
+          <div className="h-2.5 w-full rounded-full bg-gradient-to-r from-[#8C6D2D] via-[#F4E2A8] via-[#C5A059] to-[#8C6D2D] shadow-sm relative flex items-center justify-between px-2">
+            <div className="w-2.5 h-4.5 -ml-2.5 rounded-sm bg-gradient-to-b from-[#A88B4A] to-[#5C4518] shadow-md border-r border-[#F4E2A8]/60" />
+            <div className="absolute inset-x-2 top-0.5 h-0.5 bg-white/40 rounded-full" />
+            <div className="w-2.5 h-4.5 -mr-2.5 rounded-sm bg-gradient-to-b from-[#A88B4A] to-[#5C4518] shadow-md border-l border-[#F4E2A8]/60" />
+          </div>
+          <div className="flex items-center justify-between mt-1.5 px-1 text-[11px] text-[#8C7A70]">
+            <span className="font-serif-luxury italic flex items-center gap-1.5 text-[#5E1924]">
+              <Sparkles className="w-3.5 h-3.5 text-[#C5A059]" />
+              <span>Boutique Wardrobe Collection · Bedsheets hanging on luxury hangers</span>
+            </span>
+            <span className="hidden sm:inline-block text-[10px] text-[#7A6458]">
+              Hover or tap any bedsheet to experience natural fabric sway
+            </span>
+          </div>
+        </div>
+
         {/* 6. Products Container (Single: 1 bedsheet view at a time / Tile: 2 on mobile, 3-4 on desktop / List: row cards) */}
         {filteredProducts.length > 0 ? (
           <motion.div
@@ -1210,7 +1228,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           >
             {filteredProducts.map((product, idx) => (
               <motion.div
-                key={product.id}
+                key={`${product.id || 'prod'}-${idx}`}
                 initial={{ opacity: 0, y: 18 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-20px' }}

@@ -2967,12 +2967,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               {/* Quick Sample SKU Chips for fast 1-click lookup */}
               <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
                 <span className="text-[#8C7A70] font-medium">Quick SKU Check:</span>
-                {inMemorySkuProductsSource.slice(0, 6).map((item) => {
+                {inMemorySkuProductsSource.slice(0, 6).map((item, sIdx) => {
                   const itemSku = resolveProductPrimarySku(item);
                   const isActive = skuSearchQuery.trim().replace(/^#/, '').toUpperCase() === itemSku.toUpperCase();
                   return (
                     <button
-                      key={`sku-chip-${item.id}`}
+                      key={`sku-chip-${item.id || 'item'}-${sIdx}`}
                       type="button"
                       onClick={() => {
                         ensureProductsLoadedForSkuSearch();
@@ -3006,14 +3006,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {skuSearchResults.map(({ product, primarySku, matchedSku, matchType }) => {
+                        {skuSearchResults.map(({ product, primarySku, matchedSku, matchType }, rIdx) => {
                           const displayImg = product.image || customImages[product.id];
                           const stockUnits = product.inStock ? (product.stockQuantity ?? 10) : 0;
                           const isAvailable = Boolean(product.inStock && stockUnits > 0);
 
                           return (
                             <div
-                              key={`sku-result-${product.id}`}
+                              key={`sku-result-${product.id || 'res'}-${rIdx}`}
                               className="p-3.5 bg-white rounded-xl border border-[#EAE2D5] shadow-2xs flex flex-col sm:flex-row items-start sm:items-center gap-3.5 justify-between"
                             >
                               <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">

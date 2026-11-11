@@ -194,6 +194,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   } | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState<boolean>(false);
 
+
   // Welcome Offer & Benefit Selection State
   const [welcomeConfig, setWelcomeConfig] = useState<WelcomeOfferConfig>(DEFAULT_WELCOME_OFFER_CONFIG);
   const [welcomeRecord, setWelcomeRecord] = useState<WelcomeOfferCustomerRecord | null>(null);
@@ -917,9 +918,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end overflow-hidden">
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <div key="cart-drawer-shell" className="fixed inset-0 z-50 flex justify-end overflow-hidden">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -994,291 +996,208 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         </p>
                       </motion.div>
                     ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between px-1 text-[11px] text-[#8C7A70]">
-                    <span>{items.length} {items.length === 1 ? 'item' : 'items'} in bag</span>
-                    <span className="flex items-center gap-1 text-[10px] italic">
-                      ← Swipe item left to remove
-                    </span>
+                <div className="space-y-2.5">
+                  {/* Clean Shopping Bag Items Header */}
+                  <div className="flex items-center justify-between px-1 text-[11px] text-[#8C7A70] pb-1 border-b border-[#EAE2D5]/70">
+                    <div className="flex items-center gap-1.5 font-medium text-[#2C2420]">
+                      <span className="w-2 h-2 rounded-full bg-[#8C2E46]" />
+                      <span>{items.length} {items.length === 1 ? 'bedsheet' : 'bedsheets'} in your bag</span>
+                    </div>
+                    <span className="text-[10px] text-[#7A6458]">Swipe left to remove</span>
                   </div>
+
+                  {/* COMPACT LIST VIEW */}
                   <AnimatePresence initial={false}>
-                  {(items || []).map((item, idx) => {
-                    const isMetadataValid = isCompleteProduct(item?.product);
+                      {(items || []).map((item, idx) => {
+                        const isMetadataValid = isCompleteProduct(item?.product);
 
-                    if (!isMetadataValid) {
-                      const fallbackId =
-                        item?.product && typeof item.product === 'object' && typeof item.product.id === 'string'
-                          ? item.product.id
-                          : '';
-                      const partialName =
-                        item?.product && typeof item.product === 'object' && typeof item.product.name === 'string' && item.product.name.trim() !== ''
-                          ? item.product.name.trim()
-                          : null;
+                        if (!isMetadataValid) {
+                          const fallbackId =
+                            item?.product && typeof item.product === 'object' && typeof item.product.id === 'string'
+                              ? item.product.id
+                              : '';
+                          const partialName =
+                            item?.product && typeof item.product === 'object' && typeof item.product.name === 'string' && item.product.name.trim() !== ''
+                              ? item.product.name.trim()
+                              : null;
 
-                      return (
-                        <SwipeableCartItem
-                          key={`unavailable-item-${fallbackId || idx}`}
-                          onRemove={() => onRemoveItem(fallbackId)}
-                        >
-                          <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-amber-200/90 text-[#2C2420] shadow-xs flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-amber-100/90 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0">
-                                <AlertCircle className="w-5 h-5 text-amber-700" />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
-                                    Notice
-                                  </span>
-                                  <h3 className="font-serif-luxury font-bold text-xs text-[#2C2420] truncate">
-                                    Item Unavailable
-                                  </h3>
-                                </div>
-                                <p className="text-[11px] text-[#7A6458] mt-0.5 leading-tight truncate">
-                                  {partialName ? `${partialName} (Metadata Incomplete)` : 'Product metadata is missing or incomplete.'}
-                                </p>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => onRemoveItem(fallbackId)}
-                              className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 hover:bg-rose-50 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1"
-                              title="Remove unavailable item from bag"
+                          return (
+                            <SwipeableCartItem
+                              key={`unavailable-item-compact-${fallbackId || 'na'}-${idx}`}
+                              onRemove={() => onRemoveItem(fallbackId)}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Remove</span>
-                            </button>
-                          </div>
-                        </SwipeableCartItem>
-                      );
-                    }
+                              <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-amber-200/90 text-[#2C2420] shadow-xs flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-10 h-10 rounded-xl bg-amber-100/90 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0">
+                                    <AlertCircle className="w-5 h-5 text-amber-700" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                                        Notice
+                                      </span>
+                                      <h3 className="font-serif-luxury font-bold text-xs text-[#2C2420] truncate">
+                                        Item Unavailable
+                                      </h3>
+                                    </div>
+                                    <p className="text-[11px] text-[#7A6458] mt-0.5 leading-tight truncate">
+                                      {partialName ? `${partialName} (Metadata Incomplete)` : 'Product metadata is missing or incomplete.'}
+                                    </p>
+                                  </div>
+                                </div>
 
-                    const prod = item?.product;
-                    const prodId = typeof prod?.id === 'string' ? prod.id : '';
-                    const prodName = typeof prod?.name === 'string' && prod.name.trim() !== '' ? prod.name.trim() : 'Handcrafted Bedsheet';
-                    const prodDimensions = typeof prod?.dimensions === 'string' && prod.dimensions.trim() !== '' ? prod.dimensions.trim() : '108 x 108 inches (274 x 274 cm)';
-                    const itemPrice = typeof prod?.price === 'number' && !isNaN(prod.price) && prod.price >= 0 ? prod.price : 0;
-                    
-                    const variant = (
-                      item?.selectedVariant &&
-                      typeof item.selectedVariant === 'object' &&
-                      typeof item.selectedVariant.name === 'string' &&
-                      item.selectedVariant.name.trim() !== ''
-                    ) ? item.selectedVariant : undefined;
-
-                    const variantName = variant?.name?.trim() || null;
-                    const variantColorHex = (
-                      variant?.colorHex &&
-                      typeof variant.colorHex === 'string' &&
-                      variant.colorHex.trim().startsWith('#')
-                    ) ? variant.colorHex.trim() : null;
-                    const variantImage = (
-                      variant?.image &&
-                      typeof variant.image === 'string' &&
-                      variant.image.trim() !== ''
-                    ) ? variant.image.trim() : null;
-
-                    const rawImg = variantImage || (typeof prod?.image === 'string' ? prod.image : '');
-                    const displayImg = resolveBedsheetImage(rawImg, prodId);
-                    
-                    const rawQty = typeof item?.quantity === 'number' ? item.quantity : Number(item?.quantity);
-                    const qty = !isNaN(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
-                    const itemKey = `${prodId || 'item'}-${variant?.id || 'base'}`;
-
-                    return (
-                      <SwipeableCartItem
-                        key={itemKey}
-                        onRemove={() => prodId && onRemoveItem(prodId)}
-                      >
-                        <div className="flex gap-2.5 p-2.5 liquid-glass-surface rounded-2xl">
-                          <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-white/80 flex items-center justify-center relative">
-                            {displayImg ? (
-                              isVideoMedia(displayImg) ? (
-                                <video
-                                  src={displayImg}
-                                  muted
-                                  loop
-                                  playsInline
-                                  autoPlay
-                                  className="w-full h-full object-cover object-center"
-                                />
-                              ) : (
-                                <img
-                                  src={displayImg}
-                                  alt={prodName}
-                                  onError={handleImageFallback}
-                                  draggable={false}
-                                  className="w-full h-full object-cover object-center"
-                                />
-                              )
-                            ) : (
-                              <div className="flex flex-col items-center justify-center text-[#8C7A70] p-1 text-center">
-                                <Package className="w-5 h-5 opacity-40 mb-0.5" />
-                                <span className="text-[9px] uppercase tracking-wider">No Photo</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex-1 flex flex-col justify-between min-w-0">
-                            <div>
-                              <div className="flex items-start justify-between gap-1">
-                                <h3 className="font-serif-luxury text-sm font-bold text-[#2C2420] leading-tight truncate">
-                                  {prodName}
-                                </h3>
                                 <button
-                                  onClick={() => prodId && onRemoveItem(prodId)}
-                                  className="text-[#8C7A70] hover:text-red-600 p-0.5 cursor-pointer shrink-0"
-                                  title="Remove item"
+                                  type="button"
+                                  onClick={() => onRemoveItem(fallbackId)}
+                                  className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 hover:bg-rose-50 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                                  title="Remove unavailable item from bag"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Remove</span>
                                 </button>
                               </div>
+                            </SwipeableCartItem>
+                          );
+                        }
 
-                              {variantName ? (
-                                <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-[#8C2E46]">
-                                  {variantColorHex ? (
-                                    <span
-                                      className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block shrink-0"
-                                      style={{ backgroundColor: variantColorHex }}
+                        const prod = item?.product;
+                        const prodId = typeof prod?.id === 'string' ? prod.id : '';
+                        const prodName = typeof prod?.name === 'string' && prod.name.trim() !== '' ? prod.name.trim() : 'Handcrafted Bedsheet';
+                        const prodDimensions = typeof prod?.dimensions === 'string' && prod.dimensions.trim() !== '' ? prod.dimensions.trim() : '108 x 108 inches (274 x 274 cm)';
+                        const itemPrice = typeof prod?.price === 'number' && !isNaN(prod.price) && prod.price >= 0 ? prod.price : 0;
+                        
+                        const variant = (
+                          item?.selectedVariant &&
+                          typeof item.selectedVariant === 'object' &&
+                          typeof item.selectedVariant.name === 'string' &&
+                          item.selectedVariant.name.trim() !== ''
+                        ) ? item.selectedVariant : undefined;
+
+                        const variantName = variant?.name?.trim() || null;
+                        const variantColorHex = (
+                          variant?.colorHex &&
+                          typeof variant.colorHex === 'string' &&
+                          variant.colorHex.trim().startsWith('#')
+                        ) ? variant.colorHex.trim() : null;
+                        const variantImage = (
+                          variant?.image &&
+                          typeof variant.image === 'string' &&
+                          variant.image.trim() !== ''
+                        ) ? variant.image.trim() : null;
+
+                        const rawImg = variantImage || (typeof prod?.image === 'string' ? prod.image : '');
+                        const displayImg = resolveBedsheetImage(rawImg, prodId);
+                        
+                        const rawQty = typeof item?.quantity === 'number' ? item.quantity : Number(item?.quantity);
+                        const qty = !isNaN(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
+                        const itemKey = `compact-${prodId || 'item'}-${variant?.id || 'base'}-${idx}`;
+
+                        return (
+                          <SwipeableCartItem
+                            key={itemKey}
+                            onRemove={() => prodId && onRemoveItem(prodId)}
+                          >
+                            <div className="flex gap-2.5 p-2.5 liquid-glass-surface rounded-2xl">
+                              <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-white/80 flex items-center justify-center relative">
+                                {displayImg ? (
+                                  isVideoMedia(displayImg) ? (
+                                    <video
+                                      src={displayImg}
+                                      muted
+                                      loop
+                                      playsInline
+                                      autoPlay
+                                      className="w-full h-full object-cover object-center"
                                     />
-                                  ) : null}
-                                  <span className="truncate">Color: {variantName}</span>
-                                </div>
-                              ) : null}
-
-                              <p className="text-[10px] text-[#7A6458] truncate">
-                                {prodDimensions}
-                              </p>
-                            </div>
-
-                            <div className="flex items-center justify-between pt-1">
-                              <div className="flex items-center border border-[#EAE2D5] rounded-lg bg-[#FAF7F2]">
-                                <button
-                                  type="button"
-                                  onClick={() => prodId && onUpdateQuantity(prodId, Math.max(1, qty - 1))}
-                                  className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
-                                  aria-label="Decrease quantity"
-                                >
-                                  -
-                                </button>
-                                <span className="px-2 text-xs font-semibold text-[#2C2420] tabular-nums">
-                                  {qty}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => prodId && onUpdateQuantity(prodId, qty + 1)}
-                                  className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
-                                  aria-label="Increase quantity"
-                                >
-                                  +
-                                </button>
+                                  ) : (
+                                    <img
+                                      src={displayImg}
+                                      alt={prodName}
+                                      onError={handleImageFallback}
+                                      draggable={false}
+                                      className="w-full h-full object-cover object-center"
+                                    />
+                                  )
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center text-[#8C7A70] p-1 text-center">
+                                    <Package className="w-5 h-5 opacity-40 mb-0.5" />
+                                    <span className="text-[9px] uppercase tracking-wider">No Photo</span>
+                                  </div>
+                                )}
                               </div>
 
-                              <span className="text-sm font-bold text-[#2C2420] tabular-nums">
-                                {typeof itemPrice === 'number' && !isNaN(itemPrice) && itemPrice >= 0 ? (
-                                  `₹${(itemPrice * qty).toLocaleString('en-IN')}`
-                                ) : (
-                                  <span className="text-xs text-amber-700 italic">Price Unavailable</span>
-                                )}
-                              </span>
+                              <div className="flex-1 flex flex-col justify-between min-w-0">
+                                <div>
+                                  <div className="flex items-start justify-between gap-1">
+                                    <h3 className="font-serif-luxury text-sm font-bold text-[#2C2420] leading-tight truncate">
+                                      {prodName}
+                                    </h3>
+                                    <button
+                                      onClick={() => prodId && onRemoveItem(prodId)}
+                                      className="text-[#8C7A70] hover:text-red-600 p-0.5 cursor-pointer shrink-0"
+                                      title="Remove item"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+
+                                  {variantName ? (
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-[#8C2E46]">
+                                      {variantColorHex ? (
+                                        <span
+                                          className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block shrink-0"
+                                          style={{ backgroundColor: variantColorHex }}
+                                        />
+                                      ) : null}
+                                      <span className="truncate">Color: {variantName}</span>
+                                    </div>
+                                  ) : null}
+
+                                  <p className="text-[10px] text-[#7A6458] truncate">
+                                    {prodDimensions}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1">
+                                  <div className="flex items-center border border-[#EAE2D5] rounded-lg bg-[#FAF7F2]">
+                                    <button
+                                      type="button"
+                                      onClick={() => prodId && onUpdateQuantity(prodId, Math.max(1, qty - 1))}
+                                      className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
+                                      aria-label="Decrease quantity"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="px-2 text-xs font-semibold text-[#2C2420] tabular-nums">
+                                      {qty}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => prodId && onUpdateQuantity(prodId, qty + 1)}
+                                      className="px-2 py-0.5 text-xs text-[#2C2420] hover:bg-[#F4EFE6] font-bold cursor-pointer transition-colors"
+                                      aria-label="Increase quantity"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+
+                                  <span className="text-sm font-bold text-[#2C2420] tabular-nums">
+                                    {typeof itemPrice === 'number' && !isNaN(itemPrice) && itemPrice >= 0 ? (
+                                      `₹${(itemPrice * qty).toLocaleString('en-IN')}`
+                                    ) : (
+                                      <span className="text-xs text-amber-700 italic">Price Unavailable</span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      </SwipeableCartItem>
-                    );
-                  })}
-                  </AnimatePresence>
-                </div>
-              )}
-
-              {/* Shipping & Delivery Option Selector Directly in Cart / Shopping Bag */}
-              {validItems.length > 0 && (
-                <div className="pt-2 pb-0.5 space-y-1.5 border-t border-[#EAE2D5]">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-[#2C2420] flex items-center gap-1.5">
-                      <Truck className="w-3.5 h-3.5 text-[#8C2E46]" />
-                      <span>Delivery Option</span>
-                    </label>
-                    <span className="text-[10px] text-[#8C2E46] font-semibold bg-[#FDEAF0] px-2 py-0.5 rounded-full">
-                      {shippingOption === 'india' ? `Standard Courier (+₹${acrossIndiaFee})` : shippingOption === 'sector46' ? 'Complimentary Free' : 'Pickup / Actuals'}
-                    </span>
+                          </SwipeableCartItem>
+                        );
+                      })}
+                    </AnimatePresence>
                   </div>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    <label
-                      onClick={() => setShippingOption('india')}
-                      className={`flex items-center justify-between py-2 px-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                        shippingOption === 'india'
-                          ? 'border-[#8C2E46] bg-[#FDEAF0]/50 ring-1 ring-[#8C2E46]'
-                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <input
-                          type="radio"
-                          name="bag_shipping"
-                          checked={shippingOption === 'india'}
-                          onChange={() => setShippingOption('india')}
-                          className="accent-[#8C2E46] shrink-0"
-                        />
-                        <div className="flex flex-wrap items-baseline gap-x-1.5 leading-tight">
-                          <p className="font-semibold text-[#2C2420]">Across India</p>
-                          <p className="text-[11px] text-[#7A6458]">Standard Courier Delivery</p>
-                        </div>
-                      </div>
-                      <span className="font-bold text-[#8C2E46] shrink-0 ml-2">+₹{acrossIndiaFee}</span>
-                    </label>
+                )}
 
-                    <label
-                      onClick={() => setShippingOption('sector46')}
-                      className={`flex items-center justify-between py-2 px-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                        shippingOption === 'sector46'
-                          ? 'border-[#2E7D46] bg-[#EAF7EE]/70 ring-1 ring-[#2E7D46]'
-                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <input
-                          type="radio"
-                          name="bag_shipping"
-                          checked={shippingOption === 'sector46'}
-                          onChange={() => setShippingOption('sector46')}
-                          className="accent-[#2E7D46] shrink-0"
-                        />
-                        <div className="flex flex-wrap items-baseline gap-x-1.5 leading-tight">
-                          <p className="font-semibold text-[#2C2420]">Sector 46, Gurgaon</p>
-                          <p className="text-[11px] text-[#7A6458]">Complimentary Local Delivery</p>
-                        </div>
-                      </div>
-                      <span className="font-bold text-[#2E7D46] uppercase text-[11px] shrink-0 ml-2">Free</span>
-                    </label>
-
-                    <label
-                      onClick={() => setShippingOption('gurgaon')}
-                      className={`flex items-center justify-between py-2 px-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                        shippingOption === 'gurgaon'
-                          ? 'border-[#8C2E46] bg-[#FDEAF0]/50 ring-1 ring-[#8C2E46]'
-                          : 'border-[#EAE2D5] bg-white hover:bg-[#FAF7F2]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <input
-                          type="radio"
-                          name="bag_shipping"
-                          checked={shippingOption === 'gurgaon'}
-                          onChange={() => setShippingOption('gurgaon')}
-                          className="accent-[#8C2E46] shrink-0"
-                        />
-                        <div className="flex flex-wrap items-baseline gap-x-1.5 leading-tight">
-                          <p className="font-semibold text-[#2C2420]">Rest of Gurgaon</p>
-                          <p className="text-[11px] text-[#7A6458]">Self Pickup / On Actuals</p>
-                        </div>
-                      </div>
-                      <span className="font-medium text-[#7A6458] text-[11px] shrink-0 ml-2">On Actuals / Pickup</span>
-                    </label>
-                  </div>
-                </div>
-                    )}
                   </motion.div>
                 )}
 
@@ -1461,6 +1380,55 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                 {/* Manual Coupon Code Entry in Checkout Step (Supports WELCOME10 & Promotional Codes) */}
                 <div className="pt-2 border-t border-[#EAE2D5] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-[#2C2420] flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-[#C29E57]" />
+                      <span>Have a coupon code?</span>
+                    </span>
+                    {availableCoupons.filter((c) => c.isActive).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowOffersList(!showOffersList)}
+                        className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <Gift className="w-3 h-3" />
+                        <span>{showOffersList ? 'Hide Offers' : 'View Codes'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Active Promotional Coupon Badge (Non-welcome coupon) */}
+                  {!isWelcomeOfferApplied && appliedCoupon && (
+                    <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
+                          %
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold tracking-wider text-[#2C2420] text-[11px]">{appliedCoupon.code}</span>
+                            {appliedCoupon.isAutomatic && (
+                              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
+                                Auto
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-emerald-700 font-medium leading-tight">
+                            Saving ₹{formatRupeeAmount(effectiveCouponDiscount)} on this order
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Remove coupon"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1475,7 +1443,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         setCouponCodeInput(e.target.value.toUpperCase());
                         setCouponError(null);
                       }}
-                      placeholder={`Have a code? Enter ${welcomeCouponCode} or Promo Code`}
+                      placeholder={`Enter code (e.g. ${welcomeCouponCode})`}
                       className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
                     />
                     <button
@@ -1496,6 +1464,76 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <p className="text-[10px] font-medium text-rose-600">
                       {couponError}
                     </p>
+                  )}
+
+                  {/* Expandable Offers Picker in Checkout Step */}
+                  {showOffersList && (
+                    <div className="pt-1.5 border-t border-[#EAE2D5] space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {welcomeConfig.enabled && (
+                        <div className="p-2 bg-[#FFF9FB] rounded-lg border border-[#FAD1DC] text-xs space-y-0.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold tracking-wider text-[#70252D] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
+                              {welcomeCouponCode}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isWelcomeOfferApplied) {
+                                  handleRemoveWelcomeOffer();
+                                } else {
+                                  handleApplyCoupon(welcomeCouponCode);
+                                }
+                              }}
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                isWelcomeOfferApplied
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-[#70252D] text-white hover:bg-[#591B22]'
+                              }`}
+                            >
+                              {isWelcomeOfferApplied ? 'Applied ✓' : 'Apply Code'}
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-[#2C2420] font-medium">
+                            {welcomeConfig.offerName} — {welcomeConfig.discountPercent}% OFF First Order (Min ₹{welcomeConfig.minOrderValue}, Max ₹{welcomeConfig.maxDiscount})
+                          </p>
+                        </div>
+                      )}
+                      {availableCoupons
+                        .filter((c) => c.isActive)
+                        .map((coupon, cIdx) => {
+                          const isCurrent = !isWelcomeOfferApplied && appliedCoupon?.code === coupon.code;
+                          return (
+                            <div
+                              key={coupon.id ? `checkout-coupon-${coupon.id}-${cIdx}` : `checkout-coupon-${coupon.code || 'code'}-${cIdx}`}
+                              className="p-2 bg-white rounded-lg border border-[#EAE2D5] text-xs space-y-0.5"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
+                                  {coupon.code}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isCurrent) {
+                                      handleRemoveCoupon();
+                                    } else {
+                                      handleApplyCoupon(coupon.code);
+                                    }
+                                  }}
+                                  className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                    isCurrent
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-[#FAF7F2] text-[#8C2E46] border border-[#FAD1DC] hover:bg-[#8C2E46] hover:text-white'
+                                  }`}
+                                >
+                                  {isCurrent ? 'Applied ✓' : 'Apply Code'}
+                                </button>
+                              </div>
+                              <p className="text-[11px] text-[#2C2420] font-medium">{coupon.title}</p>
+                            </div>
+                          );
+                        })}
+                    </div>
                   )}
                 </div>
 
@@ -1683,11 +1721,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   {/* List of Saved Addresses to Select From (Only Saved Addresses Visible) */}
                   {!isAddingNewAddress && savedAddresses.length > 0 && (
                     <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
-                      {savedAddresses.map((addr) => {
+                      {savedAddresses.map((addr, aIdx) => {
                         const isSelected = selectedAddressId === addr.id || (savedAddresses.length === 1);
                         return (
                           <div
-                            key={addr.id}
+                            key={addr.id ? `addr-${addr.id}-${aIdx}` : `addr-${aIdx}`}
                             onClick={() => handleSelectSavedAddress(addr)}
                             className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all ${
                               isSelected
@@ -2111,351 +2149,60 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </div>
             )}
 
-            {/* Smart Benefit Comparison & Welcome Offer Banner in Bag Footer */}
-            {welcomeConfig.enabled && (
-              <div className="p-2.5 bg-gradient-to-r from-[#FFFDF9] to-[#FAF7F2] rounded-xl border border-[#DEC89B] space-y-1.5">
-                {!user ? (
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-bold text-[#70252D] flex items-center gap-1">
-                        <Gift className="w-3.5 h-3.5 text-[#C5A059] shrink-0" />
-                        <span>Welcome Offer (<span className="font-mono">{welcomeCouponCode}</span>): {welcomeConfig.discountPercent}% OFF (up to ₹{welcomeConfig.maxDiscount})</span>
-                      </p>
-                      <p className="text-[10px] text-[#7A6458] truncate">
-                        Sign in with Google to auto-apply <span className="font-mono font-semibold">{welcomeCouponCode}</span> (min ₹{welcomeConfig.minOrderValue.toLocaleString('en-IN')}).
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await loginWithGoogle();
-                        } catch {
-                          onOpenAuthModal?.();
-                        }
-                      }}
-                      className="px-2.5 py-1 bg-[#70252D] hover:bg-[#591B22] text-white text-[10px] font-bold rounded-lg shrink-0 cursor-pointer"
-                    >
-                      Sign In
-                    </button>
-                  </div>
-                ) : customerWelcomeEligibility.eligible ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-[#70252D] flex items-center gap-1">
-                        <Gift className="w-3.5 h-3.5 text-[#C5A059]" />
-                        <span>Welcome Offer · Code: <span className="font-mono bg-[#FDEAF0] px-1.5 py-0.5 rounded border border-[#FAD1DC]">{welcomeCouponCode}</span> ({welcomeConfig.discountPercent}% OFF)</span>
-                      </span>
-                      {checkoutBreakdown.comparison.welcomeOption.eligible ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (isWelcomeOfferApplied) {
-                              handleRemoveWelcomeOffer();
-                            } else {
-                              handleSelectWelcomeOffer();
-                            }
-                          }}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
-                            isWelcomeOfferApplied
-                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                              : 'bg-[#70252D] text-white hover:bg-[#591B22]'
-                          }`}
-                        >
-                          {isWelcomeOfferApplied
-                            ? `✓ ${welcomeCouponCode} Applied (-₹${formatRupeeAmount(welcomeDiscount)})`
-                            : `Apply ${welcomeCouponCode} (-₹${formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)})`}
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-semibold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
-                          Add ₹{formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.shortfallAmount)} more for {welcomeCouponCode}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Smart Comparison Line: Option A vs Option B */}
-                    {(checkoutBreakdown.comparison.welcomeOption.eligible || canRedeemForThisOrder) && (
-                      <div className="pt-1 border-t border-[#EAE2D5] flex flex-col gap-1 text-[10px]">
-                        <div className="flex items-center justify-between text-[#2C2420]">
-                          <span>
-                            {welcomeCouponCode}: <strong className="text-[#70252D]">₹{formatRupeeAmount(checkoutBreakdown.comparison.welcomeOption.discountAmount)} OFF</strong>
-                            {' · '}
-                            Nest Points: <strong className="text-amber-900">₹{formatRupeeAmount(checkoutBreakdown.comparison.nestPointsOption.discountAmount)} OFF</strong>
-                          </span>
-                          <span className="font-semibold text-emerald-800">
-                            {checkoutBreakdown.comparison.recommendationText}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-[#7A6458]">
-                          {checkoutBreakdown.comparison.subtext}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between text-[10px] text-[#7A6458]">
-                    <span className="flex items-center gap-1">
-                      <Gift className="w-3 h-3 text-[#8C7A70]" />
-                      <span>Welcome Offer ({welcomeCouponCode}):</span>
-                    </span>
-                    <span className="font-medium text-[#2C2420]">{customerWelcomeEligibility.reason}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Promo Code & Manual WELCOME10 Entry Module */}
+            {/* Sticky Shipment / Delivery Option Selector: Always Visible Even When Scrolling Cart Items */}
             <div className="p-2 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5] space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-[#2C2420] flex items-center gap-1">
-                  <Tag className="w-3 h-3 text-[#C29E57]" />
-                  <span>Coupon Code (e.g. <span className="font-mono text-[#8C2E46]">{welcomeCouponCode}</span>)</span>
+                <label className="text-[11px] font-bold text-[#2C2420] flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5 text-[#8C2E46]" />
+                  <span>Delivery Option</span>
+                </label>
+                <span className="text-[9.5px] text-[#8C2E46] font-semibold bg-[#FDEAF0] px-2 py-0.5 rounded-full">
+                  {shippingOption === 'india' ? `Courier (+₹${acrossIndiaFee})` : shippingOption === 'sector46' ? 'Complimentary Free' : 'Pickup / Actuals'}
                 </span>
-                {availableCoupons.filter((c) => c.isActive).length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowOffersList(!showOffersList)}
-                    className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <Gift className="w-3 h-3" />
-                    <span>{showOffersList ? 'Hide Offers' : 'View Codes'}</span>
-                  </button>
-                )}
               </div>
-
-              {/* Active Welcome Offer or Promotional Coupon Badge */}
-              {isWelcomeOfferApplied ? (
-                <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
-                      %
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold tracking-wider text-[#70252D] text-[11px]">{welcomeCouponCode}</span>
-                        <span className="text-[9px] bg-[#FDEAF0] text-[#70252D] font-bold px-1.5 py-0.2 rounded border border-[#FAD1DC]">
-                          Welcome {welcomeConfig.discountPercent}% OFF
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-emerald-700 font-medium leading-tight">
-                        Saving ₹{formatRupeeAmount(welcomeDiscount)} on your first order
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleRemoveWelcomeOffer}
-                    className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                    title={`Remove ${welcomeCouponCode}`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : appliedCoupon ? (
-                <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-lg border border-emerald-300 text-xs shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[9px]">
-                      %
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold tracking-wider text-[#2C2420] text-[11px]">{appliedCoupon.code}</span>
-                        {appliedCoupon.isAutomatic && (
-                          <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
-                            Auto
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-emerald-700 font-medium leading-tight">
-                        Saving ₹{formatRupeeAmount(effectiveCouponDiscount)} on this order
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleRemoveCoupon}
-                    className="p-0.5 text-[#8C7A70] hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                    title="Remove coupon"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : null}
-
-              {/* Manual Coupon Input Form */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleApplyCoupon();
-                }}
-                className="flex items-center gap-1.5"
-              >
-                <input
-                  type="text"
-                  value={couponCodeInput}
-                  onChange={(e) => {
-                    setCouponCodeInput(e.target.value.toUpperCase());
-                    setCouponError(null);
-                  }}
-                  placeholder={`Enter Code (e.g. ${welcomeCouponCode})`}
-                  className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
-                />
-                <button
-                  type="submit"
-                  disabled={couponLoading || !couponCodeInput.trim()}
-                  className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {couponLoading ? '...' : 'Apply'}
-                </button>
-              </form>
-
-              {/* Status alerts */}
-              {couponSuccessMessage && (
-                <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-600" />
-                  <span>{couponSuccessMessage}</span>
-                </p>
-              )}
-              {couponError && (
-                <p className="text-[10px] font-medium text-rose-600">
-                  {couponError}
-                </p>
-              )}
-
-              {/* Expandable Offers Picker Drawer */}
-              {showOffersList && (
-                <div className="pt-1.5 border-t border-[#EAE2D5] space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                  {welcomeConfig.enabled && (
-                    <div className="p-2 bg-[#FFF9FB] rounded-lg border border-[#FAD1DC] text-xs space-y-0.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold tracking-wider text-[#70252D] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
-                          {welcomeCouponCode}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (isWelcomeOfferApplied) {
-                              handleRemoveWelcomeOffer();
-                            } else {
-                              handleApplyCoupon(welcomeCouponCode);
-                            }
-                          }}
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                            isWelcomeOfferApplied
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-[#70252D] text-white hover:bg-[#591B22]'
-                          }`}
-                        >
-                          {isWelcomeOfferApplied ? 'Applied ✓' : 'Apply Code'}
-                        </button>
-                      </div>
-                      <p className="text-[11px] text-[#2C2420] font-medium">
-                        {welcomeConfig.offerName} — {welcomeConfig.discountPercent}% OFF First Order (Min ₹{welcomeConfig.minOrderValue}, Max ₹{welcomeConfig.maxDiscount})
-                      </p>
-                    </div>
-                  )}
-                  {availableCoupons
-                    .filter((c) => c.isActive)
-                    .map((coupon) => {
-                      const isCurrent = !isWelcomeOfferApplied && appliedCoupon?.code === coupon.code;
-                      return (
-                        <div
-                          key={coupon.id}
-                          className="p-2 bg-white rounded-lg border border-[#EAE2D5] text-xs space-y-0.5"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
-                              {coupon.code}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isCurrent) {
-                                  handleRemoveCoupon();
-                                } else {
-                                  handleApplyCoupon(coupon.code);
-                                }
-                              }}
-                              className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                                isCurrent
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-[#FAF7F2] text-[#8C2E46] border border-[#FAD1DC] hover:bg-[#8C2E46] hover:text-white'
-                              }`}
-                            >
-                              {isCurrent ? 'Applied ✓' : 'Apply Code'}
-                            </button>
-                          </div>
-                          <p className="text-[11px] text-[#2C2420] font-medium">{coupon.title}</p>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-            </div>
-
-            {/* Compact Nest Points Rewards & Checkout Redemption Bar */}
-            <div className="px-2.5 py-1.5 bg-gradient-to-r from-amber-50/90 to-[#FAF7F2] rounded-xl border border-amber-200/80 space-y-1">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-semibold text-[#2C2420] flex items-center gap-1">
-                  <Award className="w-3.5 h-3.5 text-[#C29E57]" />
-                  {isWelcomeOfferApplied ? (
-                    <span>Nest Points Earned: <strong className="text-[#70252D]">0 pts</strong></span>
-                  ) : (
-                    <span>Nest Points Earned: <strong className="text-amber-900">+{pointsToEarn} pts</strong> (5 pts/₹100 · on delivery)</span>
-                  )}
-                </span>
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
-                  onClick={openLoyaltyModal}
-                  className="text-[10px] font-semibold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-0.5 shrink-0"
+                  onClick={() => setShippingOption('india')}
+                  className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer ${
+                    shippingOption === 'india'
+                      ? 'border-[#8C2E46] bg-white ring-1.5 ring-[#8C2E46] shadow-xs'
+                      : 'border-[#EAE2D5] bg-white/70 hover:bg-white'
+                  }`}
                 >
-                  <Sparkles className="w-3 h-3 text-[#C29E57]" />
-                  <span>Wallet ({pointsBalance} pts)</span>
+                  <span className="text-[10px] font-bold text-[#2C2420] leading-tight">Across India</span>
+                  <span className="text-[9.5px] font-bold text-[#8C2E46]">+₹{acrossIndiaFee}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShippingOption('sector46')}
+                  className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer ${
+                    shippingOption === 'sector46'
+                      ? 'border-[#2E7D46] bg-white ring-1.5 ring-[#2E7D46] shadow-xs'
+                      : 'border-[#EAE2D5] bg-white/70 hover:bg-white'
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-[#2C2420] leading-tight">Sector 46</span>
+                  <span className="text-[9.5px] font-bold text-[#2E7D46] uppercase">Free</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShippingOption('gurgaon')}
+                  className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer ${
+                    shippingOption === 'gurgaon'
+                      ? 'border-[#8C2E46] bg-white ring-1.5 ring-[#8C2E46] shadow-xs'
+                      : 'border-[#EAE2D5] bg-white/70 hover:bg-white'
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-[#2C2420] leading-tight">Rest of GGN</span>
+                  <span className="text-[9px] text-[#7A6458]">Pickup/Act.</span>
                 </button>
               </div>
-
-              {isWelcomeOfferApplied ? (
-                <div className="pt-1 border-t border-amber-200/60 flex items-center justify-between gap-2 text-[10px]">
-                  <span className="text-[#70252D] font-semibold">
-                    Nest Points cannot be earned or redeemed when using the Welcome Offer.
-                  </span>
-                  {canRedeemForThisOrder && (
-                    <button
-                      type="button"
-                      onClick={() => handleSelectNestPointsBenefit(true)}
-                      className="text-[10px] font-bold text-amber-900 underline shrink-0 cursor-pointer"
-                    >
-                      Use Nest Points Instead
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-[11px]">
-                  <span className="text-[#6B5D55]">
-                    Available: <strong className="text-amber-900">{pointsBalance} pts</strong> (₹{formatRupeeAmount(calculatePointsDiscount(pointsBalance))})
-                  </span>
-                  {canRedeemForThisOrder ? (
-                    <label className="flex items-center gap-1.5 cursor-pointer bg-white px-2 py-0.5 rounded-md border border-amber-300 hover:bg-amber-50 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={useLoyaltyPoints && !isWelcomeOfferApplied}
-                        onChange={(e) => handleSelectNestPointsBenefit(e.target.checked)}
-                        className="accent-[#70252D] w-3 h-3 cursor-pointer"
-                      />
-                      <span className="text-[10px] font-bold text-[#70252D]">
-                        {useLoyaltyPoints ? `Applied (-₹${formatRupeeAmount(effectivePointsDiscount)})` : 'Redeem Points'}
-                      </span>
-                    </label>
-                  ) : (
-                    <span className="text-[10px] text-amber-900 font-medium">
-                      Min. {LOYALTY_MIN_REDEMPTION_POINTS} pts to redeem
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
 
-            <div className="space-y-0.5 text-[11px]">
+            <div className="space-y-1 text-xs">
               <div className="flex justify-between text-[#7A6458]">
                 <span>Product Subtotal</span>
                 <span className="font-semibold text-[#2C2420]">₹{formatRupeeAmount(subtotal)}</span>
@@ -2466,47 +2213,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <span className="font-medium">-₹{formatRupeeAmount(catalogSavings)}</span>
                 </div>
               )}
-              {isWelcomeOfferApplied && welcomeDiscount > 0 && (
-                <div className="flex justify-between text-[#70252D] bg-[#FDEAF0] px-1.5 py-0.5 rounded border border-[#FAD1DC] font-semibold">
-                  <span className="flex items-center gap-1">
-                    <Gift className="w-3 h-3 text-[#70252D]" />
-                    <span>Welcome Offer ({welcomeCouponCode} · {welcomeConfig.discountPercent}% OFF)</span>
-                  </span>
-                  <span>-₹{formatRupeeAmount(welcomeDiscount)}</span>
-                </div>
-              )}
-              {!isWelcomeOfferApplied && effectiveCouponDiscount > 0 && (
-                <div className="flex justify-between text-[#8C2E46] font-semibold">
-                  <span className="flex items-center gap-1">
-                    <Tag className="w-3 h-3" />
-                    <span>Coupon ({appliedCoupon?.code || 'Offer'})</span>
-                  </span>
-                  <span>-₹{formatRupeeAmount(effectiveCouponDiscount)}</span>
-                </div>
-              )}
               <div className="flex justify-between text-[#7A6458]">
                 <span className="flex items-center gap-1">
-                  <Award className="w-3 h-3 text-[#A8823B]" />
-                  <span>Nest Points Redeemed</span>
+                  <Truck className="w-3.5 h-3.5 text-[#B83F60]" />
+                  <span>Delivery ({shippingOption === 'india' ? 'Across India' : shippingOption === 'sector46' ? 'Sec 46, Gurgaon' : 'Rest of Gurgaon'})</span>
                 </span>
                 <span className="font-semibold text-[#2C2420]">
-                  {!isWelcomeOfferApplied && pointsToRedeem > 0
-                    ? `${pointsToRedeem} pts (-₹${formatRupeeAmount(effectivePointsDiscount)})`
-                    : '0 pts'}
+                  {shippingCost > 0 ? `+₹${formatRupeeAmount(shippingCost)}` : shippingOption === 'sector46' ? 'FREE' : 'On Actuals / Pickup'}
                 </span>
               </div>
-              <div className="flex justify-between text-[#7A6458]">
-                <span className="flex items-center gap-1">
-                  <Truck className="w-3 h-3 text-[#B83F60]" />
-                  <span>Delivery Charges ({shippingOption === 'india' ? 'Across India' : shippingOption === 'sector46' ? 'Sec 46' : 'Gurgaon'})</span>
-                </span>
-                <span className="font-semibold text-[#2C2420]">
-                  {shippingCost > 0 ? `₹${formatRupeeAmount(shippingCost)}` : shippingOption === 'sector46' ? 'FREE' : 'On Actuals / Pickup'}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs font-bold text-[#2C2420] pt-1 border-t border-[#EAE2D5]">
-                <span>Final Payable Amount</span>
-                <span className="text-sm text-[#8C2E46]">₹{formatRupeeAmount(finalTotal)}</span>
+              <div className="flex justify-between text-xs font-bold text-[#2C2420] pt-1.5 border-t border-[#EAE2D5]">
+                <span>Subtotal</span>
+                <span className="text-sm font-bold text-[#8C2E46]">₹{formatRupeeAmount(subtotal + shippingCost)}</span>
               </div>
             </div>
 
@@ -2516,8 +2234,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               onClick={() => setCheckoutStep('checkout')}
               className="w-full py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
-              <MessageCircle className="w-4 h-4" />
-              <span>Proceed to WhatsApp Checkout (₹{formatRupeeAmount(finalTotal)})</span>
+              <span>Proceed to Checkout</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </motion.button>
           </div>
@@ -2549,12 +2266,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           </motion.div>
         </div>
-      )}
+        )}
+      </AnimatePresence>
       <InvoiceModal
         order={(orders || []).find((o) => o.id === lastOrderDetails?.orderId) || lastOrderDetails?.order || null}
         isOpen={isInvoiceModalOpen}
         onClose={() => setIsInvoiceModalOpen(false)}
       />
-    </AnimatePresence>
+    </>
   );
 };

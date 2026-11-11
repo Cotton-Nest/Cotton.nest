@@ -47,11 +47,11 @@ export const OfferBanner: React.FC<OfferBannerProps> = ({ onOpenCart, className 
             Special Offers
           </span>
 
-          {featuredOffers.map((offer) => {
+          {featuredOffers.map((offer, idx) => {
             const isCopied = copiedCode === offer.code;
             return (
               <div
-                key={offer.id}
+                key={`${offer.id || offer.code || 'offer'}-${idx}`}
                 className="inline-flex items-center gap-2 px-3 py-1 liquid-glass-badge rounded-xl text-[#2C2420] text-xs font-medium"
               >
                 <span>

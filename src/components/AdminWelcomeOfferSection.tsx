@@ -525,13 +525,13 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EAE2D5]">
-                {filteredCustomerRecords.map((rec) => {
+                {filteredCustomerRecords.map((rec, rIdx) => {
                   const orderId = rec.redeemedOrderId || rec.reservedOrderId || '—';
                   const recUid = rec.uid || rec.userId || 'unknown';
                   const recName = rec.name || rec.customerName || 'Cotton Nest Customer';
                   const recCode = rec.couponCode || activeCouponCode;
                   return (
-                    <tr key={recUid} className="hover:bg-[#FAF7F2]/50">
+                    <tr key={`${recUid}-${rIdx}`} className="hover:bg-[#FAF7F2]/50">
                       <td className="py-3 px-4">
                         <p className="font-bold text-[#2C2420]">{recName}</p>
                         <p className="font-mono text-[10px] text-[#7A6458]">UID: {recUid}</p>
@@ -639,7 +639,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EAE2D5]">
-                {filteredOrders.map((order) => {
+                {filteredOrders.map((order, oIdx) => {
                   const bType = resolveOrderBenefit(order);
                   const isWelcome = bType === 'welcome_offer';
                   const welcomeDisc = isWelcome ? Number(order.welcomeDiscount) || 0 : 0;
@@ -648,7 +648,7 @@ export const AdminWelcomeOfferSection: React.FC<AdminWelcomeOfferSectionProps> =
                   const ptsEarned = isWelcome ? 0 : Number(order.pointsEarned) || 0;
 
                   return (
-                    <tr key={order.id} className="hover:bg-[#FAF7F2]/50">
+                    <tr key={`${order.id || 'order'}-${oIdx}`} className="hover:bg-[#FAF7F2]/50">
                       <td className="py-3 px-4">
                         <span className="font-mono font-bold text-[#2C2420]">#{order.id}</span>
                         <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize bg-[#FAF7F2] border border-[#EAE2D5] text-[#6B5D55]">

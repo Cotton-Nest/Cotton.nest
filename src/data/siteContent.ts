@@ -199,7 +199,10 @@ export function normalizeShippingInTerms(rawText?: string): string {
       /🎁\s*\*?LOYALTY REWARDS[\s\S]*?(?=\n\s*💖|$)/i,
       UPDATED_LOYALTY_TC_BLOCK
     );
-  } else if (!normalized.includes('Additional Terms & Conditions for Nest Points Redemption')) {
+  } else if (
+    (!rawText || rawText.length > 200) &&
+    !normalized.includes('Additional Terms & Conditions for Nest Points Redemption')
+  ) {
     normalized = normalized.replace(
       /(?=\n\s*💖|$)/i,
       `\n\n${UPDATED_LOYALTY_TC_BLOCK}\n\n`

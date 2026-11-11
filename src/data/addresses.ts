@@ -30,8 +30,12 @@ export function formatFullAddress(addr: {
   pincode?: string;
 }): string {
   let line = (addr.addressLine || '').trim();
-  const city = (addr.city || 'Gurgaon, Haryana').trim();
-  const pincode = (addr.pincode || '122003').trim();
+  const city = addr.city !== undefined && addr.city !== null ? addr.city.trim() : '';
+  const pincode = addr.pincode !== undefined && addr.pincode !== null ? addr.pincode.trim() : '';
+
+  if (!city && !pincode) {
+    return line;
+  }
 
   // Clean trailing repeated city/pincode if present in addressLine
   line = line.replace(/,\s*Gurgaon,\s*Haryana\s*–\s*122003/gi, '').trim();
@@ -164,6 +168,35 @@ export function getSavedAddresses(
     }
   } catch (err) {
     console.warn('Error reading saved addresses:', err);
+  }
+
+  // Incorporate customerProfile address if provided
+  if (
+    profile?.address &&
+    typeof profile.address === 'string' &&
+    profile.address.trim() &&
+    !isStudioPlaceholderAddress(profile.address)
+  ) {
+    const cleanLine = profile.address.replace(/,\s*Gurgaon,\s*Haryana\s*–\s*122003/gi, '').trim();
+    const cleanCity = (profile as any).city?.trim() || 'Gurgaon, Haryana';
+    const cleanPin = (profile as any).pincode?.trim() || '122003';
+    const normKey = `${cleanLine.toLowerCase().replace(/\s+/g, ' ')}_${cleanCity.toLowerCase()}_${cleanPin}`;
+
+    if (!seenNormAddresses.has(normKey)) {
+      seenNormAddresses.add(normKey);
+      list.push({
+        id: `profile_addr_${profile.id || 'default'}`,
+        label: 'Home',
+        name: profile.name && profile.name !== 'Atelier Guest' ? profile.name : 'Customer',
+        phone: profile.phone || '',
+        addressLine: cleanLine,
+        city: cleanCity,
+        pincode: cleanPin,
+        isDefault: list.length === 0,
+        createdAt: Date.now(),
+        userId: resolvedUserKey || undefined,
+      });
+    }
   }
 
   // Persist cleaned deduplicated list back to storage so duplicates are permanently removed

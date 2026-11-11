@@ -141,13 +141,13 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({
                 </p>
               </div>
             ) : (
-              items.map((item) => {
+              items.map((item, wIdx) => {
                 const daysSaved = Math.max(0, Math.floor((Date.now() - (item.createdAt || Date.now())) / (1000 * 60 * 60 * 24)));
                 const isThreeDays = daysSaved >= 3;
 
                 return (
                 <div
-                  key={item.id}
+                  key={item.id ? `wish-${item.id}-${wIdx}` : `wish-${wIdx}`}
                   className="p-3.5 rounded-2xl border border-[var(--color-border,#EAE2D5)] bg-white shadow-2xs flex gap-3 hover:border-[#DEC89B] transition-colors"
                 >
                   <img

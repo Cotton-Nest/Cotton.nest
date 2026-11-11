@@ -1921,9 +1921,9 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
                     </div>
 
                     <div className="space-y-2.5 max-h-96 overflow-y-auto">
-                      {(selectedCustomer.productsViewed || []).map(prod => (
+                      {(selectedCustomer.productsViewed || []).map((prod, pIdx) => (
                         <div
-                          key={prod.productId}
+                          key={`${prod.productId || 'prod'}_${pIdx}`}
                           className="p-3 rounded-2xl bg-[#FAF7F2] border border-[#EAE2D5] flex items-center justify-between gap-3"
                         >
                           <div className="flex items-center gap-3">
