@@ -28,9 +28,11 @@ import {
   HomepageBanner,
   CAMPAIGN_CATEGORIES,
   computeBannerStatus,
+  formatValidityDate,
 } from '../data/banners';
 import { HomepageCampaignBanner } from './HomepageCampaignBanner';
 import { uploadToCloudinary } from '../services/cloudinary';
+
 
 interface AdminBannersSectionProps {
   banners: HomepageBanner[];
@@ -376,20 +378,18 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                       {banner.subtitle}
                     </p>
 
-                    {/* Schedule Dates */}
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#7A6458] pt-1">
-                      {banner.startDate && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-[#A8823B]" />
-                          Start: {new Date(banner.startDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-                        </span>
-                      )}
-                      {banner.expiryDate && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-rose-600" />
-                          Expires: {new Date(banner.expiryDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-                        </span>
-                      )}
+                    {/* Schedule Dates & Validity Period */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4 text-[11px] text-[#7A6458] pt-1.5 border-t border-[#EAE2D5]/50 mt-1">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Calendar className="w-3.5 h-3.5 text-[#A8823B] shrink-0" />
+                        <span className="font-semibold text-[#2C2420]">VALID FROM:</span>
+                        <span className="font-medium text-[#584438]">{formatValidityDate(banner.startDate)}</span>
+                      </div>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Clock className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        <span className="font-semibold text-[#2C2420]">VALID TO:</span>
+                        <span className="font-medium text-[#584438]">{formatValidityDate(banner.expiryDate)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>

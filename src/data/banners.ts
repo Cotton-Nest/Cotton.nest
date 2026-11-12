@@ -57,6 +57,8 @@ export const INITIAL_BANNERS: HomepageBanner[] = [
     textColor: '#2C2420',
     textAlignment: 'center',
     festiveEffect: 'gold_sparks',
+    startDate: '2026-11-15T10:00',
+    expiryDate: '2026-11-30T23:59',
     priority: 1,
     status: 'active',
     isEnabled: true,
@@ -64,6 +66,34 @@ export const INITIAL_BANNERS: HomepageBanner[] = [
     updatedAt: Date.now(),
   },
 ];
+
+export function formatValidityDate(dateStr?: string | number): string {
+  if (!dateStr) return 'Not Set';
+  
+  let parseable = dateStr;
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateStr) && !dateStr.includes('Z') && !dateStr.includes('+')) {
+    parseable = dateStr.length === 16 ? `${dateStr}:00+05:30` : `${dateStr}+05:30`;
+  }
+
+  const d = new Date(parseable);
+  if (isNaN(d.getTime())) return 'Not Set';
+
+  const dateFormatted = d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  });
+
+  const timeFormatted = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  });
+
+  return `${dateFormatted} · ${timeFormatted} IST`;
+}
 
 export function computeBannerStatus(banner: HomepageBanner, now: Date = new Date()): 'draft' | 'scheduled' | 'active' | 'expired' | 'disabled' {
   if (!banner.isEnabled || banner.status === 'disabled') return 'disabled';
@@ -93,3 +123,4 @@ export function getActiveEligibleBanners(banners: HomepageBanner[], now: Date = 
     .filter((b) => computeBannerStatus(b, now) === 'active')
     .sort((a, b) => (a.priority || 999) - (b.priority || 999));
 }
+

@@ -3290,16 +3290,16 @@
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
       "lastLoginAt": 1794464035977,
-      "lastActiveAt": 1794464224153,
+      "lastActiveAt": 1794470432048,
       "totalSessions": 10,
-      "totalTimeSpentSeconds": 11126,
-      "averageSessionDurationSeconds": 1113,
-      "totalPagesVisited": 31,
+      "totalTimeSpentSeconds": 12382,
+      "averageSessionDurationSeconds": 1238,
+      "totalPagesVisited": 33,
       "pageVisitCounts": {
         "Home Showcase": 10,
         "Admin Analytics": 1,
         "Terms & Privacy Policy": 3,
-        "Bedsheet Catalogue": 15,
+        "Bedsheet Catalogue": 17,
         "Boutique Store Locator": 1,
         "Customer Reviews": 1
       },
@@ -3397,8 +3397,8 @@
         {
           "sessionId": "sess_1794464035977_mrtco",
           "loginAt": 1794464035977,
-          "lastActiveAt": 1794464224153,
-          "durationSeconds": 181,
+          "lastActiveAt": 1794470432048,
+          "durationSeconds": 1437,
           "pagesVisited": [
             "Home Showcase",
             "Bedsheet Catalogue"
@@ -3549,6 +3549,29 @@
         }
       ],
       "timeline": [
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794464035977_mrtco",
+          "timestamp": 1794469152424,
+          "id": "evt_1794469152424_od5bm"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794464035977_mrtco",
+          "timestamp": 1794465474172,
+          "id": "evt_1794465474172_1nrjh"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794464035977_mrtco",
+          "timestamp": 1794464584442,
+          "id": "evt_1794464584442_mm53m"
+        },
         {
           "type": "page_view",
           "label": "Visited Bedsheet Catalogue",
@@ -3994,7 +4017,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794464226833,
+      "updatedAt": 1794470432254,
       "lastLogoutAt": 1794285339677
     }
   },
