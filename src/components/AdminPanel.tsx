@@ -127,6 +127,7 @@ import {
   Link as LinkIcon,
   ZoomIn,
   Mail,
+  Copy,
 } from 'lucide-react';
 
 import { AdminPhotoEnlargeModal } from './AdminPhotoEnlargeModal';
@@ -838,6 +839,59 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
     setDeleteConfirmationProduct(null);
     showToast(`"${target?.name || 'Bedsheet'}" removed from store.`);
+  };
+
+  /* ---------------- DUPLICATE PRODUCT CARD HANDLER ---------------- */
+  const handleDuplicateProduct = async (sourceProduct: BedsheetProduct) => {
+    if (!sourceProduct) return;
+
+    const newId = `prod-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const copyName = sourceProduct.name.includes('(Copy)')
+      ? sourceProduct.name
+      : `${sourceProduct.name} (Copy)`;
+
+    const newSku = generateUniqueProductSku(copyName, editableProducts);
+
+    const duplicatedProduct: BedsheetProduct = {
+      ...sourceProduct,
+      id: newId,
+      sku: newSku,
+      name: copyName,
+      badge: sourceProduct.badge ? `${sourceProduct.badge} (Draft)` : 'Draft',
+      inStock: false, // Safeguard: Saved as DRAFT / INACTIVE product initially
+      stockQuantity: sourceProduct.stockQuantity || 10,
+      cloudinaryPublicId: undefined, // Do not inherit original public ID so replacements don't delete original
+      features: Array.isArray(sourceProduct.features) ? [...sourceProduct.features] : [],
+      additionalImages: Array.isArray(sourceProduct.additionalImages) ? [...sourceProduct.additionalImages] : [],
+      videos: Array.isArray(sourceProduct.videos) ? [...sourceProduct.videos] : [],
+      videoUrl: sourceProduct.videoUrl || '',
+      variants: Array.isArray(sourceProduct.variants)
+        ? sourceProduct.variants.map((v, vIdx) => ({
+            ...v,
+            id: `var-${Date.now()}-${vIdx}-${Math.floor(Math.random() * 1000)}`,
+            sku: undefined,
+          }))
+        : [],
+      updatedAt: Date.now(),
+    };
+
+    // Expand specifications & story editor panel for the new duplicate card so it opens in edit mode
+    setExpandedSpecs((prev) => ({ ...prev, [newId]: true }));
+
+    // Place duplicate card at top of product list (position #1)
+    const updatedList = [duplicatedProduct, ...editableProducts.map((p, idx) => ({ ...p, order: idx + 1 }))];
+    setEditableProducts(updatedList);
+
+    // Save to Firestore and sync parent
+    try {
+      await addProduct(duplicatedProduct);
+      onUpdateProducts(updatedList);
+      showToast(`📋 Duplicated "${sourceProduct.name}" -> Created Draft #${newSku}! Edit details or photo and enable when ready.`);
+    } catch (err: any) {
+      console.warn('Firestore addProduct notice:', err);
+      onUpdateProducts(updatedList);
+      showToast(`📋 Duplicated "${sourceProduct.name}" -> Created Draft #${newSku}!`);
+    }
   };
 
   /* ---------------- DRAG & DROP CARD REORDERING ---------------- */
@@ -3356,6 +3410,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <Tag className="w-3 h-3 text-[#C29E57]" />
                           <span>SKU: {resolveProductPrimarySku(product)}</span>
                         </span>
+
+                        {/* Draft / Inactive Indicator Badge */}
+                        {(!product.inStock || product.name.includes('(Copy)')) && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
+                            <Sparkles className="w-3 h-3 text-amber-600" />
+                            <span>DRAFT / UNPUBLISHED</span>
+                          </span>
+                        )}
+
+                        {/* Duplicate Product Card Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateProduct(product)}
+                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 shadow-2xs hover:scale-105"
+                          title="Copy complete product card details, specifications, and generate a new unique SKU"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-amber-700" />
+                          <span>📋 Duplicate Product</span>
+                        </button>
                       </div>
 
                       {/* 1-Click Move Up / Move Down buttons for mobile and touch accessibility */}
@@ -3572,14 +3645,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </span>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteProduct(product.id)}
-                            className="w-full px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] rounded transition-colors cursor-pointer flex items-center justify-center gap-1"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Delete Sheet</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicateProduct(product)}
+                              className="flex-1 px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-semibold rounded transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                              title="Duplicate complete bedsheet card with a new unique SKU"
+                            >
+                              <Copy className="w-3 h-3 text-amber-700" />
+                              <span>Duplicate</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProduct(product.id)}
+                              className="px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] rounded transition-colors cursor-pointer flex items-center justify-center gap-1"
+                              title="Delete sheet"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
 
