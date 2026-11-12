@@ -135,10 +135,55 @@ import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone,
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>('home');
+  const [activeTabRaw, setActiveTabRaw] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>('home');
   const [trafficData, setTrafficData] = useState<SiteTrafficData>(() => getStoredTraffic());
   const [selectedProduct, setSelectedProduct] = useState<BedsheetProduct | null>(null);
   const [isProductModalEditMode, setIsProductModalEditMode] = useState<boolean>(false);
+  const [isProductLightboxOpen, setIsProductLightboxOpen] = useState<boolean>(false);
+  const [externalCloseLightboxTrigger, setExternalCloseLightboxTrigger] = useState<number>(0);
+
+  // --- Global Mobile Back Button Navigation Memory & Refs ---
+  const tabHistoryRef = useRef<Array<{ tab: string; scrollY: number }>>([]);
+  const scrollPositionsRef = useRef<Record<string, number>>({});
+  const ignoreNextPopstateRef = useRef<boolean>(false);
+  const isHandlingPopstateRef = useRef<boolean>(false);
+
+  const activeTabRef = useRef(activeTabRaw);
+  activeTabRef.current = activeTabRaw;
+
+  // Smart Tab Navigation with Scroll Position Memory and History Stack
+  const navigateToTab = React.useCallback((
+    newTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics',
+    shouldPushHistory: boolean = true
+  ) => {
+    if (newTab === activeTabRef.current) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    scrollPositionsRef.current[activeTabRef.current] = window.scrollY;
+
+    if (shouldPushHistory) {
+      const last = tabHistoryRef.current[tabHistoryRef.current.length - 1];
+      if (!last || last.tab !== activeTabRef.current) {
+        tabHistoryRef.current.push({ tab: activeTabRef.current, scrollY: window.scrollY });
+      }
+      window.history.pushState({ cn_nav_tab: newTab }, '', `#${newTab}`);
+    }
+
+    setActiveTabRaw(newTab);
+    setTimeout(() => {
+      const savedScroll = scrollPositionsRef.current[newTab] || 0;
+      window.scrollTo({ top: savedScroll, behavior: 'instant' });
+    }, 0);
+  }, []);
+
+  const setActiveTab = React.useCallback((tabOrFn: any) => {
+    const nextTab = typeof tabOrFn === 'function' ? tabOrFn(activeTabRef.current) : tabOrFn;
+    navigateToTab(nextTab, true);
+  }, [navigateToTab]);
+
+  const activeTab = activeTabRaw;
 
   const handleOpenProductModal = (product: BedsheetProduct, editMode: boolean = false) => {
     setSelectedProduct(product);
@@ -878,6 +923,211 @@ export default function App() {
   };
 
   const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
+
+  // --- Synchronized Overlay Navigation Engine ---
+  const isProductLightboxOpenRef = useRef(isProductLightboxOpen);
+  const isWriteReviewOpenRef = useRef(isWriteReviewOpen);
+  const stockAlertProductRef = useRef(stockAlertProduct);
+  const isPhotoManagerOpenRef = useRef(isPhotoManagerOpen);
+  const isCustomerModalOpenRef = useRef(isCustomerModalOpen);
+  const isCompareModalOpenRef = useRef(isCompareModalOpen);
+  const selectedProductRef = useRef(selectedProduct);
+  const isCartOpenRef = useRef(isCartOpen);
+  const isWishlistOpenRef = useRef(isWishlistOpen);
+  const isAccountModalOpenRef = useRef(isAccountModalOpen);
+  const isNotificationCenterOpenRef = useRef(isNotificationCenterOpen);
+  const isLoyaltyModalOpenRef = useRef(isLoyaltyModalOpen);
+  const isWelcomeOfferModalOpenRef = useRef(isWelcomeOfferModalOpen);
+  const isAuthModalOpenRef = useRef(isAuthModalOpen);
+  const isOwnerAuthOpenRef = useRef(isOwnerAuthOpen);
+
+  useEffect(() => {
+    isProductLightboxOpenRef.current = isProductLightboxOpen;
+    isWriteReviewOpenRef.current = isWriteReviewOpen;
+    stockAlertProductRef.current = stockAlertProduct;
+    isPhotoManagerOpenRef.current = isPhotoManagerOpen;
+    isCustomerModalOpenRef.current = isCustomerModalOpen;
+    isCompareModalOpenRef.current = isCompareModalOpen;
+    selectedProductRef.current = selectedProduct;
+    isCartOpenRef.current = isCartOpen;
+    isWishlistOpenRef.current = isWishlistOpen;
+    isAccountModalOpenRef.current = isAccountModalOpen;
+    isNotificationCenterOpenRef.current = isNotificationCenterOpen;
+    isLoyaltyModalOpenRef.current = isLoyaltyModalOpen;
+    isWelcomeOfferModalOpenRef.current = isWelcomeOfferModalOpen;
+    isAuthModalOpenRef.current = isAuthModalOpen;
+    isOwnerAuthOpenRef.current = isOwnerAuthOpen;
+    isAdminOpenRef.current = isAdminOpen;
+  });
+
+  // Global PopState Listener (Android Hardware Back, Browser Back & Swipe-Back Gestures)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (ignoreNextPopstateRef.current) {
+        ignoreNextPopstateRef.current = false;
+        return;
+      }
+
+      isHandlingPopstateRef.current = true;
+
+      try {
+        // Level 1: Fullscreen Image Lightbox
+        if (isProductLightboxOpenRef.current) {
+          setExternalCloseLightboxTrigger(Date.now());
+          setIsProductLightboxOpen(false);
+          return;
+        }
+
+        // Level 2: Secondary Sub-modals
+        if (isWriteReviewOpenRef.current) {
+          setIsWriteReviewOpen(false);
+          return;
+        }
+        if (stockAlertProductRef.current) {
+          setStockAlertProduct(null);
+          return;
+        }
+        if (isPhotoManagerOpenRef.current) {
+          setIsPhotoManagerOpen(false);
+          return;
+        }
+        if (isCustomerModalOpenRef.current) {
+          setIsCustomerModalOpen(false);
+          return;
+        }
+        if (isCompareModalOpenRef.current) {
+          setIsCompareModalOpen(false);
+          return;
+        }
+
+        // Level 3: Product Detail View
+        if (selectedProductRef.current) {
+          setSelectedProduct(null);
+          return;
+        }
+
+        // Level 4: Primary Drawers & Modals
+        if (isCartOpenRef.current) {
+          setIsCartOpen(false);
+          return;
+        }
+        if (isWishlistOpenRef.current) {
+          setIsWishlistOpen(false);
+          return;
+        }
+        if (isAccountModalOpenRef.current) {
+          setIsAccountModalOpen(false);
+          return;
+        }
+        if (isNotificationCenterOpenRef.current) {
+          setIsNotificationCenterOpen(false);
+          return;
+        }
+        if (isLoyaltyModalOpenRef.current) {
+          closeLoyaltyModal();
+          return;
+        }
+        if (isWelcomeOfferModalOpenRef.current) {
+          setIsWelcomeOfferModalOpen(false);
+          return;
+        }
+        if (isAuthModalOpenRef.current) {
+          setIsAuthModalOpen(false);
+          return;
+        }
+        if (isOwnerAuthOpenRef.current) {
+          setIsOwnerAuthOpen(false);
+          return;
+        }
+        if (isAdminOpenRef.current) {
+          setIsAdminOpen(false);
+          return;
+        }
+
+        // Level 5: Page / Tab Navigation History
+        if (tabHistoryRef.current.length > 0) {
+          const prev = tabHistoryRef.current.pop();
+          if (prev && prev.tab !== activeTabRef.current) {
+            scrollPositionsRef.current[activeTabRef.current] = window.scrollY;
+            setActiveTabRaw(prev.tab as any);
+            setTimeout(() => {
+              window.scrollTo({ top: prev.scrollY || 0, behavior: 'instant' });
+            }, 0);
+          }
+        }
+      } finally {
+        setTimeout(() => {
+          isHandlingPopstateRef.current = false;
+        }, 50);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [closeLoyaltyModal]);
+
+  // Automatic pushState and programmatic close watcher
+  const prevOverlaysRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const currentOverlays = {
+      lightbox: isProductLightboxOpen,
+      review: isWriteReviewOpen,
+      stockAlert: Boolean(stockAlertProduct),
+      photoManager: isPhotoManagerOpen,
+      customerModal: isCustomerModalOpen,
+      compareModal: isCompareModalOpen,
+      productModal: Boolean(selectedProduct),
+      cart: isCartOpen,
+      wishlist: isWishlistOpen,
+      account: isAccountModalOpen,
+      notification: isNotificationCenterOpen,
+      loyalty: isLoyaltyModalOpen,
+      welcomeOffer: isWelcomeOfferModalOpen,
+      auth: isAuthModalOpen,
+      ownerAuth: isOwnerAuthOpen,
+      admin: isAdminOpen,
+    };
+
+    let newlyOpened = false;
+    for (const [k, v] of Object.entries(currentOverlays)) {
+      if (v && !prevOverlaysRef.current[k]) {
+        newlyOpened = true;
+        break;
+      }
+    }
+
+    if (newlyOpened && !isHandlingPopstateRef.current) {
+      window.history.pushState({ cn_nav_overlay: true }, '', window.location.href);
+    }
+
+    const anyOpenNow = Object.values(currentOverlays).some(Boolean);
+    const anyOpenBefore = Object.values(prevOverlaysRef.current).some(Boolean);
+
+    if (!anyOpenNow && anyOpenBefore && !isHandlingPopstateRef.current && window.history.state?.cn_nav_overlay) {
+      ignoreNextPopstateRef.current = true;
+      window.history.back();
+    }
+
+    prevOverlaysRef.current = currentOverlays;
+  }, [
+    isProductLightboxOpen,
+    isWriteReviewOpen,
+    stockAlertProduct,
+    isPhotoManagerOpen,
+    isCustomerModalOpen,
+    isCompareModalOpen,
+    selectedProduct,
+    isCartOpen,
+    isWishlistOpen,
+    isAccountModalOpen,
+    isNotificationCenterOpen,
+    isLoyaltyModalOpen,
+    isWelcomeOfferModalOpen,
+    isAuthModalOpen,
+    isOwnerAuthOpen,
+    isAdminOpen,
+  ]);
 
   // Chrome-style "Allow Notifications" prompt state
   const [showChromePushPrompt, setShowChromePushPrompt] = useState<boolean>(false);
@@ -2355,6 +2605,8 @@ export default function App() {
               setActiveTab('tc');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
+            onLightboxChange={(isOpen) => setIsProductLightboxOpen(isOpen)}
+            externalCloseLightboxTrigger={externalCloseLightboxTrigger}
           />
 
           {/* Write Review & Comment Modal */}

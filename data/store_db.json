@@ -2894,7 +2894,7 @@
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794368642653
+      "updatedAt": 1794464046775
     },
     "email_saurabh.451485@gmail.com": {
       "id": "email_saurabh.451485@gmail.com",
@@ -2908,7 +2908,7 @@
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794368642815
+      "updatedAt": 1794464046934
     },
     "y1rxtxbslayv453hafazltb2ion1": {
       "id": "y1rxtxbslayv453hafazltb2ion1",
@@ -2964,7 +2964,7 @@
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794368643007
+      "updatedAt": 1794464047165
     }
   },
   "loyaltyTransactions": [
@@ -3289,34 +3289,85 @@
       "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
-      "lastLoginAt": 1794368636648,
-      "lastActiveAt": 1794368636648,
-      "totalSessions": 5,
-      "totalTimeSpentSeconds": 5519,
-      "averageSessionDurationSeconds": 1380,
-      "totalPagesVisited": 10,
+      "lastLoginAt": 1794464035977,
+      "lastActiveAt": 1794464224153,
+      "totalSessions": 10,
+      "totalTimeSpentSeconds": 11126,
+      "averageSessionDurationSeconds": 1113,
+      "totalPagesVisited": 31,
       "pageVisitCounts": {
-        "Home Showcase": 4,
+        "Home Showcase": 10,
         "Admin Analytics": 1,
-        "Terms & Privacy Policy": 2,
-        "Bedsheet Catalogue": 3
+        "Terms & Privacy Policy": 3,
+        "Bedsheet Catalogue": 15,
+        "Boutique Store Locator": 1,
+        "Customer Reviews": 1
       },
-      "mostVisitedPage": "Home Showcase",
-      "totalProductViews": 0,
-      "productsViewed": [],
-      "totalAddedToCartCount": 0,
-      "cartActivity": [],
-      "totalAddedToWishlistCount": 1,
-      "currentWishlist": [
+      "mostVisitedPage": "Bedsheet Catalogue",
+      "totalProductViews": 8,
+      "productsViewed": [
+        {
+          "productId": "bedsheet-mw6kryfg",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794113229/cotton_nest/bedsheets/sheet_bedsheet-mw6kryfg_1794113227.jpg",
+          "productPrice": 1350,
+          "collection": "Nandani",
+          "viewCount": 2,
+          "firstViewedAt": 1794395891008,
+          "lastViewedAt": 1794407909905
+        },
+        {
+          "productId": "bedsheet-mw94wuka",
+          "productName": "Milky White",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794221106/cotton_nest/bedsheets/sheet_bedsheet-mw94wuka_1794221106.jpg",
+          "productPrice": 1200,
+          "collection": "Signature Collection",
+          "viewCount": 3,
+          "firstViewedAt": 1794396040163,
+          "lastViewedAt": 1794396135987
+        },
         {
           "productId": "bedsheet-mw6ks1ic",
           "productName": "Nandani",
           "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794066452/cotton_nest/bedsheets/sheet_bedsheet-mw6ks1ic_1794066452.jpg",
           "productPrice": 1350,
-          "addedAt": 1794155434713,
-          "currentlyInWishlist": true
+          "collection": "Nandani",
+          "viewCount": 1,
+          "firstViewedAt": 1794396125442,
+          "lastViewedAt": 1794396125442
+        },
+        {
+          "productId": "bedsheet-mw6kgnvx",
+          "productName": "Chunri Patch",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794065812/cotton_nest/bedsheets/sheet_bedsheet-mw6kgnvx_1794065812.jpg",
+          "productPrice": 1200,
+          "collection": "Chunri",
+          "viewCount": 2,
+          "firstViewedAt": 1794396109239,
+          "lastViewedAt": 1794396115406
         }
       ],
+      "totalAddedToCartCount": 2,
+      "cartActivity": [
+        {
+          "productId": "bedsheet-mw6ks1ic",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794066452/cotton_nest/bedsheets/sheet_bedsheet-mw6ks1ic_1794066452.jpg",
+          "productPrice": 1350,
+          "quantity": 1,
+          "addedAt": 1794395925396
+        },
+        {
+          "productId": "bedsheet-mw94wuka",
+          "productName": "Milky White",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794221106/cotton_nest/bedsheets/sheet_bedsheet-mw94wuka_1794221106.jpg",
+          "productPrice": 1200,
+          "quantity": 1,
+          "addedAt": 1794372571048
+        }
+      ],
+      "totalAddedToWishlistCount": 1,
+      "currentWishlist": [],
       "historicalWishlist": [
         {
           "productId": "bedsheet-mw6ks1ic",
@@ -3324,7 +3375,8 @@
           "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794066452/cotton_nest/bedsheets/sheet_bedsheet-mw6ks1ic_1794066452.jpg",
           "productPrice": 1350,
           "addedAt": 1794155434713,
-          "currentlyInWishlist": true
+          "currentlyInWishlist": false,
+          "removedAt": 1794395925397
         }
       ],
       "totalSearches": 0,
@@ -3343,12 +3395,89 @@
       },
       "sessions": [
         {
-          "sessionId": "sess_1794368636648_92zva",
-          "loginAt": 1794368636648,
-          "lastActiveAt": 1794368636648,
-          "durationSeconds": 0,
+          "sessionId": "sess_1794464035977_mrtco",
+          "loginAt": 1794464035977,
+          "lastActiveAt": 1794464224153,
+          "durationSeconds": 181,
+          "pagesVisited": [
+            "Home Showcase",
+            "Bedsheet Catalogue"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794451841882_9xc2z",
+          "loginAt": 1794451841882,
+          "lastActiveAt": 1794453099454,
+          "durationSeconds": 616,
           "pagesVisited": [
             "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794407854650_cx04z",
+          "loginAt": 1794407854650,
+          "lastActiveAt": 1794409237535,
+          "durationSeconds": 778,
+          "pagesVisited": [
+            "Home Showcase",
+            "Bedsheet Catalogue"
+          ],
+          "productsViewedCount": 1,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794399156309_8qtbd",
+          "loginAt": 1794399156309,
+          "lastActiveAt": 1794399477740,
+          "durationSeconds": 310,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794393570834_q5zlv",
+          "loginAt": 1794393570834,
+          "lastActiveAt": 1794397339193,
+          "durationSeconds": 1829,
+          "pagesVisited": [
+            "Home Showcase",
+            "Bedsheet Catalogue",
+            "Terms & Privacy Policy",
+            "Customer Reviews"
+          ],
+          "productsViewedCount": 7,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794368636648_92zva",
+          "loginAt": 1794368636648,
+          "lastActiveAt": 1794375738478,
+          "durationSeconds": 1893,
+          "pagesVisited": [
+            "Home Showcase",
+            "Boutique Store Locator",
+            "Bedsheet Catalogue"
           ],
           "productsViewedCount": 0,
           "deviceType": "Desktop",
@@ -3420,6 +3549,332 @@
         }
       ],
       "timeline": [
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794464035977_mrtco",
+          "timestamp": 1794464120502,
+          "id": "evt_1794464120502_ux3de"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794464035977_mrtco",
+          "timestamp": 1794464035977,
+          "id": "evt_1794464035977_6lnez"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794451841882_9xc2z",
+          "timestamp": 1794453099337,
+          "id": "evt_1794453099337_mq4fj"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794451841882_9xc2z",
+          "timestamp": 1794451841882,
+          "id": "evt_1794451841882_9nxxk"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794407854650_cx04z",
+          "timestamp": 1794409236924,
+          "id": "evt_1794409236924_by30z"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794407854650_cx04z",
+          "timestamp": 1794409054726,
+          "id": "evt_1794409054726_jqgd5"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794407854650_cx04z",
+          "timestamp": 1794408230701,
+          "id": "evt_1794408230701_6gm3y"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed Nandani",
+          "productId": "bedsheet-mw6kryfg",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794113229/cotton_nest/bedsheets/sheet_bedsheet-mw6kryfg_1794113227.jpg",
+          "productPrice": 1350,
+          "sessionId": "sess_1794407854650_cx04z",
+          "timestamp": 1794407909905,
+          "id": "evt_1794407909905_zwfb8"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794407854650_cx04z",
+          "timestamp": 1794407854650,
+          "id": "evt_1794407854650_whjzm"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794399156309_8qtbd",
+          "timestamp": 1794399477667,
+          "id": "evt_1794399477667_tjyce"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794399156309_8qtbd",
+          "timestamp": 1794399156309,
+          "id": "evt_1794399156309_fzoej"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794397339063,
+          "id": "evt_1794397339063_r0ipc"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794397267302,
+          "id": "evt_1794397267302_l7e9n"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794396681857,
+          "id": "evt_1794396681857_x9fv1"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794396210346,
+          "id": "evt_1794396210346_2giua"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed Milky White",
+          "productId": "bedsheet-mw94wuka",
+          "productName": "Milky White",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794221106/cotton_nest/bedsheets/sheet_bedsheet-mw94wuka_1794221106.jpg",
+          "productPrice": 1200,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794396135987,
+          "id": "evt_1794396135987_bk34n"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed Nandani",
+          "productId": "bedsheet-mw6ks1ic",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794066452/cotton_nest/bedsheets/sheet_bedsheet-mw6ks1ic_1794066452.jpg",
+          "productPrice": 1350,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794396125442,
+          "id": "evt_1794396125442_hp054"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed Milky White",
+          "productId": "bedsheet-mw94wuka",
+          "productName": "Milky White",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794221106/cotton_nest/bedsheets/sheet_bedsheet-mw94wuka_1794221106.jpg",
+          "productPrice": 1200,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794396122188,
+          "id": "evt_1794396122188_afgps"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed Chunri Patch",
+          "productId": "bedsheet-mw6kgnvx",
+          "productName": "Chunri Patch",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794065812/cotton_nest/bedsheets/sheet_bedsheet-mw6kgnvx_1794065812.jpg",
+          "productPrice": 1200,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794396115406,
+          "id": "evt_1794396115406_q3rr2"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed Chunri Patch",
+          "productId": "bedsheet-mw6kgnvx",
+          "productName": "Chunri Patch",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794065812/cotton_nest/bedsheets/sheet_bedsheet-mw6kgnvx_1794065812.jpg",
+          "productPrice": 1200,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794396109239,
+          "id": "evt_1794396109239_xfz4d"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed Milky White",
+          "productId": "bedsheet-mw94wuka",
+          "productName": "Milky White",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794221106/cotton_nest/bedsheets/sheet_bedsheet-mw94wuka_1794221106.jpg",
+          "productPrice": 1200,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794396040163,
+          "id": "evt_1794396040163_87ui5"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395978990,
+          "id": "evt_1794395978990_sj5zb"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Home Showcase",
+          "page": "Home Showcase",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395968146,
+          "id": "evt_1794395968146_ofses"
+        },
+        {
+          "type": "wishlist_remove",
+          "label": "Removed Nandani from Wishlist",
+          "productId": "bedsheet-mw6ks1ic",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794066452/cotton_nest/bedsheets/sheet_bedsheet-mw6ks1ic_1794066452.jpg",
+          "productPrice": 1350,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395925397,
+          "id": "evt_1794395925397_51kkl"
+        },
+        {
+          "type": "cart_add",
+          "label": "Added Nandani to cart",
+          "productId": "bedsheet-mw6ks1ic",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794066452/cotton_nest/bedsheets/sheet_bedsheet-mw6ks1ic_1794066452.jpg",
+          "productPrice": 1350,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395925396,
+          "id": "evt_1794395925396_m62ol"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Customer Reviews",
+          "page": "Customer Reviews",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395914647,
+          "id": "evt_1794395914647_3g5f5"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395913068,
+          "id": "evt_1794395913068_93yo5"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Terms & Privacy Policy",
+          "page": "Terms & Privacy Policy",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395904720,
+          "id": "evt_1794395904720_o27mn"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed Nandani",
+          "productId": "bedsheet-mw6kryfg",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794113229/cotton_nest/bedsheets/sheet_bedsheet-mw6kryfg_1794113227.jpg",
+          "productPrice": 1350,
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395891008,
+          "id": "evt_1794395891008_8xslc"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395655523,
+          "id": "evt_1794395655523_yd0o7"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794395296438,
+          "id": "evt_1794395296438_9qgxd"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794393570834_q5zlv",
+          "timestamp": 1794393570834,
+          "id": "evt_1794393570834_kvolu"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794368636648_92zva",
+          "timestamp": 1794375738188,
+          "id": "evt_1794375738188_6zafj"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794368636648_92zva",
+          "timestamp": 1794375492685,
+          "id": "evt_1794375492685_n2dx2"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794368636648_92zva",
+          "timestamp": 1794375201511,
+          "id": "evt_1794375201511_3wisq"
+        },
+        {
+          "type": "cart_add",
+          "label": "Added Milky White to cart",
+          "productId": "bedsheet-mw94wuka",
+          "productName": "Milky White",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794221106/cotton_nest/bedsheets/sheet_bedsheet-mw94wuka_1794221106.jpg",
+          "productPrice": 1200,
+          "sessionId": "sess_1794368636648_92zva",
+          "timestamp": 1794372571048,
+          "id": "evt_1794372571048_ksrvv"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794368636648_92zva",
+          "timestamp": 1794372567872,
+          "id": "evt_1794372567872_afy8t"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Boutique Store Locator",
+          "page": "Boutique Store Locator",
+          "sessionId": "sess_1794368636648_92zva",
+          "timestamp": 1794368898402,
+          "id": "evt_1794368898402_y753b"
+        },
         {
           "type": "login",
           "label": "User signed in (Google Chrome on Windows 10/11)",
@@ -3539,7 +3994,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794368702396,
+      "updatedAt": 1794464226833,
       "lastLogoutAt": 1794285339677
     }
   },
@@ -3569,5 +4024,26 @@
     "CN-HERITA-108K",
     "CN-BATIK-108K",
     "CN-BLUE-ROSE-108K"
-  ]
+  ],
+  "welcomeOfferConfig": {
+    "enabled": true,
+    "offerName": "Welcome to Cotton Nest",
+    "couponCode": "WELCOME10",
+    "discountPercentage": 10,
+    "discountPercent": 10,
+    "minOrderValue": 1299,
+    "maxDiscountAmount": 200,
+    "maxDiscount": 200,
+    "updatedAt": 1794464025224
+  },
+  "welcomeOfferRedemptions": {
+    "ipMjoZQzuvg9Xdj8uylIwSwaUuC3": {
+      "uid": "ipMjoZQzuvg9Xdj8uylIwSwaUuC3",
+      "email": "saurabh.451485@gmail.com",
+      "phone": "7838625915",
+      "authProvider": "google",
+      "status": "ineligible_existing_customer",
+      "updatedAt": 1794464044894
+    }
+  }
 }

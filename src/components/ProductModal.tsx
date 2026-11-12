@@ -31,6 +31,8 @@ interface ProductModalProps {
   isCompared?: boolean;
   onNotifyStock?: (product: BedsheetProduct) => void;
   shippingFee?: number;
+  onLightboxChange?: (isOpen: boolean) => void;
+  externalCloseLightboxTrigger?: number;
 }
 
 export const ProductModal: React.FC<ProductModalProps> = ({
@@ -52,6 +54,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   isCompared = false,
   onNotifyStock,
   shippingFee = 29,
+  onLightboxChange,
+  externalCloseLightboxTrigger,
 }) => {
   const { user } = useAuth();
   const [quantity, setQuantity] = React.useState(1);
@@ -87,6 +91,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [videoUrlInput, setVideoUrlInput] = React.useState('');
   const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
   const [lightboxIndex, setLightboxIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    onLightboxChange?.(isLightboxOpen);
+  }, [isLightboxOpen, onLightboxChange]);
+
+  React.useEffect(() => {
+    if (externalCloseLightboxTrigger) {
+      setIsLightboxOpen(false);
+    }
+  }, [externalCloseLightboxTrigger]);
 
   React.useEffect(() => {
     getCouponsApi()
