@@ -3555,9 +3555,11 @@ export async function saveBannerApi(banner: HomepageBanner): Promise<HomepageBan
   try {
     await setDoc(doc(db, 'banners', cleanBanner.id), cleanBanner, { merge: true });
   } catch (err) {
+    console.error(`Firebase error saving banner ${cleanBanner.id}:`, err);
     try {
       handleFirestoreError(err, OperationType.WRITE, `banners/${cleanBanner.id}`);
     } catch {}
+    throw err;
   }
 
   try {
@@ -3565,6 +3567,44 @@ export async function saveBannerApi(banner: HomepageBanner): Promise<HomepageBan
   } catch {}
 
   return cleanBanner;
+}
+
+export async function updateBannerEnabledApi(bannerId: string, isEnabled: boolean): Promise<void> {
+  const updatedAt = Date.now();
+
+  try {
+    const cached = localStorage.getItem('cotton_nest_banners');
+    if (cached) {
+      const list: HomepageBanner[] = JSON.parse(cached);
+      const nextList = list.map((b) => {
+        if (b.id === bannerId) {
+          return {
+            ...b,
+            isEnabled,
+            status: isEnabled && b.status === 'disabled' ? 'active' : b.status,
+            updatedAt,
+          };
+        }
+        return b;
+      });
+      localStorage.setItem('cotton_nest_banners', JSON.stringify(nextList));
+    }
+  } catch {}
+
+  try {
+    const docRef = doc(db, 'banners', bannerId);
+    await setDoc(docRef, { isEnabled, updatedAt }, { merge: true });
+  } catch (err) {
+    console.error(`Firebase error updating banner enabled status for ${bannerId}:`, err);
+    try {
+      handleFirestoreError(err, OperationType.WRITE, `banners/${bannerId}`);
+    } catch {}
+    throw err;
+  }
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-banners-updated'));
+  } catch {}
 }
 
 export async function deleteBannerApi(bannerId: string): Promise<void> {

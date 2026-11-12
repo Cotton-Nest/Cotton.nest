@@ -58,12 +58,16 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
   const [isUploadingMobile, setIsUploadingMobile] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
+  const [togglingBannerId, setTogglingBannerId] = useState<string | null>(null);
+  const [isSavingEditor, setIsSavingEditor] = useState(false);
+
   // Stats calculation
   const now = new Date();
   const totalBanners = banners.length;
   const activeCount = banners.filter((b) => computeBannerStatus(b, now) === 'active').length;
   const scheduledCount = banners.filter((b) => computeBannerStatus(b, now) === 'scheduled').length;
   const expiredCount = banners.filter((b) => computeBannerStatus(b, now) === 'expired').length;
+  const disabledCount = banners.filter((b) => computeBannerStatus(b, now) === 'disabled').length;
   const draftCount = banners.filter((b) => computeBannerStatus(b, now) === 'draft').length;
 
   const filteredBanners = banners.filter((banner) => {
@@ -105,26 +109,50 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
   };
 
   const handleSaveEditor = async () => {
-    if (!editingBanner) return;
-    const bannerToSave = {
-      ...editingBanner,
-      updatedAt: Date.now(),
-    };
-    await onSaveBanner(bannerToSave);
-    setIsEditorOpen(false);
-    setEditingBanner(null);
-    setSaveSuccessMsg(`Campaign "${bannerToSave.campaignName}" saved successfully!`);
-    setTimeout(() => setSaveSuccessMsg(null), 3000);
+    if (!editingBanner || isSavingEditor) return;
+    setIsSavingEditor(true);
+    try {
+      const bannerToSave = {
+        ...editingBanner,
+        updatedAt: Date.now(),
+      };
+      await onSaveBanner(bannerToSave);
+      setIsEditorOpen(false);
+      setEditingBanner(null);
+      setSaveSuccessMsg(`Campaign "${bannerToSave.campaignName}" saved successfully!`);
+      setTimeout(() => setSaveSuccessMsg(null), 3500);
+    } catch (err: any) {
+      alert(`Failed to save campaign in Firebase: ${err?.message || 'Error occurred'}`);
+    } finally {
+      setIsSavingEditor(false);
+    }
   };
 
   const handleToggleEnable = async (banner: HomepageBanner) => {
-    const updated = {
+    if (togglingBannerId) return;
+    setTogglingBannerId(banner.id);
+
+    const nextIsEnabled = !banner.isEnabled;
+    const nextStatus = nextIsEnabled && banner.status === 'disabled' ? 'active' : banner.status;
+
+    const updated: HomepageBanner = {
       ...banner,
-      isEnabled: !banner.isEnabled,
-      status: (!banner.isEnabled ? 'active' : 'disabled') as any,
+      isEnabled: nextIsEnabled,
+      status: nextStatus,
       updatedAt: Date.now(),
     };
-    await onSaveBanner(updated);
+
+    try {
+      await onSaveBanner(updated);
+      setSaveSuccessMsg(
+        `Campaign "${banner.campaignName}" is now ${nextIsEnabled ? 'ENABLED' : 'DISABLED'}.`
+      );
+      setTimeout(() => setSaveSuccessMsg(null), 3500);
+    } catch (err: any) {
+      alert(`Failed to update campaign in Firebase: ${err?.message || 'Error saving changes'}`);
+    } finally {
+      setTogglingBannerId(null);
+    }
   };
 
   const handleDesktopImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,7 +254,7 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
         </div>
         <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200 shadow-xs col-span-2 sm:col-span-1">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">Expired / Disabled</p>
-          <p className="font-serif text-2xl font-bold text-rose-800 mt-1">{expiredCount}</p>
+          <p className="font-serif text-2xl font-bold text-rose-800 mt-1">{expiredCount + disabledCount}</p>
         </div>
       </div>
 
@@ -388,14 +416,30 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                   {/* Enable Switch */}
                   <button
                     type="button"
+                    disabled={togglingBannerId === banner.id}
                     onClick={() => handleToggleEnable(banner)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
                       banner.isEnabled
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-emerald-400'
+                        : 'bg-slate-200 hover:bg-slate-300 text-slate-700 border border-slate-300 disabled:bg-slate-100'
                     }`}
+                    title={banner.isEnabled ? 'Click to Disable Campaign' : 'Click to Enable Campaign'}
                   >
-                    <span>{banner.isEnabled ? 'Enabled' : 'Disabled'}</span>
+                    {togglingBannerId === banner.id ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-current" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        {banner.isEnabled ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        ) : (
+                          <X className="w-3.5 h-3.5 text-slate-500" />
+                        )}
+                        <span>{banner.isEnabled ? 'Enabled' : 'Disabled'}</span>
+                      </>
+                    )}
                   </button>
 
                   {/* Preview Button */}
@@ -837,8 +881,33 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                   <option value="active">Active / Published</option>
                   <option value="scheduled">Scheduled</option>
                   <option value="draft">Draft</option>
-                  <option value="disabled">Disabled</option>
                 </select>
+              </div>
+
+              {/* Enable / Disable State */}
+              <div className="space-y-1">
+                <label className="font-semibold text-[#2C2420]">Campaign Enabled Switch</label>
+                <button
+                  type="button"
+                  onClick={() => setEditingBanner({ ...editingBanner, isEnabled: !editingBanner.isEnabled })}
+                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    editingBanner.isEnabled
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700 border border-slate-300'
+                  }`}
+                >
+                  {editingBanner.isEnabled ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-white" />
+                      <span>Campaign is ENABLED</span>
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4 text-slate-500" />
+                      <span>Campaign is DISABLED</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Start Date */}
@@ -853,7 +922,7 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
               </div>
 
               {/* Expiry Date */}
-              <div className="space-y-1">
+              <div className="space-y-1 md:col-span-2">
                 <label className="font-semibold text-[#2C2420]">Schedule Expiry Date & Time (IST)</label>
                 <input
                   type="datetime-local"
@@ -889,11 +958,21 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={isSavingEditor}
                   onClick={handleSaveEditor}
-                  className="px-6 py-2.5 rounded-xl bg-[#70252D] hover:bg-[#581C23] text-white text-xs font-semibold shadow-md flex items-center gap-1.5 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-[#70252D] hover:bg-[#581C23] disabled:bg-[#70252D]/50 text-white text-xs font-semibold shadow-md flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Save & Publish Banner</span>
+                  {isSavingEditor ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Saving to Firebase...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save & Publish Banner</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
