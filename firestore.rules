@@ -10,40 +10,37 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Strictly verifies authorized Cotton Nest store owner / admin emails
     function isOwnerOrAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'adityaa.451485@gmail.com' ||
-        request.auth.token.email == 'adityaa.22082011@gmail.com' ||
-        request.auth.token.email == 'cottonnest.atelier@gmail.com'
+        request.auth.token.email.toLowerCase() == 'adityaa.451485@gmail.com' ||
+        request.auth.token.email.toLowerCase() == 'adityaa.22082011@gmail.com' ||
+        request.auth.token.email.toLowerCase() == 'cottonnest.atelier@gmail.com'
       );
     }
 
-    // Products catalog: readable and manageable for Cotton Nest atelier
+    // Products catalog: readable by all, manageable only by authorized owners/admins
     match /products/{productId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
-    // Custom permanent photos: readable and manageable for Cotton Nest atelier
+    // Custom permanent photos: readable by all, manageable only by authorized owners/admins
     match /custom_images/{productId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
     // Photo statistics and updated image counts
     match /custom_images_stats/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isOwnerOrAdmin();
     }
 
-    // Orders: strictly isolated by owner UID. Only owner of order or admin can read.
+    // Orders: strictly isolated by owner UID. Customers access only their own orders; admins access all
     match /orders/{orderId} {
-      // Customers can read only their own orders; admins can read all
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isOwnerOrAdmin());
-
-      // Customers can create orders only with their own UID as owner
       allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isOwnerOrAdmin());
-
-      // Customers cannot change order owner's UID or modify protected fields (status, totalAmount, paymentMethod)
       allow update: if isOwnerOrAdmin() || (
         isSignedIn() &&
         resource.data.userId == request.auth.uid &&
@@ -51,17 +48,14 @@ service cloud.firestore {
         request.resource.data.status == resource.data.status &&
         request.resource.data.totalAmount == resource.data.totalAmount
       );
-
-      // Only authorized administrators can delete orders
       allow delete: if isOwnerOrAdmin();
     }
 
-    // Customer Reviews: readable by all visitors, creatable by customers
+    // Customer Reviews: readable by all visitors, submission allowed, deletion restricted to admins
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if true;
-      allow update: if true;
-      allow delete: if isOwnerOrAdmin() || true;
+      allow create, update: if true;
+      allow delete: if isOwnerOrAdmin();
     }
 
     // Connection testing
@@ -72,37 +66,37 @@ service cloud.firestore {
     // Store branding, theme appearance, and announcements
     match /site_content/{contentId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
-    // Dynamic Homepage Campaign Banners
+    // Dynamic Homepage Campaign Banners: public read for store visitors, full management for authorized admins
     match /banners/{bannerId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
     // Website Appearance & Festival Theme configuration
     match /theme/{themeId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
     // Seasonal discount offers & banner
     match /seasonal/{seasonalId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
     // Coupons & Promotional Offers
     match /coupons/{couponId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
     // Customer & Admin Notifications
     match /notifications/{notificationId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
     // Back-in-Stock product subscriptions
@@ -120,7 +114,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Customer Loyalty Points & Rewards: 1 point per 50 Rs spent
+    // Customer Loyalty Points & Rewards
     match /loyalty/{accountId} {
       allow read, write: if true;
     }
@@ -135,26 +129,23 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Signed-in Customer Activity Profiles & Session Analytics (restricted to owner/admin & authenticated session)
+    // Signed-in Customer Activity Profiles & Session Analytics
     match /customer_activity/{userId} {
-      allow read: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId) || true;
-      allow create, update: if (isSignedIn() && request.auth.uid == userId) || isOwnerOrAdmin() || (
-        request.resource.data.keys().hasAll(['uid', 'customerName', 'lastActiveAt']) &&
-        request.resource.data.uid == userId
-      );
+      allow read: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow create, update: if (isSignedIn() && request.auth.uid == userId) || isOwnerOrAdmin();
       allow delete: if isOwnerOrAdmin();
     }
 
-    // Welcome Offer Configuration (readable by all visitors, writable by Admin)
+    // Welcome Offer Configuration
     match /welcome_offer/{docId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin() || true;
+      allow create, update, delete: if isOwnerOrAdmin();
     }
 
-    // Per-Customer Welcome Offer Eligibility, Reservation, and Redemption Records
+    // Per-Customer Welcome Offer Eligibility & Redemption Records
     match /welcome_offer_redemptions/{uid} {
-      allow read: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid) || true;
-      allow create, update: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid) || true;
+      allow read: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create, update: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid);
       allow delete: if isOwnerOrAdmin();
     }
   }

@@ -464,7 +464,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fallbackAuth = targetAuth === previewAuth ? primaryAuth : previewAuth;
 
     return signInWithPopup(targetAuth, provider)
-      .then((result) => {
+      .then(async (result) => {
+        try {
+          const credential = GoogleAuthProvider.credentialFromResult(result);
+          if (credential) {
+            await signInWithCredential(primaryAuth, credential).catch(() => {});
+            if (targetAuth !== previewAuth) {
+              await signInWithCredential(previewAuth, credential).catch(() => {});
+            }
+          }
+        } catch (credErr) {
+          console.warn('Primary auth credential sync notice:', credErr);
+        }
         setUnauthorizedHostInfo(null);
         setIsLoading(false);
         return result.user;
@@ -545,6 +556,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const credential = GoogleAuthProvider.credential(credentialJwt);
+      await signInWithCredential(primaryAuth, credential).catch(() => {});
       const targetAuth = getBestSyncAuthInstance();
       const result = await signInWithCredential(targetAuth, credential);
       return result.user;
