@@ -20,7 +20,6 @@ import { WelcomeOfferModal } from './components/WelcomeOfferModal';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
-import { HomepageCampaignBanner } from './components/HomepageCampaignBanner';
 import { HomepageBanner, INITIAL_BANNERS } from './data/banners';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OwnerAuthModal } from './components/OwnerAuthModal';
@@ -2227,11 +2226,6 @@ export default function App() {
             seasonalConfig={seasonalConfig}
             onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
             reviews={reviews}
-            banners={banners}
-            onSaveBanner={handleSaveBanner}
-            onDeleteBanner={handleDeleteBanner}
-            onDuplicateBanner={handleDuplicateBanner}
-            onSaveAllBanners={handleSaveAllBanners}
           />
         </ErrorBoundary>
       ) : siteContent?.isMaintenanceMode && !isOwnerMode ? (
@@ -2330,15 +2324,6 @@ export default function App() {
                 {/* TAB 1: HOME VIEW */}
                 {activeTab === 'home' && (
                   <>
-                    {/* Dynamic Homepage Hero & Festival Campaign Banner */}
-                    <HomepageCampaignBanner
-                      banners={banners}
-                      onNavigate={(dest) => {
-                        setActiveTab(dest as any);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                    />
-
                     {/* Hero Section */}
                     <Hero
                       onExploreCatalogue={() => {
