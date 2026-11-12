@@ -125,11 +125,13 @@ import {
   Play,
   Film,
   Link as LinkIcon,
+  ZoomIn,
   Mail,
 } from 'lucide-react';
 
 import { AdminBannersSection } from './AdminBannersSection';
 import { HomepageBanner, INITIAL_BANNERS } from '../data/banners';
+import { AdminPhotoEnlargeModal } from './AdminPhotoEnlargeModal';
 
 interface AdminPanelProps {
   products: BedsheetProduct[];
@@ -189,6 +191,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 }) => {
   // Tabs: 'products' | 'orders' | 'banners' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
   const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'banners' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
+
+  // Fullscreen Enlarge Product Photo state
+  const [enlargedProductState, setEnlargedProductState] = useState<{
+    product: BedsheetProduct;
+    initialIndex: number;
+  } | null>(null);
 
   // Seasonal Page state
   const [editableSeasonal, setEditableSeasonal] = useState<SeasonalConfig>(() => {
@@ -3064,7 +3072,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             >
                               <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
                                 {/* Product Image */}
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-[#F4EFE6] border border-[#EAE2D5] shrink-0">
+                                <div
+                                  className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-[#F4EFE6] border border-[#EAE2D5] shrink-0 group cursor-pointer"
+                                  onClick={() => setEnlargedProductState({ product, initialIndex: 0 })}
+                                  title="Click to enlarge photo in high resolution"
+                                >
                                   {isVideoMedia(displayImg) ? (
                                     <video
                                       src={displayImg}
@@ -3078,9 +3090,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                       alt={product.name}
                                       referrerPolicy="no-referrer"
                                       onError={(e) => handleImageFallback(e, product.id)}
-                                      className="w-full h-full object-cover object-center"
+                                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform"
                                     />
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEnlargedProductState({ product, initialIndex: 0 });
+                                    }}
+                                    className="absolute top-0.5 right-0.5 p-1 bg-black/75 text-white rounded text-[8px] font-bold shadow-xs z-10 hover:bg-[#8C2E46]"
+                                    title="Enlarge Photo"
+                                  >
+                                    <ZoomIn className="w-3 h-3" />
+                                  </button>
                                 </div>
 
                                 {/* Product Name, SKU, Price & Stock */}
@@ -3409,7 +3432,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       
                       {/* Photo / Video Column */}
                       <div className="lg:col-span-3 flex items-center gap-3">
-                        <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-[#F4EFE6] border border-[#EAE2D5] shrink-0">
+                        <div
+                          className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-[#F4EFE6] border border-[#EAE2D5] shrink-0 group cursor-pointer"
+                          onClick={() => setEnlargedProductState({ product, initialIndex: 0 })}
+                          title="Click image or zoom button to enlarge photo in high resolution"
+                        >
                           {isVideoMedia(currentImg) ? (
                             <video
                               src={currentImg}
@@ -3425,14 +3452,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               alt={product.name}
                               referrerPolicy="no-referrer"
                               onError={(e) => handleImageFallback(e, product.id)}
-                              className="w-full h-full object-cover object-center"
+                              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform"
                             />
                           )}
-                          <span className="absolute top-1 left-1 bg-[#2C2420]/80 text-white text-[9px] px-1 rounded font-bold">
+                          <span className="absolute top-1 left-1 bg-[#2C2420]/80 text-white text-[9px] px-1 rounded font-bold z-10">
                             #{currentPosition}
                           </span>
+
+                          {/* Enlarge Zoom Button Overlay */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEnlargedProductState({ product, initialIndex: 0 });
+                            }}
+                            className="absolute top-1 right-1 p-1.5 bg-black/75 hover:bg-[#8C2E46] text-white rounded-lg text-[9px] font-bold shadow-md transition-all flex items-center gap-0.5 z-20 group-hover:scale-110"
+                            title="Enlarge Product Photo Fullscreen"
+                          >
+                            <ZoomIn className="w-3.5 h-3.5" />
+                          </button>
+
                           {getProductMediaCounts(product).hasVideo && (
-                            <span className="absolute top-1 right-1 bg-zinc-900/90 text-[#E6C687] text-[8px] px-1 py-0.5 rounded font-bold flex items-center gap-0.5 border border-[#C29E57]/40">
+                            <span className="absolute bottom-6 right-1 bg-zinc-900/90 text-[#E6C687] text-[8px] px-1 py-0.5 rounded font-bold flex items-center gap-0.5 border border-[#C29E57]/40 z-10">
                               <Play className="w-2 h-2 fill-[#E6C687]" />
                               <span>VID</span>
                             </span>
@@ -3440,7 +3481,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           {/* Picture & video count badge on photo (Admin Panel Only) */}
                           <span
                             title="Total pictures and videos stored for this bedsheet in admin"
-                            className="absolute bottom-1 right-1 bg-black/85 text-amber-300 text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 shadow-xs border border-amber-400/30"
+                            className="absolute bottom-1 right-1 bg-black/85 text-amber-300 text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 shadow-xs border border-amber-400/30 z-10"
                           >
                             <Camera className="w-2.5 h-2.5" />
                             <span>
@@ -7019,6 +7060,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Fullscreen Interactive Enlarge Product Photo Viewer */}
+      {enlargedProductState && (
+        <AdminPhotoEnlargeModal
+          product={enlargedProductState.product}
+          initialPhotoIndex={enlargedProductState.initialIndex}
+          customImages={customImages}
+          onClose={() => setEnlargedProductState(null)}
+        />
       )}
 
     </div>
