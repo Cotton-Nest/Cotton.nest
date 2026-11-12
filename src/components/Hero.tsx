@@ -6,11 +6,10 @@ import { SiteContent } from '../data/siteContent';
 interface HeroProps {
   onExploreCatalogue: () => void;
   onVisitStore: () => void;
-  onReplayIntro?: () => void;
   content?: SiteContent;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, onReplayIntro, content }) => {
+export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, content }) => {
   const kicker = content?.hero.kicker || "Handcrafted Pure Cotton Bedding · Gurgaon Atelier";
   const headline = content?.hero.headline || "The touch of pure cotton, woven for serene mornings.";
   const subheadline = content?.hero.subheadline || "Welcome to Cotton Nest. Discover our exclusive release of pure cotton King size bedsheets — tailored from 100% natural long-staple cotton with breathable comfort, delicate florals, and subtle muted golden accents.";
@@ -85,20 +84,6 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, on
                 <Sparkles className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
               </motion.button>
-
-              {onReplayIntro && (
-                <motion.button
-                  whileHover={{ y: -2, scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                  onClick={onReplayIntro}
-                  className="w-full sm:w-auto px-4 py-3.5 border border-[#EAE2D5] bg-white/70 hover:bg-white text-[#70252D] text-xs font-semibold rounded-2xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="Replay luxury opening bedsheet animation"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <span>Replay Intro</span>
-                </motion.button>
-              )}
             </motion.div>
 
             {/* Quiet trust markers in a subtle frosted glass strip */}

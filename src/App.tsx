@@ -32,7 +32,6 @@ import { ProductCompareModal } from './components/ProductCompareModal';
 import { ProductCompareBar } from './components/ProductCompareBar';
 import { StockAlertModal } from './components/StockAlertModal';
 import { CartToastNotification, CartToastInfo } from './components/CartToastNotification';
-import { OpeningBedsheetAnimation } from './components/OpeningBedsheetAnimation';
 import { ChromeInstallPopout, OfflineIndicator } from './components/PWAInstallPrompt';
 import {
   AppNotification,
@@ -138,8 +137,6 @@ import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>('home');
   const [trafficData, setTrafficData] = useState<SiteTrafficData>(() => getStoredTraffic());
-  const [showIntroAnimation, setShowIntroAnimation] = useState<boolean>(true);
-  const [forceShowIntro, setForceShowIntro] = useState<boolean>(false);
   const [selectedProduct, setSelectedProduct] = useState<BedsheetProduct | null>(null);
   const [isProductModalEditMode, setIsProductModalEditMode] = useState<boolean>(false);
 
@@ -2003,10 +2000,6 @@ export default function App() {
                         setActiveTab('store');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      onReplayIntro={() => {
-                        setForceShowIntro(true);
-                        setShowIntroAnimation(true);
-                      }}
                       content={siteContent}
                     />
 
@@ -2638,17 +2631,6 @@ export default function App() {
         onClose={() => setCartToast(null)}
         onOpenCart={() => setIsCartOpen(true)}
       />
-
-      {/* Luxury Opening Bedsheet & Brand Reveal Intro Animation */}
-      {showIntroAnimation && (
-        <OpeningBedsheetAnimation
-          forceShow={forceShowIntro}
-          onComplete={() => {
-            setShowIntroAnimation(false);
-            setForceShowIntro(false);
-          }}
-        />
-      )}
 
       {/* Welcome 10% OFF Gift Popup for Eligible New Customers */}
       <WelcomeOfferModal
