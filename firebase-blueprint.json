@@ -280,6 +280,37 @@
         "updatedAt": { "type": "number", "description": "Last status update timestamp" }
       },
       "required": ["uid", "status", "updatedAt"]
+    },
+    "HomepageBanner": {
+      "title": "HomepageBanner",
+      "description": "Dynamic homepage campaign banner with scheduling, priority, responsive images, and festive effects",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique banner ID" },
+        "campaignName": { "type": "string", "description": "Internal campaign title" },
+        "category": { "type": "string", "description": "Festival/collection category" },
+        "heading": { "type": "string", "description": "Main headline text" },
+        "subtitle": { "type": "string", "description": "Subtitle text" },
+        "description": { "type": "string", "description": "Optional body copy" },
+        "ctaText": { "type": "string", "description": "Primary CTA button text" },
+        "ctaDestination": { "type": "string", "description": "Primary CTA destination route" },
+        "secondaryCtaText": { "type": "string", "description": "Optional secondary CTA button text" },
+        "secondaryCtaDestination": { "type": "string", "description": "Secondary CTA destination route" },
+        "desktopImageUrl": { "type": "string", "description": "Desktop full-width banner image URL" },
+        "mobileImageUrl": { "type": "string", "description": "Mobile optimized banner image URL" },
+        "backgroundColor": { "type": "string", "description": "Hex background color" },
+        "textColor": { "type": "string", "description": "Text color theme" },
+        "textAlignment": { "type": "string", "enum": ["left", "center", "right"], "description": "Text alignment" },
+        "festiveEffect": { "type": "string", "description": "Festive particle accent effect" },
+        "startDate": { "type": "string", "description": "Scheduled start datetime string in IST" },
+        "expiryDate": { "type": "string", "description": "Scheduled expiry datetime string in IST" },
+        "priority": { "type": "number", "description": "Display priority number (1 = highest)" },
+        "status": { "type": "string", "enum": ["draft", "scheduled", "active", "expired", "disabled"], "description": "Campaign status" },
+        "isEnabled": { "type": "boolean", "description": "Master enable toggle" },
+        "createdAt": { "type": "number", "description": "Creation timestamp" },
+        "updatedAt": { "type": "number", "description": "Last update timestamp" }
+      },
+      "required": ["id", "campaignName", "heading", "ctaText", "priority", "status", "isEnabled"]
     }
   },
   "firestore": {
@@ -298,6 +329,10 @@
     "/site_content/{contentId}": {
       "schema": "SiteContent",
       "description": "Store contact and banner details"
+    },
+    "/banners/{bannerId}": {
+      "schema": "HomepageBanner",
+      "description": "Dynamic homepage promotional campaign banners"
     },
     "/theme/{themeId}": {
       "schema": "ThemeConfig",

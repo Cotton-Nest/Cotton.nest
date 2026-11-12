@@ -20,6 +20,8 @@ import { WelcomeOfferModal } from './components/WelcomeOfferModal';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
+import { HomepageCampaignBanner } from './components/HomepageCampaignBanner';
+import { HomepageBanner, INITIAL_BANNERS } from './data/banners';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OwnerAuthModal } from './components/OwnerAuthModal';
 import { LiveOrdersView } from './components/LiveOrdersView';
@@ -91,6 +93,9 @@ import {
   recordPageVisitApi,
   getWelcomeOfferStatusApi,
   markWelcomePopupSeenApi,
+  getBannersApi,
+  saveBannerApi,
+  deleteBannerApi,
 } from './services/api';
 import {
   WelcomeOfferConfig,
@@ -777,6 +782,86 @@ export default function App() {
       await saveSeasonalConfigApi(updated);
     } catch (err) {
       console.warn('Failed to save seasonal config to server:', err);
+    }
+  };
+
+  // Dynamic Homepage Banners & Campaign Management State
+  const [banners, setBanners] = useState<HomepageBanner[]>(() => {
+    try {
+      const cached = localStorage.getItem('cotton_nest_banners');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_BANNERS;
+  });
+
+  const fetchBanners = React.useCallback(async () => {
+    try {
+      const remote = await getBannersApi();
+      if (Array.isArray(remote) && remote.length > 0) {
+        setBanners(remote);
+        try {
+          localStorage.setItem('cotton_nest_banners', JSON.stringify(remote));
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('Failed to load remote banners:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBanners();
+    const handleBannersUpdated = () => {
+      fetchBanners();
+    };
+    window.addEventListener('cotton-nest-banners-updated', handleBannersUpdated);
+    return () => {
+      window.removeEventListener('cotton-nest-banners-updated', handleBannersUpdated);
+    };
+  }, [fetchBanners]);
+
+  const handleSaveBanner = async (banner: HomepageBanner) => {
+    const updatedList = banners.some((b) => b.id === banner.id)
+      ? banners.map((b) => (b.id === banner.id ? banner : b))
+      : [banner, ...banners];
+    setBanners(updatedList);
+    try {
+      localStorage.setItem('cotton_nest_banners', JSON.stringify(updatedList));
+    } catch {}
+    await saveBannerApi(banner);
+  };
+
+  const handleDeleteBanner = async (bannerId: string) => {
+    const updatedList = banners.filter((b) => b.id !== bannerId);
+    setBanners(updatedList);
+    try {
+      localStorage.setItem('cotton_nest_banners', JSON.stringify(updatedList));
+    } catch {}
+    await deleteBannerApi(bannerId);
+  };
+
+  const handleDuplicateBanner = async (banner: HomepageBanner) => {
+    const duplicatedBanner: HomepageBanner = {
+      ...banner,
+      id: `banner_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      heading: `${banner.heading} (Copy)`,
+      status: 'draft',
+      priority: Math.max(...banners.map((b) => b.priority), 0) + 1,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    await handleSaveBanner(duplicatedBanner);
+  };
+
+  const handleSaveAllBanners = async (updatedBanners: HomepageBanner[]) => {
+    setBanners(updatedBanners);
+    try {
+      localStorage.setItem('cotton_nest_banners', JSON.stringify(updatedBanners));
+    } catch {}
+    for (const b of updatedBanners) {
+      await saveBannerApi(b);
     }
   };
 
@@ -2142,6 +2227,11 @@ export default function App() {
             seasonalConfig={seasonalConfig}
             onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
             reviews={reviews}
+            banners={banners}
+            onSaveBanner={handleSaveBanner}
+            onDeleteBanner={handleDeleteBanner}
+            onDuplicateBanner={handleDuplicateBanner}
+            onSaveAllBanners={handleSaveAllBanners}
           />
         </ErrorBoundary>
       ) : siteContent?.isMaintenanceMode && !isOwnerMode ? (
@@ -2240,6 +2330,15 @@ export default function App() {
                 {/* TAB 1: HOME VIEW */}
                 {activeTab === 'home' && (
                   <>
+                    {/* Dynamic Homepage Hero & Festival Campaign Banner */}
+                    <HomepageCampaignBanner
+                      banners={banners}
+                      onNavigate={(dest) => {
+                        setActiveTab(dest as any);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+
                     {/* Hero Section */}
                     <Hero
                       onExploreCatalogue={() => {

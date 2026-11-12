@@ -3504,4 +3504,91 @@ export async function getWelcomeOfferAdminDataApi(): Promise<{
   return { config, records: [], redemptions: [], orders };
 }
 
+// ---------------- HOMEPAGE BANNERS & CAMPAIGNS API ---------------- //
+import { HomepageBanner, INITIAL_BANNERS } from '../data/banners';
+
+export async function getBannersApi(): Promise<HomepageBanner[]> {
+  try {
+    const cached = localStorage.getItem('cotton_nest_banners');
+    let localBanners: HomepageBanner[] = cached ? JSON.parse(cached) : [];
+
+    const snap = await getDocs(collection(db, 'banners'));
+    if (!snap.empty) {
+      const fetched: HomepageBanner[] = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data() as HomepageBanner;
+        if (data && data.campaignName) {
+          fetched.push({ ...data, id: docSnap.id });
+        }
+      });
+      if (fetched.length > 0) {
+        try {
+          localStorage.setItem('cotton_nest_banners', JSON.stringify(fetched));
+        } catch {}
+        return fetched;
+      }
+    }
+    if (Array.isArray(localBanners) && localBanners.length > 0) {
+      return localBanners;
+    }
+  } catch (err) {
+    console.warn('getBannersApi fetch notice:', err);
+  }
+  return INITIAL_BANNERS;
+}
+
+export async function saveBannerApi(banner: HomepageBanner): Promise<HomepageBanner> {
+  const cleanBanner: HomepageBanner = stripUndefined({
+    ...banner,
+    updatedAt: Date.now(),
+  });
+
+  try {
+    const cached = localStorage.getItem('cotton_nest_banners');
+    const list: HomepageBanner[] = cached ? JSON.parse(cached) : [];
+    const nextList = list.some((b) => b.id === cleanBanner.id)
+      ? list.map((b) => (b.id === cleanBanner.id ? cleanBanner : b))
+      : [cleanBanner, ...list];
+    localStorage.setItem('cotton_nest_banners', JSON.stringify(nextList));
+  } catch {}
+
+  try {
+    await setDoc(doc(db, 'banners', cleanBanner.id), cleanBanner, { merge: true });
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.WRITE, `banners/${cleanBanner.id}`);
+    } catch {}
+  }
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-banners-updated'));
+  } catch {}
+
+  return cleanBanner;
+}
+
+export async function deleteBannerApi(bannerId: string): Promise<void> {
+  try {
+    const cached = localStorage.getItem('cotton_nest_banners');
+    if (cached) {
+      const list: HomepageBanner[] = JSON.parse(cached);
+      const filtered = list.filter((b) => b.id !== bannerId);
+      localStorage.setItem('cotton_nest_banners', JSON.stringify(filtered));
+    }
+  } catch {}
+
+  try {
+    await deleteDoc(doc(db, 'banners', bannerId));
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.DELETE, `banners/${bannerId}`);
+    } catch {}
+  }
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-banners-updated'));
+  } catch {}
+}
+
+
 
