@@ -4,7 +4,15 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BedsheetProduct, BedsheetVariant, BEDSHEETS_CATALOG, COMPANY_DETAILS, normalizeCustomPrice } from './data/products';
+import {
+  BedsheetProduct,
+  BedsheetVariant,
+  BEDSHEETS_CATALOG,
+  COMPANY_DETAILS,
+  normalizeCustomPrice,
+  sortProductsByStockAvailability,
+  isProductOutOfStock,
+} from './data/products';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { ProductCard } from './components/ProductCard';
@@ -1332,14 +1340,14 @@ export default function App() {
             });
           });
           if (loadedProducts.length > 0) {
-            loadedProducts.sort((a, b) => {
+            const sortedByStock = sortProductsByStockAvailability(loadedProducts, (a, b) => {
               const orderA = typeof a.order === 'number' ? a.order : 9999;
               const orderB = typeof b.order === 'number' ? b.order : 9999;
               return orderA - orderB;
             });
-            setProducts(loadedProducts);
+            setProducts(sortedByStock);
             try {
-              localStorage.setItem('cotton_nest_products', JSON.stringify(loadedProducts));
+              localStorage.setItem('cotton_nest_products', JSON.stringify(sortedByStock));
             } catch {}
           }
         }
@@ -1356,9 +1364,14 @@ export default function App() {
       .then((fetched) => {
         if (Date.now() - lastAdminSaveRef.current < 4500) return;
         if (Array.isArray(fetched) && fetched.length > 0) {
-          setProducts(fetched);
+          const sortedByStock = sortProductsByStockAvailability(fetched, (a, b) => {
+            const orderA = typeof a.order === 'number' ? a.order : 9999;
+            const orderB = typeof b.order === 'number' ? b.order : 9999;
+            return orderA - orderB;
+          });
+          setProducts(sortedByStock);
           try {
-            localStorage.setItem('cotton_nest_products', JSON.stringify(fetched));
+            localStorage.setItem('cotton_nest_products', JSON.stringify(sortedByStock));
           } catch {}
         }
       })

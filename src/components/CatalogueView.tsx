@@ -596,6 +596,15 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         return true;
       })
       .sort((a, b) => {
+        const isOutA = !a.inStock || (a.stockQuantity !== undefined && a.stockQuantity <= 0);
+        const isOutB = !b.inStock || (b.stockQuantity !== undefined && b.stockQuantity <= 0);
+
+        // 1. Primary Rule: In-Stock products always appear before Out-of-Stock products
+        if (isOutA !== isOutB) {
+          return isOutA ? 1 : -1;
+        }
+
+        // 2. Secondary Rule: User-selected sorting within each stock group
         if (sortBy === 'price-low') return a.price - b.price;
         if (sortBy === 'price-high') return b.price - a.price;
         if (sortBy === 'rating') {
@@ -606,7 +615,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         if (sortBy === 'newest') {
           return (b.updatedAt || 0) - (a.updatedAt || 0);
         }
-        return 0; // featured maintains authoritative ordering
+        return 0; // featured maintains authoritative relative ordering within each group
       });
   }, [
     products,

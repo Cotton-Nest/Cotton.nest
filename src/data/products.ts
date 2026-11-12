@@ -60,6 +60,40 @@ export function normalizeAvailabilityType(raw?: string | null): AvailabilityType
 }
 
 /**
+ * Checks whether a product is currently out of stock (inStock === false or stockQuantity <= 0).
+ */
+export function isProductOutOfStock(product?: { inStock?: boolean; stockQuantity?: number }): boolean {
+  if (!product) return false;
+  return !product.inStock || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+}
+
+/**
+ * Sorts products so that In-Stock products always appear before Out-of-Stock products,
+ * while maintaining their relative order within each group (In-Stock vs Out-of-Stock).
+ */
+export function sortProductsByStockAvailability<T extends { inStock?: boolean; stockQuantity?: number }>(
+  productsList: T[],
+  secondaryComparator?: (a: T, b: T) => number
+): T[] {
+  if (!Array.isArray(productsList) || productsList.length === 0) return [];
+
+  return [...productsList].sort((a, b) => {
+    const isOutA = isProductOutOfStock(a);
+    const isOutB = isProductOutOfStock(b);
+
+    if (isOutA !== isOutB) {
+      return isOutA ? 1 : -1;
+    }
+
+    if (secondaryComparator) {
+      return secondaryComparator(a, b);
+    }
+
+    return 0;
+  });
+}
+
+/**
  * Parses and normalizes any custom product price (whole numbers or decimals up to 2 decimal places)
  * without rounding to the nearest ₹50 or nearest whole number.
  */

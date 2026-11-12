@@ -140,16 +140,22 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
     });
   }, [seasonalProductsWithPricing, searchQuery, selectedFilter]);
 
-  // Sort items
+  // Sort items (In-Stock items always appear before Out-of-Stock items)
   const sortedItems = useMemo(() => {
     const list = [...filteredItems];
-    if (sortBy === 'priceAsc') {
-      list.sort((a, b) => a.offerPrice - b.offerPrice);
-    } else if (sortBy === 'priceDesc') {
-      list.sort((a, b) => b.offerPrice - a.offerPrice);
-    } else if (sortBy === 'discountDesc') {
-      list.sort((a, b) => b.discountPercentage - a.discountPercentage);
-    }
+    list.sort((a, b) => {
+      const isOutA = !a.product.inStock || (a.product.stockQuantity !== undefined && a.product.stockQuantity <= 0);
+      const isOutB = !b.product.inStock || (b.product.stockQuantity !== undefined && b.product.stockQuantity <= 0);
+
+      if (isOutA !== isOutB) {
+        return isOutA ? 1 : -1;
+      }
+
+      if (sortBy === 'priceAsc') return a.offerPrice - b.offerPrice;
+      if (sortBy === 'priceDesc') return b.offerPrice - a.offerPrice;
+      if (sortBy === 'discountDesc') return b.discountPercentage - a.discountPercentage;
+      return 0;
+    });
     return list;
   }, [filteredItems, sortBy]);
 
