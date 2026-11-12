@@ -17,7 +17,6 @@ import { Footer } from './components/Footer';
 import { OfferBanner } from './components/OfferBanner';
 import { WelcomeOfferBanner } from './components/WelcomeOfferBanner';
 import { WelcomeOfferModal } from './components/WelcomeOfferModal';
-import { OpeningBedsheetAnimation } from './components/OpeningBedsheetAnimation';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
@@ -33,6 +32,7 @@ import { ProductCompareModal } from './components/ProductCompareModal';
 import { ProductCompareBar } from './components/ProductCompareBar';
 import { StockAlertModal } from './components/StockAlertModal';
 import { CartToastNotification, CartToastInfo } from './components/CartToastNotification';
+import { OpeningBedsheetAnimation } from './components/OpeningBedsheetAnimation';
 import { ChromeInstallPopout, OfflineIndicator } from './components/PWAInstallPrompt';
 import {
   AppNotification,
@@ -138,6 +138,8 @@ import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>('home');
   const [trafficData, setTrafficData] = useState<SiteTrafficData>(() => getStoredTraffic());
+  const [showIntroAnimation, setShowIntroAnimation] = useState<boolean>(true);
+  const [forceShowIntro, setForceShowIntro] = useState<boolean>(false);
   const [selectedProduct, setSelectedProduct] = useState<BedsheetProduct | null>(null);
   const [isProductModalEditMode, setIsProductModalEditMode] = useState<boolean>(false);
 
@@ -172,10 +174,6 @@ export default function App() {
   const [isOwnerAuthOpen, setIsOwnerAuthOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalReason, setAuthModalReason] = useState<string | null>(null);
-  
-  // Premium Opening Bedsheet Animation State
-  const [showIntroAnimation, setShowIntroAnimation] = useState<boolean>(true);
-  const [forceShowIntro, setForceShowIntro] = useState<boolean>(false);
 
   const [pendingCartItem, setPendingCartItem] = useState<{
     product: BedsheetProduct;
@@ -1958,17 +1956,6 @@ export default function App() {
             className="fixed top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-[#C29E57] via-[#B83F60] to-[#C29E57] z-50 pointer-events-none"
           />
 
-          {/* Premium Opening Bedsheet Animation Overlay */}
-          {showIntroAnimation && (
-            <OpeningBedsheetAnimation
-              onComplete={() => {
-                setShowIntroAnimation(false);
-                setForceShowIntro(false);
-              }}
-              forceShow={forceShowIntro}
-            />
-          )}
-
           {/* Top Navbar */}
           <Navbar
             activeTab={activeTab}
@@ -2016,11 +2003,11 @@ export default function App() {
                         setActiveTab('store');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      content={siteContent}
                       onReplayIntro={() => {
                         setForceShowIntro(true);
                         setShowIntroAnimation(true);
                       }}
+                      content={siteContent}
                     />
 
                     {/* New Customer 10% OFF Welcome Offer Banner */}
@@ -2651,6 +2638,17 @@ export default function App() {
         onClose={() => setCartToast(null)}
         onOpenCart={() => setIsCartOpen(true)}
       />
+
+      {/* Luxury Opening Bedsheet & Brand Reveal Intro Animation */}
+      {showIntroAnimation && (
+        <OpeningBedsheetAnimation
+          forceShow={forceShowIntro}
+          onComplete={() => {
+            setShowIntroAnimation(false);
+            setForceShowIntro(false);
+          }}
+        />
+      )}
 
       {/* Welcome 10% OFF Gift Popup for Eligible New Customers */}
       <WelcomeOfferModal

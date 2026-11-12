@@ -6,11 +6,11 @@ import { SiteContent } from '../data/siteContent';
 interface HeroProps {
   onExploreCatalogue: () => void;
   onVisitStore: () => void;
-  content?: SiteContent;
   onReplayIntro?: () => void;
+  content?: SiteContent;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, content, onReplayIntro }) => {
+export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, onReplayIntro, content }) => {
   const kicker = content?.hero.kicker || "Handcrafted Pure Cotton Bedding · Gurgaon Atelier";
   const headline = content?.hero.headline || "The touch of pure cotton, woven for serene mornings.";
   const subheadline = content?.hero.subheadline || "Welcome to Cotton Nest. Discover our exclusive release of pure cotton King size bedsheets — tailored from 100% natural long-staple cotton with breathable comfort, delicate florals, and subtle muted golden accents.";
@@ -26,34 +26,16 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
           {/* Left Column: Editorial & Brand copy with staggered entrance */}
           <div className="lg:col-span-6 space-y-6 text-center lg:text-left">
             
-            {/* Liquid Glass Kicker Capsule & Optional Replay Animation Button */}
-            <div className="flex items-center justify-center lg:justify-start gap-2 flex-wrap">
-              <motion.div
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-                className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent,#A8823B)] px-3.5 py-1.5 rounded-full liquid-glass-badge"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
-                <span>{kicker}</span>
-              </motion.div>
-
-              {onReplayIntro && (
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={onReplayIntro}
-                  type="button"
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-[#70252D] px-2.5 py-1 rounded-full bg-[#FAF6F0] border border-[#DEC89B] shadow-2xs cursor-pointer hover:bg-white transition-all"
-                  title="Replay bedsheet unfolding animation"
-                >
-                  <Sparkles className="w-3 h-3 text-[#C5A059]" />
-                  <span>Replay Intro</span>
-                </motion.button>
-              )}
-            </div>
+            {/* Liquid Glass Kicker Capsule */}
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent,#A8823B)] px-3.5 py-1.5 rounded-full liquid-glass-badge"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
+              <span>{kicker}</span>
+            </motion.div>
 
             {/* Display Headline with balanced wrap */}
             <motion.h1
@@ -103,6 +85,20 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
                 <Sparkles className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
               </motion.button>
+
+              {onReplayIntro && (
+                <motion.button
+                  whileHover={{ y: -2, scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  onClick={onReplayIntro}
+                  className="w-full sm:w-auto px-4 py-3.5 border border-[#EAE2D5] bg-white/70 hover:bg-white text-[#70252D] text-xs font-semibold rounded-2xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Replay luxury opening bedsheet animation"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Replay Intro</span>
+                </motion.button>
+              )}
             </motion.div>
 
             {/* Quiet trust markers in a subtle frosted glass strip */}
