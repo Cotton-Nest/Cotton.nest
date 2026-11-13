@@ -89,6 +89,9 @@ export function stripUndefined<T>(obj: T): T {
   if (obj === null || obj === undefined || typeof obj !== 'object') {
     return obj;
   }
+  if (obj instanceof Date || typeof (obj as any).toDate === 'function') {
+    return obj;
+  }
   if (Array.isArray(obj)) {
     return obj.map(stripUndefined) as unknown as T;
   }
@@ -3505,7 +3508,12 @@ export async function getWelcomeOfferAdminDataApi(): Promise<{
 }
 
 // ---------------- HOMEPAGE BANNERS & CAMPAIGNS API ---------------- //
-import { HomepageBanner, INITIAL_BANNERS, computeBannerStatus } from '../data/banners';
+import {
+  HomepageBanner,
+  INITIAL_BANNERS,
+  computeBannerStatus,
+  normalizeBannerDates,
+} from '../data/banners';
 
 const BANNERS_CACHE_KEY = 'cotton_nest_banners';
 const BANNERS_SYNCED_KEY = 'cotton_nest_banners_synced';
@@ -3517,7 +3525,7 @@ function readCachedBanners(): HomepageBanner[] | null {
     const cached = localStorage.getItem(BANNERS_CACHE_KEY);
     if (!cached) return null;
     const parsed = JSON.parse(cached);
-    return Array.isArray(parsed) ? parsed : null;
+    return Array.isArray(parsed) ? parsed.map(normalizeBannerDates) : null;
   } catch {
     return null;
   }
@@ -3570,7 +3578,7 @@ export async function getBannersApi(forceRefresh = false): Promise<HomepageBanne
       snap.forEach((docSnap) => {
         const data = docSnap.data() as HomepageBanner;
         if (data && (data.campaignName || data.heading)) {
-          fetched.push({ ...data, id: docSnap.id });
+          fetched.push(normalizeBannerDates({ ...data, id: docSnap.id }));
         }
       });
       writeCachedBanners(fetched, true);
@@ -3592,19 +3600,27 @@ export async function getBannersApi(forceRefresh = false): Promise<HomepageBanne
       return cachedBanners;
     }
   }
-  return INITIAL_BANNERS;
+  return INITIAL_BANNERS.map(normalizeBannerDates);
 }
 
 export async function saveBannerApi(banner: HomepageBanner): Promise<HomepageBanner> {
-  const cleanBanner: HomepageBanner = stripUndefined({
+  const normalized = normalizeBannerDates({
     ...banner,
     updatedAt: Date.now(),
+  });
+  const cleanBanner: HomepageBanner = stripUndefined(normalized);
+
+  // Store full Date objects (native Firestore Timestamps) in Firebase; use null when cleared so merge removes stale dates
+  const firestorePayload = stripUndefined({
+    ...cleanBanner,
+    startDate: cleanBanner.startDate instanceof Date ? cleanBanner.startDate : null,
+    expiryDate: cleanBanner.expiryDate instanceof Date ? cleanBanner.expiryDate : null,
   });
 
   const previousCache = readCachedBanners();
 
   try {
-    await setDoc(doc(db, 'banners', cleanBanner.id), cleanBanner, { merge: true });
+    await setDoc(doc(db, 'banners', cleanBanner.id), firestorePayload, { merge: true });
   } catch (err) {
     if (previousCache !== null) {
       writeCachedBanners(previousCache, false);
@@ -3612,7 +3628,7 @@ export async function saveBannerApi(banner: HomepageBanner): Promise<HomepageBan
     throw buildBannerFirestoreError(err, OperationType.WRITE, `banners/${cleanBanner.id}`);
   }
 
-  const baseList = previousCache ?? INITIAL_BANNERS;
+  const baseList = previousCache ?? INITIAL_BANNERS.map(normalizeBannerDates);
   const nextList = baseList.some((b) => b.id === cleanBanner.id)
     ? baseList.map((b) => (b.id === cleanBanner.id ? cleanBanner : b))
     : [cleanBanner, ...baseList];

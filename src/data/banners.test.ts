@@ -12,6 +12,10 @@ import {
   combineIstDateTimeParts,
   to12HourTimeParts,
   from12HourTimeParts,
+  istDateTimePartsToDate,
+  normalizeBannerDates,
+  toBannerDate,
+  INITIAL_BANNERS,
   HomepageBanner,
 } from './banners';
 
@@ -37,8 +41,71 @@ const createBaseBanner = (overrides: Partial<HomepageBanner> = {}): HomepageBann
   ...overrides,
 });
 
-test('formatValidityDate formats valid dates into IST format', () => {
-  const resultFrom = formatValidityDate('2026-11-15T10:00');
+test('INITIAL_BANNERS stores real Date instances preserving exact IST timestamps', () => {
+  assert.ok(INITIAL_BANNERS[0].startDate instanceof Date);
+  assert.ok(INITIAL_BANNERS[0].expiryDate instanceof Date);
+  assert.strictEqual(
+    (INITIAL_BANNERS[0].startDate as Date).toISOString(),
+    '2026-11-15T04:30:00.000Z'
+  );
+  assert.strictEqual(
+    (INITIAL_BANNERS[0].expiryDate as Date).toISOString(),
+    '2026-11-30T18:29:00.000Z'
+  );
+});
+
+test('istDateTimePartsToDate and normalizeBannerDates build high-precision Date objects with exact hours/minutes and IST offset', () => {
+  const startDate = istDateTimePartsToDate('2026-11-15', '09:35');
+  const endDate = istDateTimePartsToDate('2026-11-15', '14:45');
+
+  assert.ok(startDate instanceof Date);
+  assert.ok(endDate instanceof Date);
+  // 09:35 AM IST = 04:05:00.000Z; 02:45 PM IST = 09:15:00.000Z
+  assert.strictEqual(startDate.toISOString(), '2026-11-15T04:05:00.000Z');
+  assert.strictEqual(endDate.toISOString(), '2026-11-15T09:15:00.000Z');
+
+  // Hydrate Firestore Timestamp-like objects cleanly into real Date objects
+  const firestoreStartMock = {
+    toDate: () => new Date('2026-11-15T04:47:00.000Z'), // 10:17 AM IST
+    seconds: 1794718020,
+    nanoseconds: 0,
+  };
+  const firestoreEndMock = {
+    seconds: Math.floor(Date.parse('2026-11-15T18:29:00.000Z') / 1000), // 11:59 PM IST
+    nanoseconds: 0,
+  };
+
+  const hydrated = normalizeBannerDates(
+    createBaseBanner({
+      startDate: firestoreStartMock as unknown as Date,
+      expiryDate: firestoreEndMock as unknown as Date,
+    })
+  );
+
+  assert.ok(hydrated.startDate instanceof Date);
+  assert.ok(hydrated.expiryDate instanceof Date);
+  assert.strictEqual(formatValidityDate(hydrated.startDate), '15 Nov 2026 · 10:17 AM IST');
+  assert.strictEqual(formatValidityDate(hydrated.expiryDate), '15 Nov 2026 · 11:59 PM IST');
+  assert.deepStrictEqual(splitIstDateTimeParts(hydrated.startDate), {
+    date: '2026-11-15',
+    time: '10:17',
+  });
+  assert.deepStrictEqual(splitIstDateTimeParts(hydrated.expiryDate), {
+    date: '2026-11-15',
+    time: '23:59',
+  });
+});
+
+test('toBannerDate handles ISO JSON-cached strings, Date instances, and empty/invalid inputs', () => {
+  const fromIso = toBannerDate('2026-11-15T04:05:00.000Z');
+  assert.ok(fromIso instanceof Date);
+  assert.strictEqual(formatValidityDate(fromIso), '15 Nov 2026 · 9:35 AM IST');
+  assert.strictEqual(toBannerDate(''), undefined);
+  assert.strictEqual(toBannerDate('invalid-date'), undefined);
+});
+
+test('formatValidityDate formats valid Date objects and strings into IST format', () => {
+  const resultFrom = formatValidityDate(new Date('2026-11-15T10:00:00.000+05:30'));
   assert.strictEqual(resultFrom, '15 Nov 2026 · 10:00 AM IST');
 
   const resultTo = formatValidityDate('2026-11-30T23:59');
@@ -73,7 +140,7 @@ test('splitIstDateTimeParts and combineIstDateTimeParts round-trip date & time c
   assert.strictEqual(combineIstDateTimeParts('', '10:30'), '');
 });
 
-test('12-hour AM/PM exact minute conversions and IST formatting preserve 9:35 AM, 10:17 AM, 2:45 PM, and 11:59 PM without rounding', () => {
+test('12-hour AM/PM exact minute conversions and Date formatting preserve 9:35 AM, 10:17 AM, 2:45 PM, and 11:59 PM without rounding', () => {
   const cases = [
     { hour12: 9, minute: 35, period: 'AM' as const, time24: '09:35', expectedDisplay: '15 Nov 2026 · 9:35 AM IST' },
     { hour12: 10, minute: 17, period: 'AM' as const, time24: '10:17', expectedDisplay: '15 Nov 2026 · 10:17 AM IST' },
@@ -89,14 +156,14 @@ test('12-hour AM/PM exact minute conversions and IST formatting preserve 9:35 AM
     const converted24 = from12HourTimeParts(c.hour12, c.minute, c.period);
     assert.strictEqual(converted24, c.time24);
 
-    const combined = combineIstDateTimeParts('2026-11-15', converted24);
-    assert.strictEqual(combined, `2026-11-15T${c.time24}`);
+    const dateObj = istDateTimePartsToDate('2026-11-15', converted24);
+    assert.ok(dateObj instanceof Date);
 
     // Formatting matches exact saved hour & minute in IST
-    assert.strictEqual(formatValidityDate(combined), c.expectedDisplay);
+    assert.strictEqual(formatValidityDate(dateObj), c.expectedDisplay);
 
     // Reloading into editor preserves exact date, hour, minute, and period
-    const split = splitIstDateTimeParts(combined);
+    const split = splitIstDateTimeParts(dateObj);
     assert.deepStrictEqual(split, { date: '2026-11-15', time: c.time24 });
     assert.deepStrictEqual(to12HourTimeParts(split.time), {
       hour12: c.hour12,
@@ -106,48 +173,63 @@ test('12-hour AM/PM exact minute conversions and IST formatting preserve 9:35 AM
   }
 });
 
-test('validateBannerValidityPeriod prevents saving when end date/time is earlier than start date/time', () => {
+test('validateBannerValidityPeriod prevents saving when end Date is earlier than start Date', () => {
   assert.strictEqual(
-    validateBannerValidityPeriod('2026-11-15T10:00', '2026-11-15T09:59').valid,
+    validateBannerValidityPeriod(
+      istDateTimePartsToDate('2026-11-15', '10:00'),
+      istDateTimePartsToDate('2026-11-15', '09:59')
+    ).valid,
     false
   );
   assert.strictEqual(
-    validateBannerValidityPeriod('2026-11-15T09:35', '2026-11-15T09:34').valid,
+    validateBannerValidityPeriod(
+      istDateTimePartsToDate('2026-11-15', '09:35'),
+      istDateTimePartsToDate('2026-11-15', '09:34')
+    ).valid,
     false
   );
   assert.strictEqual(
-    validateBannerValidityPeriod('2026-11-20T10:00', '2026-11-15T23:59').valid,
+    validateBannerValidityPeriod(
+      istDateTimePartsToDate('2026-11-20', '10:00'),
+      istDateTimePartsToDate('2026-11-15', '23:59')
+    ).valid,
     false
   );
   assert.strictEqual(
-    validateBannerValidityPeriod('2026-11-15T10:00', '2026-11-15T10:00').valid,
+    validateBannerValidityPeriod(
+      istDateTimePartsToDate('2026-11-15', '10:00'),
+      istDateTimePartsToDate('2026-11-15', '10:00')
+    ).valid,
     true
   );
   assert.strictEqual(
-    validateBannerValidityPeriod('2026-11-15T09:35', '2026-11-15T14:45').valid,
+    validateBannerValidityPeriod(
+      istDateTimePartsToDate('2026-11-15', '09:35'),
+      istDateTimePartsToDate('2026-11-15', '14:45')
+    ).valid,
     true
   );
 });
 
-test('computeBannerStatus handles exact-minute IST activation and expiration and OFF override', () => {
-  const startIst = '2026-11-15T09:35'; // 04:05:00Z
-  const endIst = '2026-11-15T14:45'; // 09:15:00Z
+test('computeBannerStatus handles millisecond-level Date comparison for IST activation and expiration and OFF override', () => {
+  const startDate = istDateTimePartsToDate('2026-11-15', '09:35')!; // 04:05:00.000Z
+  const endDate = istDateTimePartsToDate('2026-11-15', '14:45')!; // 09:15:00.000Z
 
-  const oneSecBeforeStart = new Date('2026-11-15T04:04:59Z'); // 09:34:59 AM IST
-  const exactStart = new Date('2026-11-15T04:05:00Z'); // 09:35:00 AM IST
-  const oneSecBeforeEnd = new Date('2026-11-15T09:14:59Z'); // 02:44:59 PM IST
-  const exactEnd = new Date('2026-11-15T09:15:00Z'); // 02:45:00 PM IST
+  const oneMsBeforeStart = new Date('2026-11-15T04:04:59.999Z'); // 09:34:59.999 AM IST
+  const exactStart = new Date('2026-11-15T04:05:00.000Z'); // 09:35:00.000 AM IST
+  const oneMsBeforeEnd = new Date('2026-11-15T09:14:59.999Z'); // 02:44:59.999 PM IST
+  const exactEnd = new Date('2026-11-15T09:15:00.000Z'); // 02:45:00.000 PM IST
 
   const enabledScheduledBanner = createBaseBanner({
     isEnabled: true,
-    startDate: startIst,
-    expiryDate: endIst,
+    startDate,
+    expiryDate: endDate,
   });
 
-  // Start -> Active -> Expired at exact minute boundaries
-  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, oneSecBeforeStart), 'scheduled');
+  // Start -> Active -> Expired at exact millisecond/minute boundaries
+  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, oneMsBeforeStart), 'scheduled');
   assert.strictEqual(computeBannerStatus(enabledScheduledBanner, exactStart), 'active');
-  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, oneSecBeforeEnd), 'active');
+  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, oneMsBeforeEnd), 'active');
   assert.strictEqual(computeBannerStatus(enabledScheduledBanner, exactEnd), 'expired');
 
   // Admin OFF toggle strictly overrides even during active validity period
@@ -177,7 +259,7 @@ test('doesBannerMatchAudience enforces All visitors, New users, and Registered u
 });
 
 test('getTopEligibleCustomerBanner returns only single highest-priority qualifying banner and hides disabled ones', () => {
-  const now = new Date('2026-11-15T06:00:00Z'); // 11:30 AM IST
+  const now = new Date('2026-11-15T06:00:00.000Z'); // 11:30 AM IST
 
   const banners: HomepageBanner[] = [
     createBaseBanner({
@@ -185,8 +267,8 @@ test('getTopEligibleCustomerBanner returns only single highest-priority qualifyi
       campaignName: 'Disabled Top Priority',
       priority: 1,
       isEnabled: false,
-      startDate: '2026-11-15T10:00',
-      expiryDate: '2026-11-20T23:59',
+      startDate: istDateTimePartsToDate('2026-11-15', '10:00'),
+      expiryDate: istDateTimePartsToDate('2026-11-20', '23:59'),
     }),
     createBaseBanner({
       id: 'p2-reg-only',
@@ -194,8 +276,8 @@ test('getTopEligibleCustomerBanner returns only single highest-priority qualifyi
       priority: 2,
       isEnabled: true,
       targetAudience: 'registered_users',
-      startDate: '2026-11-15T10:00',
-      expiryDate: '2026-11-20T23:59',
+      startDate: istDateTimePartsToDate('2026-11-15', '10:00'),
+      expiryDate: istDateTimePartsToDate('2026-11-20', '23:59'),
     }),
     createBaseBanner({
       id: 'p3-all',
@@ -203,8 +285,8 @@ test('getTopEligibleCustomerBanner returns only single highest-priority qualifyi
       priority: 3,
       isEnabled: true,
       targetAudience: 'all',
-      startDate: '2026-11-15T10:00',
-      expiryDate: '2026-11-20T23:59',
+      startDate: istDateTimePartsToDate('2026-11-15', '10:00'),
+      expiryDate: istDateTimePartsToDate('2026-11-20', '23:59'),
     }),
   ];
 
@@ -236,13 +318,13 @@ test('getNextBannerTransitionDelayMs computes earliest future start or expiry do
     createBaseBanner({
       id: 'disabled-early',
       isEnabled: false,
-      startDate: '2026-11-15T09:31',
+      startDate: istDateTimePartsToDate('2026-11-15', '09:31'),
     }),
     createBaseBanner({
       id: 'scheduled-next',
       isEnabled: true,
-      startDate: '2026-11-15T09:35', // 5 minutes from nowMs
-      expiryDate: '2026-11-15T14:45',
+      startDate: istDateTimePartsToDate('2026-11-15', '09:35'), // 5 minutes from nowMs
+      expiryDate: istDateTimePartsToDate('2026-11-15', '14:45'),
     }),
   ];
 

@@ -28,7 +28,8 @@ import {
   formatValidityDate,
   getTargetAudienceLabel,
   splitIstDateTimeParts,
-  combineIstDateTimeParts,
+  istDateTimePartsToDate,
+  normalizeBannerDates,
   validateBannerValidityPeriod,
   epochMsToIstParts,
   to12HourTimeParts,
@@ -197,6 +198,12 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
     const endParts = splitIstDateTimeParts(banner.expiryDate);
     const normalizedStartTime = startParts.date ? startParts.time || '00:00' : '';
     const normalizedEndTime = endParts.date ? endParts.time || '23:59' : '';
+    const startDateObj = startParts.date
+      ? istDateTimePartsToDate(startParts.date, normalizedStartTime, '00:00')
+      : undefined;
+    const endDateObj = endParts.date
+      ? istDateTimePartsToDate(endParts.date, normalizedEndTime, '23:59')
+      : undefined;
 
     setStartDatePart(startParts.date);
     setStartTimePart(normalizedStartTime);
@@ -204,12 +211,8 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
     setEndTimePart(normalizedEndTime);
     setEditingBanner({
       ...banner,
-      startDate: startParts.date
-        ? combineIstDateTimeParts(startParts.date, normalizedStartTime, '00:00')
-        : '',
-      expiryDate: endParts.date
-        ? combineIstDateTimeParts(endParts.date, normalizedEndTime, '23:59')
-        : '',
+      startDate: startDateObj,
+      expiryDate: endDateObj,
       category: banner.category || 'Announcement',
       accentColor: banner.accentColor || '#8C2E46',
       textStyle: banner.textStyle || 'editorial_serif',
@@ -243,7 +246,7 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
     openEditorForBanner(newBanner, true);
   };
 
-  // Sync combined startDate / expiryDate whenever pickers change without rounding or losing selected minutes
+  // Sync full Date objects whenever date/time pickers change without rounding or losing selected minutes
   const syncEditorDates = (
     nextStartDate: string,
     nextStartTime: string,
@@ -259,11 +262,11 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
         ? {
             ...prev,
             startDate: nextStartDate
-              ? combineIstDateTimeParts(nextStartDate, nextStartTime, '00:00')
-              : '',
+              ? istDateTimePartsToDate(nextStartDate, nextStartTime, '00:00')
+              : undefined,
             expiryDate: nextEndDate
-              ? combineIstDateTimeParts(nextEndDate, nextEndTime, '23:59')
-              : '',
+              ? istDateTimePartsToDate(nextEndDate, nextEndTime, '23:59')
+              : undefined,
           }
         : prev
     );
@@ -298,25 +301,25 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
 
     setIsSavingEditor(true);
     try {
-      const normalizedStart = startDatePart
-        ? combineIstDateTimeParts(startDatePart, startTimePart, '00:00')
-        : '';
-      const normalizedEnd = endDatePart
-        ? combineIstDateTimeParts(endDatePart, endTimePart, '23:59')
-        : '';
+      const normalizedStartDate = startDatePart
+        ? istDateTimePartsToDate(startDatePart, startTimePart, '00:00')
+        : undefined;
+      const normalizedEndDate = endDatePart
+        ? istDateTimePartsToDate(endDatePart, endTimePart, '23:59')
+        : undefined;
 
-      const draftToCompute: HomepageBanner = {
+      const draftToCompute: HomepageBanner = normalizeBannerDates({
         ...editingBanner,
         campaignName: editingBanner.campaignName.trim(),
         heading: editingBanner.heading.trim(),
         subtitle: (editingBanner.subtitle || '').trim(),
         ctaText: (editingBanner.ctaText || '').trim(),
         priority: Math.max(1, Number(editingBanner.priority) || 1),
-        startDate: normalizedStart,
-        expiryDate: normalizedEnd,
+        startDate: normalizedStartDate,
+        expiryDate: normalizedEndDate,
         status: editingBanner.isEnabled ? 'active' : 'disabled',
         updatedAt: Date.now(),
-      };
+      });
 
       const computed = computeBannerStatus(draftToCompute, new Date());
       const bannerToSave: HomepageBanner = {

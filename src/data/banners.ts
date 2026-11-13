@@ -33,8 +33,8 @@ export interface HomepageBanner {
     | 'floral_petals'
     | 'champagne_shimmer';
   targetAudience?: BannerTargetAudience;
-  startDate?: string;
-  expiryDate?: string;
+  startDate?: Date | string | number;
+  expiryDate?: Date | string | number;
   priority: number;
   status: 'draft' | 'scheduled' | 'active' | 'expired' | 'disabled';
   isEnabled: boolean;
@@ -142,8 +142,8 @@ export const INITIAL_BANNERS: HomepageBanner[] = [
     textAlignment: 'center',
     festiveEffect: 'gold_sparks',
     targetAudience: 'all',
-    startDate: '2026-11-15T10:00',
-    expiryDate: '2026-11-30T23:59',
+    startDate: new Date('2026-11-15T10:00:00.000+05:30'),
+    expiryDate: new Date('2026-11-30T23:59:00.000+05:30'),
     priority: 1,
     status: 'scheduled',
     isEnabled: true,
@@ -190,11 +190,48 @@ function extractTimestampObjectMs(value: unknown): number | null {
 }
 
 /**
- * Parses a date or datetime string into an epoch millisecond timestamp,
- * interpreting timezone-naive strings ('YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm')
- * strictly in Indian Standard Time (IST, +05:30) with exact 1-minute precision.
+ * Converts a Date, Firestore Timestamp, epoch ms, or IST/ISO string into a high-precision Date object.
+ * Interpreting timezone-naive strings ('YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm') strictly in IST (+05:30).
  */
-export function parseIstTimestamp(dateStr?: string | number | unknown): number | null {
+export function toBannerDate(value?: Date | string | number | unknown): Date | undefined {
+  const ms = parseIstTimestamp(value);
+  if (ms === null) return undefined;
+  return new Date(ms);
+}
+
+/**
+ * Combines IST date (YYYY-MM-DD) and time (HH:mm) inputs into a full Date object
+ * preserving exact hour, minute, milliseconds (.000), and IST (+05:30) timezone offset.
+ */
+export function istDateTimePartsToDate(
+  date: string,
+  time: string,
+  defaultTime: string = '00:00'
+): Date | undefined {
+  const isoLocal = combineIstDateTimeParts(date, time, defaultTime);
+  if (!isoLocal) return undefined;
+  const ms = Date.parse(`${isoLocal}:00.000+05:30`);
+  return Number.isFinite(ms) ? new Date(ms) : undefined;
+}
+
+/**
+ * Hydrates a HomepageBanner's startDate and expiryDate fields into real Date objects
+ * (converting strings, epochs, or Firestore Timestamps cleanly).
+ */
+export function normalizeBannerDates(banner: HomepageBanner): HomepageBanner {
+  return {
+    ...banner,
+    startDate: toBannerDate(banner.startDate),
+    expiryDate: toBannerDate(banner.expiryDate),
+  };
+}
+
+/**
+ * Parses a date, Firestore Timestamp, or datetime string into an epoch millisecond timestamp,
+ * interpreting timezone-naive strings ('YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm')
+ * strictly in Indian Standard Time (IST, +05:30) with exact precision.
+ */
+export function parseIstTimestamp(dateStr?: Date | string | number | unknown): number | null {
   if (dateStr === undefined || dateStr === null || dateStr === '') return null;
   if (typeof dateStr === 'number') {
     return Number.isFinite(dateStr) ? dateStr : null;
@@ -209,7 +246,7 @@ export function parseIstTimestamp(dateStr?: string | number | unknown): number |
   const trimmed = dateStr.trim();
   if (!trimmed) return null;
 
-  const naiveMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/.exec(trimmed);
+  const naiveMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2})(?:\.(\d{1,3}))?)?)?$/.exec(trimmed);
   if (naiveMatch) {
     const year = Number(naiveMatch[1]);
     const month = Number(naiveMatch[2]);
@@ -217,6 +254,7 @@ export function parseIstTimestamp(dateStr?: string | number | unknown): number |
     const hour = naiveMatch[4] !== undefined ? Number(naiveMatch[4]) : 0;
     const minute = naiveMatch[5] !== undefined ? Number(naiveMatch[5]) : 0;
     const second = naiveMatch[6] !== undefined ? Number(naiveMatch[6]) : 0;
+    const milli = naiveMatch[7] !== undefined ? Number(naiveMatch[7].padEnd(3, '0')) : 0;
 
     if (
       month < 1 ||
@@ -236,7 +274,10 @@ export function parseIstTimestamp(dateStr?: string | number | unknown): number |
     const padded = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(
       2,
       '0'
-    )}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}+05:30`;
+    )}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(
+      2,
+      '0'
+    )}.${String(milli).padStart(3, '0')}+05:30`;
     const ms = Date.parse(padded);
     return Number.isFinite(ms) ? ms : null;
   }
@@ -264,14 +305,14 @@ export function epochMsToIstParts(ms: number): { date: string; time: string } {
 /**
  * Extracts YYYY-MM-DD and HH:mm parts in IST for date and time pickers without rounding.
  */
-export function splitIstDateTimeParts(dateStr?: string | number | unknown): { date: string; time: string } {
+export function splitIstDateTimeParts(dateStr?: Date | string | number | unknown): { date: string; time: string } {
   if (dateStr === undefined || dateStr === null || dateStr === '') return { date: '', time: '' };
 
   if (typeof dateStr === 'string') {
     const trimmed = dateStr.trim();
     if (!trimmed) return { date: '', time: '' };
 
-    const naiveMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::\d{1,2})?)?$/.exec(trimmed);
+    const naiveMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::\d{1,2}(?:\.\d{1,3})?)?)?$/.exec(trimmed);
     if (naiveMatch) {
       const year = String(Number(naiveMatch[1])).padStart(4, '0');
       const month = String(Number(naiveMatch[2])).padStart(2, '0');
@@ -340,8 +381,8 @@ export function combineIstDateTimeParts(
  * Validates that Start & End validity dates/times are complete and End >= Start in IST.
  */
 export function validateBannerValidityPeriod(
-  startDate?: string,
-  expiryDate?: string,
+  startDate?: Date | string | number,
+  expiryDate?: Date | string | number,
   parts?: {
     startDatePart?: string;
     startTimePart?: string;
@@ -364,17 +405,26 @@ export function validateBannerValidityPeriod(
     }
   }
 
-  const startMs = parseIstTimestamp(startDate);
-  const endMs = parseIstTimestamp(expiryDate);
+  const hasStartInput =
+    startDate instanceof Date ||
+    typeof startDate === 'number' ||
+    (typeof startDate === 'string' && startDate.trim() !== '');
+  const hasEndInput =
+    expiryDate instanceof Date ||
+    typeof expiryDate === 'number' ||
+    (typeof expiryDate === 'string' && expiryDate.trim() !== '');
 
-  if (startDate && startDate.trim() !== '' && startMs === null) {
+  const startObj = toBannerDate(startDate);
+  const endObj = toBannerDate(expiryDate);
+
+  if (hasStartInput && !startObj) {
     return { valid: false, error: 'Valid From date/time format is invalid.' };
   }
-  if (expiryDate && expiryDate.trim() !== '' && endMs === null) {
+  if (hasEndInput && !endObj) {
     return { valid: false, error: 'Valid Until date/time format is invalid.' };
   }
 
-  if (startMs !== null && endMs !== null && endMs < startMs) {
+  if (startObj && endObj && endObj.getTime() < startObj.getTime()) {
     return {
       valid: false,
       error: 'Valid Until date and time cannot be earlier than Valid From date and time.',
@@ -384,13 +434,13 @@ export function validateBannerValidityPeriod(
   return { valid: true };
 }
 
-export function formatValidityDate(dateStr?: string | number | unknown): string {
+export function formatValidityDate(dateStr?: Date | string | number | unknown): string {
   if (!dateStr) return 'Not Set';
 
-  const ms = parseIstTimestamp(dateStr);
-  if (ms === null) return 'Not Set';
+  const dateObj = toBannerDate(dateStr);
+  if (!dateObj) return 'Not Set';
 
-  const istDate = new Date(ms + IST_OFFSET_MS);
+  const istDate = new Date(dateObj.getTime() + IST_OFFSET_MS);
   const day = istDate.getUTCDate();
   const monthName = IST_MONTH_NAMES[istDate.getUTCMonth()] || 'Jan';
   const year = istDate.getUTCFullYear();
@@ -417,15 +467,15 @@ export function computeBannerStatus(
     return 'disabled';
   }
 
-  const currentTime = now.getTime();
-  const expTime = parseIstTimestamp(banner.expiryDate);
-  const startTime = parseIstTimestamp(banner.startDate);
+  const currentMs = now.getTime();
+  const startDateObj = toBannerDate(banner.startDate);
+  const expiryDateObj = toBannerDate(banner.expiryDate);
 
-  if (startTime !== null && currentTime < startTime) {
+  if (startDateObj && currentMs < startDateObj.getTime()) {
     return 'scheduled';
   }
 
-  if (expTime !== null && currentTime >= expTime) {
+  if (expiryDateObj && currentMs >= expiryDateObj.getTime()) {
     return 'expired';
   }
 
@@ -481,8 +531,7 @@ export function getTopEligibleCustomerBanner(
 
 /**
  * Computes milliseconds until the next local IST schedule boundary (start or expiry)
- * across all admin-enabled banners so customer/admin views transition automatically
- * without polling Firebase.
+ * across all admin-enabled banners using exact Date comparison without polling Firebase.
  */
 export function getNextBannerTransitionDelayMs(
   banners: HomepageBanner[],
@@ -494,17 +543,17 @@ export function getNextBannerTransitionDelayMs(
   for (const banner of banners) {
     if (!banner.isEnabled || banner.status === 'disabled') continue;
 
-    const startMs = parseIstTimestamp(banner.startDate);
-    if (startMs !== null && startMs > nowMs) {
-      const delta = startMs - nowMs + 50;
+    const startDateObj = toBannerDate(banner.startDate);
+    if (startDateObj && startDateObj.getTime() > nowMs) {
+      const delta = startDateObj.getTime() - nowMs + 50;
       if (minDelay === null || delta < minDelay) {
         minDelay = delta;
       }
     }
 
-    const expMs = parseIstTimestamp(banner.expiryDate);
-    if (expMs !== null && expMs > nowMs) {
-      const delta = expMs - nowMs + 50;
+    const expDateObj = toBannerDate(banner.expiryDate);
+    if (expDateObj && expDateObj.getTime() > nowMs) {
+      const delta = expDateObj.getTime() - nowMs + 50;
       if (minDelay === null || delta < minDelay) {
         minDelay = delta;
       }

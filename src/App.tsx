@@ -33,6 +33,7 @@ import {
   INITIAL_BANNERS,
   BannerAudienceContext,
   computeBannerStatus,
+  normalizeBannerDates,
 } from './data/banners';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OwnerAuthModal } from './components/OwnerAuthModal';
@@ -842,11 +843,11 @@ export default function App() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed)) {
-          if (parsed.length > 0 || wasSynced) return parsed;
+          if (parsed.length > 0 || wasSynced) return parsed.map(normalizeBannerDates);
         }
       }
     } catch {}
-    return INITIAL_BANNERS;
+    return INITIAL_BANNERS.map(normalizeBannerDates);
   });
 
   const bannerAudienceContext = React.useMemo<BannerAudienceContext>(() => {
@@ -883,7 +884,7 @@ export default function App() {
         channel = new BroadcastChannel('cotton_nest_banners');
         channel.onmessage = (event) => {
           if (event?.data?.type === 'banners_updated' && Array.isArray(event.data.banners)) {
-            setBanners(event.data.banners);
+            setBanners(event.data.banners.map(normalizeBannerDates));
           }
         };
       }
@@ -894,7 +895,7 @@ export default function App() {
         try {
           const parsed = JSON.parse(event.newValue);
           if (Array.isArray(parsed)) {
-            setBanners(parsed);
+            setBanners(parsed.map(normalizeBannerDates));
           }
         } catch {}
       }
@@ -920,13 +921,14 @@ export default function App() {
   }, [fetchBanners]);
 
   const handleSaveBanner = async (banner: HomepageBanner) => {
+    const normalizedBanner = normalizeBannerDates(banner);
     const previousBanners = banners;
-    const updatedList = banners.some((b) => b.id === banner.id)
-      ? banners.map((b) => (b.id === banner.id ? banner : b))
-      : [banner, ...banners];
+    const updatedList = banners.some((b) => b.id === normalizedBanner.id)
+      ? banners.map((b) => (b.id === normalizedBanner.id ? normalizedBanner : b))
+      : [normalizedBanner, ...banners];
     setBanners(updatedList);
     try {
-      const savedBanner = await saveBannerApi(banner);
+      const savedBanner = normalizeBannerDates(await saveBannerApi(normalizedBanner));
       setBanners((prev) =>
         prev.some((b) => b.id === savedBanner.id)
           ? prev.map((b) => (b.id === savedBanner.id ? savedBanner : b))
@@ -941,11 +943,14 @@ export default function App() {
   const handleToggleBannerEnabled = async (banner: HomepageBanner, nextEnabled: boolean) => {
     const previousBanners = banners;
     const optimisticStatus: HomepageBanner['status'] = nextEnabled
-      ? computeBannerStatus({
-          ...banner,
-          isEnabled: true,
-          status: banner.status === 'disabled' ? 'active' : banner.status,
-        })
+      ? computeBannerStatus(
+          {
+            ...banner,
+            isEnabled: true,
+            status: banner.status === 'disabled' ? 'active' : banner.status,
+          },
+          new Date()
+        )
       : 'disabled';
     const optimisticList = banners.map((b) =>
       b.id === banner.id
@@ -992,7 +997,7 @@ export default function App() {
 
   const handleDuplicateBanner = async (banner: HomepageBanner) => {
     const now = Date.now();
-    const duplicatedBanner: HomepageBanner = {
+    const duplicatedBanner: HomepageBanner = normalizeBannerDates({
       ...banner,
       id: `banner_${now}_${Math.random().toString(36).substring(2, 7)}`,
       campaignName: `${banner.campaignName} (Copy)`,
@@ -1002,7 +1007,7 @@ export default function App() {
       priority: Math.max(...banners.map((b) => b.priority), 0) + 1,
       createdAt: now,
       updatedAt: now,
-    };
+    });
     await handleSaveBanner(duplicatedBanner);
   };
 
