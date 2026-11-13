@@ -280,40 +280,6 @@
         "updatedAt": { "type": "number", "description": "Last status update timestamp" }
       },
       "required": ["uid", "status", "updatedAt"]
-    },
-    "HomepageBanner": {
-      "title": "HomepageBanner",
-      "description": "Dynamic announcement and festive campaign banner with IST scheduling, priority, target audience, and styling",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "description": "Unique banner ID" },
-        "campaignName": { "type": "string", "description": "Internal banner or campaign title" },
-        "category": { "type": "string", "description": "Banner category (Welcome, Festive, Offer, Seasonal, Announcement)" },
-        "heading": { "type": "string", "description": "Main headline text" },
-        "subtitle": { "type": "string", "description": "Supporting message text" },
-        "description": { "type": "string", "description": "Optional body copy" },
-        "ctaText": { "type": "string", "description": "Primary CTA button text" },
-        "ctaDestination": { "type": "string", "description": "Primary CTA destination route" },
-        "secondaryCtaText": { "type": "string", "description": "Optional secondary CTA button text" },
-        "secondaryCtaDestination": { "type": "string", "description": "Secondary CTA destination route" },
-        "desktopImageUrl": { "type": "string", "description": "Desktop banner image URL" },
-        "mobileImageUrl": { "type": "string", "description": "Mobile optimized banner image URL" },
-        "backgroundColor": { "type": "string", "description": "Hex background color" },
-        "textColor": { "type": "string", "description": "Hex text color" },
-        "accentColor": { "type": "string", "description": "Hex accent highlight color within Cotton Nest branding" },
-        "textStyle": { "type": "string", "enum": ["editorial_serif", "modern_sans", "bold_display"], "description": "Typography styling preset" },
-        "textAlignment": { "type": "string", "enum": ["left", "center", "right"], "description": "Text alignment" },
-        "festiveEffect": { "type": "string", "description": "Festive particle accent effect" },
-        "startDate": { "type": "string", "format": "date-time", "description": "Scheduled start timestamp stored as full Date / Firestore Timestamp preserving exact hours, minutes, milliseconds, and timezone" },
-        "expiryDate": { "type": "string", "format": "date-time", "description": "Scheduled expiry timestamp stored as full Date / Firestore Timestamp preserving exact hours, minutes, milliseconds, and timezone" },
-        "priority": { "type": "number", "description": "Display priority number (1 = highest)" },
-        "targetAudience": { "type": "string", "enum": ["all", "new_users", "registered_users"], "description": "Target audience eligibility rule" },
-        "status": { "type": "string", "enum": ["draft", "scheduled", "active", "expired", "disabled"], "description": "Banner status" },
-        "isEnabled": { "type": "boolean", "description": "Master enable toggle" },
-        "createdAt": { "type": "number", "description": "Creation timestamp" },
-        "updatedAt": { "type": "number", "description": "Last update timestamp" }
-      },
-      "required": ["id", "campaignName", "heading", "priority", "status", "isEnabled"]
     }
   },
   "firestore": {
@@ -332,10 +298,6 @@
     "/site_content/{contentId}": {
       "schema": "SiteContent",
       "description": "Store contact and banner details"
-    },
-    "/banners/{bannerId}": {
-      "schema": "HomepageBanner",
-      "description": "Dynamic homepage promotional campaign banners"
     },
     "/theme/{themeId}": {
       "schema": "ThemeConfig",

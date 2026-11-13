@@ -3289,14 +3289,14 @@
       "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
-      "lastLoginAt": 1794464035977,
-      "lastActiveAt": 1794470432048,
-      "totalSessions": 10,
-      "totalTimeSpentSeconds": 12382,
-      "averageSessionDurationSeconds": 1238,
-      "totalPagesVisited": 33,
+      "lastLoginAt": 1794539074452,
+      "lastActiveAt": 1794544877784,
+      "totalSessions": 13,
+      "totalTimeSpentSeconds": 14998,
+      "averageSessionDurationSeconds": 1154,
+      "totalPagesVisited": 36,
       "pageVisitCounts": {
-        "Home Showcase": 10,
+        "Home Showcase": 13,
         "Admin Analytics": 1,
         "Terms & Privacy Policy": 3,
         "Bedsheet Catalogue": 17,
@@ -3395,10 +3395,52 @@
       },
       "sessions": [
         {
+          "sessionId": "sess_1794539074452_b4jdx",
+          "loginAt": 1794539074452,
+          "lastActiveAt": 1794544877784,
+          "durationSeconds": 1792,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794495890405_21voy",
+          "loginAt": 1794495890405,
+          "lastActiveAt": 1794497132495,
+          "durationSeconds": 163,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794481929213_1qwxe",
+          "loginAt": 1794481929213,
+          "lastActiveAt": 1794484054736,
+          "durationSeconds": 59,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
           "sessionId": "sess_1794464035977_mrtco",
           "loginAt": 1794464035977,
-          "lastActiveAt": 1794470432048,
-          "durationSeconds": 1437,
+          "lastActiveAt": 1794472169788,
+          "durationSeconds": 2039,
           "pagesVisited": [
             "Home Showcase",
             "Bedsheet Catalogue"
@@ -3549,6 +3591,48 @@
         }
       ],
       "timeline": [
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794539074452_b4jdx",
+          "timestamp": 1794539074452,
+          "id": "evt_1794539074452_o5awi"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794495890405_21voy",
+          "timestamp": 1794497132495,
+          "id": "evt_1794497132495_8faem"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794495890405_21voy",
+          "timestamp": 1794495890405,
+          "id": "evt_1794495890405_cq291"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794481929213_1qwxe",
+          "timestamp": 1794484053757,
+          "id": "evt_1794484053757_saw98"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794481929213_1qwxe",
+          "timestamp": 1794481929213,
+          "id": "evt_1794481929213_x8dgv"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794464035977_mrtco",
+          "timestamp": 1794472169671,
+          "id": "evt_1794472169671_96wwo"
+        },
         {
           "type": "session_end",
           "label": "User left website",
@@ -4017,7 +4101,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794470432254,
+      "updatedAt": 1794544877983,
       "lastLogoutAt": 1794285339677
     }
   },

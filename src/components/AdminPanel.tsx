@@ -65,8 +65,6 @@ import { AdminNotificationsSection } from './AdminNotificationsSection';
 import { AdminWishlistsSection } from './AdminWishlistsSection';
 import { AdminCustomerAnalyticsSection } from './AdminCustomerAnalyticsSection';
 import { AdminComplaintsSubsection } from './AdminComplaintsSubsection';
-import { AdminBannersSection } from './AdminBannersSection';
-import { HomepageBanner, computeBannerStatus } from '../data/banners';
 import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
 import {
@@ -130,7 +128,6 @@ import {
   ZoomIn,
   Mail,
   Copy,
-  Megaphone,
 } from 'lucide-react';
 
 import { AdminPhotoEnlargeModal } from './AdminPhotoEnlargeModal';
@@ -154,12 +151,6 @@ interface AdminPanelProps {
   seasonalConfig?: SeasonalConfig;
   onUpdateSeasonalConfig?: (config: SeasonalConfig) => Promise<void> | void;
   reviews?: ProductReview[];
-  banners?: HomepageBanner[];
-  onSaveBanner?: (banner: HomepageBanner) => Promise<void> | void;
-  onToggleBannerEnabled?: (banner: HomepageBanner, nextEnabled: boolean) => Promise<void> | void;
-  onDeleteBanner?: (bannerId: string) => Promise<void> | void;
-  onDuplicateBanner?: (banner: HomepageBanner) => Promise<void> | void;
-  onRefreshBanners?: () => Promise<void> | void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -186,19 +177,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   seasonalConfig,
   onUpdateSeasonalConfig,
   reviews = [],
-  banners = [],
-  onSaveBanner,
-  onToggleBannerEnabled,
-  onDeleteBanner,
-  onDuplicateBanner,
-  onRefreshBanners,
 }) => {
-  // Tabs: 'products' | 'orders' | 'banners' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'banners' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
-  const activeBannersCount = React.useMemo(
-    () => banners.filter((banner) => computeBannerStatus(banner) === 'active').length,
-    [banners]
-  );
+  // Tabs: 'products' | 'orders' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
 
   // Fullscreen Enlarge Product Photo state
   const [enlargedProductState, setEnlargedProductState] = useState<{
@@ -2341,19 +2322,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveAdminTab('banners')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
-                activeAdminTab === 'banners'
-                  ? 'bg-[#70252D] text-white shadow-2xs'
-                  : 'text-[#6B5D55] hover:text-[#2C2420]'
-              }`}
-            >
-              <Megaphone className="w-3.5 h-3.5" />
-              <span>Banners ({activeBannersCount}/{banners.length})</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => setActiveAdminTab('notifications')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
                 activeAdminTab === 'notifications'
@@ -2541,25 +2509,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {pendingOrdersCount}
                 </span>
               )}
-            </button>
-
-            <button
-              onClick={() => setActiveAdminTab('banners')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative shrink-0"
-              style={
-                activeAdminTab === 'banners'
-                  ? {
-                      backgroundColor: 'var(--color-primary, #70252D)',
-                      color: 'var(--color-primary-contrast, #FFFFFF)',
-                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-                    }
-                  : {
-                      color: 'var(--color-text-secondary, #6B5D55)',
-                    }
-              }
-            >
-              <Megaphone className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'banners' ? undefined : '#C29E57' }} />
-              <span>Announcement &amp; Festive Banners ({activeBannersCount}/{banners.length})</span>
             </button>
 
             <button
@@ -5780,20 +5729,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             {/* Announcement Banner */}
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#C29E57]" />
-                  Fallback Announcement Bar
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => setActiveAdminTab('banners')}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#70252D] hover:bg-[#5A1D24] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
-                >
-                  <Megaphone className="w-3.5 h-3.5" />
-                  <span>Manage Scheduled &amp; Festive Banners ({activeBannersCount}/{banners.length})</span>
-                </button>
-              </div>
+              <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#C29E57]" />
+                Announcement Banner
+              </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
@@ -6172,47 +6111,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             products={editableProducts}
             orders={editableOrders}
             onToast={showToast}
-          />
-        )}
-
-        {/* ======================================================== */}
-        {/* TAB 9: ANNOUNCEMENT & FESTIVE BANNERS MANAGEMENT         */}
-        {/* ======================================================== */}
-        {activeAdminTab === 'banners' && (
-          <AdminBannersSection
-            banners={banners}
-            onSaveBanner={async (banner) => {
-              if (onSaveBanner) {
-                await onSaveBanner(banner);
-              }
-              showToast(`Saved banner "${banner.campaignName}".`);
-            }}
-            onToggleBannerEnabled={async (banner, nextEnabled) => {
-              if (onToggleBannerEnabled) {
-                await onToggleBannerEnabled(banner, nextEnabled);
-              } else if (onSaveBanner) {
-                await onSaveBanner({
-                  ...banner,
-                  isEnabled: nextEnabled,
-                  status: nextEnabled ? computeBannerStatus({ ...banner, isEnabled: true, status: 'active' }) : 'disabled',
-                  updatedAt: Date.now(),
-                });
-              }
-              showToast(`Banner "${banner.campaignName}" ${nextEnabled ? 'enabled' : 'disabled'}.`);
-            }}
-            onDeleteBanner={async (bannerId) => {
-              if (onDeleteBanner) {
-                await onDeleteBanner(bannerId);
-              }
-              showToast('Banner deleted.');
-            }}
-            onDuplicateBanner={async (banner) => {
-              if (onDuplicateBanner) {
-                await onDuplicateBanner(banner);
-              }
-              showToast(`Duplicated "${banner.campaignName}".`);
-            }}
-            onRefreshBanners={onRefreshBanners}
           />
         )}
 
