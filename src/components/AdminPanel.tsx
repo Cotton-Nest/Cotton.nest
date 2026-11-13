@@ -606,12 +606,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         setOrdersSyncError(null);
       },
       (err: any) => {
-        const code = String(err?.code || '');
-        const msg =
-          code === 'permission-denied'
-            ? 'Orders permission restricted — sign in with an authorized Cotton Nest Owner Google account to sync all store orders.'
-            : err?.message || 'Live orders sync interrupted.';
-        setOrdersSyncError(msg);
+        const code = String(err?.code || 'unknown');
+        const msg = err instanceof Error ? err.message : String(err || 'Live orders sync interrupted.');
+        setOrdersSyncError(
+          `Orders [${code}] on "orders": ${msg}`
+        );
       }
     );
 

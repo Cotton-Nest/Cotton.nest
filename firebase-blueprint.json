@@ -281,6 +281,18 @@
         "updatedAt": { "type": "number", "description": "Last status update timestamp" }
       },
       "required": ["uid", "status", "updatedAt"]
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Authorized Cotton Nest store owner or administrator role record keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Authentication UID of authorized admin" },
+        "email": { "type": "string", "description": "Verified owner or admin email address" },
+        "role": { "type": "string", "enum": ["owner", "admin"], "description": "Admin privilege level" },
+        "grantedAt": { "type": "number", "description": "Epoch timestamp when access was granted" }
+      },
+      "required": ["uid", "email", "role"]
     }
   },
   "firestore": {
@@ -339,6 +351,10 @@
     "/welcome_offer_redemptions/{uid}": {
       "schema": "WelcomeOfferRedemption",
       "description": "Per-customer Welcome Offer eligibility, reservation, and redemption records"
+    },
+    "/admins/{uid}": {
+      "schema": "AdminRole",
+      "description": "Authorized Cotton Nest store owner and administrator role records"
     }
   }
 }

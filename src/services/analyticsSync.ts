@@ -15,12 +15,19 @@ import {
   onSnapshot,
   setDoc,
 } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
   db,
   handleFirestoreError,
+  inspectAndRefreshPrimaryAuth,
   isFirestoreWriteQuotaExhausted,
   markFirestoreWriteQuotaExhausted,
   OperationType,
+  previewAuth,
+  primaryAuth,
+  FIREBASE_PROJECT_ID,
+  FIRESTORE_DATABASE_ID,
+  PREVIEW_AUTH_PROJECT_ID,
 } from '../firebase';
 import { BedsheetProduct, BEDSHEETS_CATALOG } from '../data/products';
 import { Order } from '../data/orders';
@@ -38,6 +45,11 @@ import {
   deduplicateWishlists,
   getISTTodayKey,
 } from '../data/unifiedAnalytics';
+import {
+  AnalyticsDiagnosticDetail,
+  AuthDiagnosticContext,
+  buildFirestoreDiagnostic,
+} from '../data/analyticsDiagnostics';
 
 export const ANALYTICS_COLLECTION = 'analytics';
 export const SITE_TRAFFIC_DOC_ID = 'site_traffic';
@@ -180,7 +192,7 @@ export async function recordSitePageVisitToFirestore(section: string = 'home'): 
  */
 export function subscribeAdminOrders(
   onUpdate: (orders: Order[]) => void,
-  onError?: (message: string, code?: string) => void
+  onError?: (message: string, code?: string, detail?: AnalyticsDiagnosticDetail) => void
 ): () => void {
   let active = true;
 
@@ -200,11 +212,32 @@ export function subscribeAdminOrders(
     (err: any) => {
       if (!active) return;
       const code = String(err?.code || '');
-      const msg = err instanceof Error ? err.message : String(err || 'Failed to sync orders');
       try {
         handleFirestoreError(err, OperationType.LIST, 'orders');
       } catch {}
-      onError?.(msg, code);
+      const authCtx: AuthDiagnosticContext = {
+        firestoreProjectId: FIREBASE_PROJECT_ID,
+        firestoreDatabaseId: FIRESTORE_DATABASE_ID,
+        previewAuthProjectId: PREVIEW_AUTH_PROJECT_ID,
+        primarySignedIn: Boolean(primaryAuth.currentUser),
+        primaryUid: primaryAuth.currentUser?.uid || null,
+        primaryEmail: primaryAuth.currentUser?.email || null,
+        primaryEmailVerified: Boolean(primaryAuth.currentUser?.emailVerified),
+        primaryHasAdminClaim: false,
+        previewSignedIn: Boolean(previewAuth.currentUser),
+        previewUid: previewAuth.currentUser?.uid || null,
+        previewEmail: previewAuth.currentUser?.email || null,
+        previewEmailVerified: Boolean(previewAuth.currentUser?.emailVerified),
+        tokenRefreshedAt: null,
+      };
+      const detail = buildFirestoreDiagnostic({
+        sourceKey: 'orders',
+        label: 'Orders',
+        collectionPath: 'orders',
+        error: err,
+        auth: authCtx,
+      });
+      onError?.(detail.formattedSummary, code || detail.errorCode, detail);
     }
   );
 
@@ -233,17 +266,40 @@ export interface SyncedAnalyticsState {
   isRefreshing: boolean;
   lastUpdatedAt: number | null;
   sourceErrors: Partial<Record<AnalyticsSourceName, string>>;
+  sourceDetails: Partial<Record<AnalyticsSourceName, AnalyticsDiagnosticDetail>>;
+  authDiagnostic: AuthDiagnosticContext | null;
   syncError: string | null;
   refresh: () => Promise<void>;
 }
 
-function formatFirestoreErrorReason(source: string, err: unknown): string {
-  const code = String((err as any)?.code || '');
-  const message = err instanceof Error ? err.message : String(err || 'Unknown error');
-  if (code === 'permission-denied' || message.toLowerCase().includes('permission')) {
-    return `${source}: Permission restricted — sign in with an authorized Cotton Nest Owner Google account.`;
-  }
-  return `${source}: ${message}`;
+const SOURCE_META: Record<AnalyticsSourceName, { label: string; collectionPath: string }> = {
+  orders: { label: 'Orders', collectionPath: 'orders' },
+  products: { label: 'Products', collectionPath: 'products' },
+  reviews: { label: 'Reviews', collectionPath: 'reviews' },
+  wishlists: { label: 'Wishlists', collectionPath: 'wishlists' },
+  customer_activity: { label: 'Customer Activity', collectionPath: 'customer_activity' },
+  traffic: { label: 'Site Traffic', collectionPath: `${ANALYTICS_COLLECTION}/${SITE_TRAFFIC_DOC_ID}` },
+};
+
+function getSyncAuthSnapshot(bridgeError?: string | null): AuthDiagnosticContext {
+  const pUser = primaryAuth.currentUser;
+  const prevUser = previewAuth.currentUser;
+  return {
+    firestoreProjectId: FIREBASE_PROJECT_ID,
+    firestoreDatabaseId: FIRESTORE_DATABASE_ID,
+    previewAuthProjectId: PREVIEW_AUTH_PROJECT_ID,
+    primarySignedIn: Boolean(pUser),
+    primaryUid: pUser?.uid || null,
+    primaryEmail: pUser?.email || null,
+    primaryEmailVerified: Boolean(pUser?.emailVerified),
+    primaryHasAdminClaim: false,
+    previewSignedIn: Boolean(prevUser),
+    previewUid: prevUser?.uid || null,
+    previewEmail: prevUser?.email || null,
+    previewEmailVerified: Boolean(prevUser?.emailVerified),
+    tokenRefreshedAt: null,
+    bridgeError: bridgeError || null,
+  };
 }
 
 /**
@@ -256,10 +312,13 @@ export function useSyncedAnalyticsData(options?: {
   fallbackProducts?: BedsheetProduct[];
   fallbackOrders?: Order[];
   fallbackReviews?: ProductReview[];
+  bridgeError?: string | null;
 }): SyncedAnalyticsState {
   const enabled = options?.enabled !== false;
   const fallbackProductsRef = useRef(options?.fallbackProducts);
   fallbackProductsRef.current = options?.fallbackProducts;
+  const bridgeErrorRef = useRef(options?.bridgeError);
+  bridgeErrorRef.current = options?.bridgeError;
 
   const [orders, setOrders] = useState<Order[]>(() =>
     deduplicateOrders(options?.fallbackOrders || [])
@@ -280,7 +339,15 @@ export function useSyncedAnalyticsData(options?: {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [sourceErrors, setSourceErrors] = useState<Partial<Record<AnalyticsSourceName, string>>>({});
+  const [sourceDetails, setSourceDetails] = useState<
+    Partial<Record<AnalyticsSourceName, AnalyticsDiagnosticDetail>>
+  >({});
+  const [authDiagnostic, setAuthDiagnostic] = useState<AuthDiagnosticContext | null>(() =>
+    getSyncAuthSnapshot(options?.bridgeError)
+  );
+  const [authRevision, setAuthRevision] = useState<number>(0);
 
+  const authSnapshotRef = useRef<AuthDiagnosticContext>(getSyncAuthSnapshot(options?.bridgeError));
   const settledRef = useRef<Set<AnalyticsSourceName>>(new Set());
 
   const markSettled = useCallback((source: AnalyticsSourceName) => {
@@ -297,14 +364,64 @@ export function useSyncedAnalyticsData(options?: {
       delete next[source];
       return next;
     });
-  }, []);
-
-  const setSourceError = useCallback((source: AnalyticsSourceName, message: string) => {
-    setSourceErrors((prev) => {
-      if (prev[source] === message) return prev;
-      return { ...prev, [source]: message };
+    setSourceDetails((prev) => {
+      if (!prev[source]) return prev;
+      const next = { ...prev };
+      delete next[source];
+      return next;
     });
   }, []);
+
+  const recordSourceError = useCallback(
+    (source: AnalyticsSourceName, err: unknown, explicitAuth?: AuthDiagnosticContext) => {
+      const meta = SOURCE_META[source];
+      const authCtx = explicitAuth || {
+        ...authSnapshotRef.current,
+        bridgeError: bridgeErrorRef.current || authSnapshotRef.current.bridgeError || null,
+      };
+      const detail = buildFirestoreDiagnostic({
+        sourceKey: source,
+        label: meta.label,
+        collectionPath: meta.collectionPath,
+        error: err,
+        auth: authCtx,
+      });
+      setSourceErrors((prev) => {
+        if (prev[source] === detail.formattedSummary) return prev;
+        return { ...prev, [source]: detail.formattedSummary };
+      });
+      setSourceDetails((prev) => ({
+        ...prev,
+        [source]: detail,
+      }));
+    },
+    []
+  );
+
+  // Re-attach listeners whenever Firebase primaryAuth or previewAuth state transitions
+  useEffect(() => {
+    if (!enabled) return;
+    let firstPrimary = true;
+    let firstPreview = true;
+    const unsubPrimary = onAuthStateChanged(primaryAuth, () => {
+      if (firstPrimary) {
+        firstPrimary = false;
+        return;
+      }
+      setAuthRevision((r) => r + 1);
+    });
+    const unsubPreview = onAuthStateChanged(previewAuth, () => {
+      if (firstPreview) {
+        firstPreview = false;
+        return;
+      }
+      setAuthRevision((r) => r + 1);
+    });
+    return () => {
+      unsubPrimary();
+      unsubPreview();
+    };
+  }, [enabled]);
 
   const fetchServerVerifiedAll = useCallback(
     async (isManualRefresh: boolean) => {
@@ -313,10 +430,21 @@ export function useSyncedAnalyticsData(options?: {
         setIsRefreshing(true);
       }
 
+      // Force ID token refresh & verify claims before hitting Firestore server
+      const freshSnap = await inspectAndRefreshPrimaryAuth(true).catch(() => null);
+      const authCtx: AuthDiagnosticContext = freshSnap
+        ? { ...freshSnap, bridgeError: bridgeErrorRef.current || null }
+        : getSyncAuthSnapshot(bridgeErrorRef.current);
+      authSnapshotRef.current = authCtx;
+      setAuthDiagnostic(authCtx);
+
       const fetchDocs = async (colName: string) => {
         try {
           return await getDocsFromServer(collection(db, colName));
-        } catch {
+        } catch (serverErr: any) {
+          if (serverErr?.code === 'permission-denied' || serverErr?.code === 'unauthenticated') {
+            throw serverErr;
+          }
           return await getDocs(collection(db, colName));
         }
       };
@@ -325,7 +453,10 @@ export function useSyncedAnalyticsData(options?: {
         const ref = doc(db, ANALYTICS_COLLECTION, SITE_TRAFFIC_DOC_ID);
         try {
           return await getDocFromServer(ref);
-        } catch {
+        } catch (serverErr: any) {
+          if (serverErr?.code === 'permission-denied' || serverErr?.code === 'unauthenticated') {
+            throw serverErr;
+          }
           return await getDoc(ref);
         }
       };
@@ -349,7 +480,7 @@ export function useSyncedAnalyticsData(options?: {
         setOrders(deduplicateOrders(list));
         clearSourceError('orders');
       } else {
-        setSourceError('orders', formatFirestoreErrorReason('Orders', results[0].reason));
+        recordSourceError('orders', results[0].reason, authCtx);
       }
 
       // 2. Products
@@ -367,7 +498,7 @@ export function useSyncedAnalyticsData(options?: {
         }
         clearSourceError('products');
       } else {
-        setSourceError('products', formatFirestoreErrorReason('Products', results[1].reason));
+        recordSourceError('products', results[1].reason, authCtx);
       }
 
       // 3. Reviews
@@ -380,7 +511,7 @@ export function useSyncedAnalyticsData(options?: {
         setReviews(deduplicateReviews(list));
         clearSourceError('reviews');
       } else {
-        setSourceError('reviews', formatFirestoreErrorReason('Reviews', results[2].reason));
+        recordSourceError('reviews', results[2].reason, authCtx);
       }
 
       // 4. Wishlists
@@ -393,7 +524,7 @@ export function useSyncedAnalyticsData(options?: {
         setWishlists(deduplicateWishlists(list));
         clearSourceError('wishlists');
       } else {
-        setSourceError('wishlists', formatFirestoreErrorReason('Wishlists', results[3].reason));
+        recordSourceError('wishlists', results[3].reason, authCtx);
       }
 
       // 5. Customer Activity
@@ -406,10 +537,7 @@ export function useSyncedAnalyticsData(options?: {
         setCustomerProfiles(list);
         clearSourceError('customer_activity');
       } else {
-        setSourceError(
-          'customer_activity',
-          formatFirestoreErrorReason('Customer Activity', results[4].reason)
-        );
+        recordSourceError('customer_activity', results[4].reason, authCtx);
       }
 
       // 6. Traffic
@@ -422,7 +550,7 @@ export function useSyncedAnalyticsData(options?: {
         );
         clearSourceError('traffic');
       } else {
-        setSourceError('traffic', formatFirestoreErrorReason('Site Traffic', results[5].reason));
+        recordSourceError('traffic', results[5].reason, authCtx);
       }
 
       setLastUpdatedAt(Date.now());
@@ -431,7 +559,7 @@ export function useSyncedAnalyticsData(options?: {
         setIsRefreshing(false);
       }
     },
-    [enabled, clearSourceError, setSourceError]
+    [enabled, clearSourceError, recordSourceError]
   );
 
   useEffect(() => {
@@ -440,140 +568,164 @@ export function useSyncedAnalyticsData(options?: {
       return;
     }
 
+    let cancelled = false;
+    const unsubs: Array<() => void> = [];
+
     settledRef.current = new Set();
     setIsLoading(true);
 
-    // 1. Live Orders listener
-    const unsubOrders = onSnapshot(
-      collection(db, 'orders'),
-      (snap) => {
-        const list: Order[] = [];
-        snap.forEach((d) => {
-          const raw = d.data() as Order;
-          if (raw && d.id) list.push({ ...raw, id: d.id });
-        });
-        setOrders(deduplicateOrders(list));
-        clearSourceError('orders');
-        setLastUpdatedAt(Date.now());
-        markSettled('orders');
-      },
-      (err) => {
-        setSourceError('orders', formatFirestoreErrorReason('Orders', err));
-        markSettled('orders');
-      }
-    );
+    const startListeners = async () => {
+      const freshSnap = await inspectAndRefreshPrimaryAuth(true).catch(() => null);
+      if (cancelled) return;
 
-    // 2. Live Products listener
-    const unsubProducts = onSnapshot(
-      collection(db, 'products'),
-      (snap) => {
-        const list: BedsheetProduct[] = [];
-        snap.forEach((d) => {
-          const raw = d.data() as BedsheetProduct;
-          if (raw && d.id) list.push({ ...raw, id: d.id });
-        });
-        if (list.length > 0) {
-          list.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-          setProducts(list);
-        }
-        clearSourceError('products');
-        setLastUpdatedAt(Date.now());
-        markSettled('products');
-      },
-      (err) => {
-        setSourceError('products', formatFirestoreErrorReason('Products', err));
-        markSettled('products');
-      }
-    );
+      const authCtx: AuthDiagnosticContext = freshSnap
+        ? { ...freshSnap, bridgeError: bridgeErrorRef.current || null }
+        : getSyncAuthSnapshot(bridgeErrorRef.current);
+      authSnapshotRef.current = authCtx;
+      setAuthDiagnostic(authCtx);
 
-    // 3. Live Reviews listener
-    const unsubReviews = onSnapshot(
-      collection(db, 'reviews'),
-      (snap) => {
-        const list: ProductReview[] = [];
-        snap.forEach((d) => {
-          const raw = d.data() as ProductReview;
-          if (raw && d.id) list.push({ ...raw, id: d.id });
-        });
-        setReviews(deduplicateReviews(list));
-        clearSourceError('reviews');
-        setLastUpdatedAt(Date.now());
-        markSettled('reviews');
-      },
-      (err) => {
-        setSourceError('reviews', formatFirestoreErrorReason('Reviews', err));
-        markSettled('reviews');
-      }
-    );
+      // 1. Live Orders listener
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'orders'),
+          (snap) => {
+            const list: Order[] = [];
+            snap.forEach((d) => {
+              const raw = d.data() as Order;
+              if (raw && d.id) list.push({ ...raw, id: d.id });
+            });
+            setOrders(deduplicateOrders(list));
+            clearSourceError('orders');
+            setLastUpdatedAt(Date.now());
+            markSettled('orders');
+          },
+          (err) => {
+            recordSourceError('orders', err, authCtx);
+            markSettled('orders');
+          }
+        )
+      );
 
-    // 4. Live Wishlists listener
-    const unsubWishlists = onSnapshot(
-      collection(db, 'wishlists'),
-      (snap) => {
-        const list: WishlistItem[] = [];
-        snap.forEach((d) => {
-          const raw = d.data() as WishlistItem;
-          if (raw && d.id) list.push({ ...raw, id: d.id });
-        });
-        setWishlists(deduplicateWishlists(list));
-        clearSourceError('wishlists');
-        setLastUpdatedAt(Date.now());
-        markSettled('wishlists');
-      },
-      (err) => {
-        setSourceError('wishlists', formatFirestoreErrorReason('Wishlists', err));
-        markSettled('wishlists');
-      }
-    );
+      // 2. Live Products listener
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'products'),
+          (snap) => {
+            const list: BedsheetProduct[] = [];
+            snap.forEach((d) => {
+              const raw = d.data() as BedsheetProduct;
+              if (raw && d.id) list.push({ ...raw, id: d.id });
+            });
+            if (list.length > 0) {
+              list.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+              setProducts(list);
+            }
+            clearSourceError('products');
+            setLastUpdatedAt(Date.now());
+            markSettled('products');
+          },
+          (err) => {
+            recordSourceError('products', err, authCtx);
+            markSettled('products');
+          }
+        )
+      );
 
-    // 5. Live Customer Activity listener
-    const unsubProfiles = onSnapshot(
-      collection(db, 'customer_activity'),
-      (snap) => {
-        const list: CustomerActivityProfile[] = [];
-        snap.forEach((d) => {
-          const raw = d.data() as CustomerActivityProfile;
-          if (raw) list.push({ ...raw, uid: raw.uid || d.id });
-        });
-        setCustomerProfiles(list);
-        clearSourceError('customer_activity');
-        setLastUpdatedAt(Date.now());
-        markSettled('customer_activity');
-      },
-      (err) => {
-        setSourceError('customer_activity', formatFirestoreErrorReason('Customer Activity', err));
-        markSettled('customer_activity');
-      }
-    );
+      // 3. Live Reviews listener
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'reviews'),
+          (snap) => {
+            const list: ProductReview[] = [];
+            snap.forEach((d) => {
+              const raw = d.data() as ProductReview;
+              if (raw && d.id) list.push({ ...raw, id: d.id });
+            });
+            setReviews(deduplicateReviews(list));
+            clearSourceError('reviews');
+            setLastUpdatedAt(Date.now());
+            markSettled('reviews');
+          },
+          (err) => {
+            recordSourceError('reviews', err, authCtx);
+            markSettled('reviews');
+          }
+        )
+      );
 
-    // 6. Live Site Traffic listener
-    const unsubTraffic = onSnapshot(
-      doc(db, ANALYTICS_COLLECTION, SITE_TRAFFIC_DOC_ID),
-      (snap) => {
-        setTrafficData(
-          snap.exists()
-            ? normalizeTrafficData(snap.data() as Partial<SiteTrafficData>)
-            : getEmptyTrafficData()
-        );
-        clearSourceError('traffic');
-        setLastUpdatedAt(Date.now());
-        markSettled('traffic');
-      },
-      (err) => {
-        setSourceError('traffic', formatFirestoreErrorReason('Site Traffic', err));
-        markSettled('traffic');
-      }
-    );
+      // 4. Live Wishlists listener
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'wishlists'),
+          (snap) => {
+            const list: WishlistItem[] = [];
+            snap.forEach((d) => {
+              const raw = d.data() as WishlistItem;
+              if (raw && d.id) list.push({ ...raw, id: d.id });
+            });
+            setWishlists(deduplicateWishlists(list));
+            clearSourceError('wishlists');
+            setLastUpdatedAt(Date.now());
+            markSettled('wishlists');
+          },
+          (err) => {
+            recordSourceError('wishlists', err, authCtx);
+            markSettled('wishlists');
+          }
+        )
+      );
+
+      // 5. Live Customer Activity listener
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'customer_activity'),
+          (snap) => {
+            const list: CustomerActivityProfile[] = [];
+            snap.forEach((d) => {
+              const raw = d.data() as CustomerActivityProfile;
+              if (raw) list.push({ ...raw, uid: raw.uid || d.id });
+            });
+            setCustomerProfiles(list);
+            clearSourceError('customer_activity');
+            setLastUpdatedAt(Date.now());
+            markSettled('customer_activity');
+          },
+          (err) => {
+            recordSourceError('customer_activity', err, authCtx);
+            markSettled('customer_activity');
+          }
+        )
+      );
+
+      // 6. Live Site Traffic listener
+      unsubs.push(
+        onSnapshot(
+          doc(db, ANALYTICS_COLLECTION, SITE_TRAFFIC_DOC_ID),
+          (snap) => {
+            setTrafficData(
+              snap.exists()
+                ? normalizeTrafficData(snap.data() as Partial<SiteTrafficData>)
+                : getEmptyTrafficData()
+            );
+            clearSourceError('traffic');
+            setLastUpdatedAt(Date.now());
+            markSettled('traffic');
+          },
+          (err) => {
+            recordSourceError('traffic', err, authCtx);
+            markSettled('traffic');
+          }
+        )
+      );
+    };
+
+    void startListeners();
 
     return () => {
-      unsubOrders();
-      unsubProducts();
-      unsubReviews();
-      unsubWishlists();
-      unsubProfiles();
-      unsubTraffic();
+      cancelled = true;
+      unsubs.forEach((fn) => fn());
     };
-  }, [enabled, clearSourceError, markSettled, setSourceError]);
+  }, [enabled, authRevision, clearSourceError, markSettled, recordSourceError]);
 
   const errorMessages = Object.values(sourceErrors).filter(Boolean) as string[];
   const syncError = errorMessages.length > 0 ? errorMessages.join(' | ') : null;
@@ -593,6 +745,8 @@ export function useSyncedAnalyticsData(options?: {
     isRefreshing,
     lastUpdatedAt,
     sourceErrors,
+    sourceDetails,
+    authDiagnostic,
     syncError,
     refresh,
   };

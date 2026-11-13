@@ -73,18 +73,22 @@ export interface DomainAuthResolution {
 
 let cachedResolution: DomainAuthResolution | null = null;
 
+export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
+export const FIRESTORE_DATABASE_ID = firebaseConfig.firestoreDatabaseId;
+export const PREVIEW_AUTH_PROJECT_ID = GOOGLE_AUTH_FIREBASE_CONFIG.projectId;
+
 /**
- * Checks Firebase Identity Toolkit project config for both provisioned projects
- * so that whichever Firebase project (gen-lang-client-0838797128 or river-fusion-rz0s9)
- * has the current hostname (e.g. *.run.app or *.vercel.app) in its Authorized Domains
- * is automatically used for signInWithPopup.
+ * Checks Firebase Identity Toolkit project config for both provisioned projects.
+ * Prioritizes primaryAuth (river-fusion-rz0s9 — which owns Firestore) whenever the current
+ * hostname is authorized on it, falling back to previewAuth (gen-lang-client-0838797128)
+ * on AI Studio preview/sandbox hosts.
  */
 export async function resolveAuthForCurrentDomain(forceRefresh = false): Promise<DomainAuthResolution> {
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
   if (!hostname) {
     return {
-      authInstance: previewAuth,
-      projectId: GOOGLE_AUTH_FIREBASE_CONFIG.projectId,
+      authInstance: primaryAuth,
+      projectId: firebaseConfig.projectId,
       isAuthorized: true,
       hostname: '',
     };
@@ -95,17 +99,28 @@ export async function resolveAuthForCurrentDomain(forceRefresh = false): Promise
   }
 
   try {
-    const [previewRes, primaryRes] = await Promise.all([
-      fetch(`https://identitytoolkit.googleapis.com/v1/projects?key=${GOOGLE_AUTH_FIREBASE_CONFIG.apiKey}`).then((r) =>
+    const [primaryRes, previewRes] = await Promise.all([
+      fetch(`https://identitytoolkit.googleapis.com/v1/projects?key=${firebaseConfig.apiKey}`).then((r) =>
         r.ok ? r.json() : null
       ).catch(() => null),
-      fetch(`https://identitytoolkit.googleapis.com/v1/projects?key=${firebaseConfig.apiKey}`).then((r) =>
+      fetch(`https://identitytoolkit.googleapis.com/v1/projects?key=${GOOGLE_AUTH_FIREBASE_CONFIG.apiKey}`).then((r) =>
         r.ok ? r.json() : null
       ).catch(() => null),
     ]);
 
-    const previewDomains: string[] = Array.isArray(previewRes?.authorizedDomains) ? previewRes.authorizedDomains : [];
     const primaryDomains: string[] = Array.isArray(primaryRes?.authorizedDomains) ? primaryRes.authorizedDomains : [];
+    const previewDomains: string[] = Array.isArray(previewRes?.authorizedDomains) ? previewRes.authorizedDomains : [];
+
+    // Always prefer primaryAuth first so Firestore requests carry a native river-fusion-rz0s9 ID token
+    if (isHostMatchingAuthorizedList(hostname, primaryDomains)) {
+      cachedResolution = {
+        authInstance: primaryAuth,
+        projectId: firebaseConfig.projectId,
+        isAuthorized: true,
+        hostname,
+      };
+      return cachedResolution;
+    }
 
     if (isHostMatchingAuthorizedList(hostname, previewDomains)) {
       cachedResolution = {
@@ -117,20 +132,9 @@ export async function resolveAuthForCurrentDomain(forceRefresh = false): Promise
       return cachedResolution;
     }
 
-    if (isHostMatchingAuthorizedList(hostname, primaryDomains)) {
-      cachedResolution = {
-        authInstance: primaryAuth,
-        projectId: firebaseConfig.projectId,
-        isAuthorized: true,
-        hostname,
-      };
-      return cachedResolution;
-    }
-
-    // If neither project has the current domain (e.g. a new .vercel.app deployment) in authorizedDomains yet
     cachedResolution = {
-      authInstance: previewAuth,
-      projectId: GOOGLE_AUTH_FIREBASE_CONFIG.projectId,
+      authInstance: primaryAuth,
+      projectId: firebaseConfig.projectId,
       isAuthorized: false,
       hostname,
     };
@@ -163,6 +167,68 @@ export function getBestSyncAuthInstance(): Auth {
   return previewAuth;
 }
 
+export interface PrimaryAuthSnapshot {
+  firestoreProjectId: string;
+  firestoreDatabaseId: string;
+  previewAuthProjectId: string;
+  primarySignedIn: boolean;
+  primaryUid: string | null;
+  primaryEmail: string | null;
+  primaryEmailVerified: boolean;
+  primaryHasAdminClaim: boolean;
+  previewSignedIn: boolean;
+  previewUid: string | null;
+  previewEmail: string | null;
+  previewEmailVerified: boolean;
+  tokenRefreshedAt: number | null;
+}
+
+/**
+ * Waits for Firebase Auth persistence hydration on both instances, optionally forces
+ * a fresh ID token on primaryAuth, and inspects custom claims (admin / role).
+ */
+export async function inspectAndRefreshPrimaryAuth(forceRefreshToken = false): Promise<PrimaryAuthSnapshot> {
+  try {
+    await Promise.all([
+      primaryAuth.authStateReady().catch(() => {}),
+      previewAuth.authStateReady().catch(() => {}),
+    ]);
+  } catch {}
+
+  const pUser = primaryAuth.currentUser;
+  const prevUser = previewAuth.currentUser;
+
+  let primaryHasAdminClaim = false;
+  let tokenRefreshedAt: number | null = null;
+
+  if (pUser) {
+    try {
+      const tokenRes = await pUser.getIdTokenResult(forceRefreshToken);
+      tokenRefreshedAt = Date.now();
+      const claims = tokenRes?.claims || {};
+      primaryHasAdminClaim = claims.admin === true || claims.role === 'admin';
+    } catch {
+      // ignore token refresh failure when offline
+    }
+  }
+
+  return {
+    firestoreProjectId: FIREBASE_PROJECT_ID,
+    firestoreDatabaseId: FIRESTORE_DATABASE_ID,
+    previewAuthProjectId: PREVIEW_AUTH_PROJECT_ID,
+    primarySignedIn: Boolean(pUser),
+    primaryUid: pUser?.uid || null,
+    primaryEmail: pUser?.email || null,
+    primaryEmailVerified: Boolean(pUser?.emailVerified),
+    primaryHasAdminClaim,
+    previewSignedIn: Boolean(prevUser),
+    previewUid: prevUser?.uid || null,
+    previewEmail: prevUser?.email || null,
+    previewEmailVerified: Boolean(prevUser?.emailVerified),
+    tokenRefreshedAt,
+  };
+}
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -174,14 +240,19 @@ export enum OperationType {
 
 export interface FirestoreErrorInfo {
   error: string;
+  code?: string;
   operationType: OperationType;
   path: string | null;
+  projectId: string;
+  databaseId: string;
   authInfo: {
     userId?: string | null;
     email?: string | null;
     emailVerified?: boolean | null;
     isAnonymous?: boolean | null;
     tenantId?: string | null;
+    primarySignedIn?: boolean;
+    previewEmail?: string | null;
     providerInfo?: {
       providerId?: string | null;
       email?: string | null;
@@ -191,23 +262,31 @@ export interface FirestoreErrorInfo {
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   markFirestoreWriteQuotaExhausted(error);
-  const activeUser = previewAuth.currentUser || primaryAuth.currentUser;
+  const primaryUser = primaryAuth.currentUser;
+  const previewUser = previewAuth.currentUser;
+  const activeUser = primaryUser || previewUser;
+  const code = String((error as any)?.code || '');
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
+    code: code || undefined,
+    operationType,
+    path,
+    projectId: FIREBASE_PROJECT_ID,
+    databaseId: FIRESTORE_DATABASE_ID,
     authInfo: {
-      userId: activeUser?.uid,
-      email: activeUser?.email,
-      emailVerified: activeUser?.emailVerified,
-      isAnonymous: activeUser?.isAnonymous,
-      tenantId: activeUser?.tenantId,
+      userId: activeUser?.uid || null,
+      email: activeUser?.email || null,
+      emailVerified: activeUser?.emailVerified ?? null,
+      isAnonymous: activeUser?.isAnonymous ?? null,
+      tenantId: activeUser?.tenantId || null,
+      primarySignedIn: Boolean(primaryUser),
+      previewEmail: previewUser?.email || null,
       providerInfo:
         activeUser?.providerData?.map((provider) => ({
           providerId: provider.providerId,
           email: provider.email,
         })) || [],
     },
-    operationType,
-    path,
   };
   return errInfo;
 }

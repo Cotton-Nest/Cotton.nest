@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
-  AlertTriangle,
   Award,
   Calendar,
   ChevronRight,
@@ -73,6 +72,8 @@ import {
   toISTDateKey
 } from '../data/unifiedAnalytics';
 import { useSyncedAnalyticsData } from '../services/analyticsSync';
+import { useAuth } from '../context/AuthContext';
+import { AnalyticsPermissionDiagnosticBanner } from './AnalyticsPermissionDiagnosticBanner';
 
 interface AdminCustomerAnalyticsSectionProps {
   products: BedsheetProduct[];
@@ -90,11 +91,14 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
   orders,
   onToast
 }) => {
+  const { primaryBridgeError } = useAuth();
+
   // Single source of truth: real-time Firestore subscription across all 6 shared collections
   const synced = useSyncedAnalyticsData({
     enabled: true,
     fallbackProducts: products,
     fallbackOrders: orders,
+    bridgeError: primaryBridgeError,
   });
 
   // Sub-navigation & Filters
@@ -526,25 +530,14 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
           </div>
         </div>
 
-        {/* Sync Error Alert (never mask incomplete data as final) */}
-        {synced.syncError && (
-          <div className="mt-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold">Partial Firebase Sync Warning</p>
-                <p className="text-[11px] text-amber-800 mt-0.5">{synced.syncError}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => synced.refresh()}
-              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0 cursor-pointer"
-            >
-              Retry Sync
-            </button>
-          </div>
-        )}
+        {/* Sync Error Alert with full Firebase diagnostics (never mask incomplete data as final) */}
+        <AnalyticsPermissionDiagnosticBanner
+          sourceDetails={synced.sourceDetails}
+          authDiagnostic={synced.authDiagnostic}
+          fallbackSyncError={synced.syncError}
+          isRefreshing={synced.isRefreshing}
+          onRetry={synced.refresh}
+        />
 
         {/* Unified IST Reporting Period Bar (applies cleanly to all KPIs, charts, and lists) */}
         <div className="mt-4 pt-4 border-t border-[#EAE2D5]/70 flex flex-wrap items-center justify-between gap-3">

@@ -5,6 +5,8 @@ import {
   resolveAuthForCurrentDomain,
   getBestSyncAuthInstance,
   GOOGLE_AUTH_FIREBASE_CONFIG,
+  inspectAndRefreshPrimaryAuth,
+  PrimaryAuthSnapshot,
 } from '../firebase';
 import {
   signInWithPopup,
@@ -105,11 +107,16 @@ export interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   firebaseUser: FirebaseUser | null;
+  primaryAuthUser: FirebaseUser | null;
+  previewAuthUser: FirebaseUser | null;
+  isPrimaryFirestoreAuthed: boolean;
+  primaryBridgeError: string | null;
   isAuthenticated: boolean;
   isOwner: boolean;
   isLoading: boolean;
   authError: string | null;
   clearAuthError: () => void;
+  refreshAuthSession: () => Promise<PrimaryAuthSnapshot>;
   ensureGisSdkReady: () => Promise<boolean>;
   loginWithGoogle: () => Promise<FirebaseUser | null>;
   loginWithGoogleGis: () => Promise<FirebaseUser | null>;
@@ -140,6 +147,9 @@ function sanitizeProfileName(name?: string, email?: string): string {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [primaryAuthUser, setPrimaryAuthUser] = useState<FirebaseUser | null>(() => primaryAuth.currentUser);
+  const [previewAuthUser, setPreviewAuthUser] = useState<FirebaseUser | null>(() => previewAuth.currentUser);
+  const [primaryBridgeError, setPrimaryBridgeError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
@@ -278,7 +288,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ensureGisSdkReady().catch(() => {});
   }, [ensureGisSdkReady]);
 
-  // Sync with real Firebase Auth state across both previewAuth and primaryAuth
+  // Sync with real Firebase Auth state across both primaryAuth (Firestore DB) and previewAuth
   useEffect(() => {
     const safetyTimer = setTimeout(() => {
       setIsLoading(false);
@@ -286,8 +296,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const handleFbUser = (fbUser: FirebaseUser | null) => {
       clearTimeout(safetyTimer);
-      const activeUser = fbUser || previewAuth.currentUser || primaryAuth.currentUser;
+      const pUser = primaryAuth.currentUser;
+      const prevUser = previewAuth.currentUser;
+      setPrimaryAuthUser(pUser);
+      setPreviewAuthUser(prevUser);
+
+      // Prioritize primaryAuth (river-fusion-rz0s9) because Firestore security rules evaluate its token
+      const activeUser = pUser || prevUser || fbUser;
       setFirebaseUser(activeUser);
+
+      if (pUser) {
+        setPrimaryBridgeError(null);
+      }
 
       if (activeUser) {
         const email = activeUser.email?.toLowerCase() || '';
@@ -345,6 +365,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubPreview();
       unsubPrimary();
     };
+  }, []);
+
+  // Bridge OAuth credential from previewAuth -> primaryAuth (river-fusion-rz0s9) for Firestore security rules
+  const bridgeCredentialToPrimaryAuth = async (
+    credential: ReturnType<typeof GoogleAuthProvider.credentialFromResult> | null,
+    expectedEmail?: string | null
+  ): Promise<FirebaseUser | null> => {
+    if (
+      primaryAuth.currentUser &&
+      (!expectedEmail || primaryAuth.currentUser.email?.toLowerCase() === expectedEmail.toLowerCase())
+    ) {
+      try {
+        await primaryAuth.currentUser.getIdToken(true);
+      } catch {}
+      setPrimaryBridgeError(null);
+      setPrimaryAuthUser(primaryAuth.currentUser);
+      return primaryAuth.currentUser;
+    }
+
+    if (!credential) {
+      setPrimaryBridgeError('Google sign-in did not expose an OAuth credential for primary Firestore bridging.');
+      return primaryAuth.currentUser;
+    }
+
+    // 1. Prefer OAuth accessToken first so primaryAuth is not rejected by previewAuth idToken audience (`aud`) mismatch
+    if (credential.accessToken) {
+      try {
+        const accessCred = GoogleAuthProvider.credential(null, credential.accessToken);
+        const res = await signInWithCredential(primaryAuth, accessCred);
+        await res.user.getIdToken(true).catch(() => {});
+        setPrimaryBridgeError(null);
+        setPrimaryAuthUser(res.user);
+        return res.user;
+      } catch (accessErr: any) {
+        const code = String(accessErr?.code || '');
+        const msg = accessErr instanceof Error ? accessErr.message : String(accessErr);
+        setPrimaryBridgeError(`${code ? `[${code}] ` : ''}${msg}`);
+      }
+    }
+
+    // 2. Fallback to full OAuthCredential (e.g., if accessToken absent or accepted directly)
+    try {
+      const res = await signInWithCredential(primaryAuth, credential);
+      await res.user.getIdToken(true).catch(() => {});
+      setPrimaryBridgeError(null);
+      setPrimaryAuthUser(res.user);
+      return res.user;
+    } catch (fullErr: any) {
+      const code = String(fullErr?.code || '');
+      const msg = fullErr instanceof Error ? fullErr.message : String(fullErr);
+      setPrimaryBridgeError(`${code ? `[${code}] ` : ''}${msg}`);
+      return primaryAuth.currentUser;
+    }
+  };
+
+  const refreshAuthSession = React.useCallback(async (): Promise<PrimaryAuthSnapshot> => {
+    const snap = await inspectAndRefreshPrimaryAuth(true);
+    setPrimaryAuthUser(primaryAuth.currentUser);
+    setPreviewAuthUser(previewAuth.currentUser);
+    return snap;
   }, []);
 
   const decodeGoogleJwt = (jwt: string): any => {
@@ -428,10 +508,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const credential = GoogleAuthProvider.credential(null, accessToken);
       const targetAuth = getBestSyncAuthInstance();
       const result = await signInWithCredential(targetAuth, credential);
+      if (targetAuth !== primaryAuth) {
+        await bridgeCredentialToPrimaryAuth(credential, result.user?.email);
+      } else {
+        await result.user.getIdToken(true).catch(() => {});
+        setPrimaryBridgeError(null);
+        setPrimaryAuthUser(result.user);
+      }
       setIsLoading(false);
       return result.user;
     } catch (err: any) {
       console.warn('Firebase credential bridge from GIS accessToken notice:', err);
+      const code = String(err?.code || '');
+      const msg = err instanceof Error ? err.message : String(err);
+      setPrimaryBridgeError(`${code ? `[${code}] ` : ''}${msg}`);
       if (verifiedProfile) {
         setUser(verifiedProfile);
         try {
@@ -451,7 +541,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Trigger Google Account Chooser popup synchronously on user click via Firebase Auth
-  const loginWithGoogleGis = (): Promise<FirebaseUser | null> => {
+  const loginWithGoogleGis = async (): Promise<FirebaseUser | null> => {
     setIsLoading(true);
     setAuthError(null);
 
@@ -460,25 +550,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     provider.addScope('profile');
     provider.setCustomParameters({ prompt: 'select_account' });
 
-    const targetAuth = getBestSyncAuthInstance();
+    const resolution = await resolveAuthForCurrentDomain().catch(() => null);
+    const targetAuth = resolution?.isAuthorized ? resolution.authInstance : getBestSyncAuthInstance();
     const fallbackAuth = targetAuth === previewAuth ? primaryAuth : previewAuth;
 
     return signInWithPopup(targetAuth, provider)
       .then(async (result) => {
-        try {
-          const credential = GoogleAuthProvider.credentialFromResult(result);
-          if (credential) {
-            await signInWithCredential(primaryAuth, credential).catch(() => {});
-            if (targetAuth !== previewAuth) {
-              await signInWithCredential(previewAuth, credential).catch(() => {});
-            }
-          }
-        } catch (credErr) {
-          console.warn('Primary auth credential sync notice:', credErr);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (targetAuth === primaryAuth) {
+          await result.user.getIdToken(true).catch(() => {});
+          setPrimaryBridgeError(null);
+          setPrimaryAuthUser(result.user);
+        } else {
+          await bridgeCredentialToPrimaryAuth(credential, result.user?.email);
         }
         setUnauthorizedHostInfo(null);
         setIsLoading(false);
-        return result.user;
+        return primaryAuth.currentUser || result.user;
       })
       .catch(async (err: any) => {
         console.warn('Google Sign-In popup notice:', err);
@@ -491,9 +579,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (err?.code === 'auth/unauthorized-domain') {
           try {
             const altResult = await signInWithPopup(fallbackAuth, provider);
+            const altCred = GoogleAuthProvider.credentialFromResult(altResult);
+            if (fallbackAuth === primaryAuth) {
+              await altResult.user.getIdToken(true).catch(() => {});
+              setPrimaryBridgeError(null);
+              setPrimaryAuthUser(altResult.user);
+            } else {
+              await bridgeCredentialToPrimaryAuth(altCred, altResult.user?.email);
+            }
             setUnauthorizedHostInfo(null);
             setIsLoading(false);
-            return altResult.user;
+            return primaryAuth.currentUser || altResult.user;
           } catch (altErr: any) {
             if (altErr?.code === 'auth/popup-closed-by-user' || altErr?.code === 'auth/cancelled-popup-request') {
               setIsLoading(false);
@@ -556,7 +652,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const credential = GoogleAuthProvider.credential(credentialJwt);
-      await signInWithCredential(primaryAuth, credential).catch(() => {});
+      const primaryResult = await signInWithCredential(primaryAuth, credential).catch((err: any) => {
+        const code = String(err?.code || '');
+        const msg = err instanceof Error ? err.message : String(err);
+        setPrimaryBridgeError(`${code ? `[${code}] ` : ''}${msg}`);
+        return null;
+      });
+      if (primaryResult?.user) {
+        await primaryResult.user.getIdToken(true).catch(() => {});
+        setPrimaryBridgeError(null);
+        setPrimaryAuthUser(primaryResult.user);
+        return primaryResult.user;
+      }
       const targetAuth = getBestSyncAuthInstance();
       const result = await signInWithCredential(targetAuth, credential);
       return result.user;
@@ -731,6 +838,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
     setUser(null);
     setFirebaseUser(null);
+    setPrimaryAuthUser(null);
+    setPreviewAuthUser(null);
+    setPrimaryBridgeError(null);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem('cotton_nest_owner_mode');
     localStorage.removeItem('cotton_nest_google_accounts');
@@ -743,6 +853,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isOwner = Boolean(
     isOwnerEmail(user?.email) ||
+      isOwnerEmail(primaryAuthUser?.email) ||
+      isOwnerEmail(previewAuthUser?.email) ||
       isOwnerEmail(firebaseUser?.email) ||
       user?.isOwner
   );
@@ -752,11 +864,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         firebaseUser,
+        primaryAuthUser,
+        previewAuthUser,
+        isPrimaryFirestoreAuthed: Boolean(primaryAuthUser),
+        primaryBridgeError,
         isAuthenticated: !!user || !!firebaseUser,
         isOwner,
         isLoading,
         authError,
         clearAuthError,
+        refreshAuthSession,
         ensureGisSdkReady,
         loginWithGoogle,
         loginWithGoogleGis,

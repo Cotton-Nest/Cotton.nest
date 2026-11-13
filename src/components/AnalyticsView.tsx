@@ -6,7 +6,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Activity,
-  AlertTriangle,
   Award,
   BarChart3,
   Calendar,
@@ -44,6 +43,8 @@ import {
   formatLastUpdatedIST,
 } from '../data/unifiedAnalytics';
 import { useSyncedAnalyticsData } from '../services/analyticsSync';
+import { useAuth } from '../context/AuthContext';
+import { AnalyticsPermissionDiagnosticBanner } from './AnalyticsPermissionDiagnosticBanner';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 
 interface AnalyticsViewProps {
@@ -71,12 +72,15 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [customEndDate, setCustomEndDate] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
 
+  const { primaryBridgeError } = useAuth();
+
   // Single source of truth: real-time Firestore subscription across all 6 analytics collections
   const synced = useSyncedAnalyticsData({
     enabled: true,
     fallbackProducts,
     fallbackOrders,
     fallbackReviews,
+    bridgeError: primaryBridgeError,
   });
 
   const snapshot = useMemo(() => {
@@ -220,25 +224,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           </div>
 
-          {/* Firebase Sync Error / Loading Banner */}
-          {synced.syncError && (
-            <div className="mt-5 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-2.5 text-xs">
-                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">Partial Firebase Sync Warning — Figures Below May Be Incomplete</p>
-                  <p className="text-amber-900 mt-0.5">{synced.syncError}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={synced.refresh}
-                className="px-3 py-1.5 rounded-xl bg-amber-900 text-white text-xs font-bold shrink-0 cursor-pointer hover:bg-amber-800"
-              >
-                Retry Sync
-              </button>
-            </div>
-          )}
+          {/* Firebase Sync Error / Access Diagnostic Banner */}
+          <AnalyticsPermissionDiagnosticBanner
+            sourceDetails={synced.sourceDetails}
+            authDiagnostic={synced.authDiagnostic}
+            fallbackSyncError={synced.syncError}
+            isRefreshing={synced.isRefreshing}
+            onRetry={synced.refresh}
+          />
 
           {/* IST Reporting Period Filter Bar (Mobile & Desktop) */}
           <div className="mt-6 pt-5 border-t border-[#EAE2D5] flex flex-col sm:flex-row sm:items-center justify-between gap-3">

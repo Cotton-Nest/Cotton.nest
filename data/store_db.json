@@ -3289,14 +3289,14 @@
       "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
-      "lastLoginAt": 1794562314209,
-      "lastActiveAt": 1794562377451,
-      "totalSessions": 15,
-      "totalTimeSpentSeconds": 16777,
-      "averageSessionDurationSeconds": 1118,
-      "totalPagesVisited": 38,
+      "lastLoginAt": 1794585551221,
+      "lastActiveAt": 1794586768687,
+      "totalSessions": 16,
+      "totalTimeSpentSeconds": 17453,
+      "averageSessionDurationSeconds": 1091,
+      "totalPagesVisited": 39,
       "pageVisitCounts": {
-        "Home Showcase": 15,
+        "Home Showcase": 16,
         "Admin Analytics": 1,
         "Terms & Privacy Policy": 3,
         "Bedsheet Catalogue": 17,
@@ -3347,8 +3347,16 @@
           "lastViewedAt": 1794396115406
         }
       ],
-      "totalAddedToCartCount": 2,
+      "totalAddedToCartCount": 3,
       "cartActivity": [
+        {
+          "productId": "prod-1794555447755-8092",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794555459/cotton_nest/bedsheets/sheet_prod-1794555447755-8092_1794555458.jpg",
+          "productPrice": 1350,
+          "quantity": 1,
+          "addedAt": 1794562729401
+        },
         {
           "productId": "bedsheet-mw6ks1ic",
           "productName": "Nandani",
@@ -3395,10 +3403,24 @@
       },
       "sessions": [
         {
+          "sessionId": "sess_1794585551221_z55ar",
+          "loginAt": 1794585551221,
+          "lastActiveAt": 1794586768687,
+          "durationSeconds": 438,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
           "sessionId": "sess_1794562314209_oyanz",
           "loginAt": 1794562314209,
-          "lastActiveAt": 1794562377451,
-          "durationSeconds": 61,
+          "lastActiveAt": 1794565690690,
+          "durationSeconds": 299,
           "pagesVisited": [
             "Home Showcase"
           ],
@@ -3619,6 +3641,31 @@
         }
       ],
       "timeline": [
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794585551221_z55ar",
+          "timestamp": 1794585551221,
+          "id": "evt_1794585551221_lx279"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794562314209_oyanz",
+          "timestamp": 1794565689827,
+          "id": "evt_1794565689827_7yagb"
+        },
+        {
+          "type": "cart_add",
+          "label": "Added Nandani to cart",
+          "productId": "prod-1794555447755-8092",
+          "productName": "Nandani",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794555459/cotton_nest/bedsheets/sheet_prod-1794555447755-8092_1794555458.jpg",
+          "productPrice": 1350,
+          "sessionId": "sess_1794562314209_oyanz",
+          "timestamp": 1794562729401,
+          "id": "evt_1794562729401_bwjfj"
+        },
         {
           "type": "login",
           "label": "User signed in (Google Chrome on Windows 10/11)",
@@ -4157,7 +4204,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794562380864,
+      "updatedAt": 1794586769430,
       "lastLogoutAt": 1794285339677
     }
   },

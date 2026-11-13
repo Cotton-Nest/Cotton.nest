@@ -6,141 +6,310 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_@.+\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Strictly verifies authorized Cotton Nest store owner / admin emails
-    function isOwnerOrAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email.toLowerCase() == 'adityaa.451485@gmail.com' ||
-        request.auth.token.email.toLowerCase() == 'adityaa.22082011@gmail.com' ||
-        request.auth.token.email.toLowerCase() == 'cottonnest.atelier@gmail.com'
+    function isVerifiedEmailUser() {
+      return isSignedIn() &&
+        request.auth.token.email is string &&
+        request.auth.token.email_verified == true;
+    }
+
+    // Strictly verifies authorized Cotton Nest store owner / admin emails using valid CEL `.lower()`
+    function isVerifiedOwnerEmail() {
+      return isVerifiedEmailUser() && (
+        request.auth.token.email.lower() == 'adityaa.451485@gmail.com' ||
+        request.auth.token.email.lower() == 'adityaa.22082011@gmail.com' ||
+        request.auth.token.email.lower() == 'cottonnest.atelier@gmail.com'
       );
+    }
+
+    // Optional Firebase Auth custom claims for owner/admin accounts
+    function hasAdminCustomClaim() {
+      return isVerifiedEmailUser() && (
+        request.auth.token.get('admin', false) == true ||
+        request.auth.token.get('role', '') == 'admin'
+      );
+    }
+
+    // Trusted admin role document check (for get/create/update/delete — not used in `allow list`)
+    function isAdminDoc() {
+      return isVerifiedEmailUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isOwnerOrAdmin() {
+      return isVerifiedOwnerEmail() || hasAdminCustomClaim() || isAdminDoc();
+    }
+
+    // O(1) claim/email owner check for `allow list` queries (no get/exists read amplification)
+    function isOwnerClaimOrEmail() {
+      return isVerifiedOwnerEmail() || hasAdminCustomClaim();
+    }
+
+    // Admin role documents: only verified primary owners can grant/manage roles
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && isSignedIn() && (
+        request.auth.uid == uid || isVerifiedOwnerEmail()
+      );
+      allow list: if isVerifiedOwnerEmail();
+      allow create, update, delete: if isValidId(uid) && isVerifiedOwnerEmail();
     }
 
     // Products catalog: readable by all, manageable only by authorized owners/admins
     match /products/{productId} {
       allow read: if true;
-      allow create, update, delete: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(productId) && isOwnerOrAdmin();
     }
 
     // Custom permanent photos: readable by all, manageable only by authorized owners/admins
     match /custom_images/{productId} {
       allow read: if true;
-      allow create, update, delete: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(productId) && isOwnerOrAdmin();
     }
 
     // Photo statistics and updated image counts
     match /custom_images_stats/{docId} {
       allow read: if true;
-      allow write: if isOwnerOrAdmin();
+      allow write: if isValidId(docId) && isOwnerOrAdmin();
     }
 
     // Orders: strictly isolated by owner UID. Customers access only their own orders; admins access all
     match /orders/{orderId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isOwnerOrAdmin());
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isOwnerOrAdmin());
-      allow update: if isOwnerOrAdmin() || (
-        isSignedIn() &&
-        resource.data.userId == request.auth.uid &&
-        request.resource.data.userId == resource.data.userId &&
-        request.resource.data.status == resource.data.status &&
-        request.resource.data.totalAmount == resource.data.totalAmount
+      allow get: if isValidId(orderId) && isSignedIn() && (
+        existing().userId == request.auth.uid || isOwnerOrAdmin()
       );
-      allow delete: if isOwnerOrAdmin();
+      allow list: if isSignedIn() && (
+        existing().userId == request.auth.uid || isOwnerClaimOrEmail()
+      );
+      allow create: if isValidId(orderId) && isSignedIn() && (
+        incoming().userId == request.auth.uid || isOwnerOrAdmin()
+      );
+      allow update: if isValidId(orderId) && (
+        isOwnerOrAdmin() || (
+          isSignedIn() &&
+          existing().userId == request.auth.uid &&
+          incoming().userId == existing().userId &&
+          incoming().status == existing().status &&
+          incoming().totalAmount == existing().totalAmount
+        )
+      );
+      allow delete: if isValidId(orderId) && isOwnerOrAdmin();
     }
 
     // Customer Reviews: readable by all visitors, submission allowed, deletion restricted to admins
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create, update: if true;
-      allow delete: if isOwnerOrAdmin();
+      allow create, update: if isValidId(reviewId);
+      allow delete: if isValidId(reviewId) && isOwnerOrAdmin();
     }
 
     // Connection testing
     match /test/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isOwnerOrAdmin();
     }
 
     // Store branding, theme appearance, and announcements
     match /site_content/{contentId} {
       allow read: if true;
-      allow create, update, delete: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(contentId) && isOwnerOrAdmin();
     }
 
     // Website Appearance & Festival Theme configuration
     match /theme/{themeId} {
       allow read: if true;
-      allow create, update, delete: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(themeId) && isOwnerOrAdmin();
     }
 
     // Seasonal discount offers & banner
     match /seasonal/{seasonalId} {
       allow read: if true;
-      allow create, update, delete: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(seasonalId) && isOwnerOrAdmin();
     }
 
     // Coupons & Promotional Offers
     match /coupons/{couponId} {
       allow read: if true;
-      allow create, update, delete: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(couponId) && isOwnerOrAdmin();
     }
 
     // Customer & Admin Notifications
     match /notifications/{notificationId} {
       allow read: if true;
-      allow create, update, delete: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(notificationId) && isOwnerOrAdmin();
     }
 
-    // Back-in-Stock product subscriptions
+    // Back-in-Stock product subscriptions: allow validated subscription creation; reads/deletes owner-only
     match /stock_subscriptions/{subId} {
-      allow read, write: if true;
+      allow read: if isOwnerOrAdmin();
+      allow create: if subId is string && subId.size() > 0 && subId.size() <= 160 &&
+        incoming().keys().size() <= 20 &&
+        incoming().productId is string &&
+        incoming().createdAt is number;
+      allow update, delete: if isOwnerOrAdmin();
     }
 
-    // Web Push Subscriptions
+    // Web Push Subscriptions: allow validated registration; reads/deletes owner-only
     match /push_subscriptions/{subId} {
-      allow read, write: if true;
+      allow read: if isOwnerOrAdmin();
+      allow create, update: if subId is string && subId.size() > 0 && subId.size() <= 200 &&
+        incoming().keys().size() <= 25 &&
+        incoming().customerIdentifier is string;
+      allow delete: if isOwnerOrAdmin();
     }
 
-    // Customer Wishlists: curated bedsheets saved by individual visitors
+    // Customer Wishlists: owners read all; visitors/customers create/delete validated wishlist items
     match /wishlists/{wishlistId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if wishlistId is string && wishlistId.size() > 0 && wishlistId.size() <= 200 &&
+        incoming().keys().hasAll(['id', 'customerId', 'productId', 'productName', 'productPrice']) &&
+        incoming().id is string && incoming().customerId is string && incoming().productPrice is number;
+      allow delete: if isOwnerOrAdmin() || (
+        isSignedIn() && (existing().customerId == request.auth.uid || existing().customerEmail == request.auth.token.email)
+      ) || (wishlistId is string && wishlistId.size() <= 200);
     }
 
     // Customer Loyalty Points & Rewards
     match /loyalty/{accountId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isValidId(accountId) &&
+        incoming().keys().hasAll(['id', 'pointsBalance', 'lifetimeEarned', 'lifetimeSpent', 'updatedAt']) &&
+        incoming().pointsBalance is number && incoming().pointsBalance >= 0;
+      allow delete: if isOwnerOrAdmin();
     }
 
     // Customer Loyalty Ledger Transactions
     match /loyalty_transactions/{txId} {
-      allow read, write: if true;
-    }
-
-    // Website Traffic & Store Analytics
-    match /analytics/{docId} {
-      allow read, write: if true;
-    }
-
-    // Signed-in Customer Activity Profiles & Session Analytics
-    match /customer_activity/{userId} {
-      allow read: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId);
-      allow create, update: if (isSignedIn() && request.auth.uid == userId) || isOwnerOrAdmin();
+      allow read: if true;
+      allow create, update: if isValidId(txId) &&
+        incoming().keys().hasAll(['id', 'accountId', 'type', 'points', 'createdAt']) &&
+        incoming().points is number && incoming().createdAt is number;
       allow delete: if isOwnerOrAdmin();
+    }
+
+    // Site Traffic telemetry validation helpers: allows safe atomic visit increments on `site_traffic` only,
+    // while keeping ALL reads and deletes strictly restricted to authorized owners/admins.
+    function isValidSiteTrafficCreate(data) {
+      return data.keys().hasAll(['id', 'totalVisits', 'lastVisitedAt']) &&
+        data.keys().hasOnly([
+          'id', 'totalVisits', 'uniqueVisitors', 'todayVisits', 'lastVisitedAt',
+          'pageViewsByDate', 'pageViewsBySection', 'trafficSources', 'deviceBreakdown'
+        ]) &&
+        data.id == 'site_traffic' &&
+        data.totalVisits is number && data.totalVisits >= 0 && data.totalVisits <= 10 &&
+        data.lastVisitedAt is number &&
+        (!('uniqueVisitors' in data) || (data.uniqueVisitors is number && data.uniqueVisitors >= 0 && data.uniqueVisitors <= 10));
+    }
+
+    function isValidSiteTrafficUpdate(data, prev) {
+      return data.keys().hasAll(['id', 'totalVisits', 'lastVisitedAt']) &&
+        data.diff(prev).affectedKeys().hasOnly([
+          'id', 'totalVisits', 'uniqueVisitors', 'todayVisits', 'lastVisitedAt',
+          'pageViewsByDate', 'pageViewsBySection', 'trafficSources', 'deviceBreakdown'
+        ]) &&
+        data.id == 'site_traffic' &&
+        data.totalVisits is number &&
+        (!('totalVisits' in prev) || (data.totalVisits >= prev.totalVisits && data.totalVisits <= prev.totalVisits + 10)) &&
+        data.lastVisitedAt is number &&
+        (!('uniqueVisitors' in data) || (
+          data.uniqueVisitors is number &&
+          (!('uniqueVisitors' in prev) || (data.uniqueVisitors >= prev.uniqueVisitors && data.uniqueVisitors <= prev.uniqueVisitors + 10))
+        ));
+    }
+
+    // Website Traffic & Store Analytics: strictly NOT publicly readable or deletable
+    match /analytics/{docId} {
+      allow get: if isValidId(docId) && isOwnerOrAdmin();
+      allow list: if isOwnerClaimOrEmail();
+      allow create: if isValidId(docId) && (
+        isOwnerOrAdmin() ||
+        (docId == 'site_traffic' && isValidSiteTrafficCreate(incoming()))
+      );
+      allow update: if isValidId(docId) && (
+        isOwnerOrAdmin() ||
+        (docId == 'site_traffic' && isValidSiteTrafficUpdate(incoming(), existing()))
+      );
+      allow delete: if isValidId(docId) && isOwnerOrAdmin();
+    }
+
+    // Validation blueprint for Customer Activity Profiles
+    function isValidCustomerActivityDoc(data, userId) {
+      return data.keys().hasAll(['uid', 'customerName', 'lastActiveAt', 'totalSessions', 'totalTimeSpentSeconds']) &&
+        data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128 && data.uid == userId &&
+        data.customerName is string && data.customerName.size() <= 200 &&
+        data.lastActiveAt is number &&
+        data.totalSessions is number && data.totalSessions >= 0 &&
+        data.totalTimeSpentSeconds is number && data.totalTimeSpentSeconds >= 0 &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 320)) &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 40)) &&
+        (!('sessions' in data) || (data.sessions is list && data.sessions.size() <= 50)) &&
+        (!('timeline' in data) || (data.timeline is list && data.timeline.size() <= 150)) &&
+        (!('searchHistory' in data) || (data.searchHistory is list && data.searchHistory.size() <= 100));
+    }
+
+    // Signed-in Customer Activity Profiles: owner/admin can read all; customers access only their own doc
+    match /customer_activity/{userId} {
+      allow get: if isValidId(userId) && (
+        isOwnerOrAdmin() ||
+        (isSignedIn() && request.auth.uid == userId)
+      );
+      allow list: if isOwnerClaimOrEmail();
+      allow create: if isValidId(userId) &&
+        isValidCustomerActivityDoc(incoming(), userId) &&
+        incoming().keys().hasOnly([
+          'uid', 'customerName', 'email', 'phone', 'avatar', 'authProvider',
+          'accountCreatedAt', 'lastLoginAt', 'lastLogoutAt', 'lastActiveAt',
+          'totalSessions', 'totalTimeSpentSeconds', 'averageSessionDurationSeconds',
+          'totalPagesVisited', 'pageVisitCounts', 'mostVisitedPage',
+          'totalProductViews', 'productsViewed', 'totalAddedToCartCount', 'cartActivity',
+          'totalAddedToWishlistCount', 'currentWishlist', 'historicalWishlist',
+          'totalSearches', 'searchHistory', 'ordersPlacedCount', 'totalPurchaseValue',
+          'deviceInfo', 'sessions', 'timeline', 'updatedAt'
+        ]) &&
+        (isOwnerOrAdmin() || (isVerifiedEmailUser() && request.auth.uid == userId));
+      allow update: if isValidId(userId) &&
+        isValidCustomerActivityDoc(incoming(), userId) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'uid', 'customerName', 'email', 'phone', 'avatar', 'authProvider',
+          'accountCreatedAt', 'lastLoginAt', 'lastLogoutAt', 'lastActiveAt',
+          'totalSessions', 'totalTimeSpentSeconds', 'averageSessionDurationSeconds',
+          'totalPagesVisited', 'pageVisitCounts', 'mostVisitedPage',
+          'totalProductViews', 'productsViewed', 'totalAddedToCartCount', 'cartActivity',
+          'totalAddedToWishlistCount', 'currentWishlist', 'historicalWishlist',
+          'totalSearches', 'searchHistory', 'ordersPlacedCount', 'totalPurchaseValue',
+          'deviceInfo', 'sessions', 'timeline', 'updatedAt'
+        ]) &&
+        incoming().uid == existing().uid &&
+        (isOwnerOrAdmin() || (isVerifiedEmailUser() && request.auth.uid == userId));
+      allow delete: if isValidId(userId) && isOwnerOrAdmin();
     }
 
     // Welcome Offer Configuration
     match /welcome_offer/{docId} {
       allow read: if true;
-      allow create, update, delete: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(docId) && isOwnerOrAdmin();
     }
 
     // Per-Customer Welcome Offer Eligibility & Redemption Records
     match /welcome_offer_redemptions/{uid} {
-      allow read: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid);
-      allow create, update: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid);
-      allow delete: if isOwnerOrAdmin();
+      allow get: if isValidId(uid) && (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid));
+      allow list: if isOwnerClaimOrEmail();
+      allow create, update: if isValidId(uid) && (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid));
+      allow delete: if isValidId(uid) && isOwnerOrAdmin();
     }
   }
 }
