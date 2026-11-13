@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { shouldShowExitBannerOnBackPress } from './exitBannerNavigation';
+import {
+  shouldShowExitBannerOnBackPress,
+  shouldArmHomeGuard,
+  shouldConfirmExitOnBackPress,
+  executeAppExitSequence,
+} from './exitBannerNavigation';
 
 test('shows exit banner ONLY on home screen with empty history, no open overlays, and not already exiting/open', () => {
   assert.strictEqual(
@@ -77,4 +82,116 @@ test('does not repeatedly show exit banner during the same exit attempt', () => 
     }),
     false
   );
+});
+
+test('shouldArmHomeGuard avoids duplicate guards and skips non-home/overlay/exiting states', () => {
+  assert.strictEqual(
+    shouldArmHomeGuard({
+      activeTab: 'home',
+      tabHistoryLength: 0,
+      hasOpenOverlay: false,
+      isExitBannerOpen: false,
+      isExiting: false,
+      historyState: { cn_home_root: true },
+    }),
+    true
+  );
+
+  assert.strictEqual(
+    shouldArmHomeGuard({
+      activeTab: 'home',
+      tabHistoryLength: 0,
+      hasOpenOverlay: false,
+      isExitBannerOpen: false,
+      isExiting: false,
+      historyState: { cn_home_guard: true },
+    }),
+    false
+  );
+
+  assert.strictEqual(
+    shouldArmHomeGuard({
+      activeTab: 'catalogue',
+      tabHistoryLength: 0,
+      hasOpenOverlay: false,
+      isExitBannerOpen: false,
+      isExiting: false,
+      historyState: { cn_home_root: true },
+    }),
+    false
+  );
+
+  assert.strictEqual(
+    shouldArmHomeGuard({
+      activeTab: 'home',
+      tabHistoryLength: 0,
+      hasOpenOverlay: true,
+      isExitBannerOpen: false,
+      isExiting: false,
+      historyState: { cn_home_root: true },
+    }),
+    false
+  );
+});
+
+test('shouldConfirmExitOnBackPress triggers exit when back is pressed while exit banner is open', () => {
+  assert.strictEqual(
+    shouldConfirmExitOnBackPress({
+      isExitBannerOpen: true,
+      isExiting: false,
+      poppedState: { cn_home_root: true },
+    }),
+    true
+  );
+
+  assert.strictEqual(
+    shouldConfirmExitOnBackPress({
+      isExitBannerOpen: true,
+      isExiting: false,
+      poppedState: { cn_home_guard: true },
+    }),
+    false
+  );
+
+  assert.strictEqual(
+    shouldConfirmExitOnBackPress({
+      isExitBannerOpen: true,
+      isExiting: true,
+      poppedState: null,
+    }),
+    false
+  );
+});
+
+test('executeAppExitSequence synchronously triggers close, WebView bridges, and prior history back', () => {
+  let closed = false;
+  let androidExited = false;
+  let historyDelta = 0;
+
+  const mockWin = {
+    close: () => {
+      closed = true;
+    },
+    Android: {
+      exitApp: () => {
+        androidExited = true;
+      },
+    },
+    navigator: {},
+    history: {
+      state: { cn_home_root: true },
+      go: (delta: number) => {
+        historyDelta = delta;
+      },
+      back: () => {
+        historyDelta = -1;
+      },
+    },
+  } as unknown as Window;
+
+  executeAppExitSequence(mockWin, { hasPriorHistory: true });
+
+  assert.strictEqual(closed, true);
+  assert.strictEqual(androidExited, true);
+  assert.strictEqual(historyDelta, -1);
 });

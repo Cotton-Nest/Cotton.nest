@@ -43,7 +43,12 @@ import { StockAlertModal } from './components/StockAlertModal';
 import { CartToastNotification, CartToastInfo } from './components/CartToastNotification';
 import { ChromeInstallPopout, OfflineIndicator } from './components/PWAInstallPrompt';
 import { ExitConfirmBanner } from './components/ExitConfirmBanner';
-import { shouldShowExitBannerOnBackPress } from './utils/exitBannerNavigation';
+import {
+  shouldShowExitBannerOnBackPress,
+  shouldArmHomeGuard,
+  shouldConfirmExitOnBackPress,
+  executeAppExitSequence,
+} from './utils/exitBannerNavigation';
 import {
   AppNotification,
   DEFAULT_NOTIFICATIONS,
@@ -162,8 +167,11 @@ export default function App() {
   const ignoreNextPopstateRef = useRef<boolean>(false);
   const isHandlingPopstateRef = useRef<boolean>(false);
   const [isExitBannerOpen, setIsExitBannerOpen] = useState<boolean>(false);
+  const [hasExitedFromApp, setHasExitedFromApp] = useState<boolean>(false);
   const isExitBannerOpenRef = useRef<boolean>(false);
   const isExitingRef = useRef<boolean>(false);
+  const hasPriorHistoryOnMountRef = useRef<boolean>(false);
+  const exitCheckTimeoutRef = useRef<number | null>(null);
 
   const activeTabRef = useRef(activeTabRaw);
   activeTabRef.current = activeTabRaw;
@@ -173,9 +181,15 @@ export default function App() {
     newTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics',
     shouldPushHistory: boolean = true
   ) => {
-    if (isExitBannerOpenRef.current) {
+    if (isExitBannerOpenRef.current || isExitingRef.current) {
+      if (exitCheckTimeoutRef.current !== null) {
+        window.clearTimeout(exitCheckTimeoutRef.current);
+        exitCheckTimeoutRef.current = null;
+      }
       setIsExitBannerOpen(false);
+      setHasExitedFromApp(false);
       isExitBannerOpenRef.current = false;
+      isExitingRef.current = false;
     }
 
     if (newTab === activeTabRef.current) {
@@ -186,6 +200,23 @@ export default function App() {
     scrollPositionsRef.current[activeTabRef.current] = window.scrollY;
 
     if (shouldPushHistory) {
+      if (
+        typeof window !== 'undefined' &&
+        shouldArmHomeGuard({
+          activeTab: activeTabRef.current,
+          tabHistoryLength: tabHistoryRef.current.length,
+          hasOpenOverlay: false,
+          isExitBannerOpen: isExitBannerOpenRef.current,
+          isExiting: isExitingRef.current,
+          historyState: window.history.state,
+        })
+      ) {
+        try {
+          window.history.pushState({ cn_home_guard: true }, '', window.location.href);
+        } catch {
+          // ignore
+        }
+      }
       const last = tabHistoryRef.current[tabHistoryRef.current.length - 1];
       if (!last || last.tab !== activeTabRef.current) {
         tabHistoryRef.current.push({ tab: activeTabRef.current, scrollY: window.scrollY });
@@ -1063,35 +1094,79 @@ export default function App() {
     isExitBannerOpenRef.current = isExitBannerOpen;
   });
 
-  const handleContinueShoppingFromExitBanner = React.useCallback(() => {
-    setIsExitBannerOpen(false);
-    isExitBannerOpenRef.current = false;
-    isExitingRef.current = false;
-    if (typeof window !== 'undefined' && !window.history.state?.cn_home_guard) {
+  const hasAnyOpenOverlayRef = React.useCallback(() => {
+    return Boolean(
+      isProductLightboxOpenRef.current ||
+        isWriteReviewOpenRef.current ||
+        stockAlertProductRef.current ||
+        isPhotoManagerOpenRef.current ||
+        isCustomerModalOpenRef.current ||
+        isCompareModalOpenRef.current ||
+        selectedProductRef.current ||
+        isCartOpenRef.current ||
+        isWishlistOpenRef.current ||
+        isAccountModalOpenRef.current ||
+        isNotificationCenterOpenRef.current ||
+        isLoyaltyModalOpenRef.current ||
+        isWelcomeOfferModalOpenRef.current ||
+        isAuthModalOpenRef.current ||
+        isOwnerAuthOpenRef.current ||
+        isAdminOpenRef.current
+    );
+  }, []);
+
+  const armHomeGuardIfEligible = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (
+      shouldArmHomeGuard({
+        activeTab: activeTabRef.current,
+        tabHistoryLength: tabHistoryRef.current.length,
+        hasOpenOverlay: hasAnyOpenOverlayRef(),
+        isExitBannerOpen: isExitBannerOpenRef.current,
+        isExiting: isExitingRef.current,
+        historyState: window.history.state,
+      })
+    ) {
       try {
         window.history.pushState({ cn_home_guard: true }, '', window.location.href);
       } catch {
         // ignore
       }
     }
-  }, []);
+  }, [hasAnyOpenOverlayRef]);
 
-  const handleExitAppFromBanner = React.useCallback(() => {
-    isExitingRef.current = true;
+  const handleContinueShoppingFromExitBanner = React.useCallback(() => {
+    if (typeof window !== 'undefined' && exitCheckTimeoutRef.current !== null) {
+      window.clearTimeout(exitCheckTimeoutRef.current);
+      exitCheckTimeoutRef.current = null;
+    }
+    setHasExitedFromApp(false);
     setIsExitBannerOpen(false);
     isExitBannerOpenRef.current = false;
-    if (typeof window !== 'undefined') {
-      window.history.back();
-      if (window.matchMedia?.('(display-mode: standalone)')?.matches) {
-        setTimeout(() => {
-          try {
-            window.close();
-          } catch {
-            // ignore
-          }
-        }, 120);
-      }
+    isExitingRef.current = false;
+    armHomeGuardIfEligible();
+  }, [armHomeGuardIfEligible]);
+
+  const handleExitAppFromBanner = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+    isExitingRef.current = true;
+    if (exitCheckTimeoutRef.current !== null) {
+      window.clearTimeout(exitCheckTimeoutRef.current);
+      exitCheckTimeoutRef.current = null;
     }
+
+    executeAppExitSequence(window, {
+      hasPriorHistory: hasPriorHistoryOnMountRef.current,
+    });
+
+    exitCheckTimeoutRef.current = window.setTimeout(() => {
+      exitCheckTimeoutRef.current = null;
+      if (!document.hidden) {
+        setIsExitBannerOpen(true);
+        isExitBannerOpenRef.current = true;
+        setHasExitedFromApp(true);
+      }
+    }, 220);
   }, []);
 
   // Global PopState Listener (Android Hardware Back, Browser Back & Swipe-Back Gestures)
@@ -1108,8 +1183,18 @@ export default function App() {
 
       if (isExitBannerOpenRef.current) {
         if (event.state?.cn_home_guard) {
+          setHasExitedFromApp(false);
           setIsExitBannerOpen(false);
           isExitBannerOpenRef.current = false;
+          isExitingRef.current = false;
+        } else if (
+          shouldConfirmExitOnBackPress({
+            isExitBannerOpen: isExitBannerOpenRef.current,
+            isExiting: isExitingRef.current,
+            poppedState: event.state,
+          })
+        ) {
+          handleExitAppFromBanner();
         }
         return;
       }
@@ -1241,7 +1326,7 @@ export default function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [closeLoyaltyModal]);
+  }, [closeLoyaltyModal, handleExitAppFromBanner]);
 
   // Automatic pushState and programmatic close watcher
   const prevOverlaysRef = useRef<Record<string, boolean>>({});
@@ -1275,6 +1360,23 @@ export default function App() {
     }
 
     if (newlyOpened && !isHandlingPopstateRef.current) {
+      if (
+        typeof window !== 'undefined' &&
+        shouldArmHomeGuard({
+          activeTab: activeTabRef.current,
+          tabHistoryLength: tabHistoryRef.current.length,
+          hasOpenOverlay: false,
+          isExitBannerOpen: isExitBannerOpenRef.current,
+          isExiting: isExitingRef.current,
+          historyState: window.history.state,
+        })
+      ) {
+        try {
+          window.history.pushState({ cn_home_guard: true }, '', window.location.href);
+        } catch {
+          // ignore
+        }
+      }
       window.history.pushState({ cn_nav_overlay: true }, '', window.location.href);
     }
 
@@ -1787,21 +1889,36 @@ export default function App() {
     };
     checkUrl();
 
-    // Initialize home-screen history guard so Android back button can show the exit banner on Home
-    if (
-      typeof window !== 'undefined' &&
-      !isExitingRef.current &&
-      !window.history.state?.cn_home_guard &&
-      !window.history.state?.cn_nav_tab &&
-      !window.history.state?.cn_nav_overlay
-    ) {
-      try {
-        window.history.replaceState({ ...(window.history.state || {}), cn_home_root: true }, '', window.location.href);
-        window.history.pushState({ cn_home_guard: true }, '', window.location.href);
-      } catch {
-        // ignore
+    // Initialize home-screen history root and arm guard on user gesture (avoiding Chrome History Manipulation Intervention)
+    if (typeof window !== 'undefined') {
+      hasPriorHistoryOnMountRef.current = window.history.length > 1;
+      if (
+        !isExitingRef.current &&
+        !window.history.state?.cn_home_guard &&
+        !window.history.state?.cn_nav_tab &&
+        !window.history.state?.cn_nav_overlay
+      ) {
+        try {
+          window.history.replaceState({ ...(window.history.state || {}), cn_home_root: true }, '', window.location.href);
+        } catch {
+          // ignore
+        }
+      }
+
+      const userHasActivated = Boolean(
+        (navigator as unknown as { userActivation?: { hasBeenActive?: boolean } }).userActivation?.hasBeenActive
+      );
+      if (userHasActivated) {
+        armHomeGuardIfEligible();
       }
     }
+
+    const handleFirstGestureForHomeGuard = () => {
+      armHomeGuardIfEligible();
+    };
+    window.addEventListener('pointerdown', handleFirstGestureForHomeGuard, { capture: true, passive: true });
+    window.addEventListener('touchstart', handleFirstGestureForHomeGuard, { capture: true, passive: true });
+    window.addEventListener('keydown', handleFirstGestureForHomeGuard, { capture: true, passive: true });
 
     // 2. Keyboard shortcut: Ctrl + Shift + A (or Cmd + Shift + A) -> show PIN modal before opening Admin Panel
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1818,8 +1935,17 @@ export default function App() {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('pointerdown', handleFirstGestureForHomeGuard, { capture: true });
+      window.removeEventListener('touchstart', handleFirstGestureForHomeGuard, { capture: true });
+      window.removeEventListener('keydown', handleFirstGestureForHomeGuard, { capture: true });
+      if (exitCheckTimeoutRef.current !== null) {
+        window.clearTimeout(exitCheckTimeoutRef.current);
+        exitCheckTimeoutRef.current = null;
+      }
+    };
+  }, [armHomeGuardIfEligible]);
 
   // Save cart to local storage
   useEffect(() => {
@@ -3098,8 +3224,10 @@ export default function App() {
       {/* Minimal Text-Only Home Screen Back-Button Exit Confirmation Banner */}
       <ExitConfirmBanner
         isOpen={isExitBannerOpen}
+        hasExited={hasExitedFromApp}
         onContinueShopping={handleContinueShoppingFromExitBanner}
         onExitApp={handleExitAppFromBanner}
+        onReturnToStore={handleContinueShoppingFromExitBanner}
       />
     </div>
   );

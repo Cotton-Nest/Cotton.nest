@@ -2,25 +2,33 @@ import React from 'react';
 
 interface ExitConfirmBannerProps {
   isOpen: boolean;
+  hasExited?: boolean;
   onContinueShopping: () => void;
   onExitApp: () => void;
+  onReturnToStore?: () => void;
 }
 
 export const ExitConfirmBanner: React.FC<ExitConfirmBannerProps> = ({
   isOpen,
+  hasExited = false,
   onContinueShopping,
   onExitApp,
+  onReturnToStore,
 }) => {
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-4 bg-[#2C2420]/30"
+      className="fixed inset-0 z-[10001] flex items-end sm:items-center justify-center p-4 bg-[#2C2420]/30"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="exit-banner-heading"
       aria-describedby="exit-banner-message"
-      onClick={onContinueShopping}
+      onClick={() => {
+        if (!hasExited) {
+          onContinueShopping();
+        }
+      }}
     >
       <div
         className="w-full max-w-md rounded-3xl bg-[#FFFFFF] border border-[#DEC89B] shadow-[0_18px_48px_rgba(44,36,32,0.16)] overflow-hidden text-center"
@@ -43,25 +51,39 @@ export const ExitConfirmBanner: React.FC<ExitConfirmBannerProps> = ({
             Thank You for Visiting Cotton Nest
           </p>
           <p className="text-xs sm:text-sm text-[#6B5D55] leading-relaxed">
-            May your days be as comfortable as your nights.
+            {hasExited
+              ? 'You have exited the app. You may now close this tab or press Back to leave.'
+              : 'May your days be as comfortable as your nights.'}
           </p>
 
           {/* Action Buttons */}
           <div className="pt-4 flex flex-col sm:flex-row gap-2.5">
-            <button
-              type="button"
-              onClick={onContinueShopping}
-              className="flex-1 py-3 px-5 rounded-2xl bg-[#8C2E46] hover:bg-[#70252D] text-[#FFFFFF] text-xs sm:text-sm font-semibold border border-[#8C2E46] cursor-pointer"
-            >
-              Continue Shopping
-            </button>
-            <button
-              type="button"
-              onClick={onExitApp}
-              className="flex-1 py-3 px-5 rounded-2xl bg-[#FDEAF0]/60 hover:bg-[#FDEAF0] text-[#70252D] text-xs sm:text-sm font-semibold border border-[#DEC89B] cursor-pointer"
-            >
-              Exit App
-            </button>
+            {hasExited ? (
+              <button
+                type="button"
+                onClick={onReturnToStore || onContinueShopping}
+                className="flex-1 py-3 px-5 rounded-2xl bg-[#8C2E46] hover:bg-[#70252D] text-[#FFFFFF] text-xs sm:text-sm font-semibold border border-[#8C2E46] cursor-pointer"
+              >
+                Return to Store
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onContinueShopping}
+                  className="flex-1 py-3 px-5 rounded-2xl bg-[#8C2E46] hover:bg-[#70252D] text-[#FFFFFF] text-xs sm:text-sm font-semibold border border-[#8C2E46] cursor-pointer"
+                >
+                  Continue Shopping
+                </button>
+                <button
+                  type="button"
+                  onClick={onExitApp}
+                  className="flex-1 py-3 px-5 rounded-2xl bg-[#FDEAF0]/60 hover:bg-[#FDEAF0] text-[#70252D] text-xs sm:text-sm font-semibold border border-[#DEC89B] cursor-pointer"
+                >
+                  Exit App
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
