@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
+  AlertTriangle,
   Award,
   Calendar,
   ChevronRight,
@@ -32,12 +33,8 @@ import {
   Users,
   X
 } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 import { BedsheetProduct } from '../data/products';
 import { Order } from '../data/orders';
-import { WishlistItem } from '../data/wishlist';
-import { getWishlistsApi } from '../services/api';
 import {
   ResponsiveContainer,
   PieChart,
@@ -52,28 +49,30 @@ import {
   CartesianGrid,
   AreaChart,
   Area,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar
 } from 'recharts';
 import {
   CustomerActivityEvent,
   CustomerActivityProfile,
   CustomerDeviceType,
   ProductInterestAnalyticsItem,
-  aggregateProductInterestAnalytics,
   computeCustomerInterestScore,
   formatDateOnlyIST,
   formatDurationHuman,
   formatTimeOnlyIST,
-  formatTimestampIST
+  formatTimestampIST,
+  sanitizeCustomerUid
 } from '../data/customerActivity';
 import {
-  reconcileCustomerProfilesWithStoreData,
-  subscribeToAllCustomerActivityProfiles
-} from '../services/customerActivityTracker';
+  ReportingPeriod,
+  computeUnifiedAnalyticsSnapshot,
+  deduplicateOrders,
+  formatDateKeyShortIST,
+  formatLastUpdatedIST,
+  getISTDateKeyRange,
+  isTestOrder,
+  toISTDateKey
+} from '../data/unifiedAnalytics';
+import { useSyncedAnalyticsData } from '../services/analyticsSync';
 
 interface AdminCustomerAnalyticsSectionProps {
   products: BedsheetProduct[];
@@ -81,7 +80,7 @@ interface AdminCustomerAnalyticsSectionProps {
   onToast?: (msg: string) => void;
 }
 
-type DateFilterRange = 'all' | 'today' | '7d' | '30d' | 'custom';
+type DateFilterRange = ReportingPeriod;
 type SortByOption = 'recent' | 'most_active' | 'wishlist_high' | 'most_interested' | 'orders_high';
 type AnalyticsSubTab = 'customers' | 'most_interested' | 'product_interest' | 'cohorts';
 type ProfileDetailTab = 'overview' | 'timeline' | 'sessions' | 'wishlist_views' | 'cart_search_orders';
@@ -91,9 +90,12 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
   orders,
   onToast
 }) => {
-  const [rawProfiles, setRawProfiles] = useState<CustomerActivityProfile[]>([]);
-  const [wishlists, setWishlists] = useState<WishlistItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Single source of truth: real-time Firestore subscription across all 6 shared collections
+  const synced = useSyncedAnalyticsData({
+    enabled: true,
+    fallbackProducts: products,
+    fallbackOrders: orders,
+  });
 
   // Sub-navigation & Filters
   const [activeSubTab, setActiveSubTab] = useState<AnalyticsSubTab>('customers');
@@ -109,60 +111,43 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
   const [profileTab, setProfileTab] = useState<ProfileDetailTab>('overview');
   const [timelineFilter, setTimelineFilter] = useState<'all' | CustomerActivityEvent['type']>('all');
 
-  useEffect(() => {
-    setIsLoading(true);
-    let mounted = true;
-    const unsubProfiles = subscribeToAllCustomerActivityProfiles(profilesList => {
-      if (mounted) {
-        setRawProfiles(profilesList);
-        setIsLoading(false);
-      }
+  const isLoading = synced.isLoading;
+
+  const snapshot = useMemo(() => {
+    return computeUnifiedAnalyticsSnapshot({
+      products: synced.products,
+      orders: synced.orders,
+      reviews: synced.reviews,
+      wishlists: synced.wishlists,
+      customerProfiles: synced.customerProfiles,
+      trafficData: synced.trafficData,
+      filter: {
+        period: dateRange,
+        customStart: customStartDate,
+        customEnd: customEndDate,
+        includeTestOrders: false,
+      },
     });
-    getWishlistsApi()
-      .then(items => {
-        if (mounted && Array.isArray(items)) {
-          setWishlists(items);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-      unsubProfiles();
-    };
-  }, []);
+  }, [
+    synced.products,
+    synced.orders,
+    synced.reviews,
+    synced.wishlists,
+    synced.customerProfiles,
+    synced.trafficData,
+    dateRange,
+    customStartDate,
+    customEndDate,
+  ]);
 
-  // Reconciled profiles combining live Firestore customer_activity + signed-in orders/wishlists
-  const allProfiles = useMemo(() => {
-    return reconcileCustomerProfilesWithStoreData(rawProfiles, orders, wishlists);
-  }, [rawProfiles, orders, wishlists]);
+  const allProfiles = snapshot.reconciledProfiles;
+  const periodProfiles = snapshot.periodProfiles;
 
-  // Synchronize all reconciled customer profiles to Firestore so they are permanent across all devices and published URLs
-  useEffect(() => {
-    if (!allProfiles || allProfiles.length === 0) return;
-    allProfiles.forEach(async (p) => {
-      if (!p || !p.uid) return;
-      try {
-        await setDoc(doc(db, 'customer_activity', p.uid), p, { merge: true });
-      } catch {}
-      try {
-        await fetch('/api/customer-activity', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(p),
-          keepalive: true
-        });
-      } catch {}
-    });
-  }, [allProfiles]);
-
-  // Apply Search, Date Range, Device Type, and Sort
+  // Apply Search, Device Type, and Sort on top of the IST-filtered periodProfiles
   const filteredProfiles = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const now = Date.now();
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
 
-    return allProfiles
+    return periodProfiles
       .filter(profile => {
         // 1. Search by name, email, phone, or UID
         if (q) {
@@ -179,25 +164,6 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
         if (deviceFilter !== 'All') {
           if ((profile.deviceInfo?.deviceType || 'Desktop') !== deviceFilter) {
             return false;
-          }
-        }
-
-        // 3. Filter by lastActiveAt date range
-        const lastActive = profile.lastActiveAt || profile.lastLoginAt || 0;
-        if (dateRange === 'today') {
-          if (lastActive < startOfToday.getTime()) return false;
-        } else if (dateRange === '7d') {
-          if (lastActive < now - 7 * 24 * 60 * 60 * 1000) return false;
-        } else if (dateRange === '30d') {
-          if (lastActive < now - 30 * 24 * 60 * 60 * 1000) return false;
-        } else if (dateRange === 'custom') {
-          if (customStartDate) {
-            const startTs = new Date(`${customStartDate}T00:00:00`).getTime();
-            if (!Number.isNaN(startTs) && lastActive < startTs) return false;
-          }
-          if (customEndDate) {
-            const endTs = new Date(`${customEndDate}T23:59:59`).getTime();
-            if (!Number.isNaN(endTs) && lastActive > endTs) return false;
           }
         }
 
@@ -224,50 +190,55 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
         // Default: 'recent' (Most Recently Active)
         return (b.lastActiveAt || 0) - (a.lastActiveAt || 0);
       });
-  }, [allProfiles, searchQuery, deviceFilter, dateRange, customStartDate, customEndDate, sortBy]);
+  }, [periodProfiles, searchQuery, deviceFilter, sortBy]);
 
-  // Top-level Summary & Returning vs New Customers Metrics
+  // Top-level Summary & Returning vs New Customers Metrics from unified snapshot
   const summaryStats = useMemo(() => {
-    const totalCustomers = allProfiles.length;
-    const returningCustomers = allProfiles.filter(p => (p.totalSessions || 1) > 1);
-    const newCustomers = allProfiles.filter(p => (p.totalSessions || 1) <= 1);
-    const totalTimeSeconds = allProfiles.reduce((acc, p) => acc + (p.totalTimeSpentSeconds || 0), 0);
-    const totalSessionsSum = allProfiles.reduce((acc, p) => acc + Math.max(1, p.totalSessions || 1), 0);
-    const avgSessionSeconds = totalSessionsSum > 0 ? Math.round(totalTimeSeconds / totalSessionsSum) : 0;
-    const totalProductViews = allProfiles.reduce((acc, p) => acc + (p.totalProductViews || 0), 0);
-    const totalWishlistItems = allProfiles.reduce(
-      (acc, p) => acc + (p.currentWishlist?.length || 0),
-      0
-    );
-    const returningPct =
-      totalCustomers > 0 ? Math.round((returningCustomers.length / totalCustomers) * 100) : 0;
-    const newPct = totalCustomers > 0 ? 100 - returningPct : 0;
-
     return {
-      totalCustomers,
-      returningCount: returningCustomers.length,
-      newCount: newCustomers.length,
-      returningPct,
-      newPct,
-      totalTimeSeconds,
-      totalSessionsSum,
-      avgSessionSeconds,
-      totalProductViews,
-      totalWishlistItems
+      totalCustomers: snapshot.customers.activeCustomers,
+      totalRegisteredAllTime: snapshot.customers.totalRegisteredCustomers,
+      newInPeriod: snapshot.customers.registeredInPeriod,
+      returningCount: snapshot.customers.returningCustomers,
+      newCount: snapshot.customers.newCustomers,
+      returningPct: snapshot.customers.returningPercentage,
+      newPct: snapshot.customers.newPercentage,
+      totalTimeSeconds: snapshot.customers.totalActiveTimeSeconds,
+      totalSessionsSum: snapshot.customers.totalSessions,
+      avgSessionSeconds: snapshot.customers.avgSessionDurationSeconds,
+      totalProductViews: snapshot.customers.totalProductViews,
+      totalWishlistItems: snapshot.customers.totalWishlistSaves,
     };
-  }, [allProfiles]);
+  }, [snapshot.customers]);
 
-  // Ranked Most Interested Customers
+  // Ranked Most Interested Customers (filtered by active IST reporting period)
   const mostInterestedCustomers = useMemo(() => {
-    return [...allProfiles].sort(
+    return [...periodProfiles].sort(
       (a, b) => computeCustomerInterestScore(b) - computeCustomerInterestScore(a)
     );
-  }, [allProfiles]);
+  }, [periodProfiles]);
 
-  // Product Interest Analytics
+  // Product Interest Analytics sourced directly from unified snapshot
   const productInterestList = useMemo<ProductInterestAnalyticsItem[]>(() => {
-    return aggregateProductInterestAnalytics(allProfiles, products, orders, wishlists);
-  }, [allProfiles, products, orders, wishlists]);
+    return snapshot.products
+      .filter(
+        p => p.totalViews > 0 || p.wishlistCount > 0 || p.cartAdds > 0 || p.unitsSold > 0
+      )
+      .map(p => ({
+        productId: p.productId,
+        productName: p.name,
+        productImage: p.image,
+        productPrice: p.price,
+        collection: p.collection,
+        totalViews: p.totalViews,
+        uniqueViewers: p.uniqueViewers,
+        wishlistAdds: p.wishlistCount,
+        currentWishlistCount: p.wishlistCount,
+        cartAdds: p.cartAdds,
+        ordersCount: p.unitsSold,
+        interestScore: p.interestScore,
+      }))
+      .sort((a, b) => b.interestScore - a.interestScore);
+  }, [snapshot.products]);
 
   // Recharts: Returning vs New Customers Donut Chart Data
   const retentionPieData = useMemo(() => {
@@ -284,7 +255,7 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
     let fourToSix = 0;
     let sevenPlus = 0;
 
-    allProfiles.forEach(p => {
+    periodProfiles.forEach(p => {
       const sess = p.totalSessions || 1;
       if (sess <= 1) single++;
       else if (sess <= 3) twoToThree++;
@@ -298,25 +269,21 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
       { cohort: '4-6 Sessions', count: fourToSix, fill: '#A33452' },
       { cohort: '7+ Sessions (VIP)', count: sevenPlus, fill: '#70252D' }
     ];
-  }, [allProfiles]);
+  }, [periodProfiles]);
 
-  // Recharts: Engagement Timeline by Day (Last 7 Days) for Returning vs New
+  // Recharts: Engagement Timeline by Day (Last 7 IST Days) for Returning vs New
   const retentionTimelineData = useMemo(() => {
-    const days: { [key: string]: { date: string; returning: number; newUsers: number; totalMinutes: number } } = {};
-    const now = new Date();
-    
-    // Seed last 7 days
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const key = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
-      days[key] = { date: key, returning: 0, newUsers: 0, totalMinutes: 0 };
+    const dayKeys = getISTDateKeyRange(7);
+    const days: Record<string, { date: string; returning: number; newUsers: number; totalMinutes: number }> = {};
+
+    for (const key of dayKeys) {
+      days[key] = { date: formatDateKeyShortIST(key), returning: 0, newUsers: 0, totalMinutes: 0 };
     }
 
-    allProfiles.forEach(p => {
+    periodProfiles.forEach(p => {
       const ts = p.lastActiveAt || p.lastLoginAt;
       if (!ts) return;
-      const key = new Date(ts).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+      const key = toISTDateKey(ts);
       if (days[key]) {
         if ((p.totalSessions || 1) > 1) {
           days[key].returning += 1;
@@ -327,8 +294,8 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
       }
     });
 
-    return Object.values(days);
-  }, [allProfiles]);
+    return dayKeys.map(k => days[k]);
+  }, [periodProfiles]);
 
   // Recharts: Top Bedsheet Product Interest Bar Chart Data
   const topProductsChartData = useMemo(() => {
@@ -343,7 +310,7 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
     }));
   }, [productInterestList]);
 
-  // Recharts: Most Interested Customers Radar / Bar Comparison Data
+  // Recharts: Most Interested Customers Bar Comparison Data
   const mostInterestedChartData = useMemo(() => {
     return mostInterestedCustomers.slice(0, 6).map(c => ({
       name: c.customerName.length > 12 ? c.customerName.slice(0, 10) + '…' : c.customerName,
@@ -363,22 +330,22 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
     return allProfiles.find(p => p.uid === selectedCustomerUid) || null;
   }, [allProfiles, selectedCustomerUid]);
 
-  // Orders belonging to the selected customer
+  // Deduplicated non-test orders belonging to the selected customer
   const selectedCustomerOrders = useMemo(() => {
     if (!selectedCustomer) return [];
     const cleanEmail = (selectedCustomer.email || '').trim().toLowerCase();
     const cleanPhone = (selectedCustomer.phone || '').replace(/[^0-9]/g, '').slice(-10);
 
-    return (orders || []).filter(o => {
-      if (!o) return false;
-      if (o.userId && o.userId === selectedCustomer.uid) return true;
+    return deduplicateOrders(synced.orders || []).filter(o => {
+      if (!o || isTestOrder(o)) return false;
+      if (o.userId && sanitizeCustomerUid(o.userId) === selectedCustomer.uid) return true;
       const oEmail = (o.customerEmail || '').trim().toLowerCase();
       const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
       if (cleanEmail && oEmail && cleanEmail === oEmail) return true;
       if (cleanPhone && cleanPhone.length >= 10 && oPhone && cleanPhone === oPhone) return true;
       return false;
     });
-  }, [selectedCustomer, orders]);
+  }, [selectedCustomer, synced.orders]);
 
   // Export Customer Activity Data to CSV
   const handleExportCSV = () => {
@@ -520,6 +487,34 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] text-[11px] text-[#5C4A3E]">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  synced.syncError
+                    ? 'bg-amber-500'
+                    : synced.isLoading || synced.isRefreshing
+                    ? 'bg-[#C29E57] animate-ping'
+                    : 'bg-emerald-500 animate-pulse'
+                }`}
+              />
+              <span className="font-semibold">
+                {synced.lastUpdatedAt
+                  ? `Updated: ${formatLastUpdatedIST(synced.lastUpdatedAt)}`
+                  : 'Syncing Firebase...'}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => synced.refresh()}
+              disabled={synced.isRefreshing}
+              className="px-3.5 py-2.5 rounded-xl bg-[#FAF7F2] hover:bg-[#F3ECE2] text-[#2C2420] border border-[#DEC89B] text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-60"
+              title="Force reload live data from Firebase Firestore"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#8C2E46] ${synced.isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{synced.isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleExportCSV}
@@ -531,18 +526,74 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
           </div>
         </div>
 
+        {/* Sync Error Alert (never mask incomplete data as final) */}
+        {synced.syncError && (
+          <div className="mt-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Partial Firebase Sync Warning</p>
+                <p className="text-[11px] text-amber-800 mt-0.5">{synced.syncError}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => synced.refresh()}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0 cursor-pointer"
+            >
+              Retry Sync
+            </button>
+          </div>
+        )}
+
+        {/* Unified IST Reporting Period Bar (applies cleanly to all KPIs, charts, and lists) */}
+        <div className="mt-4 pt-4 border-t border-[#EAE2D5]/70 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A6A5E] mr-1 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-[#8C2E46]" />
+              Period (IST):
+            </span>
+            {(
+              [
+                { id: 'today', label: 'Today' },
+                { id: '7d', label: '7 Days' },
+                { id: '30d', label: '30 Days' },
+                { id: 'all', label: 'All Time' },
+                { id: 'custom', label: 'Custom' },
+              ] as const
+            ).map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setDateRange(opt.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                  dateRange === opt.id
+                    ? 'bg-[#2C2420] text-white shadow-2xs'
+                    : 'bg-[#FAF7F2] text-[#5C4A3E] border border-[#EAE2D5] hover:bg-[#F3ECE2]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="text-[11px] text-[#7A6A5E] font-medium tabular-nums">
+            {snapshot.bounds.label} · Active Orders: <strong className="text-[#2C2420]">{snapshot.orders.activeOrders}</strong> · Actual Revenue: <strong className="text-[#8C2E46]">₹{snapshot.orders.actualRevenue.toLocaleString('en-IN')}</strong>
+          </div>
+        </div>
+
         {/* Top KPI Cards with Tabular Numerals */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mt-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mt-5">
           <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-[#EAE2D5]">
             <div className="flex items-center justify-between text-[#7A6A5E] text-[11px] font-bold uppercase tracking-wider">
-              <span>Signed-In Customers</span>
+              <span>{dateRange === 'all' ? 'Signed-In Customers' : 'Active Customers'}</span>
               <Users className="w-4 h-4 text-[#8C2E46]" />
             </div>
             <p className="text-2xl sm:text-3xl font-bold text-[#2C2420] mt-2 tabular-nums">
               {summaryStats.totalCustomers}
             </p>
             <p className="text-[11px] text-[#7A6A5E] mt-1 tabular-nums">
-              {summaryStats.totalSessionsSum} total login sessions
+              {summaryStats.totalSessionsSum} sessions · {summaryStats.totalRegisteredAllTime} total registered
             </p>
           </div>
 
@@ -608,8 +659,8 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
             <p className="text-2xl sm:text-3xl font-bold text-[#8C2E46] mt-2 tabular-nums">
               {summaryStats.totalWishlistItems}
             </p>
-            <p className="text-[11px] text-[#7A6A5E] mt-1">
-              Historical & current saved items
+            <p className="text-[11px] text-[#7A6A5E] mt-1 tabular-nums">
+              {snapshot.customers.uniqueWishlistCustomers} unique shopper(s)
             </p>
           </div>
         </div>
@@ -1333,7 +1384,7 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
               </div>
 
               <div className="divide-y divide-[#EAE2D5] max-h-96 overflow-y-auto">
-                {allProfiles
+                {periodProfiles
                   .filter(p => (p.totalSessions || 1) > 1)
                   .map(p => (
                     <div
@@ -1383,7 +1434,7 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
               </div>
 
               <div className="divide-y divide-[#EAE2D5] max-h-96 overflow-y-auto">
-                {allProfiles
+                {periodProfiles
                   .filter(p => (p.totalSessions || 1) <= 1)
                   .map(p => (
                     <div

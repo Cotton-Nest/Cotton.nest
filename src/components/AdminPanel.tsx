@@ -36,7 +36,7 @@ import {
   saveCouponApi,
 } from '../services/api';
 import { db } from '../firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, getDocsFromServer, onSnapshot } from 'firebase/firestore';
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -69,6 +69,11 @@ import { AdminBannerSlotsSection } from './AdminBannerSlotsSection';
 import { BannerSlot, normalizeBannerSlots, computeSlotStatus } from '../data/bannerSlots';
 import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
+import {
+  computeOrderAnalytics,
+  deduplicateOrders,
+  formatLastUpdatedIST,
+} from '../data/unifiedAnalytics';
 import {
   resolveProductPrimarySku,
   getAllProductSkus,
@@ -541,16 +546,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Orders Real-time Sync & Manual Refresh State
   const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
   const [ordersLastSyncedAt, setOrdersLastSyncedAt] = useState<Date>(new Date());
+  const [ordersSyncError, setOrdersSyncError] = useState<string | null>(null);
 
   const handleRefreshOrders = async () => {
     setIsRefreshingOrders(true);
     try {
-      const freshOrders = await getOrders();
+      let freshOrders: Order[] = [];
+      try {
+        const snap = await getDocsFromServer(collection(db, 'orders'));
+        const list: Order[] = [];
+        snap.forEach((d) => {
+          const raw = d.data() as Order;
+          if (raw && d.id) list.push({ ...raw, id: d.id });
+        });
+        freshOrders = deduplicateOrders(list);
+      } catch (fsErr) {
+        const fallbackOrders = await getOrders(true);
+        freshOrders = deduplicateOrders(fallbackOrders);
+        if (freshOrders.length === 0) {
+          throw fsErr;
+        }
+      }
       setEditableOrders(freshOrders);
       setOrdersLastSyncedAt(new Date());
-      showToast(`Refreshed ${freshOrders.length} orders from database`);
-    } catch (err) {
-      console.warn('Orders refresh notice:', err);
+      setOrdersSyncError(null);
+      showToast(`Refreshed ${freshOrders.length} orders from Firebase server`);
+    } catch (err: any) {
+      const msg = err?.message || 'Unable to verify live orders from Firebase.';
+      setOrdersSyncError(msg);
+      showToast('Orders sync notice: ' + msg);
     } finally {
       setIsRefreshingOrders(false);
     }
@@ -561,40 +585,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const unsub = onSnapshot(
       collection(db, 'orders'),
       (snapshot) => {
-        if (!snapshot.empty) {
-          const liveOrders: Order[] = [];
-          snapshot.forEach((d) => {
-            const raw = d.data() as Order;
-            if (!raw) return;
-            liveOrders.push({
-              ...raw,
-              id: d.id,
-              customerName: String(raw.customerName || 'Atelier Customer'),
-              customerPhone: String(raw.customerPhone || ''),
-              customerAddress: String(raw.customerAddress || ''),
-              items: Array.isArray(raw.items) ? raw.items : [],
-              totalAmount: Number(raw.totalAmount) || 0,
-              status: raw.status || 'pending',
-              createdAt: raw.createdAt || new Date().toISOString(),
-            });
+        const liveOrders: Order[] = [];
+        snapshot.forEach((d) => {
+          const raw = d.data() as Order;
+          if (!raw) return;
+          liveOrders.push({
+            ...raw,
+            id: d.id,
+            customerName: String(raw.customerName || 'Atelier Customer'),
+            customerPhone: String(raw.customerPhone || ''),
+            customerAddress: String(raw.customerAddress || ''),
+            items: Array.isArray(raw.items) ? raw.items : [],
+            totalAmount: Number(raw.totalAmount) || 0,
+            status: raw.status || 'pending',
+            createdAt: raw.createdAt || new Date().toISOString(),
           });
-          setEditableOrders((prev) => {
-            const map = new Map<string, Order>();
-            (prev || []).forEach((o) => {
-              if (o && o.id) map.set(o.id, o);
-            });
-            liveOrders.forEach((o) => {
-              if (o && o.id) map.set(o.id, o);
-            });
-            return Array.from(map.values()).sort(
-              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            );
-          });
-          setOrdersLastSyncedAt(new Date());
-        }
+        });
+        setEditableOrders(deduplicateOrders(liveOrders));
+        setOrdersLastSyncedAt(new Date());
+        setOrdersSyncError(null);
       },
-      (err) => {
-        console.warn('Orders live listener notice:', err);
+      (err: any) => {
+        const code = String(err?.code || '');
+        const msg =
+          code === 'permission-denied'
+            ? 'Orders permission restricted — sign in with an authorized Cotton Nest Owner Google account to sync all store orders.'
+            : err?.message || 'Live orders sync interrupted.';
+        setOrdersSyncError(msg);
       }
     );
 
@@ -698,7 +715,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, []);
 
   React.useEffect(() => {
-    setEditableOrders(orders);
+    setEditableOrders(deduplicateOrders(orders));
   }, [orders]);
 
   React.useEffect(() => {
@@ -2131,8 +2148,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     (acc, p) => acc + (p && p.inStock ? (p.stockQuantity ?? 10) : 0),
     0
   );
-  const totalRevenue = (editableOrders || []).reduce((sum, o) => sum + (o && o.status !== 'cancelled' ? (Number(o.totalAmount) || 0) : 0), 0);
-  const pendingOrdersCount = (editableOrders || []).filter((o) => o && o.status === 'pending').length;
+  const orderSummary = React.useMemo(
+    () => computeOrderAnalytics(editableOrders || [], { period: 'all', includeTestOrders: false }).summary,
+    [editableOrders]
+  );
+  const totalRevenue = orderSummary.actualRevenue;
+  const pendingOrdersCount = orderSummary.pendingOrders;
   const lowStockCount = (editableProducts || []).filter((p) => p && p.inStock && p.stockQuantity !== undefined && p.stockQuantity <= 3).length;
   const adminAlertsCount = outOfStockCount + lowStockCount + pendingOrdersCount;
 
@@ -2387,6 +2408,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Heart className="w-3.5 h-3.5 text-rose-500" />
               <span>Wishlists</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('customer_analytics')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'customer_analytics'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-[#C29E57]" />
+              <span>Analytics</span>
             </button>
 
             <button
@@ -4762,17 +4796,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               />
             ) : (
               <>
+            {/* Orders Sync Error & Last Updated Strip */}
+            {ordersSyncError && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Orders Firebase Sync Notice</p>
+                    <p className="text-[11px] text-amber-800">{ordersSyncError}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRefreshOrders}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0 cursor-pointer"
+                >
+                  Retry Sync
+                </button>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#7A6458] px-1">
+              <span>
+                Showing unified non-test figures ({orderSummary.totalOrders} valid order(s){orderSummary.excludedTestOrders > 0 ? `, ${orderSummary.excludedTestOrders} test excluded` : ''})
+              </span>
+              <span className="font-semibold text-[#5C4A3E]">
+                Last synced: {formatLastUpdatedIST(ordersLastSyncedAt)}
+              </span>
+            </div>
+
             {/* Orders Metric Row */}
             <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
                 <div className="flex items-center justify-between text-[#7A6458] mb-1">
-                  <span className="text-xs font-medium">Total Orders</span>
+                  <span className="text-xs font-medium">Active Orders</span>
                   <ShoppingBag className="w-4 h-4 text-[#C29E57]" />
                 </div>
-                <div className="text-2xl font-bold font-serif-luxury text-[#2C2420]">
-                  {editableOrders.length}
+                <div className="text-2xl font-bold font-serif-luxury text-[#2C2420] tabular-nums">
+                  {orderSummary.activeOrders}
                 </div>
-                <p className="text-[10px] text-[#8C7A70] mt-0.5">Recorded customer orders</p>
+                <p className="text-[10px] text-[#8C7A70] mt-0.5 tabular-nums">
+                  {orderSummary.totalOrders} total · {orderSummary.cancelledOrders} cancelled · {orderSummary.totalUnitsSold} units
+                </p>
               </div>
 
               <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
@@ -4780,32 +4845,38 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <span className="text-xs font-medium">Pending Action</span>
                   <Clock className="w-4 h-4 text-amber-600" />
                 </div>
-                <div className="text-2xl font-bold font-serif-luxury text-amber-700">
-                  {pendingOrdersCount}
+                <div className="text-2xl font-bold font-serif-luxury text-amber-700 tabular-nums">
+                  {orderSummary.pendingOrders}
                 </div>
-                <p className="text-[10px] text-[#8C7A70] mt-0.5">Needs confirmation</p>
+                <p className="text-[10px] text-[#8C7A70] mt-0.5 tabular-nums">
+                  Pending payment: ₹{orderSummary.pendingPaymentValue.toLocaleString('en-IN')}
+                </p>
               </div>
 
               <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
                 <div className="flex items-center justify-between text-[#7A6458] mb-1">
-                  <span className="text-xs font-medium">Dispatched</span>
+                  <span className="text-xs font-medium">Confirmed / Shipped / Delivered</span>
                   <Truck className="w-4 h-4 text-blue-600" />
                 </div>
-                <div className="text-2xl font-bold font-serif-luxury text-blue-700">
-                  {editableOrders.filter((o) => o.status === 'dispatched').length}
+                <div className="text-2xl font-bold font-serif-luxury text-blue-700 tabular-nums">
+                  {orderSummary.confirmedOrders} / {orderSummary.dispatchedOrders} / {orderSummary.deliveredOrders}
                 </div>
-                <p className="text-[10px] text-[#8C7A70] mt-0.5">Out for courier/delivery</p>
+                <p className="text-[10px] text-[#8C7A70] mt-0.5 tabular-nums">
+                  Confirmed · Shipped · Delivered
+                </p>
               </div>
 
               <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE2D5] shadow-xs">
                 <div className="flex items-center justify-between text-[#7A6458] mb-1">
-                  <span className="text-xs font-medium">Order Value</span>
+                  <span className="text-xs font-medium">Actual Revenue</span>
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
                 </div>
-                <div className="text-2xl font-bold font-serif-luxury text-emerald-700">
+                <div className="text-2xl font-bold font-serif-luxury text-emerald-700 tabular-nums">
                   ₹{totalRevenue.toLocaleString('en-IN')}
                 </div>
-                <p className="text-[10px] text-emerald-600 mt-0.5">Active gross revenue</p>
+                <p className="text-[10px] text-emerald-700 mt-0.5 tabular-nums">
+                  Order Value: ₹{orderSummary.grossOrderValue.toLocaleString('en-IN')} · AOV: ₹{orderSummary.averageOrderValue.toLocaleString('en-IN')}
+                </p>
               </div>
             </section>
 

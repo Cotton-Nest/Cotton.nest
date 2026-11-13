@@ -454,9 +454,22 @@ export function aggregateProductInterestAnalytics(
     }
   }
 
-  // Reconcile with non-cancelled orders
+  // Reconcile with non-cancelled, non-test deduplicated orders
+  const seenOrderIds = new Set<string>();
   for (const order of orders || []) {
+    if (!order || !order.id || seenOrderIds.has(order.id)) continue;
+    seenOrderIds.add(order.id);
     if (order.status === 'cancelled') continue;
+    const idUpper = String(order.id).toUpperCase();
+    const emailLower = String(order.customerEmail || '').trim().toLowerCase();
+    const isTest =
+      Boolean((order as unknown as { isTestOrder?: boolean }).isTestOrder) ||
+      idUpper.startsWith('TEST-') ||
+      idUpper.startsWith('CN-TEST-') ||
+      idUpper.includes('_TEST_') ||
+      emailLower.endsWith('@example.com') ||
+      emailLower.endsWith('@test.com');
+    if (isTest) continue;
     for (const item of order.items || []) {
       const matchedProduct = products.find(
         p => p.id === item.productId || p.name.toLowerCase() === (item.productName || '').toLowerCase()

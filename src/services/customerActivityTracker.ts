@@ -4,9 +4,16 @@ import {
   doc,
   getDoc,
   getDocs,
-  onSnapshot
+  onSnapshot,
+  setDoc
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import {
+  db,
+  handleFirestoreError,
+  isFirestoreWriteQuotaExhausted,
+  markFirestoreWriteQuotaExhausted,
+  OperationType
+} from '../firebase';
 import { UserProfile } from '../context/AuthContext';
 import { BedsheetProduct } from '../data/products';
 import { Order } from '../data/orders';
@@ -20,6 +27,23 @@ import {
   getReadablePageLabel,
   sanitizeCustomerUid
 } from '../data/customerActivity';
+import { reconcileAnalyticsCustomerProfiles } from '../data/unifiedAnalytics';
+
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item)) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) {
+        out[k] = stripUndefinedDeep(v);
+      }
+    }
+    return out as T;
+  }
+  return value;
+}
 
 const COLLECTION_NAME = 'customer_activity';
 const LOCAL_PROFILES_CACHE_KEY = 'cotton_nest_customer_activity_profiles_v1';
@@ -146,14 +170,25 @@ export async function flushCustomerActivityProfile(force = false): Promise<void>
 
   runtime.isFlushing = true;
   runtime.dirty = false;
-  const snapshotProfile: CustomerActivityProfile = {
+  const snapshotProfile: CustomerActivityProfile = stripUndefinedDeep({
     ...runtime.profile,
     updatedAt: Date.now()
-  };
+  });
   runtime.profile.updatedAt = snapshotProfile.updatedAt;
   runtime.lastFlushedAt = snapshotProfile.updatedAt;
 
   writeLocalProfileToCache(snapshotProfile);
+
+  try {
+    if (!isFirestoreWriteQuotaExhausted()) {
+      await setDoc(doc(db, COLLECTION_NAME, snapshotProfile.uid), snapshotProfile, { merge: true });
+    }
+  } catch (err) {
+    markFirestoreWriteQuotaExhausted(err);
+    try {
+      handleFirestoreError(err, OperationType.WRITE, `${COLLECTION_NAME}/${snapshotProfile.uid}`);
+    } catch {}
+  }
 
   try {
     await fetch('/api/customer-activity', {
@@ -888,348 +923,42 @@ export function useCustomerActivityTracker(
 }
 
 /**
- * Merges tracked Firestore/backend profiles with historical signed-in customer records
- * from orders and wishlists so existing customers are never lost or overwritten.
+ * Merges tracked Firestore profiles with customer records from orders and wishlists
+ * using the unified analytics reconciler (without fabricating synthetic sessions or durations).
  */
 export function reconcileCustomerProfilesWithStoreData(
   rawProfiles: CustomerActivityProfile[],
   orders: Order[],
   wishlists: WishlistItem[]
 ): CustomerActivityProfile[] {
-  const byUid = new Map<string, CustomerActivityProfile>();
-
-  for (const prof of rawProfiles) {
-    if (!prof || !prof.uid) continue;
-    byUid.set(prof.uid, {
-      ...prof,
-      productsViewed: Array.isArray(prof.productsViewed) ? prof.productsViewed : [],
-      currentWishlist: Array.isArray(prof.currentWishlist) ? prof.currentWishlist : [],
-      historicalWishlist: Array.isArray(prof.historicalWishlist) ? prof.historicalWishlist : [],
-      cartActivity: Array.isArray(prof.cartActivity) ? prof.cartActivity : [],
-      searchHistory: Array.isArray(prof.searchHistory) ? prof.searchHistory : [],
-      sessions: Array.isArray(prof.sessions) ? prof.sessions : [],
-      timeline: Array.isArray(prof.timeline) ? prof.timeline : [],
-      pageVisitCounts: prof.pageVisitCounts || {}
-    });
-  }
-
-  // Helper to locate a profile by UID, email, or phone
-  const findMatchingProfile = (userId?: string, email?: string, phone?: string): CustomerActivityProfile | undefined => {
-    if (userId) {
-      const cleanId = sanitizeCustomerUid(userId);
-      if (byUid.has(cleanId)) return byUid.get(cleanId);
-    }
-    const cleanEmail = (email || '').trim().toLowerCase();
-    const cleanPhone = (phone || '').replace(/[^0-9]/g, '').slice(-10);
-
-    for (const p of byUid.values()) {
-      if (cleanEmail && p.email && p.email.trim().toLowerCase() === cleanEmail) return p;
-      if (cleanPhone && cleanPhone.length >= 10 && p.phone && p.phone.replace(/[^0-9]/g, '').slice(-10) === cleanPhone) {
-        return p;
-      }
-    }
-    return undefined;
-  };
-
-  // Reconcile wishlists from signed-in users
-  for (const w of wishlists || []) {
-    if (!w) continue;
-    const isGuestId = !w.customerEmail && (!w.customerId || w.customerId.startsWith('guest_'));
-    let profile = findMatchingProfile(w.customerId, w.customerEmail, w.customerPhone);
-
-    if (!profile && !isGuestId) {
-      const uid = sanitizeCustomerUid(w.customerId || w.customerEmail || '');
-      const addedTs = w.createdAt ? Number(w.createdAt) || Date.now() : Date.now();
-      profile = {
-        uid,
-        customerName: w.customerName || 'Signed-In Customer',
-        email: w.customerEmail || '',
-        phone: w.customerPhone || '',
-        accountCreatedAt: addedTs,
-        lastLoginAt: addedTs,
-        lastActiveAt: addedTs,
-        totalSessions: 1,
-        totalTimeSpentSeconds: 180,
-        averageSessionDurationSeconds: 180,
-        totalPagesVisited: 2,
-        pageVisitCounts: { 'Bedsheet Catalogue': 2 },
-        mostVisitedPage: 'Bedsheet Catalogue',
-        totalProductViews: 1,
-        productsViewed: [
-          {
-            productId: w.productId,
-            productName: w.productName,
-            productImage: w.productImage,
-            productPrice: w.productPrice,
-            collection: w.collection,
-            viewCount: 1,
-            firstViewedAt: addedTs,
-            lastViewedAt: addedTs
-          }
-        ],
-        totalAddedToCartCount: 0,
-        cartActivity: [],
-        totalAddedToWishlistCount: 0,
-        currentWishlist: [],
-        historicalWishlist: [],
-        totalSearches: 0,
-        searchHistory: [],
-        ordersPlacedCount: 0,
-        totalPurchaseValue: 0,
-        deviceInfo: {
-          deviceType: 'Mobile',
-          os: 'Android / iOS',
-          browser: 'Mobile Browser',
-          screenResolution: '390x844',
-          deviceCategory: 'Smartphone',
-          approximateLocation: 'India (IST Region)',
-          language: 'en-IN'
-        },
-        sessions: [
-          {
-            sessionId: `sess_hist_${uid}`,
-            loginAt: addedTs,
-            lastActiveAt: addedTs,
-            durationSeconds: 180,
-            pagesVisited: ['Home Showcase', 'Bedsheet Catalogue'],
-            productsViewedCount: 1,
-            deviceType: 'Mobile',
-            os: 'Android / iOS',
-            browser: 'Mobile Browser',
-            screenResolution: '390x844'
-          }
-        ],
-        timeline: [
-          {
-            id: `evt_wl_${w.id}`,
-            timestamp: addedTs,
-            type: 'wishlist_add',
-            label: `Added ${w.productName} to Wishlist`,
-            productId: w.productId,
-            productName: w.productName,
-            productImage: w.productImage,
-            productPrice: w.productPrice
-          }
-        ],
-        updatedAt: addedTs
-      };
-      byUid.set(uid, profile);
-    }
-
-    if (profile) {
-      const addedTs = w.createdAt ? Number(w.createdAt) || Date.now() : Date.now();
-      if (!profile.currentWishlist.some(item => item.productId === w.productId)) {
-        profile.currentWishlist.push({
-          productId: w.productId,
-          productName: w.productName,
-          productImage: w.productImage,
-          productPrice: w.productPrice,
-          addedAt: addedTs,
-          currentlyInWishlist: true
-        });
-      }
-      if (!profile.historicalWishlist.some(item => item.productId === w.productId)) {
-        profile.historicalWishlist.push({
-          productId: w.productId,
-          productName: w.productName,
-          productImage: w.productImage,
-          productPrice: w.productPrice,
-          addedAt: addedTs,
-          currentlyInWishlist: true
-        });
-      }
-      profile.totalAddedToWishlistCount = Math.max(
-        profile.totalAddedToWishlistCount || 0,
-        profile.historicalWishlist.length,
-        profile.currentWishlist.length
-      );
-    }
-  }
-
-  // Reconcile orders with customer profiles - ensure customers who placed orders are never omitted
-  for (const o of orders || []) {
-    if (!o || o.status === 'cancelled') continue;
-    let profile = findMatchingProfile(o.userId, o.customerEmail, o.customerPhone);
-
-    if (!profile) {
-      const isAnonymousGuest = !o.customerEmail && !o.customerPhone && (!o.userId || o.userId.startsWith('guest_'));
-      if (!isAnonymousGuest) {
-        const uid = sanitizeCustomerUid(o.userId || o.customerEmail || o.customerPhone || `cust_ord_${o.id}`);
-        const orderTs = o.createdAt ? new Date(o.createdAt).getTime() || Date.now() : Date.now();
-        profile = {
-          uid,
-          customerName: o.customerName || 'Cotton Nest Customer',
-          email: o.customerEmail || '',
-          phone: o.customerPhone || '',
-          accountCreatedAt: orderTs,
-          lastLoginAt: orderTs,
-          lastActiveAt: orderTs,
-          totalSessions: 1,
-          totalTimeSpentSeconds: 180,
-          averageSessionDurationSeconds: 180,
-          totalPagesVisited: 2,
-          pageVisitCounts: { 'Home Showcase': 1, 'Bedsheet Catalogue': 1 },
-          mostVisitedPage: 'Bedsheet Catalogue',
-          totalProductViews: Array.isArray(o.items) ? o.items.length : 1,
-          productsViewed: (o.items || []).map((it) => ({
-            productId: it.productId,
-            productName: it.productName,
-            productImage: it.productImage,
-            productPrice: it.price,
-            viewCount: 1,
-            firstViewedAt: orderTs,
-            lastViewedAt: orderTs
-          })),
-          totalAddedToCartCount: Array.isArray(o.items) ? o.items.length : 1,
-          cartActivity: [],
-          totalAddedToWishlistCount: 0,
-          currentWishlist: [],
-          historicalWishlist: [],
-          totalSearches: 0,
-          searchHistory: [],
-          ordersPlacedCount: 1,
-          totalPurchaseValue: Number(o.totalAmount) || 0,
-          deviceInfo: {
-            deviceType: 'Mobile',
-            os: 'Android / iOS',
-            browser: 'Mobile Browser',
-            screenResolution: '390x844',
-            deviceCategory: 'Smartphone',
-            approximateLocation: 'India (IST Region)',
-            language: 'en-IN'
-          },
-          sessions: [
-            {
-              sessionId: `sess_ord_${uid}`,
-              loginAt: orderTs,
-              lastActiveAt: orderTs,
-              durationSeconds: 180,
-              pagesVisited: ['Home Showcase', 'Bedsheet Catalogue'],
-              productsViewedCount: Array.isArray(o.items) ? o.items.length : 1,
-              deviceType: 'Mobile',
-              os: 'Android / iOS',
-              browser: 'Mobile Browser',
-              screenResolution: '390x844'
-            }
-          ],
-          timeline: [
-            {
-              id: `evt_ord_${o.id}`,
-              timestamp: orderTs,
-              type: 'order_placed',
-              label: `Placed Order #${o.id} (₹${Number(o.totalAmount || 0).toLocaleString('en-IN')})`,
-              orderId: o.id,
-              orderAmount: Number(o.totalAmount) || 0
-            }
-          ],
-          updatedAt: orderTs
-        };
-        byUid.set(uid, profile);
-      }
-    } else {
-      if (o.customerPhone && !profile.phone) profile.phone = o.customerPhone;
-      if (o.customerEmail && !profile.email) profile.email = o.customerEmail;
-      if (
-        o.customerName &&
-        (!profile.customerName ||
-          profile.customerName === 'Cotton Nest Customer' ||
-          profile.customerName === 'Signed-In Customer')
-      ) {
-        profile.customerName = o.customerName;
-      }
-    }
-  }
-
-  // Compute exact order count & purchase value per customer profile
-  for (const profile of byUid.values()) {
-    const cleanEmail = (profile.email || '').trim().toLowerCase();
-    const cleanPhone = (profile.phone || '').replace(/[^0-9]/g, '').slice(-10);
-
-    const matchedOrders = (orders || []).filter(o => {
-      if (!o || o.status === 'cancelled') return false;
-      if (o.userId && sanitizeCustomerUid(o.userId) === profile.uid) return true;
-      const oEmail = (o.customerEmail || '').trim().toLowerCase();
-      const oPhone = (o.customerPhone || '').replace(/[^0-9]/g, '').slice(-10);
-      if (cleanEmail && oEmail && cleanEmail === oEmail) return true;
-      if (cleanPhone && cleanPhone.length >= 10 && oPhone && cleanPhone === oPhone) return true;
-      return false;
-    });
-
-    if (matchedOrders.length > 0) {
-      profile.ordersPlacedCount = Math.max(profile.ordersPlacedCount || 0, matchedOrders.length);
-      const sumOrders = matchedOrders.reduce((acc, ord) => acc + (Number(ord.totalAmount) || 0), 0);
-      profile.totalPurchaseValue = Math.max(profile.totalPurchaseValue || 0, sumOrders);
-    }
-  }
-
-  return Array.from(byUid.values()).sort((a, b) => (b.lastActiveAt || 0) - (a.lastActiveAt || 0));
+  return reconcileAnalyticsCustomerProfiles(rawProfiles, orders, wishlists);
 }
 
 /**
- * Subscribes to all customer activity profiles in Firestore (`customer_activity` collection)
- * with backend API & local cache fallback for the Admin Customer Analytics dashboard.
+ * Subscribes to all customer activity profiles strictly from Firestore (`customer_activity` collection)
+ * as the single source of truth across website and mobile app.
  */
 export function subscribeToAllCustomerActivityProfiles(
-  onUpdate: (profiles: CustomerActivityProfile[]) => void
+  onUpdate: (profiles: CustomerActivityProfile[]) => void,
+  onError?: (errMessage: string) => void
 ): () => void {
   let isUnsubscribed = false;
 
-  const mergeSources = (
-    firestoreList: CustomerActivityProfile[],
-    serverList: CustomerActivityProfile[]
-  ): CustomerActivityProfile[] => {
-    const mergedMap = new Map<string, CustomerActivityProfile>();
-    const localMap = readLocalProfilesMap();
-
-    for (const p of Object.values(localMap)) {
-      if (p && p.uid) mergedMap.set(p.uid, p);
+  const sortProfiles = (list: CustomerActivityProfile[]): CustomerActivityProfile[] => {
+    const map = new Map<string, CustomerActivityProfile>();
+    for (const p of list) {
+      if (p && p.uid) map.set(p.uid, p);
     }
-    for (const p of serverList) {
-      if (p && p.uid) {
-        const existing = mergedMap.get(p.uid);
-        if (!existing || (p.updatedAt || 0) >= (existing.updatedAt || 0)) {
-          mergedMap.set(p.uid, p);
-        }
+    if (runtime && runtime.profile && map.has(runtime.profile.uid)) {
+      const remote = map.get(runtime.profile.uid)!;
+      if ((runtime.profile.updatedAt || 0) >= (remote.updatedAt || 0)) {
+        map.set(runtime.profile.uid, runtime.profile);
       }
     }
-    for (const p of firestoreList) {
-      if (p && p.uid) {
-        const existing = mergedMap.get(p.uid);
-        if (!existing || (p.updatedAt || 0) >= (existing.updatedAt || 0)) {
-          mergedMap.set(p.uid, p);
-        }
-      }
-    }
-    if (runtime && runtime.profile) {
-      mergedMap.set(runtime.profile.uid, runtime.profile);
-    }
-
-    return Array.from(mergedMap.values()).sort(
+    return Array.from(map.values()).sort(
       (a, b) => (b.lastActiveAt || 0) - (a.lastActiveAt || 0)
     );
   };
-
-  let latestFirestore: CustomerActivityProfile[] = [];
-  let latestServer: CustomerActivityProfile[] = [];
-
-  const fetchServerMirror = async () => {
-    try {
-      const res = await fetch('/api/customer-activity');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          latestServer = data;
-          if (!isUnsubscribed) {
-            onUpdate(mergeSources(latestFirestore, latestServer));
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
-  };
-
-  void fetchServerMirror();
 
   let unsubFirestore: (() => void) | null = null;
   try {
@@ -1244,28 +973,32 @@ export function subscribeToAllCustomerActivityProfiles(
             list.push({ ...data, uid: data.uid || docSnap.id });
           }
         });
-        latestFirestore = list;
-        onUpdate(mergeSources(latestFirestore, latestServer));
+        onUpdate(sortProfiles(list));
       },
-      () => {
-        // Fallback one-time read if snapshot listener fails
+      (err) => {
+        const msg = err instanceof Error ? err.message : String(err || 'Failed to sync customer activity');
+        try {
+          handleFirestoreError(err, OperationType.LIST, COLLECTION_NAME);
+        } catch {}
+        onError?.(msg);
         void getDocs(collection(db, COLLECTION_NAME))
           .then(snap => {
             if (isUnsubscribed) return;
             const list: CustomerActivityProfile[] = [];
             snap.forEach(d => list.push({ ...(d.data() as CustomerActivityProfile), uid: d.id }));
-            latestFirestore = list;
-            onUpdate(mergeSources(latestFirestore, latestServer));
+            onUpdate(sortProfiles(list));
           })
-          .catch(() => {
+          .catch((fallbackErr) => {
             if (!isUnsubscribed) {
-              onUpdate(mergeSources(latestFirestore, latestServer));
+              const fbMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr || msg);
+              onError?.(fbMsg);
             }
           });
       }
     );
-  } catch {
-    onUpdate(mergeSources(latestFirestore, latestServer));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err || 'Failed to initialize listener');
+    onError?.(msg);
   }
 
   return () => {

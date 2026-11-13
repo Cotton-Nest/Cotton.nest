@@ -121,7 +121,8 @@ import {
 import { WishlistDrawer } from './components/WishlistDrawer';
 import { CustomerWishlistModal } from './components/CustomerWishlistModal';
 import { AnalyticsView } from './components/AnalyticsView';
-import { SiteTrafficData, getStoredTraffic } from './data/analytics';
+import { SiteTrafficData, getEmptyTrafficData } from './data/analytics';
+import { subscribeAdminOrders } from './services/analyticsSync';
 import {
   useCustomerActivityTracker,
   trackCustomerProductView,
@@ -156,7 +157,7 @@ import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
 export default function App() {
   const [activeTabRaw, setActiveTabRaw] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>('home');
-  const [trafficData, setTrafficData] = useState<SiteTrafficData>(() => getStoredTraffic());
+  const [trafficData, setTrafficData] = useState<SiteTrafficData>(() => getEmptyTrafficData());
   const [selectedProduct, setSelectedProduct] = useState<BedsheetProduct | null>(null);
   const [isProductModalEditMode, setIsProductModalEditMode] = useState<boolean>(false);
   const [isProductLightboxOpen, setIsProductLightboxOpen] = useState<boolean>(false);
@@ -1763,16 +1764,26 @@ export default function App() {
 
     const currentUid = (user?.id || '').trim();
 
-    // If unauthenticated: orders remain strictly empty
-    if (!currentUid) {
-      return;
-    }
-
-    // If store owner / admin mode: load all orders for administration
+    // If store owner / admin mode: load all orders AND subscribe in real time even on PIN-only unlock
     if (isOwnerMode) {
       getOrders(true)
         .then((all) => setOrders(all))
         .catch(() => {});
+
+      activeOrdersUnsubRef.current = subscribeAdminOrders((liveOrders) => {
+        setOrders(liveOrders);
+      });
+
+      return () => {
+        if (activeOrdersUnsubRef.current) {
+          activeOrdersUnsubRef.current();
+          activeOrdersUnsubRef.current = null;
+        }
+      };
+    }
+
+    // If unauthenticated non-owner: orders remain strictly empty
+    if (!currentUid) {
       return;
     }
 

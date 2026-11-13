@@ -24,6 +24,8 @@ import {
   generateUniqueProductSku,
 } from '../data/products';
 import { Order, INITIAL_ORDERS } from '../data/orders';
+import { deduplicateOrders } from '../data/unifiedAnalytics';
+import { fetchSiteTrafficFromFirestore, recordSitePageVisitToFirestore } from './analyticsSync';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee, normalizeStudioAddress } from '../data/siteContent';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { uploadToCloudinary, uploadComplaintPhotoToCloudinary, deleteFromCloudinary, isCloudinaryUrl } from './cloudinary';
@@ -1018,9 +1020,7 @@ export async function getOrders(isAdmin: boolean = false): Promise<Order[]> {
     }
   } catch {}
 
-  const merged = Array.from(orderMap.values());
-  merged.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-  return merged;
+  return deduplicateOrders(Array.from(orderMap.values()));
 }
 
 export async function saveOrder(order: Order): Promise<void> {
@@ -2831,40 +2831,24 @@ export async function verifyEmailOtpApi(
 // ---------------- STORE TRAFFIC & ANALYTICS ---------------- //
 import {
   SiteTrafficData,
-  getInitialTrafficData,
-  getStoredTraffic,
-  saveStoredTraffic,
-  recordLocalPageView,
+  getEmptyTrafficData,
 } from '../data/analytics';
 
 export async function getSiteAnalyticsApi(): Promise<SiteTrafficData> {
-  const local = getStoredTraffic();
   try {
-    const ref = doc(db, 'site_content', 'site_traffic');
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const remote = snap.data() as Partial<SiteTrafficData>;
-      const merged: SiteTrafficData = {
-        ...local,
-        ...remote,
-        pageViewsByDate: { ...local.pageViewsByDate, ...(remote.pageViewsByDate || {}) },
-        pageViewsBySection: { ...local.pageViewsBySection, ...(remote.pageViewsBySection || {}) },
-        trafficSources: { ...local.trafficSources, ...(remote.trafficSources || {}) },
-        deviceBreakdown: { ...local.deviceBreakdown, ...(remote.deviceBreakdown || {}) },
-      };
-      saveStoredTraffic(merged);
-      return merged;
-    } else {
-      return local;
-    }
+    return await fetchSiteTrafficFromFirestore(false);
   } catch {
-    return local;
+    return getEmptyTrafficData();
   }
 }
 
 export async function recordPageVisitApi(section: string = 'home'): Promise<SiteTrafficData> {
-  const updated = recordLocalPageView(section);
-  return updated;
+  await recordSitePageVisitToFirestore(section);
+  try {
+    return await fetchSiteTrafficFromFirestore(false);
+  } catch {
+    return getEmptyTrafficData();
+  }
 }
 
 // ---------------- RETURN / EXCHANGE / COMPLAINTS API ---------------- //

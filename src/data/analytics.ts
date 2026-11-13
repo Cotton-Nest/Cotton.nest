@@ -7,13 +7,18 @@ import { BedsheetProduct } from './products';
 import { Order } from './orders';
 import { ProductReview } from './reviews';
 import { WishlistItem } from './wishlist';
+import {
+  computeUnifiedAnalyticsSnapshot,
+  getISTTodayKey,
+} from './unifiedAnalytics';
 
 export interface SiteTrafficData {
+  id?: string;
   totalVisits: number;
   uniqueVisitors: number;
   todayVisits: number;
   lastVisitedAt: number;
-  pageViewsByDate: Record<string, number>; // 'YYYY-MM-DD' -> count
+  pageViewsByDate: Record<string, number>; // 'YYYY-MM-DD' in IST -> count
   pageViewsBySection: Record<string, number>; // 'home' | 'catalogue' | 'reviews' | etc.
   trafficSources: {
     direct: number;
@@ -41,6 +46,7 @@ export interface BedsheetSalesMetric {
   orderCount: number;
   unitsSold: number;
   totalRevenue: number;
+  actualRevenue?: number;
   percentageOfRevenue: number;
 }
 
@@ -68,322 +74,180 @@ export interface BedsheetWishlistMetric {
   inStock: boolean;
   wishlistCount: number;
   unitsSold: number;
-  conversionRate: number; // percentage of wishlists that turned into orders
+  conversionRate: number;
 }
 
-// Generate sensible, realistic baseline traffic data seeded with past 14 days
-export function getInitialTrafficData(): SiteTrafficData {
-  const today = new Date();
-  const pageViewsByDate: Record<string, number> = {};
-
-  // Baseline dates for past 14 days
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().split('T')[0];
-    // Realistic organic traffic pattern with weekend peaks
-    const dayOfWeek = d.getDay();
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    const base = isWeekend ? 180 + (i * 7) % 45 : 125 + (i * 9) % 35;
-    pageViewsByDate[key] = base;
-  }
-
-  const todayKey = today.toISOString().split('T')[0];
-  const todayVisits = 47;
-  pageViewsByDate[todayKey] = todayVisits;
-
+/**
+ * Clean empty baseline for real-time Firestore analytics (no hardcoded/fake seed numbers).
+ */
+export function getEmptyTrafficData(): SiteTrafficData {
   return {
-    totalVisits: 3842,
-    uniqueVisitors: 1420,
-    todayVisits,
-    lastVisitedAt: Date.now(),
-    pageViewsByDate,
-    pageViewsBySection: {
-      home: 2150,
-      catalogue: 3410,
-      reviews: 980,
-      seasonal: 840,
-      tc: 310,
-      orders: 420,
-    },
+    id: 'site_traffic',
+    totalVisits: 0,
+    uniqueVisitors: 0,
+    todayVisits: 0,
+    lastVisitedAt: 0,
+    pageViewsByDate: {},
+    pageViewsBySection: {},
     trafficSources: {
-      direct: 1420,
-      google: 1140,
-      whatsapp: 680,
-      instagram: 410,
-      referrals: 192,
+      direct: 0,
+      google: 0,
+      whatsapp: 0,
+      instagram: 0,
+      referrals: 0,
     },
     deviceBreakdown: {
-      mobile: 74, // %
-      desktop: 22, // %
-      tablet: 4, // %
+      mobile: 0,
+      desktop: 0,
+      tablet: 0,
     },
   };
 }
 
-const STORAGE_TRAFFIC_KEY = 'cotton_nest_analytics_traffic_v1';
-const STORAGE_SESSION_KEY = 'cotton_nest_analytics_session_id';
+export function getInitialTrafficData(): SiteTrafficData {
+  return getEmptyTrafficData();
+}
+
+export function normalizeTrafficData(raw?: Partial<SiteTrafficData> | null): SiteTrafficData {
+  const empty = getEmptyTrafficData();
+  if (!raw || typeof raw !== 'object') return empty;
+  const pageViewsByDate: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw.pageViewsByDate || {})) {
+    const n = Number(v);
+    if (k && Number.isFinite(n) && n >= 0) {
+      pageViewsByDate[k] = n;
+    }
+  }
+  const pageViewsBySection: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw.pageViewsBySection || {})) {
+    const n = Number(v);
+    if (k && Number.isFinite(n) && n >= 0) {
+      pageViewsBySection[k] = n;
+    }
+  }
+  const todayKey = getISTTodayKey();
+  const todayVisits = Math.max(0, Number(pageViewsByDate[todayKey]) || 0);
+
+  return {
+    id: 'site_traffic',
+    totalVisits: Math.max(0, Number(raw.totalVisits) || 0),
+    uniqueVisitors: Math.max(0, Number(raw.uniqueVisitors) || 0),
+    todayVisits,
+    lastVisitedAt: Math.max(0, Number(raw.lastVisitedAt) || 0),
+    pageViewsByDate,
+    pageViewsBySection,
+    trafficSources: {
+      direct: Math.max(0, Number(raw.trafficSources?.direct) || 0),
+      google: Math.max(0, Number(raw.trafficSources?.google) || 0),
+      whatsapp: Math.max(0, Number(raw.trafficSources?.whatsapp) || 0),
+      instagram: Math.max(0, Number(raw.trafficSources?.instagram) || 0),
+      referrals: Math.max(0, Number(raw.trafficSources?.referrals) || 0),
+    },
+    deviceBreakdown: {
+      mobile: Math.max(0, Number(raw.deviceBreakdown?.mobile) || 0),
+      desktop: Math.max(0, Number(raw.deviceBreakdown?.desktop) || 0),
+      tablet: Math.max(0, Number(raw.deviceBreakdown?.tablet) || 0),
+    },
+  };
+}
 
 export function getStoredTraffic(): SiteTrafficData {
-  if (typeof window === 'undefined') return getInitialTrafficData();
-  try {
-    const raw = localStorage.getItem(STORAGE_TRAFFIC_KEY);
-    if (!raw) {
-      const initial = getInitialTrafficData();
-      localStorage.setItem(STORAGE_TRAFFIC_KEY, JSON.stringify(initial));
-      return initial;
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      ...getInitialTrafficData(),
-      ...parsed,
-      pageViewsByDate: { ...getInitialTrafficData().pageViewsByDate, ...(parsed.pageViewsByDate || {}) },
-      pageViewsBySection: { ...getInitialTrafficData().pageViewsBySection, ...(parsed.pageViewsBySection || {}) },
-    };
-  } catch {
-    return getInitialTrafficData();
-  }
+  return getEmptyTrafficData();
 }
 
-export function saveStoredTraffic(data: SiteTrafficData): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_TRAFFIC_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.warn('Failed to save traffic analytics', e);
-  }
+export function saveStoredTraffic(_data: SiteTrafficData): void {
+  // Traffic is synchronized through Firestore `/analytics/site_traffic`; no stale local cache overrides.
+}
+
+export function recordLocalPageView(_section: string = 'home'): SiteTrafficData {
+  return getEmptyTrafficData();
 }
 
 /**
- * Record a page visit or tab view in real-time
- */
-export function recordLocalPageView(section: string = 'home'): SiteTrafficData {
-  const current = getStoredTraffic();
-  const todayKey = new Date().toISOString().split('T')[0];
-  
-  // Track unique sessions
-  let isNewSession = false;
-  try {
-    if (typeof sessionStorage !== 'undefined') {
-      if (!sessionStorage.getItem(STORAGE_SESSION_KEY)) {
-        sessionStorage.setItem(STORAGE_SESSION_KEY, 'sess_' + Date.now());
-        isNewSession = true;
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  const updatedDateViews = { ...current.pageViewsByDate };
-  updatedDateViews[todayKey] = (updatedDateViews[todayKey] || 0) + 1;
-
-  const updatedSectionViews = { ...current.pageViewsBySection };
-  updatedSectionViews[section] = (updatedSectionViews[section] || 0) + 1;
-
-  const updated: SiteTrafficData = {
-    ...current,
-    totalVisits: current.totalVisits + 1,
-    uniqueVisitors: isNewSession ? current.uniqueVisitors + 1 : current.uniqueVisitors,
-    todayVisits: (updatedDateViews[todayKey] || 1),
-    lastVisitedAt: Date.now(),
-    pageViewsByDate: updatedDateViews,
-    pageViewsBySection: updatedSectionViews,
-  };
-
-  saveStoredTraffic(updated);
-  return updated;
-}
-
-/**
- * Computes Sales / Orders ranking per bedsheet
+ * Computes Sales / Orders ranking per bedsheet via the unified analytics engine.
  */
 export function computeMostOrderedBedsheets(
   orders: Order[],
   products: BedsheetProduct[]
 ): BedsheetSalesMetric[] {
-  const salesMap: Record<string, { orderCount: number; unitsSold: number; totalRevenue: number }> = {};
-
-  // Pre-populate with all catalogue products so every sheet is represented
-  products.forEach((p) => {
-    salesMap[p.id] = { orderCount: 0, unitsSold: 0, totalRevenue: 0 };
+  const snap = computeUnifiedAnalyticsSnapshot({
+    products,
+    orders,
+    reviews: [],
+    wishlists: [],
+    customerProfiles: [],
   });
-
-  // Aggregate through real orders
-  orders.forEach((order) => {
-    if (order.status === 'cancelled') return;
-    if (Array.isArray(order.items)) {
-      order.items.forEach((item) => {
-        const pId = item.productId || '';
-        if (!salesMap[pId]) {
-          salesMap[pId] = { orderCount: 0, unitsSold: 0, totalRevenue: 0 };
-        }
-        const qty = Number(item.quantity) || 1;
-        const price = Number(item.price) || 0;
-        salesMap[pId].orderCount += 1;
-        salesMap[pId].unitsSold += qty;
-        salesMap[pId].totalRevenue += qty * price;
-      });
-    }
-  });
-
-  // Calculate total revenue across all
-  const grandRevenue = Object.values(salesMap).reduce((sum, item) => sum + item.totalRevenue, 0) || 1;
-
-  const results: BedsheetSalesMetric[] = products.map((product) => {
-    const data = salesMap[product.id] || { orderCount: 0, unitsSold: 0, totalRevenue: 0 };
-    return {
-      productId: product.id,
-      name: product.name,
-      collection: product.collection || 'Pure Cotton Collection',
-      price: product.price,
-      image: product.image,
-      inStock: product.inStock !== false,
-      stockQuantity: product.stockQuantity ?? 12,
-      threadCount: product.threadCount || '300 TC',
-      orderCount: data.orderCount,
-      unitsSold: data.unitsSold,
-      totalRevenue: data.totalRevenue,
-      percentageOfRevenue: Math.round((data.totalRevenue / grandRevenue) * 100),
-    };
-  });
-
-  // Sort descending by total units sold then revenue
-  return results.sort((a, b) => {
-    if (b.unitsSold !== a.unitsSold) return b.unitsSold - a.unitsSold;
-    return b.totalRevenue - a.totalRevenue;
-  });
+  return snap.bestSellingProducts.map((p) => ({
+    productId: p.productId,
+    name: p.name,
+    collection: p.collection,
+    price: p.price,
+    image: p.image,
+    inStock: p.inStock,
+    stockQuantity: p.stockQuantity,
+    threadCount: p.threadCount,
+    orderCount: p.orderCount,
+    unitsSold: p.unitsSold,
+    totalRevenue: p.grossSalesRevenue,
+    actualRevenue: p.actualSalesRevenue,
+    percentageOfRevenue: p.percentageOfRevenue,
+  }));
 }
 
 /**
- * Computes Reviews & Rating rankings per bedsheet
+ * Computes Reviews & Rating rankings per bedsheet via the unified analytics engine.
  */
 export function computeMostReviewedBedsheets(
   reviews: ProductReview[],
   products: BedsheetProduct[]
 ): BedsheetReviewMetric[] {
-  const reviewsMap: Record<
-    string,
-    {
-      reviews: ProductReview[];
-      fiveStar: number;
-      fourStar: number;
-      verified: number;
-      ratingSum: number;
-    }
-  > = {};
-
-  products.forEach((p) => {
-    reviewsMap[p.id] = { reviews: [], fiveStar: 0, fourStar: 0, verified: 0, ratingSum: 0 };
+  const snap = computeUnifiedAnalyticsSnapshot({
+    products,
+    orders: [],
+    reviews,
+    wishlists: [],
+    customerProfiles: [],
   });
-
-  reviews.forEach((r) => {
-    const pId = r.productId;
-    if (pId && reviewsMap[pId]) {
-      reviewsMap[pId].reviews.push(r);
-      if (r.rating === 5) reviewsMap[pId].fiveStar += 1;
-      if (r.rating === 4) reviewsMap[pId].fourStar += 1;
-      if (r.verifiedPurchase) reviewsMap[pId].verified += 1;
-      reviewsMap[pId].ratingSum += r.rating;
-    }
-  });
-
-  const results: BedsheetReviewMetric[] = products.map((product) => {
-    const stat = reviewsMap[product.id] || { reviews: [], fiveStar: 0, fourStar: 0, verified: 0, ratingSum: 0 };
-    const count = stat.reviews.length;
-    const avg = count > 0 ? Number((stat.ratingSum / count).toFixed(1)) : 5.0; // fallback to 5.0 default
-    const recommended = count > 0 ? Math.round(((stat.fiveStar + stat.fourStar) / count) * 100) : 100;
-    
-    // Pick the most helpful or latest review comment
-    const topReview = stat.reviews.sort((a, b) => (b.helpfulCount || 0) - (a.helpfulCount || 0))[0];
-
-    return {
-      productId: product.id,
-      name: product.name,
-      image: product.image,
-      collection: product.collection || 'Signature Combed Cotton',
-      price: product.price,
-      totalReviews: count,
-      averageRating: avg,
-      fiveStarCount: stat.fiveStar,
-      fourStarCount: stat.fourStar,
-      verifiedBuyerCount: stat.verified,
-      recommendedPercentage: recommended,
-      topReviewExcerpt: topReview ? topReview.comment : undefined,
-    };
-  });
-
-  // Sort descending by total reviews count, then average rating
-  return results.sort((a, b) => {
-    if (b.totalReviews !== a.totalReviews) return b.totalReviews - a.totalReviews;
-    return b.averageRating - a.averageRating;
-  });
+  return snap.mostReviewedProducts.map((p) => ({
+    productId: p.productId,
+    name: p.name,
+    image: p.image,
+    collection: p.collection,
+    price: p.price,
+    totalReviews: p.totalReviews,
+    averageRating: p.averageRating,
+    fiveStarCount: p.fiveStarCount,
+    fourStarCount: p.fourStarCount,
+    verifiedBuyerCount: p.verifiedBuyerCount,
+    recommendedPercentage: p.recommendedPercentage,
+    topReviewExcerpt: p.topReviewExcerpt,
+  }));
 }
 
 /**
- * Computes Wishlist saves ranking per bedsheet
+ * Computes Wishlist saves ranking per bedsheet via the unified analytics engine (real saves only).
  */
 export function computeMostWishlistedBedsheets(
   wishlists: WishlistItem[],
   products: BedsheetProduct[],
   orders: Order[]
 ): BedsheetWishlistMetric[] {
-  // Pre-seed with realistic customer wishlist demand based on design popularity if wishlists is empty
-  const defaultWishlistPicks: Record<string, number> = {
-    '1': 28, // Sanganeri Gold
-    '2': 34, // Mughal Floral
-    '3': 22, // Indigo Heritage
-    '4': 19, // Royal Peacock
-    '5': 26, // Amber Blossom
-    '6': 31, // Lotus Pond
-    '7': 17, // Crimson Bloom
-    '8': 15, // Sage Serenity
-    '9': 24, // Midnight Paisley
-    '10': 38, // Grand Floral
-  };
-
-  const wishCountMap: Record<string, number> = {};
-  products.forEach((p) => {
-    wishCountMap[p.id] = defaultWishlistPicks[p.id] || 12;
+  const snap = computeUnifiedAnalyticsSnapshot({
+    products,
+    orders,
+    reviews: [],
+    wishlists,
+    customerProfiles: [],
   });
-
-  // Add real saved wishlists
-  if (Array.isArray(wishlists)) {
-    wishlists.forEach((item) => {
-      const pId = item.productId;
-      if (pId) {
-        wishCountMap[pId] = (wishCountMap[pId] || 0) + 1;
-      }
-    });
-  }
-
-  // Get units sold per product
-  const soldMap: Record<string, number> = {};
-  orders.forEach((o) => {
-    if (o.status !== 'cancelled' && Array.isArray(o.items)) {
-      o.items.forEach((item) => {
-        soldMap[item.productId] = (soldMap[item.productId] || 0) + (Number(item.quantity) || 1);
-      });
-    }
-  });
-
-  const results: BedsheetWishlistMetric[] = products.map((product) => {
-    const wishCount = wishCountMap[product.id] || 0;
-    const sold = soldMap[product.id] || 0;
-    const conversion = wishCount > 0 ? Math.min(100, Math.round((sold / wishCount) * 100)) : 0;
-
-    return {
-      productId: product.id,
-      name: product.name,
-      image: product.image,
-      collection: product.collection || 'Pure Cotton Collection',
-      price: product.price,
-      inStock: product.inStock !== false,
-      wishlistCount: wishCount,
-      unitsSold: sold,
-      conversionRate: conversion,
-    };
-  });
-
-  // Sort descending by wishlist saves count
-  return results.sort((a, b) => b.wishlistCount - a.wishlistCount);
+  return snap.mostWishlistedProducts.map((p) => ({
+    productId: p.productId,
+    name: p.name,
+    image: p.image,
+    collection: p.collection,
+    price: p.price,
+    inStock: p.inStock,
+    wishlistCount: p.wishlistCount,
+    unitsSold: p.unitsSold,
+    conversionRate: p.wishlistConversionRate,
+  }));
 }
