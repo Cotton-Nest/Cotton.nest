@@ -2490,6 +2490,19 @@ export default function App() {
                 {/* TAB 1: HOME VIEW */}
                 {activeTab === 'home' && (
                   <>
+                    {/* Pre-Built Admin-Controlled Storefront Banner (Directly below Navigation, above Hero) */}
+                    {activePrebuiltBanner && (
+                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-1 relative z-10">
+                        <PrebuiltBannerDisplay
+                          slot={activePrebuiltBanner}
+                          onNavigate={(target) => {
+                            setActiveTab(target);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        />
+                      </div>
+                    )}
+
                     {/* Hero Section */}
                     <Hero
                       onExploreCatalogue={() => {
@@ -2502,19 +2515,6 @@ export default function App() {
                       }}
                       content={siteContent}
                     />
-
-                    {/* Pre-Built Admin-Controlled Storefront Banner (5-Slot System with Festive Backgrounds) */}
-                    {activePrebuiltBanner && (
-                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 mb-2 relative z-10">
-                        <PrebuiltBannerDisplay
-                          slot={activePrebuiltBanner}
-                          onNavigate={(target) => {
-                            setActiveTab(target);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                        />
-                      </div>
-                    )}
 
                     {/* New Customer 10% OFF Welcome Offer Banner */}
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 mb-4 relative z-10">

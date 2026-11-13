@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import {
   BannerSlot,
-  BANNER_CATEGORY_LABELS,
   getBannerTemplateById,
-  getFestivalOptionById,
 } from '../data/bannerSlots';
 
 interface PrebuiltBannerDisplayProps {
@@ -24,11 +22,6 @@ export const PrebuiltBannerDisplay: React.FC<PrebuiltBannerDisplayProps> = ({
   const template = getBannerTemplateById(slot.templateId);
   const isDark = template.tone === 'dark';
 
-  const kickerLabel =
-    slot.category === 'festive' && slot.festivalId
-      ? getFestivalOptionById(slot.festivalId).kickerLabel
-      : BANNER_CATEGORY_LABELS[slot.category] || slot.slotLabel;
-
   const showCta = Boolean(
     slot.ctaTarget && slot.ctaTarget !== 'none' && slot.ctaText && slot.ctaText.trim().length > 0
   );
@@ -42,11 +35,11 @@ export const PrebuiltBannerDisplay: React.FC<PrebuiltBannerDisplayProps> = ({
 
   return (
     <section
-      aria-label={slot.heading || slot.slotLabel}
+      aria-label={slot.heading || 'Cotton Nest Promotional Banner'}
       className={`relative w-full overflow-hidden rounded-2xl sm:rounded-3xl border shadow-[0_12px_36px_-14px_rgba(44,36,32,0.2)] transition-opacity duration-200 ${
         isForcedMobilePreview
-          ? 'max-w-[390px] mx-auto min-h-[190px] py-6 px-5'
-          : 'min-h-[172px] sm:aspect-[3.2/1] lg:aspect-[3.8/1] lg:max-h-[290px]'
+          ? 'max-w-[390px] mx-auto min-h-[180px] py-6 px-5'
+          : 'min-h-[164px] sm:aspect-[3.2/1] lg:aspect-[3.8/1] lg:max-h-[290px]'
       }`}
       style={{
         background: template.fallbackGradient,
@@ -58,7 +51,7 @@ export const PrebuiltBannerDisplay: React.FC<PrebuiltBannerDisplayProps> = ({
         <img
           key={template.imageUrl}
           src={template.imageUrl}
-          alt={template.name}
+          alt={slot.heading || 'Cotton Nest backdrop'}
           referrerPolicy="no-referrer"
           loading={isPreview ? 'lazy' : 'eager'}
           onError={() => setImageError(true)}
@@ -86,41 +79,27 @@ export const PrebuiltBannerDisplay: React.FC<PrebuiltBannerDisplayProps> = ({
         }}
       />
 
-      {/* Content Container — Responsive Typography & Safe Padding */}
+      {/* Content Container — Clean Presentation: Heading, Supporting Message & Optional CTA Only */}
       <div
         className={`relative z-10 h-full w-full flex flex-col items-center justify-center text-center ${
           isForcedMobilePreview
-            ? 'px-4 py-3 gap-2'
-            : 'px-6 py-6 sm:px-14 sm:py-6 lg:px-24 gap-2 sm:gap-2.5'
+            ? 'px-4 py-4 gap-2'
+            : 'px-6 py-6 sm:px-14 sm:py-7 lg:px-24 gap-2 sm:gap-3'
         }`}
       >
-        {/* Clean Unboxed Typographic Kicker */}
-        <p
-          className={`font-semibold uppercase tracking-[0.2em] leading-none ${
-            isForcedMobilePreview ? 'text-[10px]' : 'text-[10px] sm:text-[11px]'
-          }`}
-          style={{ color: template.accentColor }}
-        >
-          {kickerLabel}
-          <span aria-hidden="true" className="mx-2 opacity-60">
-            ·
-          </span>
-          Cotton Nest
-        </p>
-
-        {/* Primary Heading */}
+        {/* Primary Admin-Defined Heading */}
         <h2
           className={`font-serif-luxury font-bold leading-tight text-balance max-w-3xl ${
             isForcedMobilePreview
               ? 'text-xl'
-              : 'text-xl sm:text-3xl lg:text-[2.15rem]'
+              : 'text-xl sm:text-3xl lg:text-[2.25rem]'
           }`}
           style={{ color: template.textColor }}
         >
           {slot.heading}
         </h2>
 
-        {/* Supporting Message */}
+        {/* Admin-Defined Supporting Message */}
         {slot.supportingMessage && (
           <p
             className={`leading-relaxed max-w-2xl font-normal ${
@@ -134,7 +113,7 @@ export const PrebuiltBannerDisplay: React.FC<PrebuiltBannerDisplayProps> = ({
           </p>
         )}
 
-        {/* Optional Single Concise Action Button */}
+        {/* Optional Call-to-Action Button (only when configured by admin) */}
         {showCta && (
           <div className="pt-1">
             <button
@@ -143,7 +122,7 @@ export const PrebuiltBannerDisplay: React.FC<PrebuiltBannerDisplayProps> = ({
               className={`inline-flex items-center gap-1.5 rounded-xl font-semibold tracking-wide transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98] shadow-sm cursor-pointer whitespace-nowrap ${
                 isForcedMobilePreview
                   ? 'px-4 py-2 text-xs'
-                  : 'px-4 py-2 sm:px-5 sm:py-2 text-xs sm:text-xs'
+                  : 'px-4 py-2 sm:px-5 sm:py-2.5 text-xs'
               }`}
               style={{
                 backgroundColor: template.ctaBgColor,
