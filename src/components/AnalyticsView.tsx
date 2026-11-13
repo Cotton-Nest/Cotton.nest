@@ -124,6 +124,11 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const topReviewed = mostReviewedProducts[0] && mostReviewedProducts[0].totalReviews > 0 ? mostReviewedProducts[0] : null;
   const topWishlisted = mostWishlistedProducts[0] && mostWishlistedProducts[0].wishlistCount > 0 ? mostWishlistedProducts[0] : null;
 
+  const failedSourceCount = Object.values(synced.sourceStatuses).filter(
+    (s) => s.status === 'denied' || s.status === 'error'
+  ).length;
+  const hasSyncFailure = failedSourceCount > 0 || Boolean(synced.syncError);
+
   // Device breakdown combines Firestore customer activity + traffic session counts cleanly
   const trafficDeviceTotal =
     traffic.deviceCounts.mobile + traffic.deviceCounts.desktop + traffic.deviceCounts.tablet;
@@ -157,18 +162,26 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FDEAF0] text-[#70252D] text-xs font-bold tracking-wider uppercase border border-[#FAD1DC]">
+                <div
+                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase border ${
+                    hasSyncFailure
+                      ? 'bg-amber-50 text-amber-900 border-amber-300'
+                      : 'bg-[#FDEAF0] text-[#70252D] border-[#FAD1DC]'
+                  }`}
+                >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      synced.syncError
-                        ? 'bg-amber-500'
+                      hasSyncFailure
+                        ? 'bg-rose-500'
                         : synced.isLoading || synced.isRefreshing
                         ? 'bg-blue-500 animate-ping'
                         : 'bg-emerald-500 animate-pulse'
                     }`}
                   />
                   <span>
-                    {synced.isLoading
+                    {hasSyncFailure
+                      ? `Partial Firebase Sync (${failedSourceCount} Collection Error${failedSourceCount > 1 ? 's' : ''})`
+                      : synced.isLoading || synced.isRefreshing
                       ? 'Syncing Live Firebase Data...'
                       : 'Unified Firebase Analytics · Web & Mobile'}
                   </span>
@@ -176,7 +189,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF7F2] text-[#6B5D55] text-[11px] font-medium border border-[#EAE2D5] tabular-nums">
                   <Clock className="w-3 h-3 text-[#C29E57]" />
-                  Last updated: {formatLastUpdatedIST(synced.lastUpdatedAt)}
+                  {synced.lastSuccessfulSyncAt && !hasSyncFailure
+                    ? `Last full sync: ${formatLastUpdatedIST(synced.lastSuccessfulSyncAt)}`
+                    : synced.lastSuccessfulSyncAt
+                    ? `Last full sync: ${formatLastUpdatedIST(synced.lastSuccessfulSyncAt)} (current sync incomplete)`
+                    : hasSyncFailure
+                    ? 'Full sync incomplete — action needed'
+                    : `Last updated: ${formatLastUpdatedIST(synced.lastUpdatedAt)}`}
                 </span>
               </div>
 
@@ -227,7 +246,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           {/* Firebase Sync Error / Access Diagnostic Banner */}
           <AnalyticsPermissionDiagnosticBanner
             sourceDetails={synced.sourceDetails}
+            sourceStatuses={synced.sourceStatuses}
             authDiagnostic={synced.authDiagnostic}
+            lastSuccessfulSyncAt={synced.lastSuccessfulSyncAt}
             fallbackSyncError={synced.syncError}
             isRefreshing={synced.isRefreshing}
             onRetry={synced.refresh}

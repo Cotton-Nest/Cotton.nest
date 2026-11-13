@@ -255,6 +255,19 @@ export type AnalyticsSourceName =
   | 'customer_activity'
   | 'traffic';
 
+export type CollectionHealthStatus = 'pending' | 'allowed' | 'denied' | 'error';
+
+export interface AnalyticsSourceHealth {
+  sourceKey: AnalyticsSourceName;
+  label: string;
+  collectionPath: string;
+  status: CollectionHealthStatus;
+  errorCode: string | null;
+  recordCount: number;
+  lastSyncedAt: number | null;
+  detail?: AnalyticsDiagnosticDetail;
+}
+
 export interface SyncedAnalyticsState {
   orders: Order[];
   products: BedsheetProduct[];
@@ -265,8 +278,10 @@ export interface SyncedAnalyticsState {
   isLoading: boolean;
   isRefreshing: boolean;
   lastUpdatedAt: number | null;
+  lastSuccessfulSyncAt: number | null;
   sourceErrors: Partial<Record<AnalyticsSourceName, string>>;
   sourceDetails: Partial<Record<AnalyticsSourceName, AnalyticsDiagnosticDetail>>;
+  sourceStatuses: Record<AnalyticsSourceName, AnalyticsSourceHealth>;
   authDiagnostic: AuthDiagnosticContext | null;
   syncError: string | null;
   refresh: () => Promise<void>;
@@ -280,6 +295,65 @@ const SOURCE_META: Record<AnalyticsSourceName, { label: string; collectionPath: 
   customer_activity: { label: 'Customer Activity', collectionPath: 'customer_activity' },
   traffic: { label: 'Site Traffic', collectionPath: `${ANALYTICS_COLLECTION}/${SITE_TRAFFIC_DOC_ID}` },
 };
+
+function createInitialSourceStatuses(): Record<AnalyticsSourceName, AnalyticsSourceHealth> {
+  return {
+    traffic: {
+      sourceKey: 'traffic',
+      label: SOURCE_META.traffic.label,
+      collectionPath: SOURCE_META.traffic.collectionPath,
+      status: 'pending',
+      errorCode: null,
+      recordCount: 0,
+      lastSyncedAt: null,
+    },
+    customer_activity: {
+      sourceKey: 'customer_activity',
+      label: SOURCE_META.customer_activity.label,
+      collectionPath: SOURCE_META.customer_activity.collectionPath,
+      status: 'pending',
+      errorCode: null,
+      recordCount: 0,
+      lastSyncedAt: null,
+    },
+    orders: {
+      sourceKey: 'orders',
+      label: SOURCE_META.orders.label,
+      collectionPath: SOURCE_META.orders.collectionPath,
+      status: 'pending',
+      errorCode: null,
+      recordCount: 0,
+      lastSyncedAt: null,
+    },
+    products: {
+      sourceKey: 'products',
+      label: SOURCE_META.products.label,
+      collectionPath: SOURCE_META.products.collectionPath,
+      status: 'pending',
+      errorCode: null,
+      recordCount: 0,
+      lastSyncedAt: null,
+    },
+    reviews: {
+      sourceKey: 'reviews',
+      label: SOURCE_META.reviews.label,
+      collectionPath: SOURCE_META.reviews.collectionPath,
+      status: 'pending',
+      errorCode: null,
+      recordCount: 0,
+      lastSyncedAt: null,
+    },
+    wishlists: {
+      sourceKey: 'wishlists',
+      label: SOURCE_META.wishlists.label,
+      collectionPath: SOURCE_META.wishlists.collectionPath,
+      status: 'pending',
+      errorCode: null,
+      recordCount: 0,
+      lastSyncedAt: null,
+    },
+  };
+}
 
 function getSyncAuthSnapshot(bridgeError?: string | null): AuthDiagnosticContext {
   const pUser = primaryAuth.currentUser;
@@ -338,10 +412,14 @@ export function useSyncedAnalyticsData(options?: {
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [lastSuccessfulSyncAt, setLastSuccessfulSyncAt] = useState<number | null>(null);
   const [sourceErrors, setSourceErrors] = useState<Partial<Record<AnalyticsSourceName, string>>>({});
   const [sourceDetails, setSourceDetails] = useState<
     Partial<Record<AnalyticsSourceName, AnalyticsDiagnosticDetail>>
   >({});
+  const [sourceStatuses, setSourceStatuses] = useState<
+    Record<AnalyticsSourceName, AnalyticsSourceHealth>
+  >(() => createInitialSourceStatuses());
   const [authDiagnostic, setAuthDiagnostic] = useState<AuthDiagnosticContext | null>(() =>
     getSyncAuthSnapshot(options?.bridgeError)
   );
@@ -357,7 +435,8 @@ export function useSyncedAnalyticsData(options?: {
     }
   }, []);
 
-  const clearSourceError = useCallback((source: AnalyticsSourceName) => {
+  const clearSourceError = useCallback((source: AnalyticsSourceName, recordCount = 0) => {
+    const now = Date.now();
     setSourceErrors((prev) => {
       if (!prev[source]) return prev;
       const next = { ...prev };
@@ -368,6 +447,26 @@ export function useSyncedAnalyticsData(options?: {
       if (!prev[source]) return prev;
       const next = { ...prev };
       delete next[source];
+      return next;
+    });
+    setSourceStatuses((prev) => {
+      const next = {
+        ...prev,
+        [source]: {
+          ...prev[source],
+          status: 'allowed' as const,
+          errorCode: null,
+          recordCount,
+          lastSyncedAt: now,
+          detail: undefined,
+        },
+      };
+      const allAllowed = (Object.values(next) as AnalyticsSourceHealth[]).every(
+        (item) => item.status === 'allowed'
+      );
+      if (allAllowed) {
+        setLastSuccessfulSyncAt(now);
+      }
       return next;
     });
   }, []);
@@ -386,6 +485,8 @@ export function useSyncedAnalyticsData(options?: {
         error: err,
         auth: authCtx,
       });
+      const isPerm =
+        detail.errorCode === 'permission-denied' || detail.errorCode === 'unauthenticated';
       setSourceErrors((prev) => {
         if (prev[source] === detail.formattedSummary) return prev;
         return { ...prev, [source]: detail.formattedSummary };
@@ -393,6 +494,15 @@ export function useSyncedAnalyticsData(options?: {
       setSourceDetails((prev) => ({
         ...prev,
         [source]: detail,
+      }));
+      setSourceStatuses((prev) => ({
+        ...prev,
+        [source]: {
+          ...prev[source],
+          status: isPerm ? 'denied' : 'error',
+          errorCode: detail.errorCode,
+          detail,
+        },
       }));
     },
     []
@@ -477,8 +587,9 @@ export function useSyncedAnalyticsData(options?: {
           const raw = d.data() as Order;
           if (raw && d.id) list.push({ ...raw, id: d.id });
         });
-        setOrders(deduplicateOrders(list));
-        clearSourceError('orders');
+        const deduped = deduplicateOrders(list);
+        setOrders(deduped);
+        clearSourceError('orders', deduped.length);
       } else {
         recordSourceError('orders', results[0].reason, authCtx);
       }
@@ -496,7 +607,7 @@ export function useSyncedAnalyticsData(options?: {
         } else if (fallbackProductsRef.current && fallbackProductsRef.current.length > 0) {
           setProducts(fallbackProductsRef.current);
         }
-        clearSourceError('products');
+        clearSourceError('products', list.length);
       } else {
         recordSourceError('products', results[1].reason, authCtx);
       }
@@ -508,8 +619,9 @@ export function useSyncedAnalyticsData(options?: {
           const raw = d.data() as ProductReview;
           if (raw && d.id) list.push({ ...raw, id: d.id });
         });
-        setReviews(deduplicateReviews(list));
-        clearSourceError('reviews');
+        const deduped = deduplicateReviews(list);
+        setReviews(deduped);
+        clearSourceError('reviews', deduped.length);
       } else {
         recordSourceError('reviews', results[2].reason, authCtx);
       }
@@ -521,8 +633,9 @@ export function useSyncedAnalyticsData(options?: {
           const raw = d.data() as WishlistItem;
           if (raw && d.id) list.push({ ...raw, id: d.id });
         });
-        setWishlists(deduplicateWishlists(list));
-        clearSourceError('wishlists');
+        const deduped = deduplicateWishlists(list);
+        setWishlists(deduped);
+        clearSourceError('wishlists', deduped.length);
       } else {
         recordSourceError('wishlists', results[3].reason, authCtx);
       }
@@ -535,7 +648,7 @@ export function useSyncedAnalyticsData(options?: {
           if (raw) list.push({ ...raw, uid: raw.uid || d.id });
         });
         setCustomerProfiles(list);
-        clearSourceError('customer_activity');
+        clearSourceError('customer_activity', list.length);
       } else {
         recordSourceError('customer_activity', results[4].reason, authCtx);
       }
@@ -543,12 +656,11 @@ export function useSyncedAnalyticsData(options?: {
       // 6. Traffic
       if (results[5].status === 'fulfilled') {
         const snap = results[5].value;
-        setTrafficData(
-          snap.exists()
-            ? normalizeTrafficData(snap.data() as Partial<SiteTrafficData>)
-            : getEmptyTrafficData()
-        );
-        clearSourceError('traffic');
+        const normalized = snap.exists()
+          ? normalizeTrafficData(snap.data() as Partial<SiteTrafficData>)
+          : getEmptyTrafficData();
+        setTrafficData(normalized);
+        clearSourceError('traffic', normalized.totalVisits);
       } else {
         recordSourceError('traffic', results[5].reason, authCtx);
       }
@@ -594,8 +706,9 @@ export function useSyncedAnalyticsData(options?: {
               const raw = d.data() as Order;
               if (raw && d.id) list.push({ ...raw, id: d.id });
             });
-            setOrders(deduplicateOrders(list));
-            clearSourceError('orders');
+            const deduped = deduplicateOrders(list);
+            setOrders(deduped);
+            clearSourceError('orders', deduped.length);
             setLastUpdatedAt(Date.now());
             markSettled('orders');
           },
@@ -620,7 +733,7 @@ export function useSyncedAnalyticsData(options?: {
               list.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
               setProducts(list);
             }
-            clearSourceError('products');
+            clearSourceError('products', list.length);
             setLastUpdatedAt(Date.now());
             markSettled('products');
           },
@@ -641,8 +754,9 @@ export function useSyncedAnalyticsData(options?: {
               const raw = d.data() as ProductReview;
               if (raw && d.id) list.push({ ...raw, id: d.id });
             });
-            setReviews(deduplicateReviews(list));
-            clearSourceError('reviews');
+            const deduped = deduplicateReviews(list);
+            setReviews(deduped);
+            clearSourceError('reviews', deduped.length);
             setLastUpdatedAt(Date.now());
             markSettled('reviews');
           },
@@ -663,8 +777,9 @@ export function useSyncedAnalyticsData(options?: {
               const raw = d.data() as WishlistItem;
               if (raw && d.id) list.push({ ...raw, id: d.id });
             });
-            setWishlists(deduplicateWishlists(list));
-            clearSourceError('wishlists');
+            const deduped = deduplicateWishlists(list);
+            setWishlists(deduped);
+            clearSourceError('wishlists', deduped.length);
             setLastUpdatedAt(Date.now());
             markSettled('wishlists');
           },
@@ -686,7 +801,7 @@ export function useSyncedAnalyticsData(options?: {
               if (raw) list.push({ ...raw, uid: raw.uid || d.id });
             });
             setCustomerProfiles(list);
-            clearSourceError('customer_activity');
+            clearSourceError('customer_activity', list.length);
             setLastUpdatedAt(Date.now());
             markSettled('customer_activity');
           },
@@ -702,12 +817,11 @@ export function useSyncedAnalyticsData(options?: {
         onSnapshot(
           doc(db, ANALYTICS_COLLECTION, SITE_TRAFFIC_DOC_ID),
           (snap) => {
-            setTrafficData(
-              snap.exists()
-                ? normalizeTrafficData(snap.data() as Partial<SiteTrafficData>)
-                : getEmptyTrafficData()
-            );
-            clearSourceError('traffic');
+            const normalized = snap.exists()
+              ? normalizeTrafficData(snap.data() as Partial<SiteTrafficData>)
+              : getEmptyTrafficData();
+            setTrafficData(normalized);
+            clearSourceError('traffic', normalized.totalVisits);
             setLastUpdatedAt(Date.now());
             markSettled('traffic');
           },
@@ -744,8 +858,10 @@ export function useSyncedAnalyticsData(options?: {
     isLoading,
     isRefreshing,
     lastUpdatedAt,
+    lastSuccessfulSyncAt,
     sourceErrors,
     sourceDetails,
+    sourceStatuses,
     authDiagnostic,
     syncError,
     refresh,

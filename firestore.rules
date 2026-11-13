@@ -7,7 +7,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_@.+\\-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_@.+:\\-]+$');
     }
 
     function incoming() {
@@ -40,8 +40,8 @@ service cloud.firestore {
     // Optional Firebase Auth custom claims for owner/admin accounts
     function hasAdminCustomClaim() {
       return isVerifiedEmailUser() && (
-        request.auth.token.get('admin', false) == true ||
-        request.auth.token.get('role', '') == 'admin'
+        ('admin' in request.auth.token && request.auth.token.admin == true) ||
+        ('role' in request.auth.token && request.auth.token.role == 'admin')
       );
     }
 
@@ -223,11 +223,11 @@ service cloud.firestore {
         ]) &&
         data.id == 'site_traffic' &&
         data.totalVisits is number &&
-        (!('totalVisits' in prev) || (data.totalVisits >= prev.totalVisits && data.totalVisits <= prev.totalVisits + 10)) &&
+        (!('totalVisits' in prev) || !(prev.totalVisits is number) || (data.totalVisits >= prev.totalVisits && data.totalVisits <= prev.totalVisits + 10)) &&
         data.lastVisitedAt is number &&
         (!('uniqueVisitors' in data) || (
           data.uniqueVisitors is number &&
-          (!('uniqueVisitors' in prev) || (data.uniqueVisitors >= prev.uniqueVisitors && data.uniqueVisitors <= prev.uniqueVisitors + 10))
+          (!('uniqueVisitors' in prev) || !(prev.uniqueVisitors is number) || (data.uniqueVisitors >= prev.uniqueVisitors && data.uniqueVisitors <= prev.uniqueVisitors + 10))
         ));
     }
 
@@ -280,7 +280,7 @@ service cloud.firestore {
           'totalSearches', 'searchHistory', 'ordersPlacedCount', 'totalPurchaseValue',
           'deviceInfo', 'sessions', 'timeline', 'updatedAt'
         ]) &&
-        (isOwnerOrAdmin() || (isVerifiedEmailUser() && request.auth.uid == userId));
+        (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId));
       allow update: if isValidId(userId) &&
         isValidCustomerActivityDoc(incoming(), userId) &&
         incoming().diff(existing()).affectedKeys().hasOnly([
@@ -294,7 +294,7 @@ service cloud.firestore {
           'deviceInfo', 'sessions', 'timeline', 'updatedAt'
         ]) &&
         incoming().uid == existing().uid &&
-        (isOwnerOrAdmin() || (isVerifiedEmailUser() && request.auth.uid == userId));
+        (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId));
       allow delete: if isValidId(userId) && isOwnerOrAdmin();
     }
 

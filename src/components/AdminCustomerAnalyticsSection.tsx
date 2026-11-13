@@ -472,6 +472,11 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
     }
   };
 
+  const failedSourceCount = Object.values(synced.sourceStatuses).filter(
+    (s) => s.status === 'denied' || s.status === 'error'
+  ).length;
+  const hasSyncFailure = failedSourceCount > 0 || Boolean(synced.syncError);
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -491,19 +496,27 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] text-[11px] text-[#5C4A3E]">
+            <div
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] ${
+                hasSyncFailure
+                  ? 'bg-amber-50 border-amber-300 text-amber-900'
+                  : 'bg-[#FAF7F2] border-[#EAE2D5] text-[#5C4A3E]'
+              }`}
+            >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  synced.syncError
-                    ? 'bg-amber-500'
+                  hasSyncFailure
+                    ? 'bg-rose-500'
                     : synced.isLoading || synced.isRefreshing
                     ? 'bg-[#C29E57] animate-ping'
                     : 'bg-emerald-500 animate-pulse'
                 }`}
               />
               <span className="font-semibold">
-                {synced.lastUpdatedAt
-                  ? `Updated: ${formatLastUpdatedIST(synced.lastUpdatedAt)}`
+                {hasSyncFailure
+                  ? `Sync Restricted (${failedSourceCount} collection error${failedSourceCount > 1 ? 's' : ''})`
+                  : synced.lastSuccessfulSyncAt
+                  ? `Synced: ${formatLastUpdatedIST(synced.lastSuccessfulSyncAt)}`
                   : 'Syncing Firebase...'}
               </span>
             </div>
@@ -533,7 +546,9 @@ export const AdminCustomerAnalyticsSection: React.FC<AdminCustomerAnalyticsSecti
         {/* Sync Error Alert with full Firebase diagnostics (never mask incomplete data as final) */}
         <AnalyticsPermissionDiagnosticBanner
           sourceDetails={synced.sourceDetails}
+          sourceStatuses={synced.sourceStatuses}
           authDiagnostic={synced.authDiagnostic}
+          lastSuccessfulSyncAt={synced.lastSuccessfulSyncAt}
           fallbackSyncError={synced.syncError}
           isRefreshing={synced.isRefreshing}
           onRetry={synced.refresh}
