@@ -3505,34 +3505,92 @@ export async function getWelcomeOfferAdminDataApi(): Promise<{
 }
 
 // ---------------- HOMEPAGE BANNERS & CAMPAIGNS API ---------------- //
-import { HomepageBanner, INITIAL_BANNERS } from '../data/banners';
+import { HomepageBanner, INITIAL_BANNERS, computeBannerStatus } from '../data/banners';
 
-export async function getBannersApi(): Promise<HomepageBanner[]> {
+const BANNERS_CACHE_KEY = 'cotton_nest_banners';
+const BANNERS_SYNCED_KEY = 'cotton_nest_banners_synced';
+const BANNERS_SYNCED_AT_KEY = 'cotton_nest_banners_synced_at';
+const BANNERS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function readCachedBanners(): HomepageBanner[] | null {
   try {
-    const cached = localStorage.getItem('cotton_nest_banners');
-    let localBanners: HomepageBanner[] = cached ? JSON.parse(cached) : [];
+    const cached = localStorage.getItem(BANNERS_CACHE_KEY);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedBanners(list: HomepageBanner[], updateSyncTimestamp = true): void {
+  try {
+    localStorage.setItem(BANNERS_CACHE_KEY, JSON.stringify(list));
+    localStorage.setItem(BANNERS_SYNCED_KEY, '1');
+    if (updateSyncTimestamp) {
+      localStorage.setItem(BANNERS_SYNCED_AT_KEY, String(Date.now()));
+    }
+  } catch {}
+}
+
+function broadcastBannersUpdated(list: HomepageBanner[]): void {
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('cotton_nest_banners');
+      channel.postMessage({ type: 'banners_updated', banners: list });
+      channel.close();
+    }
+  } catch {}
+}
+
+function buildBannerFirestoreError(err: unknown, operation: OperationType, path: string): Error {
+  const errInfo = handleFirestoreError(err, operation, path);
+  const rawMessage = errInfo?.error || (err instanceof Error ? err.message : String(err));
+  if (/permission-denied|Missing or insufficient permissions/i.test(rawMessage)) {
+    return new Error(
+      `Failed to update banner in Firebase: Missing or insufficient permissions. Please sign in with the authorized Cotton Nest owner/admin Google account.`
+    );
+  }
+  return new Error(`Firebase banner sync failed: ${rawMessage}`);
+}
+
+export async function getBannersApi(forceRefresh = false): Promise<HomepageBanner[]> {
+  const cachedBanners = readCachedBanners();
+  try {
+    if (!forceRefresh && cachedBanners !== null) {
+      const syncedAtRaw = Number(localStorage.getItem(BANNERS_SYNCED_AT_KEY) || '0');
+      if (Number.isFinite(syncedAtRaw) && syncedAtRaw > 0 && Date.now() - syncedAtRaw < BANNERS_CACHE_TTL_MS) {
+        return cachedBanners;
+      }
+    }
 
     const snap = await getDocs(collection(db, 'banners'));
     if (!snap.empty) {
       const fetched: HomepageBanner[] = [];
       snap.forEach((docSnap) => {
         const data = docSnap.data() as HomepageBanner;
-        if (data && data.campaignName) {
+        if (data && (data.campaignName || data.heading)) {
           fetched.push({ ...data, id: docSnap.id });
         }
       });
-      if (fetched.length > 0) {
-        try {
-          localStorage.setItem('cotton_nest_banners', JSON.stringify(fetched));
-        } catch {}
-        return fetched;
-      }
+      writeCachedBanners(fetched, true);
+      return fetched;
     }
-    if (Array.isArray(localBanners) && localBanners.length > 0) {
-      return localBanners;
+
+    const wasSynced = localStorage.getItem(BANNERS_SYNCED_KEY) === '1';
+    if (wasSynced) {
+      writeCachedBanners([], true);
+      return [];
+    }
+    if (cachedBanners && cachedBanners.length > 0) {
+      return cachedBanners;
     }
   } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'banners');
     console.warn('getBannersApi fetch notice:', err);
+    if (cachedBanners !== null) {
+      return cachedBanners;
+    }
   }
   return INITIAL_BANNERS;
 }
@@ -3543,92 +3601,95 @@ export async function saveBannerApi(banner: HomepageBanner): Promise<HomepageBan
     updatedAt: Date.now(),
   });
 
-  try {
-    const cached = localStorage.getItem('cotton_nest_banners');
-    const list: HomepageBanner[] = cached ? JSON.parse(cached) : [];
-    const nextList = list.some((b) => b.id === cleanBanner.id)
-      ? list.map((b) => (b.id === cleanBanner.id ? cleanBanner : b))
-      : [cleanBanner, ...list];
-    localStorage.setItem('cotton_nest_banners', JSON.stringify(nextList));
-  } catch {}
+  const previousCache = readCachedBanners();
 
   try {
     await setDoc(doc(db, 'banners', cleanBanner.id), cleanBanner, { merge: true });
   } catch (err) {
-    console.error(`Firebase error saving banner ${cleanBanner.id}:`, err);
-    try {
-      handleFirestoreError(err, OperationType.WRITE, `banners/${cleanBanner.id}`);
-    } catch {}
-    throw err;
+    if (previousCache !== null) {
+      writeCachedBanners(previousCache, false);
+    }
+    throw buildBannerFirestoreError(err, OperationType.WRITE, `banners/${cleanBanner.id}`);
   }
 
-  try {
-    window.dispatchEvent(new Event('cotton-nest-banners-updated'));
-  } catch {}
+  const baseList = previousCache ?? INITIAL_BANNERS;
+  const nextList = baseList.some((b) => b.id === cleanBanner.id)
+    ? baseList.map((b) => (b.id === cleanBanner.id ? cleanBanner : b))
+    : [cleanBanner, ...baseList];
+  writeCachedBanners(nextList, true);
+  broadcastBannersUpdated(nextList);
 
   return cleanBanner;
 }
 
-export async function updateBannerEnabledApi(bannerId: string, isEnabled: boolean): Promise<void> {
+export async function updateBannerEnabledApi(
+  bannerOrId: HomepageBanner | string,
+  isEnabled: boolean
+): Promise<{ bannerId: string; isEnabled: boolean; status: HomepageBanner['status']; updatedAt: number }> {
+  const bannerId = typeof bannerOrId === 'string' ? bannerOrId : bannerOrId.id;
   const updatedAt = Date.now();
+  const previousCache = readCachedBanners();
+  const existingBanner =
+    (typeof bannerOrId !== 'string' ? bannerOrId : null) ||
+    previousCache?.find((b) => b.id === bannerId) ||
+    null;
 
-  try {
-    const cached = localStorage.getItem('cotton_nest_banners');
-    if (cached) {
-      const list: HomepageBanner[] = JSON.parse(cached);
-      const nextList = list.map((b) => {
-        if (b.id === bannerId) {
-          return {
-            ...b,
-            isEnabled,
-            status: isEnabled && b.status === 'disabled' ? 'active' : b.status,
-            updatedAt,
-          };
-        }
-        return b;
-      });
-      localStorage.setItem('cotton_nest_banners', JSON.stringify(nextList));
-    }
-  } catch {}
-
-  try {
-    const docRef = doc(db, 'banners', bannerId);
-    await setDoc(docRef, { isEnabled, updatedAt }, { merge: true });
-  } catch (err) {
-    console.error(`Firebase error updating banner enabled status for ${bannerId}:`, err);
-    try {
-      handleFirestoreError(err, OperationType.WRITE, `banners/${bannerId}`);
-    } catch {}
-    throw err;
+  let nextStatus: HomepageBanner['status'] = isEnabled ? 'active' : 'disabled';
+  if (isEnabled && existingBanner) {
+    nextStatus = computeBannerStatus({
+      ...existingBanner,
+      isEnabled: true,
+      status: existingBanner.status === 'disabled' ? 'active' : existingBanner.status,
+    });
   }
 
   try {
-    window.dispatchEvent(new Event('cotton-nest-banners-updated'));
-  } catch {}
+    const docRef = doc(db, 'banners', bannerId);
+    await setDoc(docRef, { isEnabled, status: nextStatus, updatedAt }, { merge: true });
+  } catch (err) {
+    if (previousCache !== null) {
+      writeCachedBanners(previousCache, false);
+    }
+    throw buildBannerFirestoreError(err, OperationType.WRITE, `banners/${bannerId}`);
+  }
+
+  if (previousCache) {
+    const nextList = previousCache.map((b) =>
+      b.id === bannerId
+        ? {
+            ...b,
+            isEnabled,
+            status: nextStatus,
+            updatedAt,
+          }
+        : b
+    );
+    writeCachedBanners(nextList, true);
+    broadcastBannersUpdated(nextList);
+  }
+
+  return { bannerId, isEnabled, status: nextStatus, updatedAt };
 }
 
 export async function deleteBannerApi(bannerId: string): Promise<void> {
-  try {
-    const cached = localStorage.getItem('cotton_nest_banners');
-    if (cached) {
-      const list: HomepageBanner[] = JSON.parse(cached);
-      const filtered = list.filter((b) => b.id !== bannerId);
-      localStorage.setItem('cotton_nest_banners', JSON.stringify(filtered));
-    }
-  } catch {}
+  const previousCache = readCachedBanners();
 
   try {
     await deleteDoc(doc(db, 'banners', bannerId));
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.DELETE, `banners/${bannerId}`);
-    } catch {}
+    if (previousCache !== null) {
+      writeCachedBanners(previousCache, false);
+    }
+    throw buildBannerFirestoreError(err, OperationType.DELETE, `banners/${bannerId}`);
   }
 
-  try {
-    window.dispatchEvent(new Event('cotton-nest-banners-updated'));
-  } catch {}
+  if (previousCache) {
+    const filtered = previousCache.filter((b) => b.id !== bannerId);
+    writeCachedBanners(filtered, true);
+    broadcastBannersUpdated(filtered);
+  }
 }
+
 
 
 

@@ -8,6 +8,8 @@ import { useLoyalty } from '../context/LoyaltyContext';
 import { SeasonalConfig } from '../data/seasonal';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { PWAInstallButton } from './PWAInstallPrompt';
+import { HomepageBanner, BannerAudienceContext } from '../data/banners';
+import { CustomerAnnouncementBanner } from './CustomerAnnouncementBanner';
 
 interface NavbarProps {
   activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics';
@@ -30,6 +32,8 @@ interface NavbarProps {
   wishlistCount?: number;
   onOpenWishlist?: () => void;
   onOpenAccount?: () => void;
+  banners?: HomepageBanner[];
+  audienceContext?: BannerAudienceContext;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -53,6 +57,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   wishlistCount = 0,
   onOpenWishlist,
   onOpenAccount,
+  banners = [],
+  audienceContext,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
@@ -74,32 +80,45 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* Top announcement bar */}
-      <aside
-        aria-label="Announcement"
-        className="relative z-40 border-b border-[#EAE2D5] text-xs py-1.5 px-4 text-center transition-colors bg-[#FAF7F2]"
-        style={{
-          color: 'var(--color-text-secondary, #7A6458)',
+      {/* Top Announcement & Festive Banner (Admin-controlled with IST validity, audience targeting & OFF override) */}
+      <CustomerAnnouncementBanner
+        banners={banners}
+        audienceContext={audienceContext}
+        onNavigate={(dest) => {
+          if (dest === 'cart') {
+            openCart();
+          } else {
+            handleNavClick(dest as any);
+          }
         }}
-      >
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-3">
-          <span className="flex items-center gap-1.5 font-medium">
-            <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
-            {announcementText}
-          </span>
-          <span className="hidden md:inline opacity-40">|</span>
-          <a
-            href={`tel:${contactPhone.replace(/\s+/g, '')}`}
-            className="hidden md:inline-flex items-center gap-1 hover:underline font-semibold"
-            style={{ color: 'var(--color-primary, #9E7B3B)' }}
+        fallbackAnnouncement={
+          <aside
+            aria-label="Announcement"
+            className="relative z-40 border-b border-[#EAE2D5] text-xs py-1.5 px-4 text-center transition-colors bg-[#FAF7F2]"
+            style={{
+              color: 'var(--color-text-secondary, #7A6458)',
+            }}
           >
-            <Phone className="w-3 h-3" />
-            {contactPhone}
-          </a>
-          <span className="hidden sm:inline opacity-40">|</span>
-          <PWAInstallButton variant="topbar" />
-        </div>
-      </aside>
+            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-3">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent, #C29E57)' }} />
+                {announcementText}
+              </span>
+              <span className="hidden md:inline opacity-40">|</span>
+              <a
+                href={`tel:${contactPhone.replace(/\s+/g, '')}`}
+                className="hidden md:inline-flex items-center gap-1 hover:underline font-semibold"
+                style={{ color: 'var(--color-primary, #9E7B3B)' }}
+              >
+                <Phone className="w-3 h-3" />
+                {contactPhone}
+              </a>
+              <span className="hidden sm:inline opacity-40">|</span>
+              <PWAInstallButton variant="topbar" />
+            </div>
+          </aside>
+        }
+      />
 
       {/* Main Header with Apple Liquid Glass */}
       <header className="sticky top-0 z-40 liquid-glass-nav transition-all">

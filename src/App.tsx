@@ -28,7 +28,12 @@ import { WelcomeOfferModal } from './components/WelcomeOfferModal';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
-import { HomepageBanner, INITIAL_BANNERS } from './data/banners';
+import {
+  HomepageBanner,
+  INITIAL_BANNERS,
+  BannerAudienceContext,
+  computeBannerStatus,
+} from './data/banners';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OwnerAuthModal } from './components/OwnerAuthModal';
 import { LiveOrdersView } from './components/LiveOrdersView';
@@ -109,6 +114,7 @@ import {
   markWelcomePopupSeenApi,
   getBannersApi,
   saveBannerApi,
+  updateBannerEnabledApi,
   deleteBannerApi,
 } from './services/api';
 import {
@@ -828,26 +834,40 @@ export default function App() {
     }
   };
 
-  // Dynamic Homepage Banners & Campaign Management State
+  // Dynamic Announcement & Festive Banners Management State
   const [banners, setBanners] = useState<HomepageBanner[]>(() => {
     try {
       const cached = localStorage.getItem('cotton_nest_banners');
+      const wasSynced = localStorage.getItem('cotton_nest_banners_synced') === '1';
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          if (parsed.length > 0 || wasSynced) return parsed;
+        }
       }
     } catch {}
     return INITIAL_BANNERS;
   });
 
-  const fetchBanners = React.useCallback(async () => {
+  const bannerAudienceContext = React.useMemo<BannerAudienceContext>(() => {
+    const signedIn = Boolean(user?.id);
+    const nonCancelledOrdersCount = orders.filter((o) => o.status !== 'cancelled').length;
+    const isNewUser = !signedIn
+      ? true
+      : nonCancelledOrdersCount === 0 &&
+        welcomeEligibility?.status !== 'redeemed' &&
+        welcomeEligibility?.status !== 'ineligible_existing_customer';
+    return {
+      isAuthenticated: signedIn,
+      isNewUser,
+    };
+  }, [user?.id, orders, welcomeEligibility?.status]);
+
+  const fetchBanners = React.useCallback(async (forceRefresh = false) => {
     try {
-      const remote = await getBannersApi();
-      if (Array.isArray(remote) && remote.length > 0) {
+      const remote = await getBannersApi(forceRefresh);
+      if (Array.isArray(remote)) {
         setBanners(remote);
-        try {
-          localStorage.setItem('cotton_nest_banners', JSON.stringify(remote));
-        } catch {}
       }
     } catch (err) {
       console.warn('Failed to load remote banners:', err);
@@ -855,57 +875,135 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetchBanners();
-    const handleBannersUpdated = () => {
-      fetchBanners();
+    fetchBanners(false);
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        channel = new BroadcastChannel('cotton_nest_banners');
+        channel.onmessage = (event) => {
+          if (event?.data?.type === 'banners_updated' && Array.isArray(event.data.banners)) {
+            setBanners(event.data.banners);
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorageSync = (event: StorageEvent) => {
+      if (event.key === 'cotton_nest_banners' && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (Array.isArray(parsed)) {
+            setBanners(parsed);
+          }
+        } catch {}
+      }
     };
-    window.addEventListener('cotton-nest-banners-updated', handleBannersUpdated);
+
+    const handleVisibilityRefresh = () => {
+      if (document.visibilityState === 'visible') {
+        fetchBanners(false);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageSync);
+    document.addEventListener('visibilitychange', handleVisibilityRefresh);
     return () => {
-      window.removeEventListener('cotton-nest-banners-updated', handleBannersUpdated);
+      if (channel) {
+        try {
+          channel.close();
+        } catch {}
+      }
+      window.removeEventListener('storage', handleStorageSync);
+      document.removeEventListener('visibilitychange', handleVisibilityRefresh);
     };
   }, [fetchBanners]);
 
   const handleSaveBanner = async (banner: HomepageBanner) => {
+    const previousBanners = banners;
     const updatedList = banners.some((b) => b.id === banner.id)
       ? banners.map((b) => (b.id === banner.id ? banner : b))
       : [banner, ...banners];
     setBanners(updatedList);
     try {
-      localStorage.setItem('cotton_nest_banners', JSON.stringify(updatedList));
-    } catch {}
-    await saveBannerApi(banner);
+      const savedBanner = await saveBannerApi(banner);
+      setBanners((prev) =>
+        prev.some((b) => b.id === savedBanner.id)
+          ? prev.map((b) => (b.id === savedBanner.id ? savedBanner : b))
+          : [savedBanner, ...prev]
+      );
+    } catch (err) {
+      setBanners(previousBanners);
+      throw err;
+    }
+  };
+
+  const handleToggleBannerEnabled = async (banner: HomepageBanner, nextEnabled: boolean) => {
+    const previousBanners = banners;
+    const optimisticStatus: HomepageBanner['status'] = nextEnabled
+      ? computeBannerStatus({
+          ...banner,
+          isEnabled: true,
+          status: banner.status === 'disabled' ? 'active' : banner.status,
+        })
+      : 'disabled';
+    const optimisticList = banners.map((b) =>
+      b.id === banner.id
+        ? {
+            ...b,
+            isEnabled: nextEnabled,
+            status: optimisticStatus,
+            updatedAt: Date.now(),
+          }
+        : b
+    );
+    setBanners(optimisticList);
+    try {
+      const res = await updateBannerEnabledApi(banner, nextEnabled);
+      setBanners((prev) =>
+        prev.map((b) =>
+          b.id === banner.id
+            ? {
+                ...b,
+                isEnabled: res.isEnabled,
+                status: res.status,
+                updatedAt: res.updatedAt,
+              }
+            : b
+        )
+      );
+    } catch (err) {
+      setBanners(previousBanners);
+      throw err;
+    }
   };
 
   const handleDeleteBanner = async (bannerId: string) => {
+    const previousBanners = banners;
     const updatedList = banners.filter((b) => b.id !== bannerId);
     setBanners(updatedList);
     try {
-      localStorage.setItem('cotton_nest_banners', JSON.stringify(updatedList));
-    } catch {}
-    await deleteBannerApi(bannerId);
+      await deleteBannerApi(bannerId);
+    } catch (err) {
+      setBanners(previousBanners);
+      throw err;
+    }
   };
 
   const handleDuplicateBanner = async (banner: HomepageBanner) => {
+    const now = Date.now();
     const duplicatedBanner: HomepageBanner = {
       ...banner,
-      id: `banner_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `banner_${now}_${Math.random().toString(36).substring(2, 7)}`,
+      campaignName: `${banner.campaignName} (Copy)`,
       heading: `${banner.heading} (Copy)`,
-      status: 'draft',
+      isEnabled: false,
+      status: 'disabled',
       priority: Math.max(...banners.map((b) => b.priority), 0) + 1,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     };
     await handleSaveBanner(duplicatedBanner);
-  };
-
-  const handleSaveAllBanners = async (updatedBanners: HomepageBanner[]) => {
-    setBanners(updatedBanners);
-    try {
-      localStorage.setItem('cotton_nest_banners', JSON.stringify(updatedBanners));
-    } catch {}
-    for (const b of updatedBanners) {
-      await saveBannerApi(b);
-    }
   };
 
   // Customer & Atelier Notifications State
@@ -2443,6 +2541,12 @@ export default function App() {
             seasonalConfig={seasonalConfig}
             onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
             reviews={reviews}
+            banners={banners}
+            onSaveBanner={handleSaveBanner}
+            onToggleBannerEnabled={handleToggleBannerEnabled}
+            onDeleteBanner={handleDeleteBanner}
+            onDuplicateBanner={handleDuplicateBanner}
+            onRefreshBanners={() => fetchBanners(true)}
           />
         </ErrorBoundary>
       ) : siteContent?.isMaintenanceMode && !isOwnerMode ? (
@@ -2525,6 +2629,8 @@ export default function App() {
             wishlistCount={wishlistItems.length}
             onOpenWishlist={() => setIsWishlistOpen(true)}
             onOpenAccount={() => setIsAccountModalOpen(true)}
+            banners={banners}
+            audienceContext={bannerAudienceContext}
           />
 
           {/* Main Content Area */}
