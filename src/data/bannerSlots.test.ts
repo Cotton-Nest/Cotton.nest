@@ -34,13 +34,35 @@ test('normalizeBannerSlots always preserves exactly 5 predefined slots in fixed 
   assert.equal(partial[0].enabled, false);
 });
 
-test('every predefined category and festival has an optimized pre-designed background template', () => {
+test('every predefined category and festival has rich curated background templates', () => {
   for (const festival of FESTIVAL_OPTIONS) {
     const exists = BANNER_BACKGROUND_TEMPLATES.some((t) => t.id === festival.defaultTemplateId);
     assert.equal(exists, true, `Missing template for festival ${festival.id}`);
   }
+  const seenIds = new Set<string>();
+  const seenUrls = new Set<string>();
   for (const template of BANNER_BACKGROUND_TEMPLATES) {
     assert.ok(template.imageUrl.startsWith('/images/banners/'), `Invalid path ${template.imageUrl}`);
+    assert.equal(seenIds.has(template.id), false, `Duplicate template id ${template.id}`);
+    assert.equal(seenUrls.has(template.imageUrl), false, `Duplicate template url ${template.imageUrl}`);
+    seenIds.add(template.id);
+    seenUrls.add(template.imageUrl);
+  }
+
+  const requiredCategories = [
+    'welcome',
+    'festive',
+    'special_offer',
+    'new_collection',
+    'general_announcement',
+  ] as const;
+
+  for (const category of requiredCategories) {
+    const matches = BANNER_BACKGROUND_TEMPLATES.filter((t) => t.category === category);
+    assert.ok(
+      matches.length >= 3,
+      `Expected at least 3 templates for category ${category}, found ${matches.length}`
+    );
   }
 });
 

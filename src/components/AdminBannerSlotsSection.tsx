@@ -585,7 +585,7 @@ export const AdminBannerSlotsSection: React.FC<AdminBannerSlotsSectionProps> = (
                         : 'text-[#7A6458] hover:text-[#2C2420]'
                     }`}
                   >
-                    Matching Category
+                    Matching Category ({filteredTemplates.length})
                   </button>
                   <button
                     type="button"
