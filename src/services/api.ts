@@ -13,6 +13,7 @@ import {
   orderBy,
   onSnapshot,
   runTransaction,
+  Timestamp,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, isFirestoreWriteQuotaExhausted, markFirestoreWriteQuotaExhausted, primaryAuth, previewAuth } from '../firebase';
 import {
@@ -89,7 +90,7 @@ export function stripUndefined<T>(obj: T): T {
   if (obj === null || obj === undefined || typeof obj !== 'object') {
     return obj;
   }
-  if (obj instanceof Date || typeof (obj as any).toDate === 'function') {
+  if (obj instanceof Date || obj instanceof Timestamp || typeof (obj as any).toDate === 'function') {
     return obj;
   }
   if (Array.isArray(obj)) {
@@ -3610,11 +3611,11 @@ export async function saveBannerApi(banner: HomepageBanner): Promise<HomepageBan
   });
   const cleanBanner: HomepageBanner = stripUndefined(normalized);
 
-  // Store full Date objects (native Firestore Timestamps) in Firebase; use null when cleared so merge removes stale dates
+  // Store native Firestore Timestamps preserving exact hours, minutes, seconds, milliseconds, and timezone; use null when cleared so merge removes stale dates
   const firestorePayload = stripUndefined({
     ...cleanBanner,
-    startDate: cleanBanner.startDate instanceof Date ? cleanBanner.startDate : null,
-    expiryDate: cleanBanner.expiryDate instanceof Date ? cleanBanner.expiryDate : null,
+    startDate: cleanBanner.startDate instanceof Date ? Timestamp.fromDate(cleanBanner.startDate) : null,
+    expiryDate: cleanBanner.expiryDate instanceof Date ? Timestamp.fromDate(cleanBanner.expiryDate) : null,
   });
 
   const previousCache = readCachedBanners();

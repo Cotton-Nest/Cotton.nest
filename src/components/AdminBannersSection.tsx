@@ -1010,11 +1010,15 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 role="switch"
                 aria-checked={editingBanner.isEnabled}
                 onClick={() =>
-                  setEditingBanner({
-                    ...editingBanner,
-                    isEnabled: !editingBanner.isEnabled,
-                    status: !editingBanner.isEnabled ? 'active' : 'disabled',
-                  })
+                  setEditingBanner((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          isEnabled: !prev.isEnabled,
+                          status: !prev.isEnabled ? 'active' : 'disabled',
+                        }
+                      : prev
+                  )
                 }
                 className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shrink-0 border ${
                   editingBanner.isEnabled
@@ -1033,7 +1037,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 <input
                   type="text"
                   value={editingBanner.campaignName}
-                  onChange={(e) => setEditingBanner({ ...editingBanner, campaignName: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditingBanner((prev) => (prev ? { ...prev, campaignName: val } : prev));
+                  }}
                   placeholder="e.g. Diwali Festive Top Bar"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEC89B] focus:ring-2 focus:ring-[#70252D] focus:outline-hidden"
                 />
@@ -1043,7 +1050,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 <label className="font-semibold text-[#2C2420]">Banner Category*</label>
                 <select
                   value={editingBanner.category}
-                  onChange={(e) => setEditingBanner({ ...editingBanner, category: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditingBanner((prev) => (prev ? { ...prev, category: val } : prev));
+                  }}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEC89B] bg-white focus:ring-2 focus:ring-[#70252D] focus:outline-hidden"
                 >
                   {BANNER_CATEGORIES.map((cat) => (
@@ -1062,7 +1072,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 <input
                   type="text"
                   value={editingBanner.heading}
-                  onChange={(e) => setEditingBanner({ ...editingBanner, heading: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditingBanner((prev) => (prev ? { ...prev, heading: val } : prev));
+                  }}
                   placeholder="e.g. HAPPY DIWALI — Festive Pure Cotton Sale"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEC89B] font-semibold focus:ring-2 focus:ring-[#70252D] focus:outline-hidden"
                 />
@@ -1073,7 +1086,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 <textarea
                   rows={2}
                   value={editingBanner.subtitle || ''}
-                  onChange={(e) => setEditingBanner({ ...editingBanner, subtitle: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditingBanner((prev) => (prev ? { ...prev, subtitle: val } : prev));
+                  }}
                   placeholder="e.g. Enjoy free express delivery across Gurgaon on all King cotton bedsheets."
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEC89B] focus:ring-2 focus:ring-[#70252D] focus:outline-hidden"
                 />
@@ -1084,12 +1100,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 <label className="font-semibold text-[#2C2420]">Target Audience</label>
                 <select
                   value={editingBanner.targetAudience || 'all'}
-                  onChange={(e) =>
-                    setEditingBanner({
-                      ...editingBanner,
-                      targetAudience: e.target.value as BannerTargetAudience,
-                    })
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value as BannerTargetAudience;
+                    setEditingBanner((prev) => (prev ? { ...prev, targetAudience: val } : prev));
+                  }}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEC89B] bg-white focus:ring-2 focus:ring-[#70252D] focus:outline-hidden"
                 >
                   {TARGET_AUDIENCE_OPTIONS.map((opt) => (
@@ -1114,12 +1128,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                   min={1}
                   max={99}
                   value={editingBanner.priority}
-                  onChange={(e) =>
-                    setEditingBanner({
-                      ...editingBanner,
-                      priority: Math.max(1, parseInt(e.target.value, 10) || 1),
-                    })
-                  }
+                  onChange={(e) => {
+                    const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                    setEditingBanner((prev) => (prev ? { ...prev, priority: val } : prev));
+                  }}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEC89B] tabular-nums focus:ring-2 focus:ring-[#70252D] focus:outline-hidden"
                 />
                 <p className="text-[11px] text-[#6B5D55]">
@@ -1133,7 +1145,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 <input
                   type="text"
                   value={editingBanner.ctaText || ''}
-                  onChange={(e) => setEditingBanner({ ...editingBanner, ctaText: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditingBanner((prev) => (prev ? { ...prev, ctaText: val } : prev));
+                  }}
                   placeholder="e.g. Shop Collection (leave blank for text-only)"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEC89B] focus:ring-2 focus:ring-[#70252D] focus:outline-hidden"
                 />
@@ -1143,9 +1158,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 <label className="font-semibold text-[#2C2420]">Action Destination</label>
                 <select
                   value={editingBanner.ctaDestination || 'catalogue'}
-                  onChange={(e) =>
-                    setEditingBanner({ ...editingBanner, ctaDestination: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditingBanner((prev) => (prev ? { ...prev, ctaDestination: val } : prev));
+                  }}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DEC89B] bg-white focus:ring-2 focus:ring-[#70252D] focus:outline-hidden"
                 >
                   <option value="catalogue">Bedsheets Catalogue</option>
@@ -1170,12 +1186,16 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                       key={preset.id}
                       type="button"
                       onClick={() =>
-                        setEditingBanner({
-                          ...editingBanner,
-                          backgroundColor: preset.backgroundColor,
-                          textColor: preset.textColor,
-                          accentColor: preset.accentColor,
-                        })
+                        setEditingBanner((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                backgroundColor: preset.backgroundColor,
+                                textColor: preset.textColor,
+                                accentColor: preset.accentColor,
+                              }
+                            : prev
+                        )
                       }
                       className="px-2.5 py-1 rounded-lg border border-[#DEC89B] text-[11px] font-medium cursor-pointer flex items-center gap-1.5 hover:opacity-90"
                       style={{
@@ -1200,17 +1220,19 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                     <input
                       type="color"
                       value={editingBanner.backgroundColor || '#FAF7F2'}
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, backgroundColor: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingBanner((prev) => (prev ? { ...prev, backgroundColor: val } : prev));
+                      }}
                       className="w-9 h-9 rounded-lg cursor-pointer border border-[#DEC89B]"
                     />
                     <input
                       type="text"
                       value={editingBanner.backgroundColor}
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, backgroundColor: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingBanner((prev) => (prev ? { ...prev, backgroundColor: val } : prev));
+                      }}
                       className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white font-mono text-[11px]"
                     />
                   </div>
@@ -1226,17 +1248,19 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                           ? '#FFFFFF'
                           : editingBanner.textColor || '#2C2420'
                       }
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, textColor: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingBanner((prev) => (prev ? { ...prev, textColor: val } : prev));
+                      }}
                       className="w-9 h-9 rounded-lg cursor-pointer border border-[#DEC89B]"
                     />
                     <input
                       type="text"
                       value={editingBanner.textColor === 'light' ? '#FFFFFF' : editingBanner.textColor}
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, textColor: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingBanner((prev) => (prev ? { ...prev, textColor: val } : prev));
+                      }}
                       className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white font-mono text-[11px]"
                     />
                   </div>
@@ -1248,17 +1272,19 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                     <input
                       type="color"
                       value={editingBanner.accentColor || '#8C2E46'}
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, accentColor: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingBanner((prev) => (prev ? { ...prev, accentColor: val } : prev));
+                      }}
                       className="w-9 h-9 rounded-lg cursor-pointer border border-[#DEC89B]"
                     />
                     <input
                       type="text"
                       value={editingBanner.accentColor || '#8C2E46'}
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, accentColor: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingBanner((prev) => (prev ? { ...prev, accentColor: val } : prev));
+                      }}
                       className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white font-mono text-[11px]"
                     />
                   </div>
@@ -1268,12 +1294,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                   <label className="font-medium text-[#2C2420]">Text Styling</label>
                   <select
                     value={editingBanner.textStyle || 'editorial_serif'}
-                    onChange={(e) =>
-                      setEditingBanner({
-                        ...editingBanner,
-                        textStyle: e.target.value as BannerTextStyle,
-                      })
-                    }
+                    onChange={(e) => {
+                      const val = e.target.value as BannerTextStyle;
+                      setEditingBanner((prev) => (prev ? { ...prev, textStyle: val } : prev));
+                    }}
                     className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white"
                   >
                     <option value="editorial_serif">Editorial Serif</option>
@@ -1286,12 +1310,10 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                   <label className="font-medium text-[#2C2420]">Alignment</label>
                   <select
                     value={editingBanner.textAlignment}
-                    onChange={(e) =>
-                      setEditingBanner({
-                        ...editingBanner,
-                        textAlignment: e.target.value as 'left' | 'center' | 'right',
-                      })
-                    }
+                    onChange={(e) => {
+                      const val = e.target.value as 'left' | 'center' | 'right';
+                      setEditingBanner((prev) => (prev ? { ...prev, textAlignment: val } : prev));
+                    }}
                     className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white"
                   >
                     <option value="center">Center</option>

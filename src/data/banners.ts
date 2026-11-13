@@ -177,14 +177,31 @@ const IST_OFFSET_MS = 330 * 60 * 1000;
 
 function extractTimestampObjectMs(value: unknown): number | null {
   if (!value || typeof value !== 'object') return null;
-  const maybe = value as { toDate?: () => Date; seconds?: number; nanoseconds?: number };
+  const maybe = value as {
+    toDate?: () => Date;
+    seconds?: number;
+    nanoseconds?: number;
+    _seconds?: number;
+    _nanoseconds?: number;
+  };
   if (typeof maybe.toDate === 'function') {
     const d = maybe.toDate();
     return d instanceof Date && Number.isFinite(d.getTime()) ? d.getTime() : null;
   }
-  if (typeof maybe.seconds === 'number' && Number.isFinite(maybe.seconds)) {
-    const nanos = typeof maybe.nanoseconds === 'number' && Number.isFinite(maybe.nanoseconds) ? maybe.nanoseconds : 0;
-    return maybe.seconds * 1000 + Math.floor(nanos / 1_000_000);
+  const sec =
+    typeof maybe.seconds === 'number' && Number.isFinite(maybe.seconds)
+      ? maybe.seconds
+      : typeof maybe._seconds === 'number' && Number.isFinite(maybe._seconds)
+      ? maybe._seconds
+      : null;
+  if (sec !== null) {
+    const nanosRaw =
+      typeof maybe.nanoseconds === 'number' && Number.isFinite(maybe.nanoseconds)
+        ? maybe.nanoseconds
+        : typeof maybe._nanoseconds === 'number' && Number.isFinite(maybe._nanoseconds)
+        ? maybe._nanoseconds
+        : 0;
+    return sec * 1000 + Math.floor(nanosRaw / 1_000_000);
   }
   return null;
 }
@@ -333,10 +350,12 @@ export function splitIstDateTimeParts(dateStr?: Date | string | number | unknown
 }
 
 /**
- * Converts canonical 24-hour 'HH:mm' string into 12-hour AM/PM selector values (hour 1-12, minute 0-59).
+ * Converts canonical 24-hour 'HH:mm' (or 'HH:mm:ss') string into 12-hour AM/PM selector values (hour 1-12, minute 0-59).
  */
 export function to12HourTimeParts(time24?: string, fallback: string = '00:00'): Time12HourParts {
-  const source = (time24 && /^\d{1,2}:\d{1,2}$/.test(time24.trim()) ? time24.trim() : fallback).trim();
+  const trimmed = (time24 || '').trim();
+  const match = /^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/.exec(trimmed);
+  const source = match ? `${match[1]}:${match[2]}` : fallback.trim();
   const [hRaw, mRaw] = source.split(':');
   const h24 = Math.min(23, Math.max(0, Number(hRaw) || 0));
   const minute = Math.min(59, Math.max(0, Number(mRaw) || 0));
@@ -359,7 +378,7 @@ export function from12HourTimeParts(hour12: number, minute: number, period: 'AM'
 }
 
 /**
- * Combines separate date (YYYY-MM-DD) and time (HH:mm) inputs into canonical YYYY-MM-DDTHH:mm IST string.
+ * Combines separate date (YYYY-MM-DD) and time (HH:mm or HH:mm:ss) inputs into canonical YYYY-MM-DDTHH:mm IST string.
  */
 export function combineIstDateTimeParts(
   date: string,
@@ -369,7 +388,8 @@ export function combineIstDateTimeParts(
   const cleanDate = (date || '').trim();
   const cleanTime = (time || '').trim();
   if (!cleanDate) return '';
-  const effectiveTime = /^\d{1,2}:\d{1,2}$/.test(cleanTime) ? cleanTime : defaultTime;
+  const match = /^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/.exec(cleanTime);
+  const effectiveTime = match ? `${match[1]}:${match[2]}` : defaultTime;
   const [hRaw, mRaw] = effectiveTime.split(':');
   const normalizedTime = `${String(Math.min(23, Math.max(0, Number(hRaw) || 0))).padStart(2, '0')}:${String(
     Math.min(59, Math.max(0, Number(mRaw) || 0))

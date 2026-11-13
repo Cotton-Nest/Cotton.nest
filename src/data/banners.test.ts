@@ -331,3 +331,77 @@ test('getNextBannerTransitionDelayMs computes earliest future start or expiry do
   const delay = getNextBannerTransitionDelayMs(banners, nowMs);
   assert.strictEqual(delay, 5 * 60 * 1000 + 50);
 });
+
+test('13 November 2026 exact-minute 6-stage lifecycle preserves 9:35 AM, 9:41 AM, 10:17 AM, 2:45 PM, and 11:59 PM end-to-end', () => {
+  const testCases = [
+    { hour12: 9, minute: 35, period: 'AM' as const, expected24: '09:35', expectedDisplay: '13 Nov 2026 · 9:35 AM IST' },
+    { hour12: 9, minute: 41, period: 'AM' as const, expected24: '09:41', expectedDisplay: '13 Nov 2026 · 9:41 AM IST' },
+    { hour12: 10, minute: 17, period: 'AM' as const, expected24: '10:17', expectedDisplay: '13 Nov 2026 · 10:17 AM IST' },
+    { hour12: 2, minute: 45, period: 'PM' as const, expected24: '14:45', expectedDisplay: '13 Nov 2026 · 2:45 PM IST' },
+    { hour12: 11, minute: 59, period: 'PM' as const, expected24: '23:59', expectedDisplay: '13 Nov 2026 · 11:59 PM IST' },
+  ];
+
+  for (const tc of testCases) {
+    // 1. Select time in 12h AM/PM picker -> canonical HH:mm
+    const selected24 = from12HourTimeParts(tc.hour12, tc.minute, tc.period);
+    assert.strictEqual(selected24, tc.expected24);
+
+    // 2. Build full Date object & save banner
+    const startDateObj = istDateTimePartsToDate('2026-11-13', selected24);
+    assert.ok(startDateObj instanceof Date);
+    const savedBanner = normalizeBannerDates(
+      createBaseBanner({
+        id: `banner-nov13-${tc.expected24}`,
+        startDate: startDateObj,
+        expiryDate: istDateTimePartsToDate('2026-11-14', '23:59'),
+      })
+    );
+
+    // 3. Simulate page refresh from BOTH localStorage JSON AND Firestore Timestamp
+    const reloadedFromCache = normalizeBannerDates(JSON.parse(JSON.stringify(savedBanner)));
+    const reloadedFromFirestore = normalizeBannerDates({
+      ...savedBanner,
+      startDate: {
+        seconds: Math.floor((savedBanner.startDate as Date).getTime() / 1000),
+        nanoseconds: 0,
+        toDate: () => new Date((savedBanner.startDate as Date).getTime()),
+      } as unknown as Date,
+      expiryDate: {
+        _seconds: Math.floor((savedBanner.expiryDate as Date).getTime() / 1000),
+        _nanoseconds: 0,
+      } as unknown as Date,
+    });
+
+    for (const reloaded of [reloadedFromCache, reloadedFromFirestore]) {
+      // 4. Edit another unrelated field (heading) — minutes must remain intact
+      const editedOtherField = normalizeBannerDates({
+        ...reloaded,
+        heading: 'Updated Heading Only',
+      });
+
+      // 5. Open Edit Banner -> verify exact date, hour, minute, and AM/PM
+      const editParts = splitIstDateTimeParts(editedOtherField.startDate);
+      assert.deepStrictEqual(editParts, { date: '2026-11-13', time: tc.expected24 });
+      assert.deepStrictEqual(to12HourTimeParts(editParts.time), {
+        hour12: tc.hour12,
+        minute: tc.minute,
+        period: tc.period,
+      });
+
+      // 6. Check banner listing formatted string
+      assert.strictEqual(formatValidityDate(editedOtherField.startDate), tc.expectedDisplay);
+
+      // Verify exact millisecond activation & expiry boundaries (1ms before vs exact boundary)
+      const exactStartMs = (editedOtherField.startDate as Date).getTime();
+      const exactExpiryMs = (editedOtherField.expiryDate as Date).getTime();
+      assert.strictEqual(computeBannerStatus(editedOtherField, new Date(exactStartMs - 1)), 'scheduled');
+      assert.strictEqual(computeBannerStatus(editedOtherField, new Date(exactStartMs)), 'active');
+      assert.strictEqual(computeBannerStatus(editedOtherField, new Date(exactExpiryMs - 1)), 'active');
+      assert.strictEqual(computeBannerStatus(editedOtherField, new Date(exactExpiryMs)), 'expired');
+    }
+  }
+
+  // Verify HH:mm:ss string never resets minutes to 00
+  assert.deepStrictEqual(to12HourTimeParts('09:35:00'), { hour12: 9, minute: 35, period: 'AM' });
+  assert.strictEqual(combineIstDateTimeParts('2026-11-13', '09:35:00'), '2026-11-13T09:35');
+});
