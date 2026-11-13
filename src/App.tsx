@@ -42,6 +42,8 @@ import { ProductCompareBar } from './components/ProductCompareBar';
 import { StockAlertModal } from './components/StockAlertModal';
 import { CartToastNotification, CartToastInfo } from './components/CartToastNotification';
 import { ChromeInstallPopout, OfflineIndicator } from './components/PWAInstallPrompt';
+import { ExitConfirmBanner } from './components/ExitConfirmBanner';
+import { shouldShowExitBannerOnBackPress } from './utils/exitBannerNavigation';
 import {
   AppNotification,
   DEFAULT_NOTIFICATIONS,
@@ -159,6 +161,9 @@ export default function App() {
   const scrollPositionsRef = useRef<Record<string, number>>({});
   const ignoreNextPopstateRef = useRef<boolean>(false);
   const isHandlingPopstateRef = useRef<boolean>(false);
+  const [isExitBannerOpen, setIsExitBannerOpen] = useState<boolean>(false);
+  const isExitBannerOpenRef = useRef<boolean>(false);
+  const isExitingRef = useRef<boolean>(false);
 
   const activeTabRef = useRef(activeTabRaw);
   activeTabRef.current = activeTabRaw;
@@ -168,6 +173,11 @@ export default function App() {
     newTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics',
     shouldPushHistory: boolean = true
   ) => {
+    if (isExitBannerOpenRef.current) {
+      setIsExitBannerOpen(false);
+      isExitBannerOpenRef.current = false;
+    }
+
     if (newTab === activeTabRef.current) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -1050,13 +1060,57 @@ export default function App() {
     isAuthModalOpenRef.current = isAuthModalOpen;
     isOwnerAuthOpenRef.current = isOwnerAuthOpen;
     isAdminOpenRef.current = isAdminOpen;
+    isExitBannerOpenRef.current = isExitBannerOpen;
   });
+
+  const handleContinueShoppingFromExitBanner = React.useCallback(() => {
+    setIsExitBannerOpen(false);
+    isExitBannerOpenRef.current = false;
+    isExitingRef.current = false;
+    if (typeof window !== 'undefined' && !window.history.state?.cn_home_guard) {
+      try {
+        window.history.pushState({ cn_home_guard: true }, '', window.location.href);
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
+  const handleExitAppFromBanner = React.useCallback(() => {
+    isExitingRef.current = true;
+    setIsExitBannerOpen(false);
+    isExitBannerOpenRef.current = false;
+    if (typeof window !== 'undefined') {
+      window.history.back();
+      if (window.matchMedia?.('(display-mode: standalone)')?.matches) {
+        setTimeout(() => {
+          try {
+            window.close();
+          } catch {
+            // ignore
+          }
+        }, 120);
+      }
+    }
+  }, []);
 
   // Global PopState Listener (Android Hardware Back, Browser Back & Swipe-Back Gestures)
   useEffect(() => {
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
       if (ignoreNextPopstateRef.current) {
         ignoreNextPopstateRef.current = false;
+        return;
+      }
+
+      if (isExitingRef.current) {
+        return;
+      }
+
+      if (isExitBannerOpenRef.current) {
+        if (event.state?.cn_home_guard) {
+          setIsExitBannerOpen(false);
+          isExitBannerOpenRef.current = false;
+        }
         return;
       }
 
@@ -1146,6 +1200,37 @@ export default function App() {
               window.scrollTo({ top: prev.scrollY || 0, behavior: 'instant' });
             }, 0);
           }
+          return;
+        } else if (activeTabRef.current !== 'home') {
+          scrollPositionsRef.current[activeTabRef.current] = window.scrollY;
+          setActiveTabRaw('home');
+          setTimeout(() => {
+            const savedScroll = scrollPositionsRef.current['home'] || 0;
+            window.scrollTo({ top: savedScroll, behavior: 'instant' });
+          }, 0);
+          if (typeof window !== 'undefined' && !window.history.state?.cn_home_guard) {
+            try {
+              window.history.pushState({ cn_home_guard: true }, '', window.location.href);
+            } catch {
+              // ignore
+            }
+          }
+          return;
+        }
+
+        // Level 6: Android / Mobile Back Button on Home Screen -> Minimal Exit Message Banner
+        if (
+          shouldShowExitBannerOnBackPress({
+            activeTab: activeTabRef.current,
+            tabHistoryLength: tabHistoryRef.current.length,
+            hasOpenOverlay: false,
+            isExitBannerOpen: isExitBannerOpenRef.current,
+            isExiting: isExitingRef.current,
+          })
+        ) {
+          setIsExitBannerOpen(true);
+          isExitBannerOpenRef.current = true;
+          return;
         }
       } finally {
         setTimeout(() => {
@@ -1701,6 +1786,22 @@ export default function App() {
       }
     };
     checkUrl();
+
+    // Initialize home-screen history guard so Android back button can show the exit banner on Home
+    if (
+      typeof window !== 'undefined' &&
+      !isExitingRef.current &&
+      !window.history.state?.cn_home_guard &&
+      !window.history.state?.cn_nav_tab &&
+      !window.history.state?.cn_nav_overlay
+    ) {
+      try {
+        window.history.replaceState({ ...(window.history.state || {}), cn_home_root: true }, '', window.location.href);
+        window.history.pushState({ cn_home_guard: true }, '', window.location.href);
+      } catch {
+        // ignore
+      }
+    }
 
     // 2. Keyboard shortcut: Ctrl + Shift + A (or Cmd + Shift + A) -> show PIN modal before opening Admin Panel
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -2992,6 +3093,13 @@ export default function App() {
           setActiveTab('catalogue');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
+      />
+
+      {/* Minimal Text-Only Home Screen Back-Button Exit Confirmation Banner */}
+      <ExitConfirmBanner
+        isOpen={isExitBannerOpen}
+        onContinueShopping={handleContinueShoppingFromExitBanner}
+        onExitApp={handleExitAppFromBanner}
       />
     </div>
   );
