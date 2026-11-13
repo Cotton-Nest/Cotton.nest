@@ -59,9 +59,10 @@ test('every predefined category and festival has rich curated background templat
 
   for (const category of requiredCategories) {
     const matches = BANNER_BACKGROUND_TEMPLATES.filter((t) => t.category === category);
+    const minRequired = category === 'general_announcement' ? 8 : 3;
     assert.ok(
-      matches.length >= 3,
-      `Expected at least 3 templates for category ${category}, found ${matches.length}`
+      matches.length >= minRequired,
+      `Expected at least ${minRequired} templates for category ${category}, found ${matches.length}`
     );
   }
 });
