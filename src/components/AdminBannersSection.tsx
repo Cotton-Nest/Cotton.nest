@@ -30,8 +30,95 @@ import {
   splitIstDateTimeParts,
   combineIstDateTimeParts,
   validateBannerValidityPeriod,
+  epochMsToIstParts,
+  to12HourTimeParts,
+  from12HourTimeParts,
+  getNextBannerTransitionDelayMs,
 } from '../data/banners';
 import { CustomerAnnouncementBanner } from './CustomerAnnouncementBanner';
+
+const HOURS_12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
+const MINUTES_60 = Array.from({ length: 60 }, (_, idx) => idx);
+
+interface IstTime12hPickerProps {
+  idPrefix: string;
+  value24: string;
+  defaultTime24: string;
+  onChange: (nextTime24: string) => void;
+}
+
+const IstTime12hPicker: React.FC<IstTime12hPickerProps> = ({
+  idPrefix,
+  value24,
+  defaultTime24,
+  onChange,
+}) => {
+  const { hour12, minute, period } = to12HourTimeParts(value24, defaultTime24);
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <select
+        id={`${idPrefix}-hour`}
+        aria-label={`${idPrefix} hour`}
+        value={hour12}
+        onChange={(e) => {
+          const nextHour = Number(e.target.value);
+          onChange(from12HourTimeParts(nextHour, minute, period));
+        }}
+        className="px-2 py-2 rounded-lg border border-[#DEC89B] bg-white text-xs font-semibold text-[#2C2420] tabular-nums focus:ring-2 focus:ring-[#70252D] focus:outline-hidden cursor-pointer"
+      >
+        {HOURS_12.map((h) => (
+          <option key={h} value={h}>
+            {h}
+          </option>
+        ))}
+      </select>
+
+      <span className="font-bold text-[#6B5D55]" aria-hidden="true">
+        :
+      </span>
+
+      <select
+        id={`${idPrefix}-minute`}
+        aria-label={`${idPrefix} minute`}
+        value={minute}
+        onChange={(e) => {
+          const nextMinute = Number(e.target.value);
+          onChange(from12HourTimeParts(hour12, nextMinute, period));
+        }}
+        className="px-2 py-2 rounded-lg border border-[#DEC89B] bg-white text-xs font-semibold text-[#2C2420] tabular-nums focus:ring-2 focus:ring-[#70252D] focus:outline-hidden cursor-pointer"
+      >
+        {MINUTES_60.map((m) => (
+          <option key={m} value={m}>
+            {String(m).padStart(2, '0')}
+          </option>
+        ))}
+      </select>
+
+      <div
+        role="group"
+        aria-label={`${idPrefix} AM or PM`}
+        className="inline-flex rounded-lg border border-[#DEC89B] overflow-hidden bg-white"
+      >
+        {(['AM', 'PM'] as const).map((p) => (
+          <button
+            key={p}
+            type="button"
+            aria-pressed={period === p}
+            onClick={() => onChange(from12HourTimeParts(hour12, minute, p))}
+            className={`px-2.5 py-2 text-[11px] font-bold transition-colors cursor-pointer ${
+              period === p
+                ? 'bg-[#70252D] text-white'
+                : 'bg-white text-[#6B5D55] hover:bg-[#FAF7F2]'
+            }`}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 interface AdminBannersSectionProps {
   banners: HomepageBanner[];
@@ -72,13 +159,15 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
-  // Local 15s tick updates Scheduled / Active / Expired statuses automatically without Firebase reads
+  // Local status clock updates automatically at exact IST transition boundaries (or max every 15s) without Firebase reads
   useEffect(() => {
-    const interval = window.setInterval(() => {
+    const nextTransition = getNextBannerTransitionDelayMs(banners, nowMs);
+    const delayMs = nextTransition !== null ? Math.min(nextTransition, 15000) : 15000;
+    const timeoutId = window.setTimeout(() => {
       setNowMs(Date.now());
-    }, 15000);
-    return () => window.clearInterval(interval);
-  }, []);
+    }, delayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [banners, nowMs]);
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -106,12 +195,21 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
   const openEditorForBanner = (banner: HomepageBanner, creating: boolean) => {
     const startParts = splitIstDateTimeParts(banner.startDate);
     const endParts = splitIstDateTimeParts(banner.expiryDate);
+    const normalizedStartTime = startParts.date ? startParts.time || '00:00' : '';
+    const normalizedEndTime = endParts.date ? endParts.time || '23:59' : '';
+
     setStartDatePart(startParts.date);
-    setStartTimePart(startParts.time);
+    setStartTimePart(normalizedStartTime);
     setEndDatePart(endParts.date);
-    setEndTimePart(endParts.time);
+    setEndTimePart(normalizedEndTime);
     setEditingBanner({
       ...banner,
+      startDate: startParts.date
+        ? combineIstDateTimeParts(startParts.date, normalizedStartTime, '00:00')
+        : '',
+      expiryDate: endParts.date
+        ? combineIstDateTimeParts(endParts.date, normalizedEndTime, '23:59')
+        : '',
       category: banner.category || 'Announcement',
       accentColor: banner.accentColor || '#8C2E46',
       textStyle: banner.textStyle || 'editorial_serif',
@@ -145,7 +243,7 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
     openEditorForBanner(newBanner, true);
   };
 
-  // Sync combined startDate / expiryDate whenever pickers change
+  // Sync combined startDate / expiryDate whenever pickers change without rounding or losing selected minutes
   const syncEditorDates = (
     nextStartDate: string,
     nextStartTime: string,
@@ -156,12 +254,19 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
     setStartTimePart(nextStartTime);
     setEndDatePart(nextEndDate);
     setEndTimePart(nextEndTime);
-    if (!editingBanner) return;
-    setEditingBanner({
-      ...editingBanner,
-      startDate: combineIstDateTimeParts(nextStartDate, nextStartTime, '00:00'),
-      expiryDate: combineIstDateTimeParts(nextEndDate, nextEndTime, '23:59'),
-    });
+    setEditingBanner((prev) =>
+      prev
+        ? {
+            ...prev,
+            startDate: nextStartDate
+              ? combineIstDateTimeParts(nextStartDate, nextStartTime, '00:00')
+              : '',
+            expiryDate: nextEndDate
+              ? combineIstDateTimeParts(nextEndDate, nextEndTime, '23:59')
+              : '',
+          }
+        : prev
+    );
   };
 
   const validityCheck = editingBanner
@@ -193,8 +298,12 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
 
     setIsSavingEditor(true);
     try {
-      const normalizedStart = combineIstDateTimeParts(startDatePart, startTimePart, '00:00');
-      const normalizedEnd = combineIstDateTimeParts(endDatePart, endTimePart, '23:59');
+      const normalizedStart = startDatePart
+        ? combineIstDateTimeParts(startDatePart, startTimePart, '00:00')
+        : '';
+      const normalizedEnd = endDatePart
+        ? combineIstDateTimeParts(endDatePart, endTimePart, '23:59')
+        : '';
 
       const draftToCompute: HomepageBanner = {
         ...editingBanner,
@@ -296,14 +405,9 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
   const applyQuickPresetDates = (hoursFromNowStart: number, durationHours: number) => {
     const startMs = Date.now() + hoursFromNowStart * 3600 * 1000;
     const endMs = startMs + durationHours * 3600 * 1000;
-    const startIsoIst = new Date(startMs + 330 * 60 * 1000).toISOString();
-    const endIsoIst = new Date(endMs + 330 * 60 * 1000).toISOString();
-    syncEditorDates(
-      startIsoIst.slice(0, 10),
-      startIsoIst.slice(11, 16),
-      endIsoIst.slice(0, 10),
-      endIsoIst.slice(11, 16)
-    );
+    const startParts = epochMsToIstParts(startMs);
+    const endParts = epochMsToIstParts(endMs);
+    syncEditorDates(startParts.date, startParts.time, endParts.date, endParts.time);
   };
 
   return (
@@ -1235,12 +1339,12 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Valid From */}
-                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] space-y-2.5">
+                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] space-y-3">
                   <p className="font-semibold text-[#2C2420] flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-[#A8823B]" />
                     <span>Valid From (IST)</span>
                   </p>
-                  <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-2.5">
                     <div className="space-y-1">
                       <label htmlFor="banner-start-date" className="text-[11px] font-medium text-[#6B5D55]">
                         Start Date
@@ -1249,24 +1353,29 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                         id="banner-start-date"
                         type="date"
                         value={startDatePart}
-                        onChange={(e) =>
-                          syncEditorDates(e.target.value, startTimePart || '00:00', endDatePart, endTimePart)
-                        }
+                        onChange={(e) => {
+                          const nextDate = e.target.value;
+                          syncEditorDates(
+                            nextDate,
+                            nextDate ? startTimePart || '00:00' : '',
+                            endDatePart,
+                            endTimePart
+                          );
+                        }}
                         className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white tabular-nums"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label htmlFor="banner-start-time" className="text-[11px] font-medium text-[#6B5D55]">
-                        Start Time
+                      <label htmlFor="banner-start-time-hour" className="text-[11px] font-medium text-[#6B5D55]">
+                        Start Time (12-Hour IST · Exact Minute 00–59)
                       </label>
-                      <input
-                        id="banner-start-time"
-                        type="time"
-                        value={startTimePart}
-                        onChange={(e) =>
-                          syncEditorDates(startDatePart, e.target.value, endDatePart, endTimePart)
+                      <IstTime12hPicker
+                        idPrefix="banner-start-time"
+                        value24={startTimePart}
+                        defaultTime24="00:00"
+                        onChange={(nextTime24) =>
+                          syncEditorDates(startDatePart, nextTime24, endDatePart, endTimePart)
                         }
-                        className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white tabular-nums"
                       />
                     </div>
                   </div>
@@ -1276,12 +1385,12 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                 </div>
 
                 {/* Valid Until */}
-                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] space-y-2.5">
+                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] space-y-3">
                   <p className="font-semibold text-[#2C2420] flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-rose-700" />
                     <span>Valid Until (IST)</span>
                   </p>
-                  <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-2.5">
                     <div className="space-y-1">
                       <label htmlFor="banner-end-date" className="text-[11px] font-medium text-[#6B5D55]">
                         End Date
@@ -1290,24 +1399,29 @@ export const AdminBannersSection: React.FC<AdminBannersSectionProps> = ({
                         id="banner-end-date"
                         type="date"
                         value={endDatePart}
-                        onChange={(e) =>
-                          syncEditorDates(startDatePart, startTimePart, e.target.value, endTimePart || '23:59')
-                        }
+                        onChange={(e) => {
+                          const nextDate = e.target.value;
+                          syncEditorDates(
+                            startDatePart,
+                            startTimePart,
+                            nextDate,
+                            nextDate ? endTimePart || '23:59' : ''
+                          );
+                        }}
                         className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white tabular-nums"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label htmlFor="banner-end-time" className="text-[11px] font-medium text-[#6B5D55]">
-                        End Time
+                      <label htmlFor="banner-end-time-hour" className="text-[11px] font-medium text-[#6B5D55]">
+                        End Time (12-Hour IST · Exact Minute 00–59)
                       </label>
-                      <input
-                        id="banner-end-time"
-                        type="time"
-                        value={endTimePart}
-                        onChange={(e) =>
-                          syncEditorDates(startDatePart, startTimePart, endDatePart, e.target.value)
+                      <IstTime12hPicker
+                        idPrefix="banner-end-time"
+                        value24={endTimePart}
+                        defaultTime24="23:59"
+                        onChange={(nextTime24) =>
+                          syncEditorDates(startDatePart, startTimePart, endDatePart, nextTime24)
                         }
-                        className="w-full px-2.5 py-2 rounded-lg border border-[#DEC89B] bg-white tabular-nums"
                       />
                     </div>
                   </div>

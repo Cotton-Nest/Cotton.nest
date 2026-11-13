@@ -10,6 +10,8 @@ import {
   getNextBannerTransitionDelayMs,
   splitIstDateTimeParts,
   combineIstDateTimeParts,
+  to12HourTimeParts,
+  from12HourTimeParts,
   HomepageBanner,
 } from './banners';
 
@@ -37,10 +39,10 @@ const createBaseBanner = (overrides: Partial<HomepageBanner> = {}): HomepageBann
 
 test('formatValidityDate formats valid dates into IST format', () => {
   const resultFrom = formatValidityDate('2026-11-15T10:00');
-  assert.match(resultFrom, /15 Nov 2026 · 10:00 AM IST/);
+  assert.strictEqual(resultFrom, '15 Nov 2026 · 10:00 AM IST');
 
   const resultTo = formatValidityDate('2026-11-30T23:59');
-  assert.match(resultTo, /30 Nov 2026 · 11:59 PM IST/);
+  assert.strictEqual(resultTo, '30 Nov 2026 · 11:59 PM IST');
 });
 
 test('formatValidityDate handles missing date gracefully', () => {
@@ -59,13 +61,58 @@ test('splitIstDateTimeParts and combineIstDateTimeParts round-trip date & time c
     date: '2026-11-15',
     time: '10:30',
   });
+  assert.deepStrictEqual(splitIstDateTimeParts('2026-11-15T9:35'), {
+    date: '2026-11-15',
+    time: '09:35',
+  });
+  assert.deepStrictEqual(splitIstDateTimeParts('2026-11-15T04:05:00.000Z'), {
+    date: '2026-11-15',
+    time: '09:35',
+  });
   assert.strictEqual(combineIstDateTimeParts('2026-11-15', '10:30'), '2026-11-15T10:30');
   assert.strictEqual(combineIstDateTimeParts('', '10:30'), '');
+});
+
+test('12-hour AM/PM exact minute conversions and IST formatting preserve 9:35 AM, 10:17 AM, 2:45 PM, and 11:59 PM without rounding', () => {
+  const cases = [
+    { hour12: 9, minute: 35, period: 'AM' as const, time24: '09:35', expectedDisplay: '15 Nov 2026 · 9:35 AM IST' },
+    { hour12: 10, minute: 17, period: 'AM' as const, time24: '10:17', expectedDisplay: '15 Nov 2026 · 10:17 AM IST' },
+    { hour12: 2, minute: 45, period: 'PM' as const, time24: '14:45', expectedDisplay: '15 Nov 2026 · 2:45 PM IST' },
+    { hour12: 11, minute: 59, period: 'PM' as const, time24: '23:59', expectedDisplay: '15 Nov 2026 · 11:59 PM IST' },
+    { hour12: 12, minute: 0, period: 'AM' as const, time24: '00:00', expectedDisplay: '15 Nov 2026 · 12:00 AM IST' },
+    { hour12: 12, minute: 35, period: 'AM' as const, time24: '00:35', expectedDisplay: '15 Nov 2026 · 12:35 AM IST' },
+    { hour12: 12, minute: 0, period: 'PM' as const, time24: '12:00', expectedDisplay: '15 Nov 2026 · 12:00 PM IST' },
+    { hour12: 12, minute: 45, period: 'PM' as const, time24: '12:45', expectedDisplay: '15 Nov 2026 · 12:45 PM IST' },
+  ];
+
+  for (const c of cases) {
+    const converted24 = from12HourTimeParts(c.hour12, c.minute, c.period);
+    assert.strictEqual(converted24, c.time24);
+
+    const combined = combineIstDateTimeParts('2026-11-15', converted24);
+    assert.strictEqual(combined, `2026-11-15T${c.time24}`);
+
+    // Formatting matches exact saved hour & minute in IST
+    assert.strictEqual(formatValidityDate(combined), c.expectedDisplay);
+
+    // Reloading into editor preserves exact date, hour, minute, and period
+    const split = splitIstDateTimeParts(combined);
+    assert.deepStrictEqual(split, { date: '2026-11-15', time: c.time24 });
+    assert.deepStrictEqual(to12HourTimeParts(split.time), {
+      hour12: c.hour12,
+      minute: c.minute,
+      period: c.period,
+    });
+  }
 });
 
 test('validateBannerValidityPeriod prevents saving when end date/time is earlier than start date/time', () => {
   assert.strictEqual(
     validateBannerValidityPeriod('2026-11-15T10:00', '2026-11-15T09:59').valid,
+    false
+  );
+  assert.strictEqual(
+    validateBannerValidityPeriod('2026-11-15T09:35', '2026-11-15T09:34').valid,
     false
   );
   assert.strictEqual(
@@ -77,18 +124,19 @@ test('validateBannerValidityPeriod prevents saving when end date/time is earlier
     true
   );
   assert.strictEqual(
-    validateBannerValidityPeriod('2026-11-15T10:00', '2026-11-30T23:59').valid,
+    validateBannerValidityPeriod('2026-11-15T09:35', '2026-11-15T14:45').valid,
     true
   );
 });
 
-test('computeBannerStatus handles start/end IST transitions and ensures OFF overrides active window', () => {
-  const startIst = '2026-11-15T10:00'; // 04:30 UTC
-  const endIst = '2026-11-15T18:00'; // 12:30 UTC
+test('computeBannerStatus handles exact-minute IST activation and expiration and OFF override', () => {
+  const startIst = '2026-11-15T09:35'; // 04:05:00Z
+  const endIst = '2026-11-15T14:45'; // 09:15:00Z
 
-  const beforeStart = new Date('2026-11-15T04:29:59Z'); // 09:59:59 IST
-  const duringWindow = new Date('2026-11-15T04:30:00Z'); // 10:00:00 IST
-  const afterEnd = new Date('2026-11-15T12:30:01Z'); // 18:00:01 IST
+  const oneSecBeforeStart = new Date('2026-11-15T04:04:59Z'); // 09:34:59 AM IST
+  const exactStart = new Date('2026-11-15T04:05:00Z'); // 09:35:00 AM IST
+  const oneSecBeforeEnd = new Date('2026-11-15T09:14:59Z'); // 02:44:59 PM IST
+  const exactEnd = new Date('2026-11-15T09:15:00Z'); // 02:45:00 PM IST
 
   const enabledScheduledBanner = createBaseBanner({
     isEnabled: true,
@@ -96,14 +144,15 @@ test('computeBannerStatus handles start/end IST transitions and ensures OFF over
     expiryDate: endIst,
   });
 
-  // Start -> Active -> Expired transitions
-  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, beforeStart), 'scheduled');
-  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, duringWindow), 'active');
-  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, afterEnd), 'expired');
+  // Start -> Active -> Expired at exact minute boundaries
+  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, oneSecBeforeStart), 'scheduled');
+  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, exactStart), 'active');
+  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, oneSecBeforeEnd), 'active');
+  assert.strictEqual(computeBannerStatus(enabledScheduledBanner, exactEnd), 'expired');
 
   // Admin OFF toggle strictly overrides even during active validity period
   const disabledDuringActiveWindow = { ...enabledScheduledBanner, isEnabled: false };
-  assert.strictEqual(computeBannerStatus(disabledDuringActiveWindow, duringWindow), 'disabled');
+  assert.strictEqual(computeBannerStatus(disabledDuringActiveWindow, exactStart), 'disabled');
 });
 
 test('doesBannerMatchAudience enforces All visitors, New users, and Registered users', () => {
@@ -181,7 +230,7 @@ test('getTopEligibleCustomerBanner returns only single highest-priority qualifyi
   );
 });
 
-test('getNextBannerTransitionDelayMs computes earliest future start or expiry without polling', () => {
+test('getNextBannerTransitionDelayMs computes earliest future start or expiry down to the exact minute without polling', () => {
   const nowMs = Date.parse('2026-11-15T04:00:00.000Z'); // 09:30 AM IST
   const banners: HomepageBanner[] = [
     createBaseBanner({
@@ -192,11 +241,11 @@ test('getNextBannerTransitionDelayMs computes earliest future start or expiry wi
     createBaseBanner({
       id: 'scheduled-next',
       isEnabled: true,
-      startDate: '2026-11-15T09:40', // 10 minutes from nowMs
-      expiryDate: '2026-11-15T10:00',
+      startDate: '2026-11-15T09:35', // 5 minutes from nowMs
+      expiryDate: '2026-11-15T14:45',
     }),
   ];
 
   const delay = getNextBannerTransitionDelayMs(banners, nowMs);
-  assert.strictEqual(delay, 10 * 60 * 1000 + 250);
+  assert.strictEqual(delay, 5 * 60 * 1000 + 50);
 });

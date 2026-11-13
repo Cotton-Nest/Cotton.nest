@@ -152,56 +152,104 @@ export const INITIAL_BANNERS: HomepageBanner[] = [
   },
 ];
 
+export interface Time12HourParts {
+  hour12: number; // 1..12
+  minute: number; // 0..59
+  period: 'AM' | 'PM';
+}
+
+const IST_MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+const IST_OFFSET_MS = 330 * 60 * 1000;
+
+function extractTimestampObjectMs(value: unknown): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const maybe = value as { toDate?: () => Date; seconds?: number; nanoseconds?: number };
+  if (typeof maybe.toDate === 'function') {
+    const d = maybe.toDate();
+    return d instanceof Date && Number.isFinite(d.getTime()) ? d.getTime() : null;
+  }
+  if (typeof maybe.seconds === 'number' && Number.isFinite(maybe.seconds)) {
+    const nanos = typeof maybe.nanoseconds === 'number' && Number.isFinite(maybe.nanoseconds) ? maybe.nanoseconds : 0;
+    return maybe.seconds * 1000 + Math.floor(nanos / 1_000_000);
+  }
+  return null;
+}
+
 /**
  * Parses a date or datetime string into an epoch millisecond timestamp,
  * interpreting timezone-naive strings ('YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm')
- * strictly in Indian Standard Time (IST, +05:30).
+ * strictly in Indian Standard Time (IST, +05:30) with exact 1-minute precision.
  */
-export function parseIstTimestamp(dateStr?: string | number): number | null {
+export function parseIstTimestamp(dateStr?: string | number | unknown): number | null {
   if (dateStr === undefined || dateStr === null || dateStr === '') return null;
   if (typeof dateStr === 'number') {
     return Number.isFinite(dateStr) ? dateStr : null;
   }
+  if (dateStr instanceof Date) {
+    return Number.isFinite(dateStr.getTime()) ? dateStr.getTime() : null;
+  }
+  const objMs = extractTimestampObjectMs(dateStr);
+  if (objMs !== null) return objMs;
+  if (typeof dateStr !== 'string') return null;
 
   const trimmed = dateStr.trim();
   if (!trimmed) return null;
 
-  let normalized = trimmed;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    normalized = `${trimmed}T00:00:00+05:30`;
-  } else if (
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(trimmed) &&
-    !trimmed.includes('Z') &&
-    !/[+-]\d{2}:\d{2}$/.test(trimmed)
-  ) {
-    normalized = trimmed.length === 16 ? `${trimmed}:00+05:30` : `${trimmed}+05:30`;
+  const naiveMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/.exec(trimmed);
+  if (naiveMatch) {
+    const year = Number(naiveMatch[1]);
+    const month = Number(naiveMatch[2]);
+    const day = Number(naiveMatch[3]);
+    const hour = naiveMatch[4] !== undefined ? Number(naiveMatch[4]) : 0;
+    const minute = naiveMatch[5] !== undefined ? Number(naiveMatch[5]) : 0;
+    const second = naiveMatch[6] !== undefined ? Number(naiveMatch[6]) : 0;
+
+    if (
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31 ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59 ||
+      second < 0 ||
+      second > 59
+    ) {
+      return null;
+    }
+
+    const padded = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(
+      2,
+      '0'
+    )}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}+05:30`;
+    const ms = Date.parse(padded);
+    return Number.isFinite(ms) ? ms : null;
   }
 
-  const ms = Date.parse(normalized);
+  const ms = Date.parse(trimmed);
   return Number.isFinite(ms) ? ms : null;
 }
 
 /**
- * Extracts YYYY-MM-DD and HH:mm parts in IST for date and time pickers.
+ * Converts an epoch ms value to exact IST YYYY-MM-DD and HH:mm parts.
  */
-export function splitIstDateTimeParts(dateStr?: string): { date: string; time: string } {
-  if (!dateStr || typeof dateStr !== 'string') return { date: '', time: '' };
-  const trimmed = dateStr.trim();
-  if (!trimmed) return { date: '', time: '' };
-
-  const localMatch = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/.exec(trimmed);
-  if (localMatch && !trimmed.includes('Z') && !/[+-]\d{2}:\d{2}$/.test(trimmed)) {
-    return {
-      date: localMatch[1] || '',
-      time: localMatch[2] || '',
-    };
-  }
-
-  const ms = parseIstTimestamp(trimmed);
-  if (ms === null) return { date: '', time: '' };
-
-  // Convert UTC ms to IST (+5h30m) components deterministically
-  const istDate = new Date(ms + 330 * 60 * 1000);
+export function epochMsToIstParts(ms: number): { date: string; time: string } {
+  const istDate = new Date(ms + IST_OFFSET_MS);
   const year = istDate.getUTCFullYear();
   const month = String(istDate.getUTCMonth() + 1).padStart(2, '0');
   const day = String(istDate.getUTCDate()).padStart(2, '0');
@@ -211,6 +259,62 @@ export function splitIstDateTimeParts(dateStr?: string): { date: string; time: s
     date: `${year}-${month}-${day}`,
     time: `${hours}:${mins}`,
   };
+}
+
+/**
+ * Extracts YYYY-MM-DD and HH:mm parts in IST for date and time pickers without rounding.
+ */
+export function splitIstDateTimeParts(dateStr?: string | number | unknown): { date: string; time: string } {
+  if (dateStr === undefined || dateStr === null || dateStr === '') return { date: '', time: '' };
+
+  if (typeof dateStr === 'string') {
+    const trimmed = dateStr.trim();
+    if (!trimmed) return { date: '', time: '' };
+
+    const naiveMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::\d{1,2})?)?$/.exec(trimmed);
+    if (naiveMatch) {
+      const year = String(Number(naiveMatch[1])).padStart(4, '0');
+      const month = String(Number(naiveMatch[2])).padStart(2, '0');
+      const day = String(Number(naiveMatch[3])).padStart(2, '0');
+      const hasTime = naiveMatch[4] !== undefined && naiveMatch[5] !== undefined;
+      const hours = hasTime ? String(Math.min(23, Math.max(0, Number(naiveMatch[4])))).padStart(2, '0') : '';
+      const mins = hasTime ? String(Math.min(59, Math.max(0, Number(naiveMatch[5])))).padStart(2, '0') : '';
+      return {
+        date: `${year}-${month}-${day}`,
+        time: hasTime ? `${hours}:${mins}` : '',
+      };
+    }
+  }
+
+  const ms = parseIstTimestamp(dateStr);
+  if (ms === null) return { date: '', time: '' };
+  return epochMsToIstParts(ms);
+}
+
+/**
+ * Converts canonical 24-hour 'HH:mm' string into 12-hour AM/PM selector values (hour 1-12, minute 0-59).
+ */
+export function to12HourTimeParts(time24?: string, fallback: string = '00:00'): Time12HourParts {
+  const source = (time24 && /^\d{1,2}:\d{1,2}$/.test(time24.trim()) ? time24.trim() : fallback).trim();
+  const [hRaw, mRaw] = source.split(':');
+  const h24 = Math.min(23, Math.max(0, Number(hRaw) || 0));
+  const minute = Math.min(59, Math.max(0, Number(mRaw) || 0));
+  const period: 'AM' | 'PM' = h24 >= 12 ? 'PM' : 'AM';
+  const hour12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return { hour12, minute, period };
+}
+
+/**
+ * Converts 12-hour AM/PM selector values (hour 1-12, minute 0-59, AM/PM) into exact 24-hour 'HH:mm' string.
+ */
+export function from12HourTimeParts(hour12: number, minute: number, period: 'AM' | 'PM'): string {
+  const clampedHour12 = Math.min(12, Math.max(1, Math.trunc(hour12) || 12));
+  const clampedMinute = Math.min(59, Math.max(0, Math.trunc(minute) || 0));
+  let h24 = clampedHour12 % 12;
+  if (period === 'PM') {
+    h24 += 12;
+  }
+  return `${String(h24).padStart(2, '0')}:${String(clampedMinute).padStart(2, '0')}`;
 }
 
 /**
@@ -224,7 +328,12 @@ export function combineIstDateTimeParts(
   const cleanDate = (date || '').trim();
   const cleanTime = (time || '').trim();
   if (!cleanDate) return '';
-  return `${cleanDate}T${cleanTime || defaultTime}`;
+  const effectiveTime = /^\d{1,2}:\d{1,2}$/.test(cleanTime) ? cleanTime : defaultTime;
+  const [hRaw, mRaw] = effectiveTime.split(':');
+  const normalizedTime = `${String(Math.min(23, Math.max(0, Number(hRaw) || 0))).padStart(2, '0')}:${String(
+    Math.min(59, Math.max(0, Number(mRaw) || 0))
+  ).padStart(2, '0')}`;
+  return `${cleanDate}T${normalizedTime}`;
 }
 
 /**
@@ -275,28 +384,22 @@ export function validateBannerValidityPeriod(
   return { valid: true };
 }
 
-export function formatValidityDate(dateStr?: string | number): string {
+export function formatValidityDate(dateStr?: string | number | unknown): string {
   if (!dateStr) return 'Not Set';
 
   const ms = parseIstTimestamp(dateStr);
   if (ms === null) return 'Not Set';
-  const d = new Date(ms);
 
-  const dateFormatted = d.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Asia/Kolkata',
-  });
+  const istDate = new Date(ms + IST_OFFSET_MS);
+  const day = istDate.getUTCDate();
+  const monthName = IST_MONTH_NAMES[istDate.getUTCMonth()] || 'Jan';
+  const year = istDate.getUTCFullYear();
+  const hours24 = istDate.getUTCHours();
+  const mins = String(istDate.getUTCMinutes()).padStart(2, '0');
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
 
-  const timeFormatted = d.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'Asia/Kolkata',
-  });
-
-  return `${dateFormatted} · ${timeFormatted} IST`;
+  return `${day} ${monthName} ${year} · ${hours12}:${mins} ${period} IST`;
 }
 
 export function getTargetAudienceLabel(audience?: BannerTargetAudience): string {
@@ -318,12 +421,12 @@ export function computeBannerStatus(
   const expTime = parseIstTimestamp(banner.expiryDate);
   const startTime = parseIstTimestamp(banner.startDate);
 
-  if (expTime !== null && currentTime > expTime) {
-    return 'expired';
-  }
-
   if (startTime !== null && currentTime < startTime) {
     return 'scheduled';
+  }
+
+  if (expTime !== null && currentTime >= expTime) {
+    return 'expired';
   }
 
   return 'active';
@@ -393,15 +496,15 @@ export function getNextBannerTransitionDelayMs(
 
     const startMs = parseIstTimestamp(banner.startDate);
     if (startMs !== null && startMs > nowMs) {
-      const delta = startMs - nowMs + 250;
+      const delta = startMs - nowMs + 50;
       if (minDelay === null || delta < minDelay) {
         minDelay = delta;
       }
     }
 
     const expMs = parseIstTimestamp(banner.expiryDate);
-    if (expMs !== null && expMs >= nowMs) {
-      const delta = expMs - nowMs + 250;
+    if (expMs !== null && expMs > nowMs) {
+      const delta = expMs - nowMs + 50;
       if (minDelay === null || delta < minDelay) {
         minDelay = delta;
       }
