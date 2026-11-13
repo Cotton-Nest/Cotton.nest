@@ -72,6 +72,7 @@
         "announcement": { "type": "string", "description": "Top announcement banner text" },
         "showAnnouncement": { "type": "boolean", "description": "Show/hide announcement" },
         "shippingFeeIndia": { "type": "number", "description": "Across India standard courier shipping charge in INR (default 29)" },
+        "bannerSlots": { "type": "array", "description": "Five predefined category-specific banner slot configurations referencing pre-designed background templates, IST scheduling, and priority" },
         "updatedAt": { "type": "number", "description": "Timestamp of update" }
       }
     },

@@ -65,6 +65,8 @@ import { AdminNotificationsSection } from './AdminNotificationsSection';
 import { AdminWishlistsSection } from './AdminWishlistsSection';
 import { AdminCustomerAnalyticsSection } from './AdminCustomerAnalyticsSection';
 import { AdminComplaintsSubsection } from './AdminComplaintsSubsection';
+import { AdminBannerSlotsSection } from './AdminBannerSlotsSection';
+import { BannerSlot, normalizeBannerSlots, computeSlotStatus } from '../data/bannerSlots';
 import { AiDescriptionModal } from './AiDescriptionModal';
 import { ProductReview } from '../data/reviews';
 import {
@@ -178,8 +180,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateSeasonalConfig,
   reviews = [],
 }) => {
-  // Tabs: 'products' | 'orders' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
-  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
+  // Tabs: 'products' | 'orders' | 'banners' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'
+  const [activeAdminTab, setActiveAdminTab] = useState<'products' | 'orders' | 'banners' | 'welcome_offer' | 'seasonal' | 'coupons' | 'notifications' | 'wishlists' | 'customer_analytics' | 'content' | 'appearance'>('products');
 
   // Fullscreen Enlarge Product Photo state
   const [enlargedProductState, setEnlargedProductState] = useState<{
@@ -2322,6 +2324,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <button
               type="button"
+              onClick={() => setActiveAdminTab('banners')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeAdminTab === 'banners'
+                  ? 'bg-[#70252D] text-white shadow-2xs'
+                  : 'text-[#6B5D55] hover:text-[#2C2420]'
+              }`}
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              <span>
+                Banners ({normalizeBannerSlots(editableContent.bannerSlots).filter((s) => computeSlotStatus(s) === 'active').length}/5)
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveAdminTab('notifications')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
                 activeAdminTab === 'notifications'
@@ -2509,6 +2526,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {pendingOrdersCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveAdminTab('banners')}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 relative shrink-0"
+              style={
+                activeAdminTab === 'banners'
+                  ? {
+                      backgroundColor: 'var(--color-primary, #70252D)',
+                      color: 'var(--color-primary-contrast, #FFFFFF)',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    }
+                  : {
+                      color: 'var(--color-text-secondary, #6B5D55)',
+                    }
+              }
+            >
+              <ImageIcon className="w-3.5 h-3.5" style={{ color: activeAdminTab === 'banners' ? undefined : '#C29E57' }} />
+              <span>
+                Banners ({normalizeBannerSlots(editableContent.bannerSlots).filter((s) => computeSlotStatus(s) === 'active').length}/5)
+              </span>
             </button>
 
             <button
@@ -6110,6 +6148,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <AdminCustomerAnalyticsSection
             products={editableProducts}
             orders={editableOrders}
+            onToast={showToast}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 9: 5-SLOT PRE-BUILT BANNERS & FESTIVE BACKGROUNDS    */}
+        {/* ======================================================== */}
+        {activeAdminTab === 'banners' && (
+          <AdminBannerSlotsSection
+            bannerSlots={editableContent.bannerSlots}
+            onSaveBannerSlots={async (updatedSlots: BannerSlot[]) => {
+              const nextContent: SiteContent = {
+                ...editableContent,
+                bannerSlots: updatedSlots,
+              };
+              setEditableContent(nextContent);
+              await onUpdateSiteContent(nextContent);
+            }}
             onToast={showToast}
           />
         )}

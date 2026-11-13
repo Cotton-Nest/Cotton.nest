@@ -28,6 +28,11 @@ import { WelcomeOfferModal } from './components/WelcomeOfferModal';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { PhotoUploadModal } from './components/PhotoUploadModal';
 import { AdminPanel } from './components/AdminPanel';
+import { PrebuiltBannerDisplay } from './components/PrebuiltBannerDisplay';
+import {
+  normalizeBannerSlots,
+  getActiveStorefrontBanner,
+} from './data/bannerSlots';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OwnerAuthModal } from './components/OwnerAuthModal';
 import { LiveOrdersView } from './components/LiveOrdersView';
@@ -687,6 +692,7 @@ export default function App() {
           if (parsed.company) {
             parsed.company.address = normalizeStudioAddress(parsed.company.address);
           }
+          parsed.bannerSlots = normalizeBannerSlots(parsed.bannerSlots);
           return parsed;
         }
       }
@@ -695,6 +701,31 @@ export default function App() {
     }
     return INITIAL_SITE_CONTENT;
   });
+
+  // Local 30-second IST evaluation tick (zero Firebase reads) so scheduled/expired banners update smoothly
+  const [bannerClockNow, setBannerClockNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        setBannerClockNow(new Date());
+      }
+    }, 30000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setBannerClockNow(new Date());
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
+  const activePrebuiltBanner = React.useMemo(
+    () => getActiveStorefrontBanner(normalizeBannerSlots(siteContent?.bannerSlots), bannerClockNow),
+    [siteContent?.bannerSlots, bannerClockNow]
+  );
 
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     try {
@@ -1558,6 +1589,7 @@ export default function App() {
             hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
             story: { ...INITIAL_SITE_CONTENT.story, ...(content.story || {}) },
             termsAndConditions: normalizedTc,
+            bannerSlots: normalizeBannerSlots(content.bannerSlots),
           };
           setSiteContent(mergedContent);
           try {
@@ -1591,6 +1623,7 @@ export default function App() {
               hero: { ...INITIAL_SITE_CONTENT.hero, ...(content.hero || {}) },
               story: { ...INITIAL_SITE_CONTENT.story, ...(content.story || {}) },
               termsAndConditions: normalizedTc,
+              bannerSlots: normalizeBannerSlots(content.bannerSlots),
             };
             setSiteContent(mergedContent);
             try {
@@ -2469,6 +2502,19 @@ export default function App() {
                       }}
                       content={siteContent}
                     />
+
+                    {/* Pre-Built Admin-Controlled Storefront Banner (5-Slot System with Festive Backgrounds) */}
+                    {activePrebuiltBanner && (
+                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 mb-2 relative z-10">
+                        <PrebuiltBannerDisplay
+                          slot={activePrebuiltBanner}
+                          onNavigate={(target) => {
+                            setActiveTab(target);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        />
+                      </div>
+                    )}
 
                     {/* New Customer 10% OFF Welcome Offer Banner */}
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 mb-4 relative z-10">

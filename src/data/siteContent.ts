@@ -1,3 +1,5 @@
+import { BannerSlot, DEFAULT_BANNER_SLOTS } from './bannerSlots';
+
 export interface SiteContent {
   company: {
     name: string;
@@ -39,6 +41,7 @@ export interface SiteContent {
   shippingFeeIndia?: number;
   isMaintenanceMode?: boolean;
   maintenanceNotice?: string;
+  bannerSlots?: BannerSlot[];
 }
 
 export const ACROSS_INDIA_SHIPPING_FEE_INR = 29;
@@ -72,6 +75,7 @@ export function normalizeStudioAddress(rawAddress?: string | null): string {
 export const INITIAL_SITE_CONTENT: SiteContent = {
   isMaintenanceMode: false,
   maintenanceNotice: "We're making some improvements! Cotton Nest will be back shortly. Thank you for your patience.",
+  bannerSlots: DEFAULT_BANNER_SLOTS,
   company: {
     name: "Cotton Nest",
     tagline: "Pure Cotton Comfort, Everyday Elegance",
