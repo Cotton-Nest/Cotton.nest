@@ -70,14 +70,22 @@ export const ExitConfirmBanner: React.FC<ExitConfirmBannerProps> = ({
               <>
                 <button
                   type="button"
-                  onClick={onContinueShopping}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onContinueShopping();
+                  }}
                   className="flex-1 py-3 px-5 rounded-2xl bg-[#8C2E46] hover:bg-[#70252D] text-[#FFFFFF] text-xs sm:text-sm font-semibold border border-[#8C2E46] cursor-pointer"
                 >
                   Continue Shopping
                 </button>
                 <button
                   type="button"
-                  onClick={onExitApp}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onExitApp();
+                  }}
                   className="flex-1 py-3 px-5 rounded-2xl bg-[#FDEAF0]/60 hover:bg-[#FDEAF0] text-[#70252D] text-xs sm:text-sm font-semibold border border-[#DEC89B] cursor-pointer"
                 >
                   Exit App

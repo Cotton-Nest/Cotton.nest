@@ -171,7 +171,6 @@ export default function App() {
   const isExitBannerOpenRef = useRef<boolean>(false);
   const isExitingRef = useRef<boolean>(false);
   const hasPriorHistoryOnMountRef = useRef<boolean>(false);
-  const exitCheckTimeoutRef = useRef<number | null>(null);
 
   const activeTabRef = useRef(activeTabRaw);
   activeTabRef.current = activeTabRaw;
@@ -182,10 +181,6 @@ export default function App() {
     shouldPushHistory: boolean = true
   ) => {
     if (isExitBannerOpenRef.current || isExitingRef.current) {
-      if (exitCheckTimeoutRef.current !== null) {
-        window.clearTimeout(exitCheckTimeoutRef.current);
-        exitCheckTimeoutRef.current = null;
-      }
       setIsExitBannerOpen(false);
       setHasExitedFromApp(false);
       isExitBannerOpenRef.current = false;
@@ -1136,10 +1131,6 @@ export default function App() {
   }, [hasAnyOpenOverlayRef]);
 
   const handleContinueShoppingFromExitBanner = React.useCallback(() => {
-    if (typeof window !== 'undefined' && exitCheckTimeoutRef.current !== null) {
-      window.clearTimeout(exitCheckTimeoutRef.current);
-      exitCheckTimeoutRef.current = null;
-    }
     setHasExitedFromApp(false);
     setIsExitBannerOpen(false);
     isExitBannerOpenRef.current = false;
@@ -1150,23 +1141,13 @@ export default function App() {
   const handleExitAppFromBanner = React.useCallback(() => {
     if (typeof window === 'undefined') return;
     isExitingRef.current = true;
-    if (exitCheckTimeoutRef.current !== null) {
-      window.clearTimeout(exitCheckTimeoutRef.current);
-      exitCheckTimeoutRef.current = null;
-    }
+    isExitBannerOpenRef.current = true;
+    setIsExitBannerOpen(true);
+    setHasExitedFromApp(true);
 
     executeAppExitSequence(window, {
       hasPriorHistory: hasPriorHistoryOnMountRef.current,
     });
-
-    exitCheckTimeoutRef.current = window.setTimeout(() => {
-      exitCheckTimeoutRef.current = null;
-      if (!document.hidden) {
-        setIsExitBannerOpen(true);
-        isExitBannerOpenRef.current = true;
-        setHasExitedFromApp(true);
-      }
-    }, 220);
   }, []);
 
   // Global PopState Listener (Android Hardware Back, Browser Back & Swipe-Back Gestures)
@@ -1940,10 +1921,6 @@ export default function App() {
       window.removeEventListener('pointerdown', handleFirstGestureForHomeGuard, { capture: true });
       window.removeEventListener('touchstart', handleFirstGestureForHomeGuard, { capture: true });
       window.removeEventListener('keydown', handleFirstGestureForHomeGuard, { capture: true });
-      if (exitCheckTimeoutRef.current !== null) {
-        window.clearTimeout(exitCheckTimeoutRef.current);
-        exitCheckTimeoutRef.current = null;
-      }
     };
   }, [armHomeGuardIfEligible]);
 
