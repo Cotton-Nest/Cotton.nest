@@ -26,6 +26,7 @@ export interface CustomerProfile {
   phone?: string;
   address?: string;
   city?: string;
+  state?: string;
   pincode?: string;
   isGuest?: boolean;
 }

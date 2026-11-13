@@ -274,6 +274,7 @@ export const AdminBannerSlotsSection: React.FC<AdminBannerSlotsSectionProps> = (
                         alt={tpl.name}
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover"
+                        style={{ objectPosition: tpl.objectPosition || 'center center' }}
                       />
                     </div>
 
@@ -609,7 +610,7 @@ export const AdminBannerSlotsSection: React.FC<AdminBannerSlotsSectionProps> = (
                       key={tpl.id}
                       type="button"
                       onClick={() => setDraftSlot(applyTemplateSelectionToSlot(draftSlot, tpl.id))}
-                      className={`group text-left rounded-xl border overflow-hidden transition-all cursor-pointer ${
+                      className={`group text-left rounded-xl border overflow-hidden transition-all duration-300 cursor-pointer hover:-translate-y-0.5 hover:shadow-md ${
                         isActiveTpl
                           ? 'border-[#8C2E46] ring-2 ring-[#8C2E46]/25 shadow-sm bg-[#FFF9FB]'
                           : 'border-[#EAE2D5] hover:border-[#DEC89B] bg-white'
@@ -621,7 +622,7 @@ export const AdminBannerSlotsSection: React.FC<AdminBannerSlotsSectionProps> = (
                           alt={tpl.name}
                           referrerPolicy="no-referrer"
                           loading="lazy"
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                           style={{ objectPosition: tpl.objectPosition || 'center center' }}
                         />
                         {isActiveTpl && (

@@ -39,6 +39,8 @@ import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, formatFullAddress } from '../data/addresses';
 import { CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
+import { PincodeAddressFields } from './PincodeAddressFields';
+import { isValidIndianPincodeFormat, sanitizePincodeInput } from '../services/pincodeLookup';
 
 interface SwipeableCartItemProps {
   onRemove: () => void;
@@ -254,28 +256,48 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [newAddressPhone, setNewAddressPhone] = useState('');
   const [newAddressHouse, setNewAddressHouse] = useState('');
   const [newAddressStreet, setNewAddressStreet] = useState('');
-  const [newAddressCity, setNewAddressCity] = useState('Gurgaon, Haryana');
-  const [newAddressPincode, setNewAddressPincode] = useState('122003');
+  const [newAddressCity, setNewAddressCity] = useState('');
+  const [newAddressState, setNewAddressState] = useState('');
+  const [newAddressPincode, setNewAddressPincode] = useState('');
+
+  const updateShippingZoneFromLocation = (streetVal: string, cityVal: string) => {
+    const combined = `${streetVal} ${cityVal}`.toLowerCase();
+    if (combined.includes('sector 46') || combined.includes('sec 46') || combined.includes('sec-46')) {
+      setShippingOption('sector46');
+    } else if (combined.includes('gurgaon') || combined.includes('gurugram')) {
+      setShippingOption((prev) => (prev === 'india' ? 'gurgaon' : prev));
+    }
+  };
 
   const handleSaveNewAddress = () => {
     const house = newAddressHouse.trim();
     const street = newAddressStreet.trim();
-    const city = newAddressCity.trim() || 'Gurgaon, Haryana';
-    const pincode = newAddressPincode.trim() || '122003';
+    const city = newAddressCity.trim();
+    const state = newAddressState.trim();
+    const pincode = sanitizePincodeInput(newAddressPincode);
     const name = newAddressName.trim() || customerName || 'Cotton Nest';
     const phone = newAddressPhone.trim() || customerPhone;
 
-    if (!house || !street || !pincode) {
-      setFormError('Please fill in House/Flat No., Street/Area, and Pincode.');
+    if (!house || !street) {
+      setFormError('Please fill in House / Flat No. and Area / Street.');
+      return;
+    }
+    if (!isValidIndianPincodeFormat(pincode)) {
+      setFormError('Please enter a valid 6-digit Indian PIN code.');
+      return;
+    }
+    if (!city || !state) {
+      setFormError('Please ensure City / District and State are filled in.');
       return;
     }
 
     const addressLine = `${house}, ${street}`;
-    const formatted = formatFullAddress({ addressLine, city, pincode });
+    const formatted = formatFullAddress({ addressLine, city, state, pincode });
 
     setCustomerAddress(formatted);
     if (name) setCustomerName(name);
     if (phone) setCustomerPhone(phone);
+    updateShippingZoneFromLocation(street, city);
 
     if (saveToAddressBook) {
       try {
@@ -285,6 +307,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           phone,
           addressLine,
           city,
+          state,
           pincode,
           isDefault: savedAddresses.length === 0,
         }, userKey);
@@ -359,6 +382,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const handleStartNewAddress = () => {
     setSelectedAddressId(null);
     setIsAddingNewAddress(true);
+    setNewAddressHouse('');
+    setNewAddressStreet('');
+    setNewAddressCity('');
+    setNewAddressState('');
+    setNewAddressPincode('');
     setFormError(null);
   };
 
@@ -760,7 +788,47 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       onOpenAuthModal?.();
       return;
     }
-    if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) {
+
+    let effectiveAddress = customerAddress.trim();
+    let effectiveName = customerName.trim();
+    let effectivePhone = customerPhone.trim();
+    let structuredCity: string | undefined;
+    let structuredState: string | undefined;
+    let structuredPin: string | undefined;
+    let structuredAddressLine: string | undefined;
+
+    if (isAddingNewAddress || savedAddresses.length === 0 || !effectiveAddress) {
+      const house = newAddressHouse.trim();
+      const street = newAddressStreet.trim();
+      const city = newAddressCity.trim();
+      const state = newAddressState.trim();
+      const pincode = sanitizePincodeInput(newAddressPincode);
+
+      if (isAddingNewAddress || savedAddresses.length === 0) {
+        if (!house || !street || !city || !state || !isValidIndianPincodeFormat(pincode)) {
+          setFormError('Please complete House/Flat No., Street, valid 6-digit PIN Code, City, and State (or select a saved address).');
+          return;
+        }
+        structuredAddressLine = `${house}, ${street}`;
+        structuredCity = city;
+        structuredState = state;
+        structuredPin = pincode;
+        effectiveAddress = formatFullAddress({
+          addressLine: structuredAddressLine,
+          city: structuredCity,
+          state: structuredState,
+          pincode: structuredPin,
+        });
+        if (!effectiveName && newAddressName.trim()) {
+          effectiveName = newAddressName.trim();
+        }
+        if (!effectivePhone && newAddressPhone.trim()) {
+          effectivePhone = newAddressPhone.trim();
+        }
+      }
+    }
+
+    if (!effectiveName || !effectivePhone || !effectiveAddress) {
       setFormError('Please enter your Name, WhatsApp Mobile Number, and choose a Delivery Address.');
       return;
     }
@@ -770,10 +838,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
     const fullMessage = await sendWhatsAppCartOrder({
       orderId,
-      customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
+      customerName: effectiveName,
+      customerPhone: effectivePhone,
       customerEmail: customerEmail.trim() || user?.email || customerProfile?.email || undefined,
-      customerAddress: customerAddress.trim(),
+      customerAddress: effectiveAddress,
       subtotal,
       finalTotal,
       totalSavings,
@@ -804,11 +872,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     const createdOrder: Order = {
       id: orderId,
       createdAt: new Date().toISOString(),
-      customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
+      customerName: effectiveName,
+      customerPhone: effectivePhone,
       customerEmail: customerEmail.trim() || user?.email || customerProfile?.email || undefined,
       userId: user?.id || undefined,
-      customerAddress: customerAddress.trim(),
+      customerAddress: effectiveAddress,
       paymentMethod: 'whatsapp',
       status: 'pending',
       subtotal,
@@ -854,19 +922,26 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     }
 
     // Save address to saved addresses book for future instant checkout
-    if (saveToAddressBook && customerAddress.trim()) {
+    if (saveToAddressBook && effectiveAddress) {
       try {
+        const selectedAddr = savedAddresses.find((a) => a.id === selectedAddressId);
         const updatedList = saveAddressToBook({
           label: newAddressLabel,
-          name: customerName.trim(),
-          phone: customerPhone.trim(),
-          addressLine: customerAddress.trim(),
+          name: effectiveName,
+          phone: effectivePhone,
+          addressLine: structuredAddressLine || selectedAddr?.addressLine || effectiveAddress,
+          city: structuredCity || selectedAddr?.city,
+          state: structuredState || selectedAddr?.state,
+          pincode: structuredPin || selectedAddr?.pincode,
         }, userKey);
         setSavedAddresses(updatedList);
         saveCurrentCustomerProfile({
-          name: customerName.trim(),
-          phone: customerPhone.trim(),
-          address: customerAddress.trim(),
+          name: effectiveName,
+          phone: effectivePhone,
+          address: structuredAddressLine || selectedAddr?.addressLine || effectiveAddress,
+          ...(structuredCity ? { city: structuredCity } : {}),
+          ...(structuredState ? { state: structuredState } : {}),
+          ...(structuredPin ? { pincode: structuredPin } : {}),
         });
       } catch (err) {
         console.warn('Address saving notice:', err);
@@ -1558,13 +1633,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </div>
                   )}
 
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleApplyCoupon();
-                    }}
-                    className="flex items-center gap-1.5"
-                  >
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="text"
                       value={couponCodeInput}
@@ -1572,17 +1641,26 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         setCouponCodeInput(e.target.value.toUpperCase());
                         setCouponError(null);
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (!couponLoading && couponCodeInput.trim()) {
+                            handleApplyCoupon();
+                          }
+                        }
+                      }}
                       placeholder={`Enter code (e.g. ${welcomeCouponCode})`}
                       className="flex-1 px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-[#9B8C83] focus:outline-none focus:border-[#8C2E46]"
                     />
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={() => handleApplyCoupon()}
                       disabled={couponLoading || !couponCodeInput.trim()}
                       className="px-3 py-1.5 bg-[#8C2E46] hover:bg-[#732438] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                     >
                       {couponLoading ? '...' : 'Apply'}
                     </button>
-                  </form>
+                  </div>
                   {couponSuccessMessage && (
                     <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
                       <Check className="w-3 h-3 text-emerald-600" />
@@ -1992,41 +2070,37 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           placeholder="e.g. Sector 46"
                           value={newAddressStreet}
                           onChange={(e) => {
-                            setNewAddressStreet(e.target.value);
-                            const lower = e.target.value.toLowerCase();
-                            if (lower.includes('sector 46') || lower.includes('sec 46')) {
-                              setShippingOption('sector46');
-                            } else if (lower.includes('gurgaon') || lower.includes('gurugram')) {
-                              if (shippingOption === 'india') setShippingOption('gurgaon');
-                            }
+                            const val = e.target.value;
+                            setNewAddressStreet(val);
+                            updateShippingZoneFromLocation(val, newAddressCity);
                           }}
                           className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">City / State *</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Gurgaon, Haryana"
-                            value={newAddressCity}
-                            onChange={(e) => setNewAddressCity(e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-[#7A6458] mb-1">Pincode *</label>
-                          <input
-                            type="text"
-                            maxLength={6}
-                            placeholder="122003"
-                            value={newAddressPincode}
-                            onChange={(e) => setNewAddressPincode(e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-[#EAE2D5] rounded-xl text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
-                          />
-                        </div>
-                      </div>
+                      <PincodeAddressFields
+                        pincode={newAddressPincode}
+                        city={newAddressCity}
+                        state={newAddressState}
+                        onPincodeChange={(pin) => setNewAddressPincode(pin)}
+                        onCityChange={(city) => {
+                          setNewAddressCity(city);
+                          updateShippingZoneFromLocation(newAddressStreet, city);
+                        }}
+                        onStateChange={(state) => setNewAddressState(state)}
+                        onAutoFillLocation={({ pincode: resolvedPin, city: resolvedCity, state: resolvedState }) => {
+                          setNewAddressPincode(resolvedPin);
+                          setNewAddressCity(resolvedCity);
+                          setNewAddressState(resolvedState);
+                          updateShippingZoneFromLocation(newAddressStreet, resolvedCity);
+                        }}
+                      />
+
+                      {formError && (
+                        <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+                          {formError}
+                        </p>
+                      )}
 
                       <div className="flex items-center justify-between pt-1">
                         <label className="flex items-center gap-2 cursor-pointer text-xs text-[#2C2420]">

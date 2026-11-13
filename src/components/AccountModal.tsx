@@ -56,6 +56,8 @@ import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress,
 import { OrderComplaintSection } from './OrderComplaintSection';
 import { getUserOrders } from '../services/api';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
+import { PincodeAddressFields } from './PincodeAddressFields';
+import { isValidIndianPincodeFormat, sanitizePincodeInput } from '../services/pincodeLookup';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -120,8 +122,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     phone: customerProfile?.phone || user?.phone || '',
     email: customerProfile?.email || user?.email || '',
     address: customerProfile?.address || '',
-    city: customerProfile?.city || 'Gurgaon, Haryana',
-    pincode: customerProfile?.pincode || '122003',
+    city: customerProfile?.city || '',
+    state: customerProfile?.state || '',
+    pincode: customerProfile?.pincode || '',
   });
 
   const userKey = user?.email || user?.id || customerProfile?.id || null;
@@ -129,12 +132,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   // Saved Addresses book state strictly scoped to customer
   const [addressBook, setAddressBook] = useState<SavedAddress[]>(() => getSavedAddresses(customerProfile, userKey));
   const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
+  const [newAddressError, setNewAddressError] = useState<string | null>(null);
   const [newAddressForm, setNewAddressForm] = useState({
     name: customerProfile?.name || user?.name || '',
     phone: customerProfile?.phone || user?.phone || '',
     addressLine: '',
-    city: 'Gurgaon, Haryana',
-    pincode: '122003',
+    city: '',
+    state: '',
+    pincode: '',
     label: 'Home' as 'Home' | 'Work' | 'Other',
     isDefault: false,
   });
@@ -258,6 +263,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       email: addressDraft.email.trim() || '',
       address: addressDraft.address.trim() || '',
       city: addressDraft.city.trim() || '',
+      state: addressDraft.state.trim() || '',
       pincode: addressDraft.pincode.trim() || '',
     });
     if (addressDraft.address.trim()) {
@@ -265,7 +271,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         name: addressDraft.name.trim() || 'Customer',
         phone: addressDraft.phone.trim() || '',
         addressLine: addressDraft.address.trim(),
-        city: addressDraft.city.trim() || 'Gurgaon, Haryana',
+        city: addressDraft.city.trim() || 'Gurgaon',
+        state: addressDraft.state.trim() || undefined,
         pincode: addressDraft.pincode.trim() || '122003',
         label: 'Home',
         isDefault: true,
@@ -287,6 +294,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         email: customerProfile?.email || '',
         address: def.addressLine,
         city: def.city,
+        state: def.state,
         pincode: def.pincode,
       });
       onUpdateProfile(newProfile);
@@ -300,13 +308,32 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   const handleAddNewAddress = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAddressForm.addressLine.trim()) return;
+    const cleanLine = newAddressForm.addressLine.trim();
+    const cleanCity = newAddressForm.city.trim();
+    const cleanState = newAddressForm.state.trim();
+    const cleanPin = sanitizePincodeInput(newAddressForm.pincode);
+
+    if (!cleanLine) {
+      setNewAddressError('Please enter your street address, house / flat number.');
+      return;
+    }
+    if (!isValidIndianPincodeFormat(cleanPin)) {
+      setNewAddressError('Please enter a valid 6-digit Indian PIN code.');
+      return;
+    }
+    if (!cleanCity || !cleanState) {
+      setNewAddressError('Please fill in both City / District and State.');
+      return;
+    }
+    setNewAddressError(null);
+
     const updated = saveAddressToBook({
       name: newAddressForm.name.trim() || customerProfile?.name || 'Customer',
       phone: newAddressForm.phone.trim() || customerProfile?.phone || '',
-      addressLine: newAddressForm.addressLine.trim(),
-      city: newAddressForm.city.trim() || 'Gurgaon, Haryana',
-      pincode: newAddressForm.pincode.trim() || '122003',
+      addressLine: cleanLine,
+      city: cleanCity,
+      state: cleanState,
+      pincode: cleanPin,
       label: newAddressForm.label,
       isDefault: newAddressForm.isDefault || addressBook.length === 0,
     }, userKey);
@@ -316,9 +343,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         name: newAddressForm.name.trim() || customerProfile?.name || 'Customer',
         phone: newAddressForm.phone.trim() || customerProfile?.phone || '',
         email: customerProfile?.email || '',
-        address: newAddressForm.addressLine.trim(),
-        city: newAddressForm.city.trim() || 'Gurgaon, Haryana',
-        pincode: newAddressForm.pincode.trim() || '122003',
+        address: cleanLine,
+        city: cleanCity,
+        state: cleanState,
+        pincode: cleanPin,
       });
       onUpdateProfile(newProfile);
     }
@@ -326,8 +354,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       name: customerProfile?.name || user?.name || '',
       phone: customerProfile?.phone || user?.phone || '',
       addressLine: '',
-      city: 'Gurgaon, Haryana',
-      pincode: '122003',
+      city: '',
+      state: '',
+      pincode: '',
       label: 'Home',
       isDefault: false,
     });
@@ -1503,36 +1532,51 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
                     <input
                       type="text"
-                      placeholder="Street address, house / apartment / unit number"
+                      placeholder="Street address, house / apartment / unit number *"
                       value={newAddressForm.addressLine}
-                      onChange={(e) => setNewAddressForm({ ...newAddressForm, addressLine: e.target.value })}
+                      onChange={(e) => {
+                        setNewAddressError(null);
+                        setNewAddressForm((prev) => ({ ...prev, addressLine: e.target.value }));
+                      }}
                       required
-                      className="w-full px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs"
+                      className="w-full px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs text-[#2C2420] focus:outline-none focus:border-[#C29E57]"
                     />
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        placeholder="City / Region"
-                        value={newAddressForm.city}
-                        onChange={(e) => setNewAddressForm({ ...newAddressForm, city: e.target.value })}
-                        className="px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Pincode"
-                        value={newAddressForm.pincode}
-                        onChange={(e) => setNewAddressForm({ ...newAddressForm, pincode: e.target.value })}
-                        className="px-2.5 py-1.5 bg-white border border-[#EAE2D5] rounded-lg text-xs"
-                      />
-                    </div>
+                    <PincodeAddressFields
+                      compact
+                      pincode={newAddressForm.pincode}
+                      city={newAddressForm.city}
+                      state={newAddressForm.state}
+                      onPincodeChange={(pin) => {
+                        setNewAddressError(null);
+                        setNewAddressForm((prev) => ({ ...prev, pincode: pin }));
+                      }}
+                      onCityChange={(city) => {
+                        setNewAddressError(null);
+                        setNewAddressForm((prev) => ({ ...prev, city }));
+                      }}
+                      onStateChange={(state) => {
+                        setNewAddressError(null);
+                        setNewAddressForm((prev) => ({ ...prev, state }));
+                      }}
+                      onAutoFillLocation={({ pincode, city, state }) => {
+                        setNewAddressError(null);
+                        setNewAddressForm((prev) => ({ ...prev, pincode, city, state }));
+                      }}
+                    />
+
+                    {newAddressError && (
+                      <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+                        {newAddressError}
+                      </p>
+                    )}
 
                     <div className="flex items-center justify-between pt-1">
                       <label className="flex items-center gap-1.5 text-[11px] text-[#7A6458] cursor-pointer">
                         <input
                           type="checkbox"
                           checked={newAddressForm.isDefault}
-                          onChange={(e) => setNewAddressForm({ ...newAddressForm, isDefault: e.target.checked })}
+                          onChange={(e) => setNewAddressForm((prev) => ({ ...prev, isDefault: e.target.checked }))}
                           className="rounded text-[#8C2E46] focus:ring-0"
                         />
                         <span>Set as default address</span>

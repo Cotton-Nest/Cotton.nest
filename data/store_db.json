@@ -2894,7 +2894,7 @@
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794464046775
+      "updatedAt": 1794562320783
     },
     "email_saurabh.451485@gmail.com": {
       "id": "email_saurabh.451485@gmail.com",
@@ -2908,7 +2908,7 @@
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794464046934
+      "updatedAt": 1794562320942
     },
     "y1rxtxbslayv453hafazltb2ion1": {
       "id": "y1rxtxbslayv453hafazltb2ion1",
@@ -2964,7 +2964,7 @@
       "referralPointsEarned": 0,
       "referralCode": "NEST-SAUR307",
       "referralCount": 0,
-      "updatedAt": 1794464047165
+      "updatedAt": 1794562321099
     }
   },
   "loyaltyTransactions": [
@@ -3289,14 +3289,14 @@
       "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
-      "lastLoginAt": 1794539074452,
-      "lastActiveAt": 1794544877784,
-      "totalSessions": 13,
-      "totalTimeSpentSeconds": 14998,
-      "averageSessionDurationSeconds": 1154,
-      "totalPagesVisited": 36,
+      "lastLoginAt": 1794562314209,
+      "lastActiveAt": 1794562377451,
+      "totalSessions": 15,
+      "totalTimeSpentSeconds": 16777,
+      "averageSessionDurationSeconds": 1118,
+      "totalPagesVisited": 38,
       "pageVisitCounts": {
-        "Home Showcase": 13,
+        "Home Showcase": 15,
         "Admin Analytics": 1,
         "Terms & Privacy Policy": 3,
         "Bedsheet Catalogue": 17,
@@ -3395,10 +3395,38 @@
       },
       "sessions": [
         {
+          "sessionId": "sess_1794562314209_oyanz",
+          "loginAt": 1794562314209,
+          "lastActiveAt": 1794562377451,
+          "durationSeconds": 61,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794555505293_jo6qs",
+          "loginAt": 1794555505293,
+          "lastActiveAt": 1794556708090,
+          "durationSeconds": 478,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
           "sessionId": "sess_1794539074452_b4jdx",
           "loginAt": 1794539074452,
-          "lastActiveAt": 1794544877784,
-          "durationSeconds": 1792,
+          "lastActiveAt": 1794549137663,
+          "durationSeconds": 3032,
           "pagesVisited": [
             "Home Showcase"
           ],
@@ -3591,6 +3619,34 @@
         }
       ],
       "timeline": [
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794562314209_oyanz",
+          "timestamp": 1794562314209,
+          "id": "evt_1794562314209_8bvaf"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794555505293_jo6qs",
+          "timestamp": 1794556708090,
+          "id": "evt_1794556708090_f21pe"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794555505293_jo6qs",
+          "timestamp": 1794555505293,
+          "id": "evt_1794555505293_1edel"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794539074452_b4jdx",
+          "timestamp": 1794549137518,
+          "id": "evt_1794549137518_e9rtr"
+        },
         {
           "type": "login",
           "label": "User signed in (Google Chrome on Windows 10/11)",
@@ -4101,7 +4157,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794544877983,
+      "updatedAt": 1794562380864,
       "lastLogoutAt": 1794285339677
     }
   },

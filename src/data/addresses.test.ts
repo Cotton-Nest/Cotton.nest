@@ -58,3 +58,22 @@ test('getUserAddressStorageKey properly isolates customer partitions', () => {
   assert.ok(key1.includes('usera_gmail_com'));
   assert.ok(key2.includes('userb_gmail_com'));
 });
+
+test('formatFullAddress formats separate city and state cleanly without duplication', () => {
+  const withSeparateState = formatFullAddress({
+    addressLine: 'B-402, Sea Breeze Apartments, Worli',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    pincode: '400018',
+  });
+  assert.equal(withSeparateState, 'B-402, Sea Breeze Apartments, Worli, Mumbai, Maharashtra – 400018');
+
+  const withoutDuplicateState = formatFullAddress({
+    addressLine: 'Flat 12, DLF Phase 2',
+    city: 'Gurgaon, Haryana',
+    state: 'Haryana',
+    pincode: '122002',
+  });
+  assert.equal(withoutDuplicateState, 'Flat 12, DLF Phase 2, Gurgaon, Haryana – 122002');
+});
+

@@ -984,3 +984,4 @@ export function applyTemplateSelectionToSlot(slot: BannerSlot, templateId: strin
     templateId: template.id,
   };
 }
+
