@@ -22,51 +22,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isVerifiedEmailUser() {
+    // Strictly verifies authorized Cotton Nest store owner / admin emails using valid CEL `.lower()`
+    function isOwnerOrAdmin() {
       return isSignedIn() &&
         request.auth.token.email is string &&
-        request.auth.token.email_verified == true;
-    }
-
-    // Strictly verifies authorized Cotton Nest store owner / admin emails using valid CEL `.lower()`
-    function isVerifiedOwnerEmail() {
-      return isVerifiedEmailUser() && (
-        request.auth.token.email.lower() == 'adityaa.451485@gmail.com' ||
-        request.auth.token.email.lower() == 'adityaa.22082011@gmail.com' ||
-        request.auth.token.email.lower() == 'cottonnest.atelier@gmail.com'
-      );
-    }
-
-    // Optional Firebase Auth custom claims for owner/admin accounts
-    function hasAdminCustomClaim() {
-      return isVerifiedEmailUser() && (
-        ('admin' in request.auth.token && request.auth.token.admin == true) ||
-        ('role' in request.auth.token && request.auth.token.role == 'admin')
-      );
-    }
-
-    // Trusted admin role document check (for get/create/update/delete — not used in `allow list`)
-    function isAdminDoc() {
-      return isVerifiedEmailUser() &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-
-    function isOwnerOrAdmin() {
-      return isVerifiedOwnerEmail() || hasAdminCustomClaim() || isAdminDoc();
-    }
-
-    // O(1) claim/email owner check for `allow list` queries (no get/exists read amplification)
-    function isOwnerClaimOrEmail() {
-      return isVerifiedOwnerEmail() || hasAdminCustomClaim();
+        request.auth.token.email_verified == true && (
+          request.auth.token.email.lower() == 'adityaa.451485@gmail.com' ||
+          request.auth.token.email.lower() == 'adityaa.22082011@gmail.com' ||
+          request.auth.token.email.lower() == 'cottonnest.atelier@gmail.com'
+        );
     }
 
     // Admin role documents: only verified primary owners can grant/manage roles
     match /admins/{uid} {
       allow get: if isValidId(uid) && isSignedIn() && (
-        request.auth.uid == uid || isVerifiedOwnerEmail()
+        request.auth.uid == uid || isOwnerOrAdmin()
       );
-      allow list: if isVerifiedOwnerEmail();
-      allow create, update, delete: if isValidId(uid) && isVerifiedOwnerEmail();
+      allow list: if isOwnerOrAdmin();
+      allow create, update, delete: if isValidId(uid) && isOwnerOrAdmin();
     }
 
     // Products catalog: readable by all, manageable only by authorized owners/admins
@@ -93,7 +66,7 @@ service cloud.firestore {
         existing().userId == request.auth.uid || isOwnerOrAdmin()
       );
       allow list: if isSignedIn() && (
-        existing().userId == request.auth.uid || isOwnerClaimOrEmail()
+        existing().userId == request.auth.uid || isOwnerOrAdmin()
       );
       allow create: if isValidId(orderId) && isSignedIn() && (
         incoming().userId == request.auth.uid || isOwnerOrAdmin()
@@ -201,101 +174,53 @@ service cloud.firestore {
       allow delete: if isOwnerOrAdmin();
     }
 
-    // Site Traffic telemetry validation helpers: allows safe atomic visit increments on `site_traffic` only,
-    // while keeping ALL reads and deletes strictly restricted to authorized owners/admins.
-    function isValidSiteTrafficCreate(data) {
-      return data.keys().hasAll(['id', 'totalVisits', 'lastVisitedAt']) &&
-        data.keys().hasOnly([
-          'id', 'totalVisits', 'uniqueVisitors', 'todayVisits', 'lastVisitedAt',
-          'pageViewsByDate', 'pageViewsBySection', 'trafficSources', 'deviceBreakdown'
-        ]) &&
-        data.id == 'site_traffic' &&
-        data.totalVisits is number && data.totalVisits >= 0 && data.totalVisits <= 10 &&
-        data.lastVisitedAt is number &&
-        (!('uniqueVisitors' in data) || (data.uniqueVisitors is number && data.uniqueVisitors >= 0 && data.uniqueVisitors <= 10));
-    }
-
-    function isValidSiteTrafficUpdate(data, prev) {
-      return data.keys().hasAll(['id', 'totalVisits', 'lastVisitedAt']) &&
-        data.diff(prev).affectedKeys().hasOnly([
-          'id', 'totalVisits', 'uniqueVisitors', 'todayVisits', 'lastVisitedAt',
-          'pageViewsByDate', 'pageViewsBySection', 'trafficSources', 'deviceBreakdown'
-        ]) &&
-        data.id == 'site_traffic' &&
-        data.totalVisits is number &&
-        (!('totalVisits' in prev) || !(prev.totalVisits is number) || (data.totalVisits >= prev.totalVisits && data.totalVisits <= prev.totalVisits + 10)) &&
-        data.lastVisitedAt is number &&
-        (!('uniqueVisitors' in data) || (
-          data.uniqueVisitors is number &&
-          (!('uniqueVisitors' in prev) || !(prev.uniqueVisitors is number) || (data.uniqueVisitors >= prev.uniqueVisitors && data.uniqueVisitors <= prev.uniqueVisitors + 10))
-        ));
-    }
-
-    // Website Traffic & Store Analytics: strictly NOT publicly readable or deletable
+    // Website & Mobile App Site Traffic Analytics (document: analytics/site_traffic)
     match /analytics/{docId} {
-      allow get: if isValidId(docId) && isOwnerOrAdmin();
-      allow list: if isOwnerClaimOrEmail();
-      allow create: if isValidId(docId) && (
-        isOwnerOrAdmin() ||
-        (docId == 'site_traffic' && isValidSiteTrafficCreate(incoming()))
+      allow read: if isOwnerOrAdmin();
+      allow create: if isOwnerOrAdmin() || (
+        docId == 'site_traffic' &&
+        request.resource.data.keys().hasAll(['id', 'totalVisits', 'lastVisitedAt']) &&
+        request.resource.data.keys().hasOnly([
+          'id', 'totalVisits', 'uniqueVisitors', 'todayVisits', 'lastVisitedAt',
+          'pageViewsByDate', 'pageViewsBySection', 'trafficSources', 'deviceBreakdown'
+        ]) &&
+        request.resource.data.id == 'site_traffic' &&
+        request.resource.data.totalVisits is number &&
+        request.resource.data.totalVisits >= 0 &&
+        request.resource.data.totalVisits <= 10 &&
+        request.resource.data.lastVisitedAt is number
       );
-      allow update: if isValidId(docId) && (
-        isOwnerOrAdmin() ||
-        (docId == 'site_traffic' && isValidSiteTrafficUpdate(incoming(), existing()))
+      allow update: if isOwnerOrAdmin() || (
+        docId == 'site_traffic' &&
+        request.resource.data.keys().hasAll(['id', 'totalVisits', 'lastVisitedAt']) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'id', 'totalVisits', 'uniqueVisitors', 'todayVisits', 'lastVisitedAt',
+          'pageViewsByDate', 'pageViewsBySection', 'trafficSources', 'deviceBreakdown'
+        ]) &&
+        request.resource.data.id == 'site_traffic' &&
+        request.resource.data.totalVisits is number &&
+        request.resource.data.lastVisitedAt is number
       );
-      allow delete: if isValidId(docId) && isOwnerOrAdmin();
+      allow delete: if isOwnerOrAdmin();
     }
 
-    // Validation blueprint for Customer Activity Profiles
-    function isValidCustomerActivityDoc(data, userId) {
-      return data.keys().hasAll(['uid', 'customerName', 'lastActiveAt', 'totalSessions', 'totalTimeSpentSeconds']) &&
-        data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128 && data.uid == userId &&
-        data.customerName is string && data.customerName.size() <= 200 &&
-        data.lastActiveAt is number &&
-        data.totalSessions is number && data.totalSessions >= 0 &&
-        data.totalTimeSpentSeconds is number && data.totalTimeSpentSeconds >= 0 &&
-        (!('email' in data) || (data.email is string && data.email.size() <= 320)) &&
-        (!('phone' in data) || (data.phone is string && data.phone.size() <= 40)) &&
-        (!('sessions' in data) || (data.sessions is list && data.sessions.size() <= 50)) &&
-        (!('timeline' in data) || (data.timeline is list && data.timeline.size() <= 150)) &&
-        (!('searchHistory' in data) || (data.searchHistory is list && data.searchHistory.size() <= 100));
-    }
-
-    // Signed-in Customer Activity Profiles: owner/admin can read all; customers access only their own doc
+    // Signed-in Customer Activity Profiles (collection: customer_activity/{userId})
     match /customer_activity/{userId} {
-      allow get: if isValidId(userId) && (
-        isOwnerOrAdmin() ||
-        (isSignedIn() && request.auth.uid == userId)
-      );
-      allow list: if isOwnerClaimOrEmail();
-      allow create: if isValidId(userId) &&
-        isValidCustomerActivityDoc(incoming(), userId) &&
-        incoming().keys().hasOnly([
-          'uid', 'customerName', 'email', 'phone', 'avatar', 'authProvider',
-          'accountCreatedAt', 'lastLoginAt', 'lastLogoutAt', 'lastActiveAt',
-          'totalSessions', 'totalTimeSpentSeconds', 'averageSessionDurationSeconds',
-          'totalPagesVisited', 'pageVisitCounts', 'mostVisitedPage',
-          'totalProductViews', 'productsViewed', 'totalAddedToCartCount', 'cartActivity',
-          'totalAddedToWishlistCount', 'currentWishlist', 'historicalWishlist',
-          'totalSearches', 'searchHistory', 'ordersPlacedCount', 'totalPurchaseValue',
-          'deviceInfo', 'sessions', 'timeline', 'updatedAt'
+      allow get: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow list: if isOwnerOrAdmin();
+      allow create, update: if (
+        isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId)
+      ) &&
+        request.resource.data.keys().hasAll([
+          'uid', 'customerName', 'lastActiveAt', 'totalSessions', 'totalTimeSpentSeconds'
         ]) &&
-        (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId));
-      allow update: if isValidId(userId) &&
-        isValidCustomerActivityDoc(incoming(), userId) &&
-        incoming().diff(existing()).affectedKeys().hasOnly([
-          'uid', 'customerName', 'email', 'phone', 'avatar', 'authProvider',
-          'accountCreatedAt', 'lastLoginAt', 'lastLogoutAt', 'lastActiveAt',
-          'totalSessions', 'totalTimeSpentSeconds', 'averageSessionDurationSeconds',
-          'totalPagesVisited', 'pageVisitCounts', 'mostVisitedPage',
-          'totalProductViews', 'productsViewed', 'totalAddedToCartCount', 'cartActivity',
-          'totalAddedToWishlistCount', 'currentWishlist', 'historicalWishlist',
-          'totalSearches', 'searchHistory', 'ordersPlacedCount', 'totalPurchaseValue',
-          'deviceInfo', 'sessions', 'timeline', 'updatedAt'
-        ]) &&
-        incoming().uid == existing().uid &&
-        (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId));
-      allow delete: if isValidId(userId) && isOwnerOrAdmin();
+        request.resource.data.uid is string &&
+        request.resource.data.uid == userId &&
+        request.resource.data.customerName is string &&
+        request.resource.data.lastActiveAt is number &&
+        request.resource.data.totalSessions is number &&
+        request.resource.data.totalTimeSpentSeconds is number;
+      allow delete: if isOwnerOrAdmin();
     }
 
     // Welcome Offer Configuration
@@ -307,7 +232,7 @@ service cloud.firestore {
     // Per-Customer Welcome Offer Eligibility & Redemption Records
     match /welcome_offer_redemptions/{uid} {
       allow get: if isValidId(uid) && (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid));
-      allow list: if isOwnerClaimOrEmail();
+      allow list: if isOwnerOrAdmin();
       allow create, update: if isValidId(uid) && (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid));
       allow delete: if isValidId(uid) && isOwnerOrAdmin();
     }

@@ -339,8 +339,9 @@ export default function App() {
     };
   }, [customerProfile.id]);
 
-  // Initial fetch of site traffic analytics
+  // Initial fetch of site traffic analytics (owner only; analytics/site_traffic read is restricted to owner)
   useEffect(() => {
+    if (!isOwner) return;
     let isMounted = true;
     getSiteAnalyticsApi()
       .then((data) => {
@@ -354,19 +355,13 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isOwner]);
 
-  // Record page visit on tab navigation
+  // Record page visit on tab navigation (write-only telemetry increment)
   useEffect(() => {
-    recordPageVisitApi(activeTab)
-      .then((updated) => {
-        if (updated) {
-          setTrafficData(updated);
-        }
-      })
-      .catch((err) => {
-        console.debug('Page visit record note:', err);
-      });
+    recordPageVisitApi(activeTab).catch((err) => {
+      console.debug('Page visit record note:', err);
+    });
   }, [activeTab]);
 
   // Automated 3-Day Wishlist Retention: Send 5% Coupon

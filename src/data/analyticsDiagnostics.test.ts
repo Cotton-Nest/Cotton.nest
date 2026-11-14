@@ -148,18 +148,18 @@ test('firestore.rules avoids unsupported .toLowerCase() and preserves private an
   assert.match(rulesText, /request\.auth\.token\.email\.lower\(\)\s*==\s*'adityaa\.22082011@gmail\.com'/);
   assert.match(rulesText, /request\.auth\.token\.email\.lower\(\)\s*==\s*'cottonnest\.atelier@gmail\.com'/);
 
-  // Extract analytics match block and ensure it is never publicly readable
+  // Extract analytics match block and ensure it is never publicly readable and reuses isOwnerOrAdmin()
   const analyticsBlockMatch = rulesText.match(/match \/analytics\/\{docId\}\s*\{[\s\S]*?\n\s*\}/);
   assert.ok(analyticsBlockMatch, 'analytics match block must exist in firestore.rules');
   assert.equal(/allow\s+read\s*:\s*if\s+true/.test(analyticsBlockMatch[0]), false);
-  assert.match(analyticsBlockMatch[0], /allow get:.*isOwnerOrAdmin\(\)/);
-  assert.match(analyticsBlockMatch[0], /allow list:\s*if\s+isOwnerClaimOrEmail\(\)/);
+  assert.match(analyticsBlockMatch[0], /allow read:\s*if\s+isOwnerOrAdmin\(\)/);
 
-  // Extract customer_activity match block and ensure it is never publicly readable
+  // Extract customer_activity match block and ensure it is never publicly readable and reuses isOwnerOrAdmin()
   const activityBlockMatch = rulesText.match(/match \/customer_activity\/\{userId\}\s*\{[\s\S]*?\n\s*\}/);
   assert.ok(activityBlockMatch, 'customer_activity match block must exist in firestore.rules');
   assert.equal(/allow\s+read\s*:\s*if\s+true/.test(activityBlockMatch[0]), false);
-  assert.match(activityBlockMatch[0], /allow list:\s*if\s+isOwnerClaimOrEmail\(\)/);
+  assert.match(activityBlockMatch[0], /allow get:\s*if\s+isOwnerOrAdmin\(\)/);
+  assert.match(activityBlockMatch[0], /allow list:\s*if\s+isOwnerOrAdmin\(\)/);
 
   // Ensure firebase-applet-config.json targets the exact Cotton Nest project and database
   const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');

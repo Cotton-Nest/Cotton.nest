@@ -2844,11 +2844,7 @@ export async function getSiteAnalyticsApi(): Promise<SiteTrafficData> {
 
 export async function recordPageVisitApi(section: string = 'home'): Promise<SiteTrafficData> {
   await recordSitePageVisitToFirestore(section);
-  try {
-    return await fetchSiteTrafficFromFirestore(false);
-  } catch {
-    return getEmptyTrafficData();
-  }
+  return getEmptyTrafficData();
 }
 
 // ---------------- RETURN / EXCHANGE / COMPLAINTS API ---------------- //
