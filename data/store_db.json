@@ -3289,21 +3289,21 @@
       "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
-      "lastLoginAt": 1794585551221,
-      "lastActiveAt": 1794586768687,
-      "totalSessions": 16,
-      "totalTimeSpentSeconds": 17453,
-      "averageSessionDurationSeconds": 1091,
-      "totalPagesVisited": 39,
+      "lastLoginAt": 1794628288899,
+      "lastActiveAt": 1794629042432,
+      "totalSessions": 17,
+      "totalTimeSpentSeconds": 18800,
+      "averageSessionDurationSeconds": 1106,
+      "totalPagesVisited": 40,
       "pageVisitCounts": {
-        "Home Showcase": 16,
+        "Home Showcase": 17,
         "Admin Analytics": 1,
         "Terms & Privacy Policy": 3,
         "Bedsheet Catalogue": 17,
         "Boutique Store Locator": 1,
         "Customer Reviews": 1
       },
-      "mostVisitedPage": "Bedsheet Catalogue",
+      "mostVisitedPage": "Home Showcase",
       "totalProductViews": 8,
       "productsViewed": [
         {
@@ -3403,10 +3403,24 @@
       },
       "sessions": [
         {
+          "sessionId": "sess_1794628288899_emd50",
+          "loginAt": 1794628288899,
+          "lastActiveAt": 1794629042432,
+          "durationSeconds": 269,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
           "sessionId": "sess_1794585551221_z55ar",
           "loginAt": 1794585551221,
-          "lastActiveAt": 1794586768687,
-          "durationSeconds": 438,
+          "lastActiveAt": 1794589239335,
+          "durationSeconds": 1516,
           "pagesVisited": [
             "Home Showcase"
           ],
@@ -3641,6 +3655,20 @@
         }
       ],
       "timeline": [
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794628288899_emd50",
+          "timestamp": 1794628288899,
+          "id": "evt_1794628288899_scvlx"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794585551221_z55ar",
+          "timestamp": 1794589239172,
+          "id": "evt_1794589239172_xlos6"
+        },
         {
           "type": "login",
           "label": "User signed in (Google Chrome on Windows 10/11)",
@@ -4204,7 +4232,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794586769430,
+      "updatedAt": 1794629044491,
       "lastLogoutAt": 1794285339677
     }
   },

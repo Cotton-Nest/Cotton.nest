@@ -187,8 +187,17 @@ service cloud.firestore {
         request.resource.data.id == 'site_traffic' &&
         request.resource.data.totalVisits is number &&
         request.resource.data.totalVisits >= 0 &&
-        request.resource.data.totalVisits <= 10 &&
-        request.resource.data.lastVisitedAt is number
+        request.resource.data.totalVisits <= 1 &&
+        (!('uniqueVisitors' in request.resource.data) || (
+          request.resource.data.uniqueVisitors is number &&
+          request.resource.data.uniqueVisitors >= 0 &&
+          request.resource.data.uniqueVisitors <= 1
+        )) &&
+        request.resource.data.lastVisitedAt is number &&
+        (!('pageViewsByDate' in request.resource.data) || (request.resource.data.pageViewsByDate is map && request.resource.data.pageViewsByDate.size() <= 3660)) &&
+        (!('pageViewsBySection' in request.resource.data) || (request.resource.data.pageViewsBySection is map && request.resource.data.pageViewsBySection.size() <= 50)) &&
+        (!('trafficSources' in request.resource.data) || (request.resource.data.trafficSources is map && request.resource.data.trafficSources.size() <= 10)) &&
+        (!('deviceBreakdown' in request.resource.data) || (request.resource.data.deviceBreakdown is map && request.resource.data.deviceBreakdown.size() <= 10))
       );
       allow update: if isOwnerOrAdmin() || (
         docId == 'site_traffic' &&
@@ -199,7 +208,39 @@ service cloud.firestore {
         ]) &&
         request.resource.data.id == 'site_traffic' &&
         request.resource.data.totalVisits is number &&
-        request.resource.data.lastVisitedAt is number
+        (
+          (
+            (!('totalVisits' in resource.data) || !(resource.data.totalVisits is number)) &&
+            request.resource.data.totalVisits >= 0 &&
+            request.resource.data.totalVisits <= 1
+          ) || (
+            'totalVisits' in resource.data &&
+            resource.data.totalVisits is number &&
+            request.resource.data.totalVisits >= resource.data.totalVisits &&
+            request.resource.data.totalVisits <= resource.data.totalVisits + 1
+          )
+        ) &&
+        (!('uniqueVisitors' in request.resource.data) || (
+          request.resource.data.uniqueVisitors is number &&
+          (
+            (
+              (!('uniqueVisitors' in resource.data) || !(resource.data.uniqueVisitors is number)) &&
+              request.resource.data.uniqueVisitors >= 0 &&
+              request.resource.data.uniqueVisitors <= 1
+            ) || (
+              'uniqueVisitors' in resource.data &&
+              resource.data.uniqueVisitors is number &&
+              request.resource.data.uniqueVisitors >= resource.data.uniqueVisitors &&
+              request.resource.data.uniqueVisitors <= resource.data.uniqueVisitors + 1
+            )
+          )
+        )) &&
+        request.resource.data.lastVisitedAt is number &&
+        (!('lastVisitedAt' in resource.data) || !(resource.data.lastVisitedAt is number) || request.resource.data.lastVisitedAt >= resource.data.lastVisitedAt) &&
+        (!('pageViewsByDate' in request.resource.data) || (request.resource.data.pageViewsByDate is map && request.resource.data.pageViewsByDate.size() <= 3660)) &&
+        (!('pageViewsBySection' in request.resource.data) || (request.resource.data.pageViewsBySection is map && request.resource.data.pageViewsBySection.size() <= 50)) &&
+        (!('trafficSources' in request.resource.data) || (request.resource.data.trafficSources is map && request.resource.data.trafficSources.size() <= 10)) &&
+        (!('deviceBreakdown' in request.resource.data) || (request.resource.data.deviceBreakdown is map && request.resource.data.deviceBreakdown.size() <= 10))
       );
       allow delete: if isOwnerOrAdmin();
     }
@@ -208,18 +249,61 @@ service cloud.firestore {
     match /customer_activity/{userId} {
       allow get: if isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow list: if isOwnerOrAdmin();
-      allow create, update: if (
+      allow create: if (
         isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId)
       ) &&
         request.resource.data.keys().hasAll([
           'uid', 'customerName', 'lastActiveAt', 'totalSessions', 'totalTimeSpentSeconds'
         ]) &&
+        request.resource.data.keys().hasOnly([
+          'uid', 'customerName', 'email', 'phone', 'avatar', 'authProvider',
+          'accountCreatedAt', 'lastLoginAt', 'lastLogoutAt', 'lastActiveAt',
+          'totalSessions', 'totalTimeSpentSeconds', 'averageSessionDurationSeconds',
+          'totalPagesVisited', 'pageVisitCounts', 'mostVisitedPage',
+          'totalProductViews', 'productsViewed', 'totalAddedToCartCount', 'cartActivity',
+          'totalAddedToWishlistCount', 'currentWishlist', 'historicalWishlist',
+          'totalSearches', 'searchHistory', 'ordersPlacedCount', 'totalPurchaseValue',
+          'deviceInfo', 'sessions', 'timeline', 'updatedAt'
+        ]) &&
         request.resource.data.uid is string &&
+        request.resource.data.uid.size() > 0 &&
+        request.resource.data.uid.size() <= 128 &&
         request.resource.data.uid == userId &&
         request.resource.data.customerName is string &&
+        request.resource.data.customerName.size() <= 200 &&
         request.resource.data.lastActiveAt is number &&
         request.resource.data.totalSessions is number &&
-        request.resource.data.totalTimeSpentSeconds is number;
+        request.resource.data.totalSessions >= 0 &&
+        request.resource.data.totalTimeSpentSeconds is number &&
+        request.resource.data.totalTimeSpentSeconds >= 0;
+      allow update: if (
+        isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == userId)
+      ) &&
+        request.resource.data.keys().hasAll([
+          'uid', 'customerName', 'lastActiveAt', 'totalSessions', 'totalTimeSpentSeconds'
+        ]) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'uid', 'customerName', 'email', 'phone', 'avatar', 'authProvider',
+          'accountCreatedAt', 'lastLoginAt', 'lastLogoutAt', 'lastActiveAt',
+          'totalSessions', 'totalTimeSpentSeconds', 'averageSessionDurationSeconds',
+          'totalPagesVisited', 'pageVisitCounts', 'mostVisitedPage',
+          'totalProductViews', 'productsViewed', 'totalAddedToCartCount', 'cartActivity',
+          'totalAddedToWishlistCount', 'currentWishlist', 'historicalWishlist',
+          'totalSearches', 'searchHistory', 'ordersPlacedCount', 'totalPurchaseValue',
+          'deviceInfo', 'sessions', 'timeline', 'updatedAt'
+        ]) &&
+        request.resource.data.uid is string &&
+        request.resource.data.uid.size() > 0 &&
+        request.resource.data.uid.size() <= 128 &&
+        request.resource.data.uid == userId &&
+        (!('uid' in resource.data) || request.resource.data.uid == resource.data.uid) &&
+        request.resource.data.customerName is string &&
+        request.resource.data.customerName.size() <= 200 &&
+        request.resource.data.lastActiveAt is number &&
+        request.resource.data.totalSessions is number &&
+        request.resource.data.totalSessions >= 0 &&
+        request.resource.data.totalTimeSpentSeconds is number &&
+        request.resource.data.totalTimeSpentSeconds >= 0;
       allow delete: if isOwnerOrAdmin();
     }
 
