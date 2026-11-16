@@ -48,19 +48,24 @@ export const PrebuiltBannerDisplay: React.FC<PrebuiltBannerDisplayProps> = ({
     >
       {/* Pre-designed Wide Landscape Background Image */}
       {!imageError && (
-        <img
-          key={template.imageUrl}
-          src={template.imageUrl}
-          alt={slot.heading || 'Cotton Nest backdrop'}
-          referrerPolicy="no-referrer"
-          loading={isPreview ? 'lazy' : 'eager'}
-          onError={() => setImageError(true)}
-          onLoad={() => setImageError(false)}
-          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
-          style={{
-            objectPosition: template.objectPosition || 'center center',
-          }}
-        />
+        <picture key={template.imageUrl}>
+          {/^\/images\/[^?]+\.jpg$/i.test(template.imageUrl) && (
+            <source srcSet={template.imageUrl.replace(/\.jpg$/i, '.webp')} type="image/webp" />
+          )}
+          <img
+            src={template.imageUrl}
+            alt={slot.heading || 'Cotton Nest backdrop'}
+            referrerPolicy="no-referrer"
+            loading={isPreview ? 'lazy' : 'eager'}
+            decoding="async"
+            onError={() => setImageError(true)}
+            onLoad={() => setImageError(false)}
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+            style={{
+              objectPosition: template.objectPosition || 'center center',
+            }}
+          />
+        </picture>
       )}
 
       {/* Measured Readability Overlay Scrim (keeps edge motifs luminous while ensuring >= 4.5:1 center contrast) */}

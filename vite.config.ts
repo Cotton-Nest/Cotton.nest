@@ -46,6 +46,7 @@ export default defineConfig(() => {
         workbox: {
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globIgnores: ['**/AdminPanel-*.js', '**/AnalyticsView-*.js', '**/PhotoUploadModal-*.js', '**/assets/aistudio/**'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -75,6 +76,20 @@ export default defineConfig(() => {
                 },
               },
             },
+            {
+              urlPattern: /\.(?:webp|png|jpg|jpeg|svg)$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'images-runtime-cache',
+                expiration: {
+                  maxEntries: 60,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
           ],
         },
         devOptions: {
@@ -85,7 +100,7 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
     },
     server: {

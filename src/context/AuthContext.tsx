@@ -12,6 +12,7 @@ import {
   signInWithPopup,
   signInWithCredential,
   GoogleAuthProvider,
+  browserPopupRedirectResolver,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
@@ -211,11 +212,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearAuthError = () => setAuthError(null);
 
-  // Pre-resolve which Firebase Auth project has the current hostname authorized
-  useEffect(() => {
-    resolveAuthForCurrentDomain().catch(() => {});
-  }, []);
-
   // Ensure Google Identity Services (GIS) SDK script is loaded & initialized without FedCM iframe errors
   const ensureGisSdkReady = React.useCallback((): Promise<boolean> => {
     return new Promise((resolve) => {
@@ -283,10 +279,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.head.appendChild(script);
     });
   }, []);
-
-  useEffect(() => {
-    ensureGisSdkReady().catch(() => {});
-  }, [ensureGisSdkReady]);
 
   // Sync with real Firebase Auth state across both primaryAuth (Firestore DB) and previewAuth
   useEffect(() => {
@@ -554,7 +546,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const targetAuth = resolution?.isAuthorized ? resolution.authInstance : getBestSyncAuthInstance();
     const fallbackAuth = targetAuth === previewAuth ? primaryAuth : previewAuth;
 
-    return signInWithPopup(targetAuth, provider)
+    return signInWithPopup(targetAuth, provider, browserPopupRedirectResolver)
       .then(async (result) => {
         const credential = GoogleAuthProvider.credentialFromResult(result);
         if (targetAuth === primaryAuth) {
@@ -578,7 +570,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
         if (err?.code === 'auth/unauthorized-domain') {
           try {
-            const altResult = await signInWithPopup(fallbackAuth, provider);
+            const altResult = await signInWithPopup(fallbackAuth, provider, browserPopupRedirectResolver);
             const altCred = GoogleAuthProvider.credentialFromResult(altResult);
             if (fallbackAuth === primaryAuth) {
               await altResult.user.getIdToken(true).catch(() => {});

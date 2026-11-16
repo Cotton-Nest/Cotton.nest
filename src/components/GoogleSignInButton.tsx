@@ -28,8 +28,9 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const [localError, setLocalError] = useState<string | null>(null);
   const gisButtonRef = useRef<HTMLDivElement | null>(null);
 
-  // Initialize official Google Identity Services (GIS) SDK (with FedCM disabled for iframe safety)
+  // Initialize official Google Identity Services (GIS) SDK only for full sign-in views (deferred for navbar button)
   useEffect(() => {
+    if (variant === 'navbar' || variant === 'compact') return;
     let active = true;
     ensureGisSdkReady()
       .then((ready) => {
@@ -65,7 +66,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     return () => {
       active = false;
     };
-  }, [ensureGisSdkReady, loginWithGoogleCredential, onSuccess]);
+  }, [variant, ensureGisSdkReady, loginWithGoogleCredential, onSuccess]);
 
   const handleClick = async () => {
     setLocalLoading(true);

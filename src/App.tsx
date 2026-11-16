@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import {
   BedsheetProduct,
   BedsheetVariant,
@@ -16,37 +16,40 @@ import {
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { ProductCard } from './components/ProductCard';
-import { ProductModal } from './components/ProductModal';
-import { CatalogueView } from './components/CatalogueView';
-import { CartDrawer, CartItem } from './components/CartDrawer';
-import { StoreLocation } from './components/StoreLocation';
+import type { CartItem } from './components/CartDrawer';
 import { StoryAndFeatures } from './components/StoryAndFeatures';
 import { Footer } from './components/Footer';
 import { OfferBanner } from './components/OfferBanner';
 import { WelcomeOfferBanner } from './components/WelcomeOfferBanner';
-import { WelcomeOfferModal } from './components/WelcomeOfferModal';
 import { MobileBottomBar } from './components/MobileBottomBar';
-import { PhotoUploadModal } from './components/PhotoUploadModal';
-import { AdminPanel } from './components/AdminPanel';
 import { PrebuiltBannerDisplay } from './components/PrebuiltBannerDisplay';
 import {
   normalizeBannerSlots,
   getActiveStorefrontBanner,
 } from './data/bannerSlots';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { OwnerAuthModal } from './components/OwnerAuthModal';
-import { LiveOrdersView } from './components/LiveOrdersView';
-import { TermsAndConditionsView } from './components/TermsAndConditionsView';
-import { SeasonalView } from './components/SeasonalView';
-import { AuthModal } from './components/AuthModal';
-import { AccountModal } from './components/AccountModal';
-import { NotificationCenterModal } from './components/NotificationCenterModal';
-import { ProductCompareModal } from './components/ProductCompareModal';
 import { ProductCompareBar } from './components/ProductCompareBar';
-import { StockAlertModal } from './components/StockAlertModal';
 import { CartToastNotification, CartToastInfo } from './components/CartToastNotification';
 import { ChromeInstallPopout, OfflineIndicator } from './components/PWAInstallPrompt';
 import { ExitConfirmBanner } from './components/ExitConfirmBanner';
+
+// Lazy-loaded routes, admin/analytics dashboards, and conditional modals
+const ProductModal = lazy(() => import('./components/ProductModal').then((m) => ({ default: m.ProductModal })));
+const CatalogueView = lazy(() => import('./components/CatalogueView').then((m) => ({ default: m.CatalogueView })));
+const StoreLocation = lazy(() => import('./components/StoreLocation').then((m) => ({ default: m.StoreLocation })));
+const WelcomeOfferModal = lazy(() => import('./components/WelcomeOfferModal').then((m) => ({ default: m.WelcomeOfferModal })));
+const PhotoUploadModal = lazy(() => import('./components/PhotoUploadModal').then((m) => ({ default: m.PhotoUploadModal })));
+const AdminPanel = lazy(() => import('./components/AdminPanel').then((m) => ({ default: m.AdminPanel })));
+const OwnerAuthModal = lazy(() => import('./components/OwnerAuthModal').then((m) => ({ default: m.OwnerAuthModal })));
+const LiveOrdersView = lazy(() => import('./components/LiveOrdersView').then((m) => ({ default: m.LiveOrdersView })));
+const TermsAndConditionsView = lazy(() => import('./components/TermsAndConditionsView').then((m) => ({ default: m.TermsAndConditionsView })));
+const SeasonalView = lazy(() => import('./components/SeasonalView').then((m) => ({ default: m.SeasonalView })));
+const AuthModal = lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
+const AccountModal = lazy(() => import('./components/AccountModal').then((m) => ({ default: m.AccountModal })));
+const NotificationCenterModal = lazy(() => import('./components/NotificationCenterModal').then((m) => ({ default: m.NotificationCenterModal })));
+const ProductCompareModal = lazy(() => import('./components/ProductCompareModal').then((m) => ({ default: m.ProductCompareModal })));
+const StockAlertModal = lazy(() => import('./components/StockAlertModal').then((m) => ({ default: m.StockAlertModal })));
+const CartDrawer = lazy(() => import('./components/CartDrawer').then((m) => ({ default: m.CartDrawer })));
 import {
   shouldShowExitBannerOnBackPress,
   shouldArmHomeGuard,
@@ -69,7 +72,7 @@ import {
 } from './utils/pushNotifications';
 import { useAuth, isOwnerEmail } from './context/AuthContext';
 import { useLoyalty } from './context/LoyaltyContext';
-import { LoyaltyRewardsModal } from './components/LoyaltyRewardsModal';
+const LoyaltyRewardsModal = lazy(() => import('./components/LoyaltyRewardsModal').then((m) => ({ default: m.LoyaltyRewardsModal })));
 import { Order, INITIAL_ORDERS } from './data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingInTerms, normalizeShippingFee, normalizeStudioAddress } from './data/siteContent';
 import { SeasonalConfig, INITIAL_SEASONAL_CONFIG } from './data/seasonal';
@@ -118,9 +121,9 @@ import {
   DEFAULT_WELCOME_OFFER_CONFIG,
   evaluateCustomerWelcomeEligibility,
 } from './data/welcomeOffer';
-import { WishlistDrawer } from './components/WishlistDrawer';
-import { CustomerWishlistModal } from './components/CustomerWishlistModal';
-import { AnalyticsView } from './components/AnalyticsView';
+const WishlistDrawer = lazy(() => import('./components/WishlistDrawer').then((m) => ({ default: m.WishlistDrawer })));
+const CustomerWishlistModal = lazy(() => import('./components/CustomerWishlistModal').then((m) => ({ default: m.CustomerWishlistModal })));
+const AnalyticsView = lazy(() => import('./components/AnalyticsView').then((m) => ({ default: m.AnalyticsView })));
 import { SiteTrafficData, getEmptyTrafficData } from './data/analytics';
 import { subscribeAdminOrders } from './services/analyticsSync';
 import {
@@ -140,8 +143,8 @@ import {
 } from './data/wishlist';
 import { collection, doc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, testConnection } from './firebase';
-import { ReviewsSection } from './components/ReviewsSection';
-import { WriteReviewModal } from './components/WriteReviewModal';
+const ReviewsSection = lazy(() => import('./components/ReviewsSection').then((m) => ({ default: m.ReviewsSection })));
+const WriteReviewModal = lazy(() => import('./components/WriteReviewModal').then((m) => ({ default: m.WriteReviewModal })));
 import { ProductReview, INITIAL_REVIEWS } from './data/reviews';
 import {
   WebsiteThemeConfig,
@@ -154,6 +157,13 @@ import {
 import { resolveBedsheetImage, isVideoMedia } from './utils/imageUrl';
 import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star, Bell, X, Wrench } from 'lucide-react';
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
+
+const RouteViewFallback: React.FC<{ label?: string }> = ({ label = 'Loading view...' }) => (
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex flex-col items-center justify-center gap-3 text-center">
+    <div className="w-8 h-8 rounded-full border-2 border-[#C29E57]/40 border-t-[#8C2E46] animate-spin" />
+    <span className="text-xs font-medium text-[#7A6458]">{label}</span>
+  </div>
+);
 
 export default function App() {
   const [activeTabRaw, setActiveTabRaw] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>(() => {
@@ -2392,26 +2402,28 @@ export default function App() {
       {/* If Admin is Open, show full Admin Panel */}
       {isAdminOpen ? (
         <ErrorBoundary fallbackTitle="Admin Panel Encountered an Issue" onReset={() => setIsAdminOpen(false)}>
-          <AdminPanel
-            products={products}
-            onUpdateProducts={handleUpdateProducts}
-            onResetDefaults={handleResetProducts}
-            onExitAdmin={() => setIsAdminOpen(false)}
-            customImages={customImages}
-            onUpdateCustomImages={handleUpdateCustomImages}
-            onUploadImage={handleUploadImage}
-            orders={orders}
-            onUpdateOrders={handleUpdateOrders}
-            siteContent={siteContent}
-            onUpdateSiteContent={handleUpdateSiteContent}
-            onResetAllImages={handleResetAllPhotos}
-            onUpdateSingleProduct={handleUpdateSingleProduct}
-            currentTheme={themeConfig}
-            onThemePublished={handleThemePublished}
-            seasonalConfig={seasonalConfig}
-            onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
-            reviews={reviews}
-          />
+          <Suspense fallback={<RouteViewFallback label="Loading Atelier Admin Studio..." />}>
+            <AdminPanel
+              products={products}
+              onUpdateProducts={handleUpdateProducts}
+              onResetDefaults={handleResetProducts}
+              onExitAdmin={() => setIsAdminOpen(false)}
+              customImages={customImages}
+              onUpdateCustomImages={handleUpdateCustomImages}
+              onUploadImage={handleUploadImage}
+              orders={orders}
+              onUpdateOrders={handleUpdateOrders}
+              siteContent={siteContent}
+              onUpdateSiteContent={handleUpdateSiteContent}
+              onResetAllImages={handleResetAllPhotos}
+              onUpdateSingleProduct={handleUpdateSingleProduct}
+              currentTheme={themeConfig}
+              onThemePublished={handleThemePublished}
+              seasonalConfig={seasonalConfig}
+              onUpdateSeasonalConfig={handleUpdateSeasonalConfig}
+              reviews={reviews}
+            />
+          </Suspense>
         </ErrorBoundary>
       ) : siteContent?.isMaintenanceMode && !isOwnerMode ? (
         /* Maintenance Mode Full Page View for Visitors */
@@ -2498,7 +2510,7 @@ export default function App() {
           {/* Main Content Area */}
           <ErrorBoundary fallbackTitle="Storefront View Encountered an Issue" onReset={() => setActiveTab('home')}>
           <main className="flex-1 overflow-x-hidden">
-            <AnimatePresence mode="wait">
+            <AnimatePresence initial={false} mode="wait">
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, y: 12 }}
@@ -2687,12 +2699,14 @@ export default function App() {
                       viewport={{ once: true, margin: '-40px' }}
                       transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <ReviewsSection
-                        reviews={reviews}
-                        products={products}
-                        onOpenWriteReview={handleOpenWriteReview}
-                        onHelpfulClick={handleHelpfulClick}
-                      />
+                      <Suspense fallback={null}>
+                        <ReviewsSection
+                          reviews={reviews}
+                          products={products}
+                          onOpenWriteReview={handleOpenWriteReview}
+                          onHelpfulClick={handleHelpfulClick}
+                        />
+                      </Suspense>
                     </motion.div>
 
                     {/* Store Location Section */}
@@ -2702,49 +2716,55 @@ export default function App() {
                       viewport={{ once: true, margin: '-40px' }}
                       transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                     >
-                      <StoreLocation />
+                      <Suspense fallback={null}>
+                        <StoreLocation />
+                      </Suspense>
                     </motion.div>
                   </>
                 )}
 
                 {/* TAB 2: SPECIAL CATALOGUE VIEW (Strictly contains the bedsheets) */}
                 {activeTab === 'catalogue' && (
-                  <CatalogueView
-                    products={products}
-                    onQuickView={(p, editMode) => handleOpenProductModal(p, editMode)}
-                    onAddToCart={(p) => handleAddToCart(p, 1)}
-                    addedProductIds={addedProductIds}
-                    customImages={customImages}
-                    onUploadImage={handleUploadImage}
-                    onOpenPhotoManager={handleOpenPhotoManagerSafely}
-                    onOpenAdmin={handleOpenAdminSafely}
-                    isOwnerMode={isOwnerMode}
-                    onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
-                    onToggleCompare={handleToggleCompare}
-                    comparedProductIds={comparedProductIds}
-                    onNotifyStock={handleNotifyStock}
-                    isWishlisted={isProductWishlisted}
-                    onToggleWishlist={handleToggleWishlist}
-                    reviews={reviews}
-                  />
+                  <Suspense fallback={<RouteViewFallback label="Loading Pure Cotton Catalogue..." />}>
+                    <CatalogueView
+                      products={products}
+                      onQuickView={(p, editMode) => handleOpenProductModal(p, editMode)}
+                      onAddToCart={(p) => handleAddToCart(p, 1)}
+                      addedProductIds={addedProductIds}
+                      customImages={customImages}
+                      onUploadImage={handleUploadImage}
+                      onOpenPhotoManager={handleOpenPhotoManagerSafely}
+                      onOpenAdmin={handleOpenAdminSafely}
+                      isOwnerMode={isOwnerMode}
+                      onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
+                      onToggleCompare={handleToggleCompare}
+                      comparedProductIds={comparedProductIds}
+                      onNotifyStock={handleNotifyStock}
+                      isWishlisted={isProductWishlisted}
+                      onToggleWishlist={handleToggleWishlist}
+                      reviews={reviews}
+                    />
+                  </Suspense>
                 )}
 
                 {/* TAB: SEASONAL FESTIVE SHOPPING PAGE */}
                 {activeTab === 'seasonal' && (
-                  <SeasonalView
-                    products={products}
-                    seasonalConfig={seasonalConfig}
-                    onAddToCart={(p, customPrice) => handleAddToCart(p, 1, customPrice)}
-                    onQuickView={(p) => handleOpenProductModal(p, false)}
-                    addedProductIds={Array.from(addedProductIds)}
-                    isOwnerMode={isOwnerMode}
-                    onOpenAdmin={handleOpenAdminSafely}
-                    onExploreFullCatalogue={() => {
-                      setActiveTab('catalogue');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    activeThemeId={themeConfig.activeThemeId}
-                  />
+                  <Suspense fallback={<RouteViewFallback label="Loading Seasonal Collection..." />}>
+                    <SeasonalView
+                      products={products}
+                      seasonalConfig={seasonalConfig}
+                      onAddToCart={(p, customPrice) => handleAddToCart(p, 1, customPrice)}
+                      onQuickView={(p) => handleOpenProductModal(p, false)}
+                      addedProductIds={Array.from(addedProductIds)}
+                      isOwnerMode={isOwnerMode}
+                      onOpenAdmin={handleOpenAdminSafely}
+                      onExploreFullCatalogue={() => {
+                        setActiveTab('catalogue');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      activeThemeId={themeConfig.activeThemeId}
+                    />
+                  </Suspense>
                 )}
 
                 {/* TAB 3: OUR STORY & CRAFTSMANSHIP */}
@@ -2759,61 +2779,73 @@ export default function App() {
                 )}
 
                 {/* TAB 4: STORE LOCATION & VISIT */}
-                {activeTab === 'store' && <StoreLocation />}
+                {activeTab === 'store' && (
+                  <Suspense fallback={<RouteViewFallback label="Loading Studio Location..." />}>
+                    <StoreLocation />
+                  </Suspense>
+                )}
 
                 {/* TAB 5: LIVE ORDERS FOR INDIVIDUAL CLIENT */}
                 {activeTab === 'orders' && (
-                  <LiveOrdersView
-                    onExploreCatalogue={() => {
-                      setActiveTab('catalogue');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    onOpenAuthModal={() => setIsAuthModalOpen(true)}
-                  />
+                  <Suspense fallback={<RouteViewFallback label="Loading Order Tracker..." />}>
+                    <LiveOrdersView
+                      onExploreCatalogue={() => {
+                        setActiveTab('catalogue');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                    />
+                  </Suspense>
                 )}
 
                 {/* TAB 6: TERMS & CONDITIONS (T&C) */}
                 {activeTab === 'tc' && (
-                  <TermsAndConditionsView
-                    siteContent={siteContent}
-                    onExploreCatalogue={() => {
-                      setActiveTab('catalogue');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                  />
+                  <Suspense fallback={<RouteViewFallback label="Loading Policies & Terms..." />}>
+                    <TermsAndConditionsView
+                      siteContent={siteContent}
+                      onExploreCatalogue={() => {
+                        setActiveTab('catalogue');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+                  </Suspense>
                 )}
 
                 {/* TAB 7: VERIFIED CUSTOMER REVIEWS & COMMENTS */}
                 {activeTab === 'reviews' && (
                   <div className="pt-2 sm:pt-4">
-                    <ReviewsSection
-                      reviews={reviews}
-                      products={products}
-                      onOpenWriteReview={handleOpenWriteReview}
-                      onHelpfulClick={handleHelpfulClick}
-                    />
+                    <Suspense fallback={<RouteViewFallback label="Loading Verified Reviews..." />}>
+                      <ReviewsSection
+                        reviews={reviews}
+                        products={products}
+                        onOpenWriteReview={handleOpenWriteReview}
+                        onHelpfulClick={handleHelpfulClick}
+                      />
+                    </Suspense>
                   </div>
                 )}
 
                 {/* TAB 8: STORE PERFORMANCE & TRAFFIC ANALYTICS (ADMIN ONLY) */}
                 {activeTab === 'analytics' && (
                   isOwnerMode ? (
-                    <AnalyticsView
-                      products={products}
-                      orders={orders}
-                      reviews={reviews}
-                      wishlistItems={wishlistItems}
-                      trafficData={trafficData}
-                      onSelectProduct={(p) => handleOpenProductModal(p, false)}
-                      onGoToCatalogue={() => {
-                        setActiveTab('catalogue');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      onGoToReviews={() => {
-                        setActiveTab('reviews');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                    />
+                    <Suspense fallback={<RouteViewFallback label="Loading Store Analytics..." />}>
+                      <AnalyticsView
+                        products={products}
+                        orders={orders}
+                        reviews={reviews}
+                        wishlistItems={wishlistItems}
+                        trafficData={trafficData}
+                        onSelectProduct={(p) => handleOpenProductModal(p, false)}
+                        onGoToCatalogue={() => {
+                          setActiveTab('catalogue');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        onGoToReviews={() => {
+                          setActiveTab('reviews');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                      />
+                    </Suspense>
                   ) : (
                     <div className="max-w-xl mx-auto my-16 px-4">
                       <div className="bg-white rounded-3xl p-8 sm:p-10 text-center border border-[#DEC89B] shadow-xl space-y-6">
@@ -2862,78 +2894,94 @@ export default function App() {
           </ErrorBoundary>
 
           {/* Global Product Detail Modal */}
-          <ProductModal
-            product={selectedProduct}
-            onClose={() => {
-              setSelectedProduct(null);
-              setIsProductModalEditMode(false);
-            }}
-            onAddToCart={handleAddToCart}
-            customImage={selectedProduct ? customImages[selectedProduct.id] : undefined}
-            onUploadImage={handleUploadImage}
-            onUpdateProduct={handleUpdateSingleProduct}
-            isOwnerMode={isOwnerMode}
-            initialEditMode={isProductModalEditMode}
-            onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
-            reviews={reviews}
-            onOpenWriteReview={handleOpenWriteReview}
-            allProducts={products}
-            onSelectProduct={(p) => handleOpenProductModal(p, false)}
-            onToggleCompare={handleToggleCompare}
-            isCompared={selectedProduct ? comparedProductIds.includes(selectedProduct.id) : false}
-            onNotifyStock={handleNotifyStock}
-            shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
-            onViewTermsAndConditions={() => {
-              setActiveTab('tc');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onLightboxChange={(isOpen) => setIsProductLightboxOpen(isOpen)}
-            externalCloseLightboxTrigger={externalCloseLightboxTrigger}
-          />
+          {selectedProduct && (
+            <Suspense fallback={null}>
+              <ProductModal
+                product={selectedProduct}
+                onClose={() => {
+                  setSelectedProduct(null);
+                  setIsProductModalEditMode(false);
+                }}
+                onAddToCart={handleAddToCart}
+                customImage={selectedProduct ? customImages[selectedProduct.id] : undefined}
+                onUploadImage={handleUploadImage}
+                onUpdateProduct={handleUpdateSingleProduct}
+                isOwnerMode={isOwnerMode}
+                initialEditMode={isProductModalEditMode}
+                onOpenOwnerAuth={() => setIsOwnerAuthOpen(true)}
+                reviews={reviews}
+                onOpenWriteReview={handleOpenWriteReview}
+                allProducts={products}
+                onSelectProduct={(p) => handleOpenProductModal(p, false)}
+                onToggleCompare={handleToggleCompare}
+                isCompared={selectedProduct ? comparedProductIds.includes(selectedProduct.id) : false}
+                onNotifyStock={handleNotifyStock}
+                shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
+                onViewTermsAndConditions={() => {
+                  setActiveTab('tc');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onLightboxChange={(isOpen) => setIsProductLightboxOpen(isOpen)}
+                externalCloseLightboxTrigger={externalCloseLightboxTrigger}
+              />
+            </Suspense>
+          )}
 
           {/* Write Review & Comment Modal */}
-          <WriteReviewModal
-            isOpen={isWriteReviewOpen}
-            onClose={() => setIsWriteReviewOpen(false)}
-            products={products}
-            defaultProductId={writeReviewProductId}
-            onSubmitReview={handleSubmitReview}
-          />
+          {isWriteReviewOpen && (
+            <Suspense fallback={null}>
+              <WriteReviewModal
+                isOpen={isWriteReviewOpen}
+                onClose={() => setIsWriteReviewOpen(false)}
+                products={products}
+                defaultProductId={writeReviewProductId}
+                onSubmitReview={handleSubmitReview}
+              />
+            </Suspense>
+          )}
 
           {/* Photo Studio / Upload Manager Modal - Only available to Owner */}
-          <PhotoUploadModal
-            isOpen={isPhotoManagerOpen && isOwnerMode}
-            onClose={() => setIsPhotoManagerOpen(false)}
-            products={products}
-            customImages={customImages}
-            onUploadImage={handleUploadImage}
-            onResetImage={handleResetImage}
-            onResetAll={handleResetAllPhotos}
-            onUpdateSingleProduct={handleUpdateSingleProduct}
-          />
+          {isPhotoManagerOpen && isOwnerMode && (
+            <Suspense fallback={null}>
+              <PhotoUploadModal
+                isOpen={isPhotoManagerOpen && isOwnerMode}
+                onClose={() => setIsPhotoManagerOpen(false)}
+                products={products}
+                customImages={customImages}
+                onUploadImage={handleUploadImage}
+                onResetImage={handleResetImage}
+                onResetAll={handleResetAllPhotos}
+                onUpdateSingleProduct={handleUpdateSingleProduct}
+              />
+            </Suspense>
+          )}
 
           {/* Slide-over Cart / Checkout Drawer */}
-          <CartDrawer
-            isOpen={isCartOpen}
-            onClose={() => setIsCartOpen(false)}
-            items={cartItems}
-            onUpdateQuantity={handleUpdateQuantity}
-            onRemoveItem={handleRemoveFromCart}
-            onClearCart={handleClearCart}
-            onOrderPlaced={(order) => {
-              setOrders((prev) => [order, ...prev]);
-              trackCustomerOrderPlaced(order);
-            }}
-            shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
-            customerProfile={customerProfile}
-            orders={orders}
-            onOpenAuthModal={() => setIsAuthModalOpen(true)}
-            onViewLiveOrders={() => {
-              setIsCartOpen(false);
-              setActiveTab('orders');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-          />
+          {isCartOpen && (
+            <Suspense fallback={null}>
+              <CartDrawer
+                isOpen={isCartOpen}
+                onClose={() => setIsCartOpen(false)}
+                items={cartItems}
+                onUpdateQuantity={handleUpdateQuantity}
+                onRemoveItem={handleRemoveFromCart}
+                onClearCart={handleClearCart}
+                onOrderPlaced={(order) => {
+                  setOrders((prev) => [order, ...prev]);
+                  trackCustomerOrderPlaced(order);
+                }}
+                shippingFee={normalizeShippingFee(siteContent.shippingFeeIndia)}
+                customerProfile={customerProfile}
+                orders={orders}
+                onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                onViewLiveOrders={() => {
+                  setIsCartOpen(false);
+                  setActiveTab('orders');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            </Suspense>
+          )}
 
           {/* Mobile Sticky Bottom Bar (Thumb Navigation) */}
           <MobileBottomBar
@@ -2960,39 +3008,51 @@ export default function App() {
       )}
 
       {/* Google Sign In & Client Auth Modal */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => {
-          setIsAuthModalOpen(false);
-          setAuthModalReason(null);
-        }}
-        reason={authModalReason}
-        onTrackOrderDirect={(_orderId) => {
-          setActiveTab('orders');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-      />
+      {isAuthModalOpen && (
+        <Suspense fallback={null}>
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            onClose={() => {
+              setIsAuthModalOpen(false);
+              setAuthModalReason(null);
+            }}
+            reason={authModalReason}
+            onTrackOrderDirect={(_orderId) => {
+              setActiveTab('orders');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Owner Security PIN Authentication Modal */}
-      <OwnerAuthModal
-        isOpen={isOwnerAuthOpen}
-        onClose={() => setIsOwnerAuthOpen(false)}
-        onAuthenticate={handleOwnerAuthenticate}
-      />
+      {isOwnerAuthOpen && (
+        <Suspense fallback={null}>
+          <OwnerAuthModal
+            isOpen={isOwnerAuthOpen}
+            onClose={() => setIsOwnerAuthOpen(false)}
+            onAuthenticate={handleOwnerAuthenticate}
+          />
+        </Suspense>
+      )}
 
       {/* Customer Notification Center Drawer Modal */}
-      <NotificationCenterModal
-        isOpen={isNotificationCenterOpen}
-        onClose={() => setIsNotificationCenterOpen(false)}
-        notifications={notifications}
-        onMarkAsRead={handleMarkNotificationAsRead}
-        onMarkAllAsRead={handleMarkAllNotificationsAsRead}
-        onClearAll={handleClearAllNotifications}
-        preferences={notificationPreferences}
-        onUpdatePreferences={handleUpdateNotificationPreferences}
-        onNavigate={handleNotificationNavigate}
-        customerIdentifier={user?.email || user?.phone || 'guest'}
-      />
+      {isNotificationCenterOpen && (
+        <Suspense fallback={null}>
+          <NotificationCenterModal
+            isOpen={isNotificationCenterOpen}
+            onClose={() => setIsNotificationCenterOpen(false)}
+            notifications={notifications}
+            onMarkAsRead={handleMarkNotificationAsRead}
+            onMarkAllAsRead={handleMarkAllNotificationsAsRead}
+            onClearAll={handleClearAllNotifications}
+            preferences={notificationPreferences}
+            onUpdatePreferences={handleUpdateNotificationPreferences}
+            onNavigate={handleNotificationNavigate}
+            customerIdentifier={user?.email || user?.phone || 'guest'}
+          />
+        </Suspense>
+      )}
 
       {/* Floating Bottom Comparison Bar (when 1-3 items selected) */}
       <ProductCompareBar
@@ -3003,87 +3063,111 @@ export default function App() {
       />
 
       {/* Full Bedsheet Comparison Matrix Modal */}
-      <ProductCompareModal
-        isOpen={isCompareModalOpen}
-        onClose={() => setIsCompareModalOpen(false)}
-        products={products.filter((p) => comparedProductIds.includes(p.id))}
-        onRemoveFromCompare={handleRemoveFromCompare}
-        onClearCompare={handleClearCompare}
-        onAddToCart={(p) => handleAddToCart(p, 1)}
-        onViewProduct={(p) => {
-          setIsCompareModalOpen(false);
-          handleOpenProductModal(p, false);
-        }}
-      />
+      {isCompareModalOpen && (
+        <Suspense fallback={null}>
+          <ProductCompareModal
+            isOpen={isCompareModalOpen}
+            onClose={() => setIsCompareModalOpen(false)}
+            products={products.filter((p) => comparedProductIds.includes(p.id))}
+            onRemoveFromCompare={handleRemoveFromCompare}
+            onClearCompare={handleClearCompare}
+            onAddToCart={(p) => handleAddToCart(p, 1)}
+            onViewProduct={(p) => {
+              setIsCompareModalOpen(false);
+              handleOpenProductModal(p, false);
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Back In Stock Email/WhatsApp Alert Modal */}
-      <StockAlertModal
-        isOpen={!!stockAlertProduct}
-        onClose={() => setStockAlertProduct(null)}
-        product={stockAlertProduct}
-        defaultContact={user?.phone || user?.email || ''}
-      />
+      {stockAlertProduct && (
+        <Suspense fallback={null}>
+          <StockAlertModal
+            isOpen={!!stockAlertProduct}
+            onClose={() => setStockAlertProduct(null)}
+            product={stockAlertProduct}
+            defaultContact={user?.phone || user?.email || ''}
+          />
+        </Suspense>
+      )}
 
       {/* Customer Wishlist Drawer Modal */}
-      <WishlistDrawer
-        isOpen={isWishlistOpen}
-        onClose={() => setIsWishlistOpen(false)}
-        items={wishlistItems}
-        customerProfile={customerProfile}
-        onRemoveItem={handleRemoveWishlistItem}
-        onMoveToCart={handleMoveToCartFromWishlist}
-        onEditProfile={() => setIsCustomerModalOpen(true)}
-      />
+      {isWishlistOpen && (
+        <Suspense fallback={null}>
+          <WishlistDrawer
+            isOpen={isWishlistOpen}
+            onClose={() => setIsWishlistOpen(false)}
+            items={wishlistItems}
+            customerProfile={customerProfile}
+            onRemoveItem={handleRemoveWishlistItem}
+            onMoveToCart={handleMoveToCartFromWishlist}
+            onEditProfile={() => setIsCustomerModalOpen(true)}
+          />
+        </Suspense>
+      )}
 
       {/* Customer Contact Details Capture Modal for Wishlist */}
-      <CustomerWishlistModal
-        isOpen={isCustomerModalOpen}
-        onClose={() => {
-          setIsCustomerModalOpen(false);
-          setPendingWishlistProduct(null);
-        }}
-        onConfirmed={handleCustomerProfileConfirmed}
-        pendingProductName={pendingWishlistProduct?.product.name}
-      />
+      {isCustomerModalOpen && (
+        <Suspense fallback={null}>
+          <CustomerWishlistModal
+            isOpen={isCustomerModalOpen}
+            onClose={() => {
+              setIsCustomerModalOpen(false);
+              setPendingWishlistProduct(null);
+            }}
+            onConfirmed={handleCustomerProfileConfirmed}
+            pendingProductName={pendingWishlistProduct?.product.name}
+          />
+        </Suspense>
+      )}
 
       {/* Customer Loyalty Points & Rewards Modal */}
-      <LoyaltyRewardsModal
-        isOpen={isLoyaltyModalOpen}
-        onClose={closeLoyaltyModal}
-        onShopCatalogue={() => setActiveTab('catalogue')}
-        onOpenCart={() => setIsCartOpen(true)}
-      />
+      {isLoyaltyModalOpen && (
+        <Suspense fallback={null}>
+          <LoyaltyRewardsModal
+            isOpen={isLoyaltyModalOpen}
+            onClose={closeLoyaltyModal}
+            onShopCatalogue={() => setActiveTab('catalogue')}
+            onOpenCart={() => setIsCartOpen(true)}
+          />
+        </Suspense>
+      )}
 
       {/* All-in-One Customer Account Hub (Wishlist, Loyalty Points, Orders, Profile) */}
-      <AccountModal
-        isOpen={isAccountModalOpen}
-        onClose={() => setIsAccountModalOpen(false)}
-        customerProfile={customerProfile}
-        onUpdateProfile={(updated) => setCustomerProfile(updated)}
-        wishlistItems={wishlistItems}
-        onRemoveWishlistItem={handleRemoveWishlistItem}
-        onMoveToCartFromWishlist={handleMoveToCartFromWishlist}
-        orders={orders}
-        onTrackOrderDirect={(orderId) => {
-          setIsAccountModalOpen(false);
-          setActiveTab('orders');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        onOpenCart={() => {
-          setIsAccountModalOpen(false);
-          setIsCartOpen(true);
-        }}
-        onShopCatalogue={() => {
-          setIsAccountModalOpen(false);
-          setActiveTab('catalogue');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        isOwnerMode={isOwnerMode}
-        onOpenAdmin={() => {
-          setIsAccountModalOpen(false);
-          setIsOwnerAuthOpen(true);
-        }}
-      />
+      {isAccountModalOpen && (
+        <Suspense fallback={null}>
+          <AccountModal
+            isOpen={isAccountModalOpen}
+            onClose={() => setIsAccountModalOpen(false)}
+            customerProfile={customerProfile}
+            onUpdateProfile={(updated) => setCustomerProfile(updated)}
+            wishlistItems={wishlistItems}
+            onRemoveWishlistItem={handleRemoveWishlistItem}
+            onMoveToCartFromWishlist={handleMoveToCartFromWishlist}
+            orders={orders}
+            onTrackOrderDirect={(orderId) => {
+              setIsAccountModalOpen(false);
+              setActiveTab('orders');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onOpenCart={() => {
+              setIsAccountModalOpen(false);
+              setIsCartOpen(true);
+            }}
+            onShopCatalogue={() => {
+              setIsAccountModalOpen(false);
+              setActiveTab('catalogue');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            isOwnerMode={isOwnerMode}
+            onOpenAdmin={() => {
+              setIsAccountModalOpen(false);
+              setIsOwnerAuthOpen(true);
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Floating Smooth Scroll-to-Top Button (Apple Liquid Glass Orb) */}
       <AnimatePresence>
@@ -3167,17 +3251,21 @@ export default function App() {
       />
 
       {/* Welcome 10% OFF Gift Popup for Eligible New Customers */}
-      <WelcomeOfferModal
-        isOpen={isWelcomeOfferModalOpen}
-        config={welcomeOfferConfig}
-        customerName={user?.name}
-        onClose={() => setIsWelcomeOfferModalOpen(false)}
-        onShopNow={() => {
-          setIsWelcomeOfferModalOpen(false);
-          setActiveTab('catalogue');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-      />
+      {isWelcomeOfferModalOpen && (
+        <Suspense fallback={null}>
+          <WelcomeOfferModal
+            isOpen={isWelcomeOfferModalOpen}
+            config={welcomeOfferConfig}
+            customerName={user?.name}
+            onClose={() => setIsWelcomeOfferModalOpen(false)}
+            onShopNow={() => {
+              setIsWelcomeOfferModalOpen(false);
+              setActiveTab('catalogue');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Minimal Text-Only Home Screen Back-Button Exit Confirmation Banner */}
       <ExitConfirmBanner

@@ -116,6 +116,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img
               src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
               alt="Cotton Nest Logo"
+              width={40}
+              height={40}
+              decoding="async"
               className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0 transition-transform group-hover:scale-105"
             />
             <div className="flex flex-col justify-center">

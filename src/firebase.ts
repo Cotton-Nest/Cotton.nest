@@ -1,5 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import {
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  Auth,
+} from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer, setLogLevel } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -39,10 +45,16 @@ export function markFirestoreWriteQuotaExhausted(error: unknown): boolean {
   return false;
 }
 
+const AUTH_PERSISTENCE = [
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+];
+
 // Primary app for Firestore database (preserves all original store data in river-fusion-rz0s9 / ai-studio-remixcottonnestl-79807e95-0ce0-4626-9bba-b37acdbe97c1)
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const primaryAuth = getAuth(app);
+export const primaryAuth = initializeAuth(app, { persistence: AUTH_PERSISTENCE });
 
 // Dedicated Auth app provisioned for Google Sign-In on AI Studio preview/shared domains and custom domains added to gen-lang-client-0838797128
 export const GOOGLE_AUTH_FIREBASE_CONFIG = {
@@ -53,7 +65,7 @@ export const GOOGLE_AUTH_FIREBASE_CONFIG = {
 };
 
 const googleAuthApp = initializeApp(GOOGLE_AUTH_FIREBASE_CONFIG, 'google-signin-only');
-export const previewAuth = getAuth(googleAuthApp);
+export const previewAuth = initializeAuth(googleAuthApp, { persistence: AUTH_PERSISTENCE });
 
 // Default export auth points to previewAuth (gen-lang-client-0838797128), while AuthContext dynamically selects whichever project has the current hostname authorized
 export const auth: Auth = previewAuth;

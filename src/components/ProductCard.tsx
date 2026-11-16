@@ -160,27 +160,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             className="absolute inset-0 w-full h-full object-cover object-center z-[1]"
           />
         ) : (
-          <img
-            ref={(el) => {
-              imgRef.current = el;
-              if (el && el.complete && el.naturalWidth > 0 && !imageLoaded) {
+          <picture>
+            {/^\/images\/[^?]+\.jpg$/i.test(displayImage) && (
+              <source srcSet={displayImage.replace(/\.jpg$/i, '.webp')} type="image/webp" />
+            )}
+            <img
+              ref={(el) => {
+                imgRef.current = el;
+                if (el && el.complete && el.naturalWidth > 0 && !imageLoaded) {
+                  setImageLoaded(true);
+                }
+              }}
+              src={displayImage}
+              alt={product.name}
+              width={800}
+              height={600}
+              referrerPolicy="no-referrer"
+              loading={priority ? 'eager' : 'lazy'}
+              decoding={priority ? 'sync' : 'async'}
+              onLoad={handleImageLoad}
+              onError={(e) => {
                 setImageLoaded(true);
-              }
-            }}
-            src={displayImage}
-            alt={product.name}
-            referrerPolicy="no-referrer"
-            loading={priority ? 'eager' : 'lazy'}
-            decoding="async"
-            onLoad={handleImageLoad}
-            onError={(e) => {
-              setImageLoaded(true);
-              handleImageFallback(e, product.id);
-            }}
-            className={`absolute inset-0 w-full h-full object-cover object-center transition-all duration-500 ease-out group-hover:scale-105 z-[1] ${
-              imageLoaded ? 'opacity-100 scale-100' : 'opacity-90 scale-[1.01]'
-            }`}
-          />
+                handleImageFallback(e, product.id);
+              }}
+              className={`absolute inset-0 w-full h-full object-cover object-center transition-all duration-500 ease-out group-hover:scale-105 z-[1] ${
+                imageLoaded ? 'opacity-100 scale-100' : 'opacity-90 scale-[1.01]'
+              }`}
+            />
+          </picture>
         )}
 
         {/* Video Reel Available Indicator Pill (Bottom Left) */}

@@ -22,47 +22,27 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* Left Column: Editorial & Brand copy with staggered entrance */}
+          {/* Left Column: Editorial & Brand copy rendered immediately for zero LCP delay */}
           <div className="lg:col-span-6 space-y-6 text-center lg:text-left">
             
             {/* Liquid Glass Kicker Capsule */}
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent,#A8823B)] px-3.5 py-1.5 rounded-full liquid-glass-badge"
-            >
+            <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent,#A8823B)] px-3.5 py-1.5 rounded-full liquid-glass-badge">
               <Sparkles className="w-3.5 h-3.5 text-[#C29E57]" />
               <span>{kicker}</span>
-            </motion.div>
+            </div>
 
             {/* Display Headline with balanced wrap */}
-            <motion.h1
-              initial={{ opacity: 0, y: 22 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="font-serif-luxury text-4xl sm:text-5xl lg:text-6xl font-normal tracking-tight text-[var(--color-text,#2C2420)] leading-[1.15] text-balance"
-            >
+            <h1 className="font-serif-luxury text-4xl sm:text-5xl lg:text-6xl font-normal tracking-tight text-[var(--color-text,#2C2420)] leading-[1.15] text-balance">
               {headline}
-            </motion.h1>
+            </h1>
 
-            {/* Body description */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="text-base sm:text-lg text-[var(--color-text-secondary,#6B5D55)] leading-relaxed max-w-xl mx-auto lg:mx-0 font-normal"
-            >
+            {/* Body description (critical LCP element — painted immediately without animation delay) */}
+            <p className="text-base sm:text-lg text-[var(--color-text-secondary,#6B5D55)] leading-relaxed max-w-xl mx-auto lg:mx-0 font-normal">
               {subheadline}
-            </motion.p>
+            </p>
 
             {/* CTA action cluster */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2"
-            >
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2">
               <motion.button
                 whileHover={{ y: -2, scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
@@ -84,15 +64,10 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
                 <Sparkles className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
               </motion.button>
-            </motion.div>
+            </div>
 
             {/* Quiet trust markers in a subtle frosted glass strip */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.7, delay: 0.55 }}
-              className="p-3.5 rounded-2xl liquid-glass-surface flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-5 text-xs text-[#7A6458]"
-            >
+            <div className="p-3.5 rounded-2xl liquid-glass-surface flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-5 text-xs text-[#7A6458]">
               <span className="flex items-center gap-1.5 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#C29E57]" />
                 100% Pure Combed Cotton
@@ -106,25 +81,28 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
                 <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                 WhatsApp Direct Atelier Orders
               </span>
-            </motion.div>
+            </div>
 
           </div>
 
           {/* Right Column: Hero Visual Showcase in Apple Liquid Glass Bezel */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="lg:col-span-6 relative"
-          >
+          <div className="lg:col-span-6 relative">
             <div className="p-2 rounded-[28px] liquid-glass-card">
               <div className="relative rounded-3xl overflow-hidden bg-[#FAF7F2] aspect-[16/10] sm:aspect-[16/11] group">
-                <img
-                  src="/images/hero_cotton_nest_bedding_1790996973951.jpg"
-                  alt="Cotton Nest luxury master bedroom featuring pure cotton bedding in cream, blush pink, and muted gold"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
-                />
+                <picture>
+                  <source srcSet="/images/hero_cotton_nest_bedding_1790996973951.webp" type="image/webp" />
+                  <img
+                    src="/images/hero_cotton_nest_bedding_1790996973951.jpg"
+                    alt="Cotton Nest luxury master bedroom featuring pure cotton bedding in cream, blush pink, and muted gold"
+                    width={1376}
+                    height={768}
+                    loading="eager"
+                    decoding="sync"
+                    fetchPriority="high"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-gradient-to-t from-[#2C2420]/45 via-transparent to-transparent pointer-events-none" />
                 
                 {/* Top specular glass reflection */}
@@ -132,10 +110,8 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
 
                 {/* Floating Apple Liquid Glass studio card */}
                 <motion.div
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
                   whileHover={{ y: -2, scale: 1.01 }}
-                  transition={{ duration: 0.5, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                   onClick={onVisitStore}
                   className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs liquid-glass-dock p-3.5 rounded-2xl text-left cursor-pointer"
                 >
@@ -151,15 +127,12 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
                 </motion.div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
         </div>
 
         {/* Scroll-Down Visual Cue Indicator with Gentle Levitation */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.75 }}
+        <div
           className="flex justify-center pt-8 sm:pt-12 cursor-pointer"
           onClick={() => {
             const el = document.getElementById('curated-highlights');
@@ -174,7 +147,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
             <span>Scroll to explore 100% cotton sheets</span>
             <ChevronDown className="w-3.5 h-3.5 text-[#B83F60] group-hover:translate-y-0.5 transition-transform" />
           </motion.div>
-        </motion.div>
+        </div>
 
       </div>
     </section>

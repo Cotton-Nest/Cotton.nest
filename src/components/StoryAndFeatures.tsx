@@ -114,6 +114,10 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
               <img
                 src="/assets/aistudio/IMG-20261106-WA0032_3f856e9c.jpg"
                 alt="Cotton Nest Atelier Seal"
+                width={56}
+                height={56}
+                loading="lazy"
+                decoding="async"
                 className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-white/90 shadow-xs shrink-0"
                 onError={(e) => {
                   (e.target as HTMLElement).setAttribute('src', 'https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png');

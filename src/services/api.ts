@@ -53,6 +53,11 @@ import {
 } from '../data/complaints';
 import { LOYALTY_MAX_REDEMPTION_POINTS } from '../data/loyalty';
 import {
+  earnLoyaltyPointsApi,
+  redeemLoyaltyPointsApi,
+  refundLoyaltyPointsApi,
+} from './loyaltyApi';
+import {
   WelcomeOfferConfig,
   WelcomeOfferCustomerRecord,
   DEFAULT_WELCOME_OFFER_CONFIG,
@@ -1174,7 +1179,6 @@ export async function saveOrder(order: Order): Promise<void> {
       );
   if (pointsToRedeemVal > 0) {
     try {
-      const { redeemLoyaltyPointsApi } = await import('./loyaltyApi');
       const rawKeys: string[] = [];
       if (safeOrder.customerPhone) rawKeys.push(safeOrder.customerPhone);
       if (safeOrder.customerEmail) rawKeys.push(safeOrder.customerEmail);
@@ -1565,7 +1569,6 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
 
       if (eligibleAmount > 0 || (targetOrder.pointsEarned && targetOrder.pointsEarned > 0)) {
         try {
-          const { earnLoyaltyPointsApi } = await import('./loyaltyApi');
           for (const k of rawKeys) {
             await earnLoyaltyPointsApi(k, eligibleAmount, orderId, {
               name: targetOrder.customerName,
@@ -1618,7 +1621,6 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       const ptsUsed = Number(targetOrder.pointsUsed) || 0;
       if (ptsUsed > 0 && !targetOrder.pointsRefunded) {
         try {
-          const { refundLoyaltyPointsApi } = await import('./loyaltyApi');
           const rawKeys: string[] = [];
           if (targetOrder.customerPhone) rawKeys.push(targetOrder.customerPhone);
           if (targetOrder.customerEmail) rawKeys.push(targetOrder.customerEmail);
