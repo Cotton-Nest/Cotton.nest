@@ -3883,7 +3883,9 @@ async function startServer() {
   /* ------------------- SEO SITEMAP & ROBOTS.TXT ------------------- */
 
   app.get('/sitemap.xml', (_req, res) => {
-    const sitemapPath = path.join(__dirname, 'public', 'sitemap.xml');
+    const publicSitemap = path.join(__dirname, 'public', 'sitemap.xml');
+    const distSitemap = path.join(__dirname, 'dist', 'sitemap.xml');
+    const sitemapPath = fs.existsSync(publicSitemap) ? publicSitemap : distSitemap;
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     if (fs.existsSync(sitemapPath)) {

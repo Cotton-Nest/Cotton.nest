@@ -45,6 +45,13 @@ export default defineConfig(() => {
         },
         workbox: {
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /^\/sitemap\.xml$/i,
+            /^\/robots\.txt$/i,
+            /\/[^/?]+\.[^/]+$/,
+          ],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           globIgnores: ['**/AdminPanel-*.js', '**/AnalyticsView-*.js', '**/PhotoUploadModal-*.js', '**/assets/aistudio/**'],
           runtimeCaching: [

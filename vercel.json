@@ -18,7 +18,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|manifest\\.json|sw\\.js|icon\\.svg|apple-touch-icon\\.png).*)",
+      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|manifest\\.json|manifest\\.webmanifest|sw\\.js|registerSW\\.js|workbox-|icon\\.svg|apple-touch-icon\\.png|pwa-|images/|assets/|uploads/).*)",
       "destination": "/index.html"
     }
   ]

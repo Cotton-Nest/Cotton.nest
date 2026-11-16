@@ -57,7 +57,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Always network-first for HTML navigation without caching dev HTML
+  // Always network-first for HTML navigation without caching dev HTML, and never intercept XML/TXT/static files
+  if (
+    url.pathname === '/sitemap.xml' ||
+    url.pathname === '/robots.txt' ||
+    /\.[a-z0-9]+$/i.test(url.pathname)
+  ) {
+    return;
+  }
+
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() => caches.match('/index.html'))
