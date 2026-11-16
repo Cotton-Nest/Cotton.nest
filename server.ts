@@ -3880,6 +3880,30 @@ async function startServer() {
     });
   });
 
+  /* ------------------- SEO SITEMAP & ROBOTS.TXT ------------------- */
+
+  app.get('/sitemap.xml', (_req, res) => {
+    const sitemapPath = path.join(__dirname, 'public', 'sitemap.xml');
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (fs.existsSync(sitemapPath)) {
+      res.send(fs.readFileSync(sitemapPath, 'utf-8'));
+      return;
+    }
+    res.status(404).send('Not Found');
+  });
+
+  app.get('/robots.txt', (_req, res) => {
+    const robotsPath = path.join(__dirname, 'public', 'robots.txt');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (fs.existsSync(robotsPath)) {
+      res.send(fs.readFileSync(robotsPath, 'utf-8'));
+      return;
+    }
+    res.send('User-agent: *\nAllow: /\n\nSitemap: https://cottonnest.in/sitemap.xml\n');
+  });
+
   /* ------------------- FRONTEND / VITE INTEGRATION ------------------- */
 
   if (!isProduction) {

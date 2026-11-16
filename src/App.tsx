@@ -156,7 +156,20 @@ import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone,
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  const [activeTabRaw, setActiveTabRaw] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>('home');
+  const [activeTabRaw, setActiveTabRaw] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>(() => {
+    if (typeof window !== 'undefined') {
+      const validPublicTabs = new Set(['home', 'catalogue', 'seasonal', 'story', 'store', 'orders', 'tc', 'reviews']);
+      const pathSlug = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+      if (validPublicTabs.has(pathSlug)) {
+        return pathSlug as 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
+      }
+      const hashSlug = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+      if (validPublicTabs.has(hashSlug)) {
+        return hashSlug as 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
+      }
+    }
+    return 'home';
+  });
   const [trafficData, setTrafficData] = useState<SiteTrafficData>(() => getEmptyTrafficData());
   const [selectedProduct, setSelectedProduct] = useState<BedsheetProduct | null>(null);
   const [isProductModalEditMode, setIsProductModalEditMode] = useState<boolean>(false);
