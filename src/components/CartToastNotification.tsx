@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Check, ShoppingBag, X, ArrowRight } from 'lucide-react';
+import { OptimizedPicture } from './OptimizedPicture';
 
 export interface CartToastInfo {
   id: string;
@@ -48,9 +49,16 @@ export const CartToastNotification: React.FC<CartToastNotificationProps> = ({
 
             {/* Product Thumbnail */}
             <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-[#F4EFE6] shrink-0 border border-[#C29E57]/30 shadow-xs">
-              <img
+              <OptimizedPicture
                 src={toast.image}
                 alt={toast.productName}
+                sizes="56px"
+                targetWidth={160}
+                cloudinaryWidths={[128, 256]}
+                width={56}
+                height={56}
+                loading="eager"
+                decoding="async"
                 className="w-full h-full object-cover object-center"
               />
               <div className="absolute top-0.5 right-0.5 bg-[#8C2E46] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white/60 shadow-2xs">

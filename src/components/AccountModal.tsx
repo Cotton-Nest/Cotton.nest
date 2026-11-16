@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { OptimizedPicture } from './OptimizedPicture';
 import {
   User,
   Heart,
@@ -431,7 +432,15 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#FDEAF0] text-[#8C2E46] flex items-center justify-center font-bold">
               {user?.avatar ? (
-                <img src={user.avatar} alt="User" className="w-full h-full rounded-2xl object-cover" />
+                <img
+                  src={user.avatar}
+                  alt="User"
+                  width={56}
+                  height={56}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full rounded-2xl object-cover"
+                />
               ) : (
                 <User className="w-5 h-5 text-[#8C2E46]" />
               )}
@@ -710,9 +719,17 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     <div className="space-y-1.5">
                       {wishlistItems.slice(0, 2).map((item) => (
                         <div key={item.id} className="flex items-center gap-2 p-1.5 bg-[#FAF7F2] rounded-xl border border-[#EAE2D5]">
-                          <img
+                          <OptimizedPicture
                             src={resolveBedsheetImage(item.productImage, item.productId)}
+                            productId={item.productId}
                             alt={item.productName}
+                            sizes="40px"
+                            targetWidth={160}
+                            cloudinaryWidths={[128, 256]}
+                            width={40}
+                            height={40}
+                            loading="lazy"
+                            decoding="async"
                             className="w-10 h-10 rounded-lg object-cover border border-[#EAE2D5]"
                           />
                           <div className="flex-1 min-w-0">
@@ -1248,9 +1265,17 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 <div className="divide-y divide-[#EAE2D5] bg-white rounded-2xl border border-[#EAE2D5] overflow-hidden">
                   {wishlistItems.map((item) => (
                     <div key={item.id} className="p-3.5 flex items-center gap-3 hover:bg-[#FAF7F2] transition-colors">
-                      <img
+                      <OptimizedPicture
                         src={resolveBedsheetImage(item.productImage, item.productId)}
+                        productId={item.productId}
                         alt={item.productName}
+                        sizes="56px"
+                        targetWidth={160}
+                        cloudinaryWidths={[128, 256]}
+                        width={56}
+                        height={56}
+                        loading="lazy"
+                        decoding="async"
                         className="w-14 h-14 rounded-xl object-cover border border-[#EAE2D5] shrink-0"
                       />
                       <div className="flex-1 min-w-0">

@@ -12,7 +12,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { BedsheetProduct } from '../data/products';
-import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
+import { resolveBedsheetImage } from '../utils/imageUrl';
+import { OptimizedPicture } from './OptimizedPicture';
 
 interface ProductCompareModalProps {
   isOpen: boolean;
@@ -240,10 +241,18 @@ export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
                       }}
                       className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-[#F4EFE6] border border-[#DEC89B] mx-auto cursor-pointer shadow-2xs group-hover:scale-102 transition-transform"
                     >
-                      <img
+                      <OptimizedPicture
                         src={resolveBedsheetImage(product.image, product.id)}
+                        productId={product.id}
+                        updatedAt={product.updatedAt}
                         alt={product.name}
-                        onError={(e) => handleImageFallback(e, product.id)}
+                        sizes="96px"
+                        targetWidth={256}
+                        cloudinaryWidths={[160, 320]}
+                        width={96}
+                        height={96}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover object-center"
                       />
                     </div>

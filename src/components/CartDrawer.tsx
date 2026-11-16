@@ -12,6 +12,7 @@ import {
   getWelcomeOfferStatusApi,
 } from '../services/api';
 import { sendWhatsAppCartOrder } from '../utils/whatsappOrder';
+import { OptimizedPicture } from './OptimizedPicture';
 import { useAuth } from '../context/AuthContext';
 import { useLoyalty } from '../context/LoyaltyContext';
 import {
@@ -1188,10 +1189,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                       className="w-full h-full object-cover object-center"
                                     />
                                   ) : (
-                                    <img
+                                    <OptimizedPicture
                                       src={displayImg}
+                                      productId={prodId}
                                       alt={prodName}
-                                      onError={handleImageFallback}
+                                      sizes="64px"
+                                      targetWidth={160}
+                                      cloudinaryWidths={[128, 256]}
+                                      width={64}
+                                      height={64}
+                                      loading="lazy"
+                                      decoding="async"
                                       draggable={false}
                                       className="w-full h-full object-cover object-center"
                                     />

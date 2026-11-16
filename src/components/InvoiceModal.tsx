@@ -17,6 +17,8 @@ import {
 import { Order } from '../data/orders';
 import { COMPANY_DETAILS } from '../data/products';
 import { formatRupeeAmount } from '../data/welcomeOffer';
+import { getCloudinaryLogoSrcSet, getCloudinaryLogoUrl } from '../utils/imageUrl';
+import { OptimizedPicture } from './OptimizedPicture';
 
 interface InvoiceModalProps {
   order: Order | null;
@@ -305,8 +307,14 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#EAE2D5] pb-5">
               <div className="flex items-start gap-3.5">
                 <img
-                  src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
+                  src={getCloudinaryLogoUrl(128)}
+                  srcSet={getCloudinaryLogoSrcSet()}
+                  sizes="56px"
                   alt="Cotton Nest Logo"
+                  width={56}
+                  height={56}
+                  loading="lazy"
+                  decoding="async"
                   className="w-12 h-12 sm:w-14 sm:h-14 object-contain shrink-0 rounded-xl p-1 bg-[#FAF7F2] border border-[#DEC89B]"
                 />
                 <div>
@@ -394,9 +402,17 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, isOpen, onClo
                   <div key={idx} className="p-3.5 grid grid-cols-12 items-center text-xs gap-2">
                     <div className="col-span-7 flex items-center gap-3">
                       {item.productImage && (
-                        <img
+                        <OptimizedPicture
                           src={item.productImage}
+                          productId={item.productId}
                           alt={item.productName}
+                          sizes="48px"
+                          targetWidth={160}
+                          cloudinaryWidths={[128, 256]}
+                          width={48}
+                          height={48}
+                          loading="lazy"
+                          decoding="async"
                           className="w-12 h-12 rounded-lg object-cover border border-[#DEC89B] shrink-0"
                         />
                       )}

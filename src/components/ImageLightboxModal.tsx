@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { OptimizedPicture } from './OptimizedPicture';
 
 interface ImageLightboxModalProps {
   isOpen: boolean;
@@ -123,9 +124,16 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               className="relative max-w-full max-h-full flex items-center justify-center"
             >
-              <img
+              <OptimizedPicture
                 src={currentImage}
                 alt={title || "Bedsheet Enlarge"}
+                sizes="92vw"
+                targetWidth={1200}
+                cloudinaryWidths={[650, 960, 1280]}
+                width={1200}
+                height={896}
+                loading="eager"
+                decoding="async"
                 className={`max-w-[92vw] max-h-[82vh] object-contain rounded-2xl shadow-2xl transition-all duration-300 ${
                   isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
                 }`}
@@ -176,7 +184,18 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
                       : 'border-white/30 opacity-60 hover:opacity-100 hover:border-white'
                   }`}
                 >
-                  <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                  <OptimizedPicture
+                    src={img}
+                    alt={`Thumb ${idx + 1}`}
+                    sizes="56px"
+                    targetWidth={160}
+                    cloudinaryWidths={[128, 256]}
+                    width={56}
+                    height={56}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover"
+                  />
                 </button>
               ))}
             </div>

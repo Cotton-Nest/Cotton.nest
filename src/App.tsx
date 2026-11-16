@@ -2636,7 +2636,7 @@ export default function App() {
                             >
                               <ProductCard
                                 product={product}
-                                priority={idx < 2}
+                                priority={false}
                                 onQuickView={(p, editMode) => handleOpenProductModal(p, editMode)}
                                 onAddToCart={(p) => handleAddToCart(p, 1)}
                                 isAdded={addedProductIds.has(product.id)}

@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Heart, ShoppingBag, Trash2, MessageCircle, ArrowRight, Sparkles, User, Edit2 } from 'lucide-react';
 import { WishlistItem, CustomerProfile } from '../data/wishlist';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
+import { OptimizedPicture } from './OptimizedPicture';
 
 interface WishlistDrawerProps {
   isOpen: boolean;
@@ -150,9 +151,17 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({
                   key={item.id ? `wish-${item.id}-${wIdx}` : `wish-${wIdx}`}
                   className="p-3.5 rounded-2xl border border-[var(--color-border,#EAE2D5)] bg-white shadow-2xs flex gap-3 hover:border-[#DEC89B] transition-colors"
                 >
-                  <img
+                  <OptimizedPicture
                     src={item.productImage}
+                    productId={item.productId}
                     alt={item.productName}
+                    sizes="80px"
+                    targetWidth={160}
+                    cloudinaryWidths={[160, 320]}
+                    width={80}
+                    height={80}
+                    loading="lazy"
+                    decoding="async"
                     className="w-20 h-20 rounded-xl object-cover border border-[#EAE2D5] bg-[#F4EFE6] shrink-0"
                   />
 

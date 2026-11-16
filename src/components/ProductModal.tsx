@@ -4,7 +4,8 @@ import { motion } from 'motion/react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS, normalizeAvailabilityType, normalizeCustomPrice } from '../data/products';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
-import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
+import { resolveBedsheetImage } from '../utils/imageUrl';
+import { OptimizedPicture } from './OptimizedPicture';
 import { updateSingleProduct, addProductGalleryImageApi, removeProductGalleryImageApi, getCouponsApi } from '../services/api';
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl, isVideoMedia, getProductGalleryMedia } from '../services/cloudinary';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
@@ -485,11 +486,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   }}
                   title="Click to enlarge photo"
                 >
-                  <img
+                  <OptimizedPicture
                     src={displayImage}
+                    productId={product.id}
+                    updatedAt={product.updatedAt}
                     alt={product.name}
+                    sizes="(max-width: 768px) 92vw, 500px"
+                    targetWidth={650}
+                    cloudinaryWidths={[400, 650, 960]}
+                    width={800}
+                    height={600}
+                    loading="eager"
+                    decoding="async"
                     referrerPolicy="no-referrer"
-                    onError={handleImageFallback}
                     className="w-full h-full object-cover object-center transition-transform duration-500 group-hover/img:scale-105"
                   />
                   <button
@@ -599,12 +608,18 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <img
-                      src={resolveBedsheetImage(product.image, product.id)}
+                    <OptimizedPicture
+                      src={product.image}
+                      productId={product.id}
+                      updatedAt={product.updatedAt}
                       alt="Cover"
+                      sizes="56px"
+                      targetWidth={160}
+                      cloudinaryWidths={[128, 256]}
+                      width={56}
+                      height={56}
                       loading="lazy"
                       decoding="async"
-                      onError={(e) => handleImageFallback(e, product.id)}
                       className="w-full h-full object-cover"
                     />
                   )}
@@ -640,9 +655,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                             </span>
                           </div>
                         ) : (
-                          <img
-                            src={resolveBedsheetImage(imgUrl, product.id)}
+                          <OptimizedPicture
+                            src={imgUrl}
+                            productId={product.id}
                             alt={`Angle ${idx + 1}`}
+                            sizes="56px"
+                            targetWidth={160}
+                            cloudinaryWidths={[128, 256]}
+                            width={56}
+                            height={56}
                             loading="lazy"
                             decoding="async"
                             className="w-full h-full object-cover"

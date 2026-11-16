@@ -4,6 +4,7 @@ import {
   BannerSlot,
   getBannerTemplateById,
 } from '../data/bannerSlots';
+import { OptimizedPicture } from './OptimizedPicture';
 
 interface PrebuiltBannerDisplayProps {
   slot: BannerSlot;
@@ -48,24 +49,23 @@ export const PrebuiltBannerDisplay: React.FC<PrebuiltBannerDisplayProps> = ({
     >
       {/* Pre-designed Wide Landscape Background Image */}
       {!imageError && (
-        <picture key={template.imageUrl}>
-          {/^\/images\/[^?]+\.jpg$/i.test(template.imageUrl) && (
-            <source srcSet={template.imageUrl.replace(/\.jpg$/i, '.webp')} type="image/webp" />
-          )}
-          <img
-            src={template.imageUrl}
-            alt={slot.heading || 'Cotton Nest backdrop'}
-            referrerPolicy="no-referrer"
-            loading={isPreview ? 'lazy' : 'eager'}
-            decoding="async"
-            onError={() => setImageError(true)}
-            onLoad={() => setImageError(false)}
-            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
-            style={{
-              objectPosition: template.objectPosition || 'center center',
-            }}
-          />
-        </picture>
+        <OptimizedPicture
+          key={template.imageUrl}
+          src={template.imageUrl}
+          alt={slot.heading || 'Cotton Nest backdrop'}
+          sizes={isForcedMobilePreview ? '390px' : '(max-width: 640px) 94vw, 1216px'}
+          width={1376}
+          height={360}
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          decoding="async"
+          onError={() => setImageError(true)}
+          onLoad={() => setImageError(false)}
+          className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+          style={{
+            objectPosition: template.objectPosition || 'center center',
+          }}
+        />
       )}
 
       {/* Measured Readability Overlay Scrim (keeps edge motifs luminous while ensuring >= 4.5:1 center contrast) */}

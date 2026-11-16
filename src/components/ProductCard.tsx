@@ -3,7 +3,8 @@ import { motion } from 'motion/react';
 import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell, Heart, Sparkles, Play, Video, Film } from 'lucide-react';
 import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, normalizeAvailabilityType } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
-import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
+import { resolveBedsheetImage } from '../utils/imageUrl';
+import { OptimizedPicture } from './OptimizedPicture';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
 import { isCloudinaryUrl, isVideoMedia, getProductMediaCounts } from '../services/cloudinary';
 
@@ -160,34 +161,37 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             className="absolute inset-0 w-full h-full object-cover object-center z-[1]"
           />
         ) : (
-          <picture>
-            {/^\/images\/[^?]+\.jpg$/i.test(displayImage) && (
-              <source srcSet={displayImage.replace(/\.jpg$/i, '.webp')} type="image/webp" />
-            )}
-            <img
-              ref={(el) => {
-                imgRef.current = el;
-                if (el && el.complete && el.naturalWidth > 0 && !imageLoaded) {
-                  setImageLoaded(true);
-                }
-              }}
-              src={displayImage}
-              alt={product.name}
-              width={800}
-              height={600}
-              referrerPolicy="no-referrer"
-              loading={priority ? 'eager' : 'lazy'}
-              decoding={priority ? 'sync' : 'async'}
-              onLoad={handleImageLoad}
-              onError={(e) => {
+          <OptimizedPicture
+            src={displayImage}
+            productId={product.id}
+            updatedAt={product.updatedAt}
+            alt={product.name}
+            sizes={
+              viewMode === 'list'
+                ? '(max-width: 640px) 94vw, 336px'
+                : viewMode === 'tile'
+                ? '(max-width: 640px) 47vw, (max-width: 1024px) 32vw, 300px'
+                : '(max-width: 640px) 94vw, (max-width: 1024px) 46vw, 390px'
+            }
+            targetWidth={650}
+            cloudinaryWidths={[400, 650, 960]}
+            width={800}
+            height={600}
+            referrerPolicy="no-referrer"
+            loading={priority ? 'eager' : 'lazy'}
+            decoding={priority ? 'sync' : 'async'}
+            imgRef={(el) => {
+              imgRef.current = el;
+              if (el && el.complete && el.naturalWidth > 0 && !imageLoaded) {
                 setImageLoaded(true);
-                handleImageFallback(e, product.id);
-              }}
-              className={`absolute inset-0 w-full h-full object-cover object-center transition-all duration-500 ease-out group-hover:scale-105 z-[1] ${
-                imageLoaded ? 'opacity-100 scale-100' : 'opacity-90 scale-[1.01]'
-              }`}
-            />
-          </picture>
+              }
+            }}
+            onLoad={handleImageLoad}
+            onError={() => setImageLoaded(true)}
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-all duration-500 ease-out group-hover:scale-105 z-[1] ${
+              imageLoaded ? 'opacity-100 scale-100' : 'opacity-90 scale-[1.01]'
+            }`}
+          />
         )}
 
         {/* Video Reel Available Indicator Pill (Bottom Left) */}

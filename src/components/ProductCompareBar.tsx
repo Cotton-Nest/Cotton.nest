@@ -2,6 +2,7 @@ import React from 'react';
 import { Scale, X, ArrowRight } from 'lucide-react';
 import { BedsheetProduct } from '../data/products';
 import { resolveBedsheetImage } from '../utils/imageUrl';
+import { OptimizedPicture } from './OptimizedPicture';
 
 interface ProductCompareBarProps {
   products: BedsheetProduct[];
@@ -38,9 +39,18 @@ export const ProductCompareBar: React.FC<ProductCompareBarProps> = ({
               className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-lg overflow-hidden border border-[#DEC89B]/50 shrink-0 bg-[#FAF7F2] group"
               title={p.name}
             >
-              <img
+              <OptimizedPicture
                 src={resolveBedsheetImage(p.image, p.id)}
+                productId={p.id}
+                updatedAt={p.updatedAt}
                 alt={p.name}
+                sizes="40px"
+                targetWidth={160}
+                cloudinaryWidths={[128, 256]}
+                width={40}
+                height={40}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover"
               />
               <button

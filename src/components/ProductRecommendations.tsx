@@ -1,7 +1,8 @@
 import React from 'react';
 import { Sparkles, ShoppingBag, ArrowRight, Eye, Check } from 'lucide-react';
 import { BedsheetProduct } from '../data/products';
-import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
+import { resolveBedsheetImage } from '../utils/imageUrl';
+import { OptimizedPicture } from './OptimizedPicture';
 
 interface ProductRecommendationsProps {
   currentProduct: BedsheetProduct;
@@ -75,10 +76,18 @@ export const ProductRecommendations: React.FC<ProductRecommendationsProps> = ({
             >
               <div>
                 <div className="aspect-square rounded-xl overflow-hidden bg-[#F4EFE6] relative mb-2 border border-[#EAE2D5]/60">
-                  <img
+                  <OptimizedPicture
                     src={displayImg}
+                    productId={p.id}
+                    updatedAt={p.updatedAt}
                     alt={p.name || 'Bedsheet'}
-                    onError={(e) => handleImageFallback(e, p.id)}
+                    sizes="(max-width: 640px) 44vw, 220px"
+                    targetWidth={400}
+                    cloudinaryWidths={[256, 400, 650]}
+                    width={300}
+                    height={300}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   {p.badge && (

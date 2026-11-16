@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { OptimizedPicture } from './OptimizedPicture';
+import { resolveBedsheetImage } from '../utils/imageUrl';
 import { 
   Package, 
   Clock, 
@@ -362,13 +364,7 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
   };
 
   // Helper to normalize image paths so images always render correctly
-  const fixImagePath = (src: string) => {
-    if (!src) return '/images/exact_sheet1_pink_rose_1790997736396.jpg';
-    if (src.startsWith('/src/assets/images/')) {
-      return src.replace('/src/assets/images/', '/images/');
-    }
-    return src;
-  };
+  const fixImagePath = (src: string) => resolveBedsheetImage(src);
 
   return (
     <div
@@ -418,6 +414,10 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                   <img
                     src={user.avatar}
                     alt={user.name}
+                    width={36}
+                    height={36}
+                    loading="lazy"
+                    decoding="async"
                     className="w-9 h-9 rounded-full object-cover border border-[#DEC89B]"
                   />
                 ) : (
@@ -1008,9 +1008,17 @@ export const LiveOrdersView: React.FC<LiveOrdersViewProps> = ({
                             key={idx}
                             className="flex items-center gap-4 p-3 bg-[#FAF7F2] rounded-2xl border border-[#EAE2D5]"
                           >
-                            <img
+                            <OptimizedPicture
                               src={fixImagePath(item.productImage)}
+                              productId={item.productId}
                               alt={item.productName}
+                              sizes="80px"
+                              targetWidth={160}
+                              cloudinaryWidths={[160, 320]}
+                              width={80}
+                              height={80}
+                              loading="lazy"
+                              decoding="async"
                               className="w-16 h-16 sm:w-20 sm:h-20 object-cover object-center rounded-xl border border-[#DEC89B] shrink-0"
                             />
                             <div className="grow min-w-0">

@@ -3,6 +3,8 @@ import { Feather, Shield, Droplets, Sparkles, Sun, CheckCircle } from 'lucide-re
 import { motion } from 'motion/react';
 import { COMPANY_DETAILS } from '../data/products';
 import { SiteContent } from '../data/siteContent';
+import { OptimizedPicture } from './OptimizedPicture';
+import { STORY_ATELIER_SEAL_JPG, getCloudinaryLogoUrl } from '../utils/imageUrl';
 
 interface StoryAndFeaturesProps {
   onGoToCatalogue: () => void;
@@ -111,16 +113,17 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             className="lg:col-span-6 rounded-3xl p-6 sm:p-8 liquid-glass-card space-y-6"
           >
             <div className="flex items-center gap-3.5 sm:gap-4">
-              <img
-                src="/assets/aistudio/IMG-20261106-WA0032_3f856e9c.jpg"
+              <OptimizedPicture
+                src={STORY_ATELIER_SEAL_JPG}
                 alt="Cotton Nest Atelier Seal"
+                sizes="56px"
                 width={56}
                 height={56}
                 loading="lazy"
                 decoding="async"
                 className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-white/90 shadow-xs shrink-0"
                 onError={(e) => {
-                  (e.target as HTMLElement).setAttribute('src', 'https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png');
+                  e.currentTarget.src = getCloudinaryLogoUrl(128);
                 }}
               />
               <div>

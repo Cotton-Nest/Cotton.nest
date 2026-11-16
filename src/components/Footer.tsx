@@ -1,6 +1,7 @@
 import React from 'react';
 import { Phone, MessageCircle, Heart, Lock, Unlock } from 'lucide-react';
 import { COMPANY_DETAILS } from '../data/products';
+import { getCloudinaryLogoSrcSet, getCloudinaryLogoUrl } from '../utils/imageUrl';
 
 interface FooterProps {
   onNavClick: (tab: 'home' | 'catalogue' | 'story' | 'store' | 'tc' | 'reviews' | 'analytics') => void;
@@ -43,8 +44,14 @@ export const Footer: React.FC<FooterProps> = ({
               style={{ color: 'var(--color-footer-text,#FAF7F2)' }}
             >
               <img
-                src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
+                src={getCloudinaryLogoUrl(128)}
+                srcSet={getCloudinaryLogoSrcSet()}
+                sizes="64px"
                 alt="Cotton Nest Logo"
+                width={40}
+                height={40}
+                loading="lazy"
+                decoding="async"
                 className="w-10 h-10 object-contain rounded-full bg-white/15 backdrop-blur-md p-0.5 border border-white/30 group-hover:scale-105 transition-transform shrink-0 shadow-sm"
               />
               <span>Cotton Nest</span>

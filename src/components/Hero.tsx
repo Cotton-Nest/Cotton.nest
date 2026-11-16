@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, ShieldCheck, Sparkles, MessageCircle, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SiteContent } from '../data/siteContent';
+import { OptimizedPicture } from './OptimizedPicture';
 
 interface HeroProps {
   onExploreCatalogue: () => void;
@@ -89,20 +90,18 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
           <div className="lg:col-span-6 relative">
             <div className="p-2 rounded-[28px] liquid-glass-card">
               <div className="relative rounded-3xl overflow-hidden bg-[#FAF7F2] aspect-[16/10] sm:aspect-[16/11] group">
-                <picture>
-                  <source srcSet="/images/hero_cotton_nest_bedding_1790996973951.webp" type="image/webp" />
-                  <img
-                    src="/images/hero_cotton_nest_bedding_1790996973951.jpg"
-                    alt="Cotton Nest luxury master bedroom featuring pure cotton bedding in cream, blush pink, and muted gold"
-                    width={1376}
-                    height={768}
-                    loading="eager"
-                    decoding="sync"
-                    fetchPriority="high"
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
-                  />
-                </picture>
+                <OptimizedPicture
+                  src="/images/hero_cotton_nest_bedding_1790996973951.jpg"
+                  alt="Cotton Nest luxury master bedroom featuring pure cotton bedding in cream, blush pink, and muted gold"
+                  sizes="(max-width: 1023px) 92vw, 600px"
+                  width={1376}
+                  height={768}
+                  loading="eager"
+                  decoding="sync"
+                  fetchPriority="high"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 ease-out"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#2C2420]/45 via-transparent to-transparent pointer-events-none" />
                 
                 {/* Top specular glass reflection */}

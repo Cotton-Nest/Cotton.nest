@@ -8,6 +8,7 @@ import { useLoyalty } from '../context/LoyaltyContext';
 import { SeasonalConfig } from '../data/seasonal';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { PWAInstallButton } from './PWAInstallPrompt';
+import { getCloudinaryLogoSrcSet, getCloudinaryLogoUrl } from '../utils/imageUrl';
 
 interface NavbarProps {
   activeTab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics';
@@ -114,10 +115,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-2 shrink-0 select-none"
           >
             <img
-              src="https://res.cloudinary.com/ys2sgydi/image/upload/f_auto/q_auto/logo-removebg-preview.png"
+              src={getCloudinaryLogoUrl(128)}
+              srcSet={getCloudinaryLogoSrcSet()}
+              sizes="(max-width: 640px) 48px, 64px"
               alt="Cotton Nest Logo"
               width={40}
               height={40}
+              loading="eager"
               decoding="async"
               className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0 transition-transform group-hover:scale-105"
             />
@@ -400,6 +404,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <img
                         src={user.avatar}
                         alt={user.name}
+                        width={24}
+                        height={24}
+                        loading="lazy"
+                        decoding="async"
                         className="w-6 h-6 rounded-full object-cover border border-[#DEC89B] shrink-0"
                       />
                     ) : (
@@ -750,6 +758,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <img
                           src={user.avatar}
                           alt={user.name}
+                          width={36}
+                          height={36}
+                          loading="lazy"
+                          decoding="async"
                           className="w-9 h-9 rounded-full object-cover border border-[#DEC89B] shrink-0"
                         />
                       ) : (

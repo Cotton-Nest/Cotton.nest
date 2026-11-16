@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { BedsheetProduct, COMPANY_DETAILS, normalizeCustomPrice } from '../data/products';
 import { SeasonalConfig, SeasonalItemDiscount } from '../data/seasonal';
 import { resolveBedsheetImage } from '../utils/imageUrl';
+import { OptimizedPicture } from './OptimizedPicture';
 import {
   Sparkles,
   ShoppingBag,
@@ -499,11 +500,19 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
                 >
                   {/* Bedsheet Image Container */}
                   <div className="relative aspect-4/3 overflow-hidden bg-stone-100 cursor-pointer" onClick={() => onQuickView(product)}>
-                    <img
+                    <OptimizedPicture
                       src={resolvedImg}
+                      productId={product.id}
+                      updatedAt={product.updatedAt}
                       alt={product.name}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      sizes="(max-width: 640px) 94vw, (max-width: 1024px) 46vw, 390px"
+                      targetWidth={650}
+                      cloudinaryWidths={[400, 650, 960]}
+                      width={800}
+                      height={600}
                       loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
 
                     {/* Gradient Overlay on Hover */}
