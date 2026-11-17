@@ -5,6 +5,11 @@ import path from 'path';
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { PUBLIC_SUBROUTES, ROUTE_SEO_MAP } from './src/data/seoRoutes.ts';
+import {
+  fetchAuthoritativePublicCatalogue,
+  injectCataloguePrerenderIntoHtml,
+  type FirebasePublicConfig,
+} from './src/utils/cataloguePrerender.ts';
 
 function escapeHtmlAttr(value: string): string {
   return value
@@ -22,10 +27,21 @@ function cottonNestRouteHtmlPlugin(): Plugin {
     configResolved(resolvedConfig) {
       outDir = resolvedConfig.build.outDir || 'dist';
     },
-    closeBundle() {
+    async closeBundle() {
       const distRoot = path.resolve(import.meta.dirname, outDir);
       const baseHtmlPath = path.join(distRoot, 'index.html');
       if (!fs.existsSync(baseHtmlPath)) return;
+
+      const firebaseConfigPath = path.resolve(import.meta.dirname, 'firebase-applet-config.json');
+      if (!fs.existsSync(firebaseConfigPath)) {
+        throw new Error(
+          '[catalogue-prerender] Missing firebase-applet-config.json; cannot fetch authoritative Firestore catalogue.'
+        );
+      }
+      const firebasePublicConfig = JSON.parse(
+        fs.readFileSync(firebaseConfigPath, 'utf-8')
+      ) as FirebasePublicConfig;
+      const publicCatalogue = await fetchAuthoritativePublicCatalogue(firebasePublicConfig);
 
       const baseHtml = fs.readFileSync(baseHtmlPath, 'utf-8');
 
@@ -71,6 +87,10 @@ function cottonNestRouteHtmlPlugin(): Plugin {
             /\s*<link\b[^>]*rel=["']preload["'][^>]*hero_cotton_nest_bedding[^>]*\/?>/gi,
             ''
           );
+        }
+
+        if (routeSlug === 'catalogue') {
+          routeHtml = injectCataloguePrerenderIntoHtml(routeHtml, publicCatalogue);
         }
 
         const routeDir = path.join(distRoot, routeSlug);
