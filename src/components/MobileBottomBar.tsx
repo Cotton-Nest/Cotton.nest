@@ -27,10 +27,13 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
   return (
     <div className="md:hidden fixed bottom-2.5 left-3 right-3 z-40 liquid-glass-dock rounded-3xl px-2 py-1.5 flex items-center justify-around text-xs">
       
-      {/* Catalogue Tab Button */}
-      <motion.button
+      {/* Catalogue Tab Link */}
+      <motion.a
+        href="/catalogue"
         whileTap={{ scale: 0.9 }}
-        onClick={() => {
+        onClick={(e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+          e.preventDefault();
           setActiveTab('catalogue');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
@@ -47,13 +50,16 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
         )}
         <Grid className="w-4.5 h-4.5 relative z-10" />
         <span className="text-[10px] relative z-10">Catalogue</span>
-      </motion.button>
+      </motion.a>
 
       {/* Seasonal Festive Page (Replaces Studio button) */}
       {seasonalConfig?.enabled ? (
-        <motion.button
+        <motion.a
+          href="/seasonal"
           whileTap={{ scale: 0.9 }}
-          onClick={() => {
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
             setActiveTab('seasonal');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
@@ -74,11 +80,14 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           <span className="text-[10px] font-semibold max-w-[65px] truncate relative z-10">
             {seasonalConfig.name || 'Offers'}
           </span>
-        </motion.button>
+        </motion.a>
       ) : (
-        <motion.button
+        <motion.a
+          href="/reviews"
           whileTap={{ scale: 0.9 }}
-          onClick={() => {
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
             setActiveTab('reviews');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
@@ -95,7 +104,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           )}
           <span className="text-amber-500 text-sm leading-4.5 relative z-10">★</span>
           <span className="text-[10px] relative z-10">Reviews</span>
-        </motion.button>
+        </motion.a>
       )}
 
       {/* Live Orders Tracking Tab */}

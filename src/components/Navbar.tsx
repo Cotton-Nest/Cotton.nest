@@ -73,6 +73,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handlePublicLinkClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    tab: 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'reviews' | 'tc'
+  ) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    handleNavClick(tab);
+  };
+
   return (
     <>
       {/* Top Announcement Bar */}
@@ -109,9 +118,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6 py-2 h-16 flex items-center justify-between gap-2">
           
           {/* Zone 1: Logo and Brand Name */}
-          <motion.button
+          <motion.a
+            href="/"
             whileTap={{ scale: 0.97 }}
-            onClick={() => handleNavClick('home')}
+            onClick={(e) => handlePublicLinkClick(e, 'home')}
             className="text-left group cursor-pointer focus:outline-hidden flex items-center gap-2 shrink-0 select-none"
           >
             <img
@@ -133,13 +143,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Feel The Softness
               </span>
             </div>
-          </motion.button>
+          </motion.a>
 
           {/* Zone 2: Apple Liquid Glass Capsule Navigation Dock with Sliding Glass Pill */}
           <nav className="hidden md:flex items-center flex-wrap justify-center gap-1 text-xs font-medium p-1 rounded-full liquid-glass-dock shrink-0">
-            <button
-              onClick={() => handleNavClick('home')}
-              className={`transition-colors relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer whitespace-nowrap shrink-0 ${
+            <a
+              href="/"
+              onClick={(e) => handlePublicLinkClick(e, 'home')}
+              className={`inline-flex items-center transition-colors relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'home'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
                   : 'text-[var(--color-text-secondary,#6B5D55)] hover:text-[var(--color-primary,#70252D)]'
@@ -153,11 +164,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               )}
               <span className="relative z-10">Home</span>
-            </button>
+            </a>
 
             {/* Catalogue Tab */}
-            <button
-              onClick={() => handleNavClick('catalogue')}
+            <a
+              href="/catalogue"
+              onClick={(e) => handlePublicLinkClick(e, 'catalogue')}
               className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 activeTab === 'catalogue'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
@@ -175,12 +187,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="relative z-10 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/80 text-[var(--color-primary,#70252D)] border border-white/90 shadow-2xs">
                 {productsCount}
               </span>
-            </button>
+            </a>
 
             {/* Seasonal Festive Page Tab (Dynamic Name & Visibility from Admin) */}
             {seasonalConfig?.enabled && (
-              <button
-                onClick={() => handleNavClick('seasonal')}
+              <a
+                href="/seasonal"
+                onClick={(e) => handlePublicLinkClick(e, 'seasonal')}
                 className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 group whitespace-nowrap shrink-0 ${
                   activeTab === 'seasonal'
                     ? 'text-[var(--color-primary,#70252D)] font-semibold'
@@ -205,12 +218,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   {seasonalConfig.badge || 'Sale'}
                 </span>
-              </button>
+              </a>
             )}
 
             {/* Customer Reviews Tab */}
-            <button
-              onClick={() => handleNavClick('reviews')}
+            <a
+              href="/reviews"
+              onClick={(e) => handlePublicLinkClick(e, 'reviews')}
               className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 activeTab === 'reviews'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
@@ -229,7 +243,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="relative z-10 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50/90 text-amber-900 border border-amber-200/80">
                 4.9★
               </span>
-            </button>
+            </a>
 
             {/* Live Orders Tab */}
             <button
@@ -275,8 +289,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* T&C Tab */}
-            <button
-              onClick={() => handleNavClick('tc')}
+            <a
+              href="/tc"
+              onClick={(e) => handlePublicLinkClick(e, 'tc')}
               className={`relative px-2.5 lg:px-3 py-1.5 rounded-full cursor-pointer transition-colors flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 activeTab === 'tc'
                   ? 'text-[var(--color-primary,#70252D)] font-semibold'
@@ -291,7 +306,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               )}
               <span className="relative z-10">T&amp;C</span>
-            </button>
+            </a>
           </nav>
 
           {/* Zone 3 Desktop: All Action Buttons & User Profile (md:flex) */}
@@ -843,18 +858,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Card 2: Primary Store Navigation */}
               <div className="bg-white rounded-2xl border border-[#EAE2D5] p-2 space-y-1 shadow-2xs">
-                <button
-                  onClick={() => handleNavClick('home')}
+                <a
+                  href="/"
+                  onClick={(e) => handlePublicLinkClick(e, 'home')}
                   className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-between ${
                     activeTab === 'home' ? 'bg-[#F4EFE6] text-[#2C2420]' : 'text-[#6B5D55] hover:bg-[#FAF7F2]'
                   }`}
                 >
                   <span>Home Showcase</span>
                   <span className="text-xs text-[#8C7A70]">→</span>
-                </button>
+                </a>
 
-                <button
-                  onClick={() => handleNavClick('catalogue')}
+                <a
+                  href="/catalogue"
+                  onClick={(e) => handlePublicLinkClick(e, 'catalogue')}
                   className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
                     activeTab === 'catalogue' ? 'bg-[#FDEAF0] text-[#70252D]' : 'text-[#6B5D55] hover:bg-[#FAF7F2]'
                   }`}
@@ -863,11 +880,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FAF7F2] text-[#70252D] border border-[#FAD1DC]">
                     {productsCount} Designs
                   </span>
-                </button>
+                </a>
 
                 {seasonalConfig?.enabled && (
-                  <button
-                    onClick={() => handleNavClick('seasonal')}
+                  <a
+                    href="/seasonal"
+                    onClick={(e) => handlePublicLinkClick(e, 'seasonal')}
                     className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
                       activeTab === 'seasonal'
                         ? 'bg-amber-100/70 text-[#70252D]'
@@ -881,11 +899,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#70252D] text-white">
                       {seasonalConfig.badge || 'Sale'}
                     </span>
-                  </button>
+                  </a>
                 )}
 
-                <button
-                  onClick={() => handleNavClick('reviews')}
+                <a
+                  href="/reviews"
+                  onClick={(e) => handlePublicLinkClick(e, 'reviews')}
                   className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
                     activeTab === 'reviews' ? 'bg-[#FDEAF0] text-[#70252D]' : 'text-[#6B5D55] hover:bg-[#FAF7F2]'
                   }`}
@@ -897,17 +916,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
                     4.9 ★
                   </span>
-                </button>
+                </a>
 
-                <button
-                  onClick={() => handleNavClick('tc')}
+                <a
+                  href="/tc"
+                  onClick={(e) => handlePublicLinkClick(e, 'tc')}
                   className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between transition-colors ${
                     activeTab === 'tc' ? 'bg-[#FDEAF0] text-[#70252D]' : 'text-[#6B5D55] hover:bg-[#FAF7F2]'
                   }`}
                 >
                   <span>Terms &amp; Conditions (T&amp;C)</span>
                   <span className="text-xs">🌸</span>
-                </button>
+                </a>
 
                 {/* Analysis Tab - STRICTLY FOR ADMIN ONLY */}
                 {isAdmin && (

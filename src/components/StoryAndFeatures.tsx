@@ -93,14 +93,19 @@ export const StoryAndFeatures: React.FC<StoryAndFeaturesProps> = ({ onGoToCatalo
             </p>
 
             <div className="pt-2">
-              <motion.button
+              <motion.a
+                href="/catalogue"
                 whileHover={{ y: -2, scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={onGoToCatalogue}
-                className="px-6 py-3.5 text-xs font-semibold rounded-2xl liquid-glass-primary-btn text-white transition-all cursor-pointer"
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  onGoToCatalogue();
+                }}
+                className="inline-block px-6 py-3.5 text-xs font-semibold rounded-2xl liquid-glass-primary-btn text-white transition-all cursor-pointer"
               >
                 Browse Our Signature Bedsheets
-              </motion.button>
+              </motion.a>
             </div>
           </motion.div>
 

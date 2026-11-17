@@ -3289,23 +3289,33 @@
       "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
-      "lastLoginAt": 1794628288899,
-      "lastActiveAt": 1794629042432,
-      "totalSessions": 17,
-      "totalTimeSpentSeconds": 18800,
-      "averageSessionDurationSeconds": 1106,
-      "totalPagesVisited": 40,
+      "lastLoginAt": 1794885357484,
+      "lastActiveAt": 1794886608415,
+      "totalSessions": 21,
+      "totalTimeSpentSeconds": 21644,
+      "averageSessionDurationSeconds": 1031,
+      "totalPagesVisited": 47,
       "pageVisitCounts": {
-        "Home Showcase": 17,
+        "Home Showcase": 22,
         "Admin Analytics": 1,
         "Terms & Privacy Policy": 3,
-        "Bedsheet Catalogue": 17,
+        "Bedsheet Catalogue": 19,
         "Boutique Store Locator": 1,
         "Customer Reviews": 1
       },
       "mostVisitedPage": "Home Showcase",
-      "totalProductViews": 8,
+      "totalProductViews": 9,
       "productsViewed": [
+        {
+          "productId": "bedsheet-mw0si2eu",
+          "productName": "संस्कृति (Sanskriti)",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794494454/cotton_nest/bedsheets/sheet_bedsheet-mw0si2eu_1794494452.jpg",
+          "productPrice": 1150,
+          "collection": "Ethenic",
+          "viewCount": 1,
+          "firstViewedAt": 1794830104563,
+          "lastViewedAt": 1794830104563
+        },
         {
           "productId": "bedsheet-mw6kryfg",
           "productName": "Nandani",
@@ -3403,10 +3413,68 @@
       },
       "sessions": [
         {
+          "sessionId": "sess_1794885357484_hdqfb",
+          "loginAt": 1794885357484,
+          "lastActiveAt": 1794886608415,
+          "durationSeconds": 844,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794842431784_ybgjl",
+          "loginAt": 1794842431784,
+          "lastActiveAt": 1794846563598,
+          "durationSeconds": 346,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794832122884_tay22",
+          "loginAt": 1794832122884,
+          "lastActiveAt": 1794837544399,
+          "durationSeconds": 940,
+          "pagesVisited": [
+            "Home Showcase",
+            "Bedsheet Catalogue"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
+          "sessionId": "sess_1794829619376_ohye0",
+          "loginAt": 1794829619376,
+          "lastActiveAt": 1794831364305,
+          "durationSeconds": 543,
+          "pagesVisited": [
+            "Home Showcase",
+            "Bedsheet Catalogue"
+          ],
+          "productsViewedCount": 1,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
           "sessionId": "sess_1794628288899_emd50",
           "loginAt": 1794628288899,
-          "lastActiveAt": 1794629042432,
-          "durationSeconds": 269,
+          "lastActiveAt": 1794631456694,
+          "durationSeconds": 440,
           "pagesVisited": [
             "Home Showcase"
           ],
@@ -3655,6 +3723,97 @@
         }
       ],
       "timeline": [
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794885357484_hdqfb",
+          "timestamp": 1794885357484,
+          "id": "evt_1794885357484_fvint"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794842431784_ybgjl",
+          "timestamp": 1794846563266,
+          "id": "evt_1794846563266_taqnm"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794842431784_ybgjl",
+          "timestamp": 1794842431784,
+          "id": "evt_1794842431784_qvwas"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794832122884_tay22",
+          "timestamp": 1794837543934,
+          "id": "evt_1794837543934_z7o3x"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794832122884_tay22",
+          "timestamp": 1794832934783,
+          "id": "evt_1794832934783_7utfr"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794832122884_tay22",
+          "timestamp": 1794832122884,
+          "id": "evt_1794832122884_cw3gj"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794829619376_ohye0",
+          "timestamp": 1794831364202,
+          "id": "evt_1794831364202_w2fvr"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Home Showcase",
+          "page": "Home Showcase",
+          "sessionId": "sess_1794829619376_ohye0",
+          "timestamp": 1794830134533,
+          "id": "evt_1794830134533_8mqby"
+        },
+        {
+          "type": "page_view",
+          "label": "Visited Bedsheet Catalogue",
+          "page": "Bedsheet Catalogue",
+          "sessionId": "sess_1794829619376_ohye0",
+          "timestamp": 1794830127552,
+          "id": "evt_1794830127552_atzeu"
+        },
+        {
+          "type": "product_view",
+          "label": "Viewed संस्कृति (Sanskriti)",
+          "productId": "bedsheet-mw0si2eu",
+          "productName": "संस्कृति (Sanskriti)",
+          "productImage": "https://res.cloudinary.com/ys2sgydi/image/upload/v1794494454/cotton_nest/bedsheets/sheet_bedsheet-mw0si2eu_1794494452.jpg",
+          "productPrice": 1150,
+          "sessionId": "sess_1794829619376_ohye0",
+          "timestamp": 1794830104563,
+          "id": "evt_1794830104563_umamj"
+        },
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794829619376_ohye0",
+          "timestamp": 1794829619376,
+          "id": "evt_1794829619376_w21lh"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794628288899_emd50",
+          "timestamp": 1794631456401,
+          "id": "evt_1794631456401_jyodp"
+        },
         {
           "type": "login",
           "label": "User signed in (Google Chrome on Windows 10/11)",
@@ -4232,7 +4391,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794629044491,
+      "updatedAt": 1794886609538,
       "lastLogoutAt": 1794285339677
     }
   },

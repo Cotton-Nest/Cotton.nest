@@ -157,6 +157,39 @@ import {
 import { resolveBedsheetImage, isVideoMedia } from './utils/imageUrl';
 import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, Phone, MessageCircle, Lock, Unlock, KeyRound, Cloud, ChevronUp, ChevronDown, Star, Bell, X, Wrench } from 'lucide-react';
 import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
+import {
+  AppRouteTab,
+  applyDocumentSeoMetadata,
+  getRoutePath,
+} from './data/seoRoutes';
+
+const VALID_URL_TABS = new Set<string>([
+  'home',
+  'catalogue',
+  'seasonal',
+  'story',
+  'store',
+  'orders',
+  'tc',
+  'reviews',
+  'analytics',
+]);
+
+function resolveTabFromLocation(): AppRouteTab {
+  if (typeof window === 'undefined') return 'home';
+  const pathSlug = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+  if (!pathSlug) {
+    const hashSlug = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+    if (VALID_URL_TABS.has(hashSlug) && hashSlug !== 'analytics') {
+      return hashSlug as AppRouteTab;
+    }
+    return 'home';
+  }
+  if (VALID_URL_TABS.has(pathSlug) && pathSlug !== 'analytics') {
+    return pathSlug as AppRouteTab;
+  }
+  return 'home';
+}
 
 const RouteViewFallback: React.FC<{ label?: string }> = ({ label = 'Loading view...' }) => (
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex flex-col items-center justify-center gap-3 text-center">
@@ -166,20 +199,7 @@ const RouteViewFallback: React.FC<{ label?: string }> = ({ label = 'Loading view
 );
 
 export default function App() {
-  const [activeTabRaw, setActiveTabRaw] = useState<'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews' | 'analytics'>(() => {
-    if (typeof window !== 'undefined') {
-      const validPublicTabs = new Set(['home', 'catalogue', 'seasonal', 'story', 'store', 'orders', 'tc', 'reviews']);
-      const pathSlug = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-      if (validPublicTabs.has(pathSlug)) {
-        return pathSlug as 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
-      }
-      const hashSlug = window.location.hash.replace(/^#\/?/, '').toLowerCase();
-      if (validPublicTabs.has(hashSlug)) {
-        return hashSlug as 'home' | 'catalogue' | 'seasonal' | 'story' | 'store' | 'orders' | 'tc' | 'reviews';
-      }
-    }
-    return 'home';
-  });
+  const [activeTabRaw, setActiveTabRaw] = useState<AppRouteTab>(() => resolveTabFromLocation());
   const [trafficData, setTrafficData] = useState<SiteTrafficData>(() => getEmptyTrafficData());
   const [selectedProduct, setSelectedProduct] = useState<BedsheetProduct | null>(null);
   const [isProductModalEditMode, setIsProductModalEditMode] = useState<boolean>(false);
@@ -241,7 +261,7 @@ export default function App() {
       if (!last || last.tab !== activeTabRef.current) {
         tabHistoryRef.current.push({ tab: activeTabRef.current, scrollY: window.scrollY });
       }
-      window.history.pushState({ cn_nav_tab: newTab }, '', `#${newTab}`);
+      window.history.pushState({ cn_nav_tab: newTab }, '', getRoutePath(newTab));
     }
 
     setActiveTabRaw(newTab);
@@ -257,6 +277,10 @@ export default function App() {
   }, [navigateToTab]);
 
   const activeTab = activeTabRaw;
+
+  useEffect(() => {
+    applyDocumentSeoMetadata(activeTab);
+  }, [activeTab]);
 
   const handleOpenProductModal = (product: BedsheetProduct, editMode: boolean = false) => {
     setSelectedProduct(product);
@@ -1222,12 +1246,34 @@ export default function App() {
           return;
         }
 
-        // Level 5: Page / Tab Navigation History
-        if (tabHistoryRef.current.length > 0) {
+        // Level 5: Page / Tab Navigation History (supports both Back and Forward on clean paths)
+        const stateTab = event.state?.cn_nav_tab;
+        const targetTab = (
+          typeof stateTab === 'string' && VALID_URL_TABS.has(stateTab)
+            ? stateTab
+            : resolveTabFromLocation()
+        ) as AppRouteTab;
+
+        if (targetTab !== activeTabRef.current) {
+          scrollPositionsRef.current[activeTabRef.current] = window.scrollY;
+          const lastIdx = tabHistoryRef.current.length - 1;
+          let restoredScroll = scrollPositionsRef.current[targetTab] || 0;
+          if (lastIdx >= 0 && tabHistoryRef.current[lastIdx]?.tab === targetTab) {
+            const popped = tabHistoryRef.current.pop();
+            if (popped) restoredScroll = popped.scrollY || 0;
+          } else if (targetTab === 'home') {
+            tabHistoryRef.current = [];
+          }
+          setActiveTabRaw(targetTab);
+          setTimeout(() => {
+            window.scrollTo({ top: restoredScroll, behavior: 'instant' });
+          }, 0);
+          return;
+        } else if (tabHistoryRef.current.length > 0) {
           const prev = tabHistoryRef.current.pop();
           if (prev && prev.tab !== activeTabRef.current) {
             scrollPositionsRef.current[activeTabRef.current] = window.scrollY;
-            setActiveTabRaw(prev.tab as any);
+            setActiveTabRaw(prev.tab as AppRouteTab);
             setTimeout(() => {
               window.scrollTo({ top: prev.scrollY || 0, behavior: 'instant' });
             }, 0);
@@ -2609,10 +2655,13 @@ export default function App() {
                             </p>
                           </div>
 
-                          <motion.button
+                          <motion.a
+                            href="/catalogue"
                             whileHover={{ x: 3, scale: 1.02 }}
                             whileTap={{ scale: 0.97 }}
-                            onClick={() => {
+                            onClick={(e) => {
+                              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                              e.preventDefault();
                               setActiveTab('catalogue');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
@@ -2621,7 +2670,7 @@ export default function App() {
                           >
                             <span>Browse All {products.length} Bedsheets in Catalogue</span>
                             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                          </motion.button>
+                          </motion.a>
                         </motion.div>
 
                         {/* 3 Featured Cards Grid with Staggered Scroll Animations */}
@@ -2663,10 +2712,13 @@ export default function App() {
                           transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
                           className="mt-10 text-center"
                         >
-                          <motion.button
+                          <motion.a
+                            href="/catalogue"
                             whileHover={{ y: -2, scale: 1.02 }}
                             whileTap={{ scale: 0.97 }}
-                            onClick={() => {
+                            onClick={(e) => {
+                              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                              e.preventDefault();
                               setActiveTab('catalogue');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
@@ -2677,7 +2729,7 @@ export default function App() {
                           >
                             <span>Open Full {products.length}-Sheet Catalogue</span>
                             <ArrowRight className="w-4 h-4" />
-                          </motion.button>
+                          </motion.a>
                         </motion.div>
 
                       </div>

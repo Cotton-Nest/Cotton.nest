@@ -14,11 +14,35 @@
         { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
         { "key": "Cache-Control", "value": "public, max-age=3600" }
       ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/registerSW.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
     }
   ],
   "rewrites": [
+    { "source": "/catalogue", "destination": "/catalogue/index.html" },
+    { "source": "/catalogue/", "destination": "/catalogue/index.html" },
+    { "source": "/seasonal", "destination": "/seasonal/index.html" },
+    { "source": "/seasonal/", "destination": "/seasonal/index.html" },
+    { "source": "/story", "destination": "/story/index.html" },
+    { "source": "/story/", "destination": "/story/index.html" },
+    { "source": "/store", "destination": "/store/index.html" },
+    { "source": "/store/", "destination": "/store/index.html" },
+    { "source": "/reviews", "destination": "/reviews/index.html" },
+    { "source": "/reviews/", "destination": "/reviews/index.html" },
+    { "source": "/tc", "destination": "/tc/index.html" },
+    { "source": "/tc/", "destination": "/tc/index.html" },
     {
-      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|manifest\\.json|manifest\\.webmanifest|sw\\.js|registerSW\\.js|workbox-|icon\\.svg|apple-touch-icon\\.png|pwa-|images/|assets/|uploads/).*)",
+      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|manifest\\.json|manifest\\.webmanifest|sw\\.js|registerSW\\.js|workbox-|icon\\.svg|apple-touch-icon\\.png|pwa-|images/|assets/|uploads/|catalogue/index\\.html|seasonal/index\\.html|story/index\\.html|store/index\\.html|reviews/index\\.html|tc/index\\.html).*)",
       "destination": "/index.html"
     }
   ]

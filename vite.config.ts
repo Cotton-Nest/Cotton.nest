@@ -1,8 +1,85 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { PUBLIC_SUBROUTES, ROUTE_SEO_MAP } from './src/data/seoRoutes.ts';
+
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function cottonNestRouteHtmlPlugin(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'cotton-nest-route-html',
+    apply: 'build',
+    configResolved(resolvedConfig) {
+      outDir = resolvedConfig.build.outDir || 'dist';
+    },
+    closeBundle() {
+      const distRoot = path.resolve(import.meta.dirname, outDir);
+      const baseHtmlPath = path.join(distRoot, 'index.html');
+      if (!fs.existsSync(baseHtmlPath)) return;
+
+      const baseHtml = fs.readFileSync(baseHtmlPath, 'utf-8');
+
+      for (const routeSlug of PUBLIC_SUBROUTES) {
+        const meta = ROUTE_SEO_MAP[routeSlug];
+        const safeTitle = escapeHtmlAttr(meta.title);
+        const safeDesc = escapeHtmlAttr(meta.description);
+        const safeCanonical = escapeHtmlAttr(meta.canonical);
+
+        let routeHtml = baseHtml
+          .replace(/<title>[\s\S]*?<\/title>/i, `<title>${safeTitle}</title>`)
+          .replace(
+            /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i,
+            `<meta name="description" content="${safeDesc}" />`
+          )
+          .replace(
+            /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i,
+            `<link rel="canonical" href="${safeCanonical}" />`
+          )
+          .replace(
+            /<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i,
+            `<meta property="og:title" content="${safeTitle}" />`
+          )
+          .replace(
+            /<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i,
+            `<meta property="og:description" content="${safeDesc}" />`
+          )
+          .replace(
+            /<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/i,
+            `<meta property="og:url" content="${safeCanonical}" />`
+          )
+          .replace(
+            /<meta\s+name="twitter:title"\s+content="[^"]*"\s*\/?>/i,
+            `<meta name="twitter:title" content="${safeTitle}" />`
+          )
+          .replace(
+            /<meta\s+name="twitter:description"\s+content="[^"]*"\s*\/?>/i,
+            `<meta name="twitter:description" content="${safeDesc}" />`
+          );
+
+        if (!meta.preloadHeroImage) {
+          routeHtml = routeHtml.replace(
+            /\s*<link\b[^>]*rel=["']preload["'][^>]*hero_cotton_nest_bedding[^>]*\/?>/gi,
+            ''
+          );
+        }
+
+        const routeDir = path.join(distRoot, routeSlug);
+        fs.mkdirSync(routeDir, { recursive: true });
+        fs.writeFileSync(path.join(routeDir, 'index.html'), routeHtml, 'utf-8');
+      }
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
@@ -45,11 +122,13 @@ export default defineConfig(() => {
         },
         workbox: {
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+          cleanupOutdatedCaches: true,
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [
             /^\/api\//,
             /^\/sitemap\.xml$/i,
             /^\/robots\.txt$/i,
+            new RegExp(`^\\/(?:${PUBLIC_SUBROUTES.join('|')})(?:\\/.*)?$`, 'i'),
             /\/[^/?]+\.[^/]+$/,
           ],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
@@ -104,6 +183,7 @@ export default defineConfig(() => {
           type: 'module',
         },
       }),
+      cottonNestRouteHtmlPlugin(),
     ],
     resolve: {
       alias: {

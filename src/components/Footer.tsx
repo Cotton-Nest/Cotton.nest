@@ -20,6 +20,16 @@ export const Footer: React.FC<FooterProps> = ({
   onLockOwnerMode,
   productsCount = 10,
 }) => {
+  const handlePublicLinkClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    tab: 'home' | 'catalogue' | 'story' | 'store' | 'tc' | 'reviews'
+  ) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onNavClick(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <footer
       className="liquid-glass-dark pt-12 pb-28 md:pb-12 transition-colors relative overflow-hidden"
@@ -38,9 +48,10 @@ export const Footer: React.FC<FooterProps> = ({
           
           {/* Brand Info */}
           <div className="md:col-span-5 space-y-4">
-            <button
-              onClick={() => onNavClick('home')}
-              className="text-left font-serif-luxury text-2xl font-bold transition-colors cursor-pointer flex items-center gap-3 group"
+            <a
+              href="/"
+              onClick={(e) => handlePublicLinkClick(e, 'home')}
+              className="text-left font-serif-luxury text-2xl font-bold transition-colors cursor-pointer flex items-center gap-3 group w-fit"
               style={{ color: 'var(--color-footer-text,#FAF7F2)' }}
             >
               <img
@@ -55,7 +66,7 @@ export const Footer: React.FC<FooterProps> = ({
                 className="w-10 h-10 object-contain rounded-full bg-white/15 backdrop-blur-md p-0.5 border border-white/30 group-hover:scale-105 transition-transform shrink-0 shadow-sm"
               />
               <span>Cotton Nest</span>
-            </button>
+            </a>
             
             <p className="text-xs sm:text-sm max-w-sm leading-relaxed opacity-85">
               Crafting premium 100% pure cotton bedsheets with serene comfort, subtle floral elegance, 
@@ -88,60 +99,66 @@ export const Footer: React.FC<FooterProps> = ({
             </h4>
             <ul className="space-y-2 text-xs opacity-90">
               <li>
-                <button
-                  onClick={() => onNavClick('home')}
-                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
+                <a
+                  href="/"
+                  onClick={(e) => handlePublicLinkClick(e, 'home')}
+                  className="inline-block hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
                 >
                   Home Showcase
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => onNavClick('catalogue')}
-                  className="font-semibold flex items-center gap-1.5 cursor-pointer"
+                <a
+                  href="/catalogue"
+                  onClick={(e) => handlePublicLinkClick(e, 'catalogue')}
+                  className="font-semibold inline-flex items-center gap-1.5 cursor-pointer"
                   style={{ color: 'var(--color-accent, #C29E57)' }}
                 >
                   <span>Product Catalogue</span>
                   <span className="text-[10px] bg-white/10 backdrop-blur-xs px-1.5 rounded-md border border-white/20">
                     {productsCount} Bedsheets
                   </span>
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => onNavClick('story')}
-                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
+                <a
+                  href="/story"
+                  onClick={(e) => handlePublicLinkClick(e, 'story')}
+                  className="inline-block hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
                 >
                   Why 100% Pure Cotton
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => onNavClick('store')}
-                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
+                <a
+                  href="/store"
+                  onClick={(e) => handlePublicLinkClick(e, 'store')}
+                  className="inline-block hover:opacity-100 opacity-80 transition-opacity cursor-pointer"
                 >
                   Visit Studio (Sector 46 Gurgaon)
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => onNavClick('reviews')}
-                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer flex items-center gap-1.5"
+                <a
+                  href="/reviews"
+                  onClick={(e) => handlePublicLinkClick(e, 'reviews')}
+                  className="hover:opacity-100 opacity-80 transition-opacity cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <span>Customer Reviews &amp; Comments</span>
                   <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded-md border border-amber-400/30 font-semibold">
                     4.9 ★
                   </span>
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => onNavClick('tc')}
-                  className="hover:text-[#B83F60] transition-colors cursor-pointer flex items-center gap-1.5"
+                <a
+                  href="/tc"
+                  onClick={(e) => handlePublicLinkClick(e, 'tc')}
+                  className="hover:text-[#B83F60] transition-colors cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <span>Terms &amp; Conditions (T&amp;C)</span>
                   <span className="text-[10px] text-[#B83F60]">🌸</span>
-                </button>
+                </a>
               </li>
               {isOwnerMode && (
                 <li>

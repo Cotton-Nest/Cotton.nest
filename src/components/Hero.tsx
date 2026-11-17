@@ -44,27 +44,37 @@ export const Hero: React.FC<HeroProps> = ({ onExploreCatalogue, onVisitStore, co
 
             {/* CTA action cluster */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2">
-              <motion.button
+              <motion.a
+                href="/catalogue"
                 whileHover={{ y: -2, scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                onClick={onExploreCatalogue}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  onExploreCatalogue();
+                }}
                 className="w-full sm:w-auto px-7 py-3.5 liquid-glass-primary-btn text-[var(--color-primary-contrast,#FFFFFF)] text-sm font-semibold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer group"
               >
                 <span>{ctaText}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </motion.button>
+              </motion.a>
 
-              <motion.button
+              <motion.a
+                href="/store"
                 whileHover={{ y: -2, scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                onClick={onVisitStore}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  onVisitStore();
+                }}
                 className="w-full sm:w-auto px-6 py-3.5 liquid-glass-dock hover:bg-white text-[var(--color-text,#2C2420)] text-sm font-medium rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-[var(--color-accent,#C29E57)]" />
                 <span>{secondaryText}</span>
-              </motion.button>
+              </motion.a>
             </div>
 
             {/* Quiet trust markers in a subtle frosted glass strip */}
