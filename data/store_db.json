@@ -3289,14 +3289,14 @@
       "avatar": "https://lh3.googleusercontent.com/a/ACg8ocInMkBhGmos4xM1_rcfD04ZlMKqrho7Kf7grJkvCUfhhifi1e73=s96-c",
       "authProvider": "google",
       "accountCreatedAt": 1794232460968,
-      "lastLoginAt": 1794885357484,
-      "lastActiveAt": 1794886608415,
-      "totalSessions": 21,
-      "totalTimeSpentSeconds": 21644,
-      "averageSessionDurationSeconds": 1031,
-      "totalPagesVisited": 47,
+      "lastLoginAt": 1794915061105,
+      "lastActiveAt": 1794919177700,
+      "totalSessions": 22,
+      "totalTimeSpentSeconds": 23466,
+      "averageSessionDurationSeconds": 1067,
+      "totalPagesVisited": 48,
       "pageVisitCounts": {
-        "Home Showcase": 22,
+        "Home Showcase": 23,
         "Admin Analytics": 1,
         "Terms & Privacy Policy": 3,
         "Bedsheet Catalogue": 19,
@@ -3413,10 +3413,24 @@
       },
       "sessions": [
         {
+          "sessionId": "sess_1794915061105_dpi50",
+          "loginAt": 1794915061105,
+          "lastActiveAt": 1794919177700,
+          "durationSeconds": 1611,
+          "pagesVisited": [
+            "Home Showcase"
+          ],
+          "productsViewedCount": 0,
+          "deviceType": "Desktop",
+          "os": "Windows 10/11",
+          "browser": "Google Chrome",
+          "screenResolution": "1536x864"
+        },
+        {
           "sessionId": "sess_1794885357484_hdqfb",
           "loginAt": 1794885357484,
-          "lastActiveAt": 1794886608415,
-          "durationSeconds": 844,
+          "lastActiveAt": 1794888508255,
+          "durationSeconds": 1055,
           "pagesVisited": [
             "Home Showcase"
           ],
@@ -3723,6 +3737,20 @@
         }
       ],
       "timeline": [
+        {
+          "type": "login",
+          "label": "User signed in (Google Chrome on Windows 10/11)",
+          "sessionId": "sess_1794915061105_dpi50",
+          "timestamp": 1794915061105,
+          "id": "evt_1794915061105_bfrzm"
+        },
+        {
+          "type": "session_end",
+          "label": "User left website",
+          "sessionId": "sess_1794885357484_hdqfb",
+          "timestamp": 1794888507679,
+          "id": "evt_1794888507679_tdblv"
+        },
         {
           "type": "login",
           "label": "User signed in (Google Chrome on Windows 10/11)",
@@ -4391,7 +4419,7 @@
           "id": "evt_1794232460968_i8e0j"
         }
       ],
-      "updatedAt": 1794886609538,
+      "updatedAt": 1794919223471,
       "lastLogoutAt": 1794285339677
     }
   },

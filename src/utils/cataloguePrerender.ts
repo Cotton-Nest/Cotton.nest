@@ -296,6 +296,20 @@ export async function fetchAuthoritativePublicCatalogue(
 
 export function buildCatalogueJsonLd(products: PublicCatalogueProduct[]): Record<string, unknown> {
   const catalogueUrl = ROUTE_SEO_MAP.catalogue.canonical;
+  const tcUrl = ROUTE_SEO_MAP.tc.canonical;
+  const organizationRef = {
+    '@type': 'HomeGoodsStore',
+    '@id': `${SITE_ORIGIN}/#organization`,
+    name: 'Cotton Nest',
+    url: `${SITE_ORIGIN}/`,
+  };
+  const conservativeReturnPolicy = {
+    '@type': 'MerchantReturnPolicy',
+    '@id': `${SITE_ORIGIN}/#return-policy`,
+    applicableCountry: 'IN',
+    returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted',
+    merchantReturnLink: tcUrl,
+  };
 
   return {
     '@context': 'https://schema.org',
@@ -331,6 +345,8 @@ export function buildCatalogueJsonLd(products: PublicCatalogueProduct[]): Record
               : 'https://schema.org/OutOfStock',
             itemCondition: 'https://schema.org/NewCondition',
             url: catalogueUrl,
+            seller: organizationRef,
+            hasMerchantReturnPolicy: conservativeReturnPolicy,
           },
         };
 
