@@ -55,7 +55,22 @@ import { resolveBedsheetImage } from '../utils/imageUrl';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, setDefaultAddress, formatFullAddress } from '../data/addresses';
 import { OrderComplaintSection } from './OrderComplaintSection';
-import { getUserOrders } from '../services/api';
+import {
+  getUserOrders,
+  getCouponsApi,
+  getBirthdayRewardStatusApi,
+  registerBirthdayMonthApi,
+  requestBirthdayMonthCorrectionApi,
+} from '../services/api';
+import { CouponOffer, INITIAL_COUPONS } from '../data/coupons';
+import {
+  MONTH_NAMES,
+  getMonthName,
+  DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+  BirthdayRewardsConfig,
+  CustomerBirthdayProfile,
+  BirthdayRewardEvaluationResult,
+} from '../data/birthdayRewards';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
 import { PincodeAddressFields } from './PincodeAddressFields';
 import { isValidIndianPincodeFormat, sanitizePincodeInput } from '../services/pincodeLookup';
@@ -74,6 +89,8 @@ interface AccountModalProps {
   onShopCatalogue?: () => void;
   isOwnerMode?: boolean;
   onOpenAdmin?: () => void;
+  initialTab?: 'overview' | 'loyalty' | 'wishlist' | 'orders' | 'profile';
+  onApplyCouponAtCheckout?: (code: string) => void;
 }
 
 export const AccountModal: React.FC<AccountModalProps> = ({
@@ -90,6 +107,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   onShopCatalogue,
   isOwnerMode = false,
   onOpenAdmin,
+  initialTab,
+  onApplyCouponAtCheckout,
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
   const {
@@ -148,6 +167,58 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const [fetchedOrders, setFetchedOrders] = useState<Order[]>([]);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
 
+  // Nest Rewards Club — Birthday Rewards & Available Coupons state
+  const [birthdayConfig, setBirthdayConfig] = useState<BirthdayRewardsConfig>(DEFAULT_BIRTHDAY_REWARDS_CONFIG);
+  const [birthdayProfile, setBirthdayProfile] = useState<CustomerBirthdayProfile | null>(null);
+  const [birthdayStatus, setBirthdayStatus] = useState<BirthdayRewardEvaluationResult | null>(null);
+  const [selectedBirthdayMonth, setSelectedBirthdayMonth] = useState<number>(0);
+  const [birthdayConsentAccepted, setBirthdayConsentAccepted] = useState<boolean>(false);
+  const [savingBirthdayMonth, setSavingBirthdayMonth] = useState<boolean>(false);
+  const [birthdayFeedback, setBirthdayFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Support-assisted birthday month correction request state
+  const [showCorrectionForm, setShowCorrectionForm] = useState<boolean>(false);
+  const [correctionMonth, setCorrectionMonth] = useState<number>(0);
+  const [correctionReason, setCorrectionReason] = useState<string>('');
+  const [submittingCorrection, setSubmittingCorrection] = useState<boolean>(false);
+  const [correctionFeedback, setCorrectionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Available store coupons state
+  const [availableCoupons, setAvailableCoupons] = useState<CouponOffer[]>(INITIAL_COUPONS);
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
+
+  useEffect(() => {
+    const handleOpenRewardsClub = () => {
+      setActiveTab('loyalty');
+    };
+    window.addEventListener('cotton-nest-open-rewards-club', handleOpenRewardsClub);
+    return () => {
+      window.removeEventListener('cotton-nest-open-rewards-club', handleOpenRewardsClub);
+    };
+  }, []);
+
+  const refreshBirthdayAndCoupons = async (uid?: string) => {
+    try {
+      const [bdayRes, couponsRes] = await Promise.all([
+        getBirthdayRewardStatusApi(uid),
+        getCouponsApi().catch(() => INITIAL_COUPONS),
+      ]);
+      setBirthdayConfig(bdayRes.config);
+      setBirthdayProfile(bdayRes.profile);
+      setBirthdayStatus(bdayRes.status);
+      if (Array.isArray(couponsRes) && couponsRes.length > 0) {
+        setAvailableCoupons(couponsRes);
+      }
+    } catch {
+      // Fallback silently
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     const activeCustomerPhone = customerProfile?.phone || user?.phone;
@@ -156,6 +227,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       : (user?.email ? sanitizeLoyaltyKey(user.email) : undefined);
 
     const currentUid = (user?.id || '').trim();
+    refreshBirthdayAndCoupons(currentUid);
+
     if (currentUid) {
       getUserOrders(currentUid)
         .then((res) => {
@@ -180,6 +253,142 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleApplyCouponCodeToCheckout = (code: string) => {
+    const clean = code.trim().toUpperCase();
+    if (!clean) return;
+    if (onApplyCouponAtCheckout) {
+      onApplyCouponAtCheckout(clean);
+    } else {
+      window.dispatchEvent(
+        new CustomEvent('cotton-nest-apply-coupon-at-checkout', {
+          detail: { code: clean },
+        })
+      );
+      if (onOpenCart) {
+        onOpenCart();
+      }
+    }
+    onClose();
+  };
+
+  const handleSaveBirthdayMonth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBirthdayFeedback(null);
+    if (!isAuthenticated || !user?.id) {
+      setBirthdayFeedback({
+        type: 'error',
+        message: 'Please sign in to your Cotton Nest account before saving your birthday month.',
+      });
+      return;
+    }
+    if (!selectedBirthdayMonth || selectedBirthdayMonth < 1 || selectedBirthdayMonth > 12) {
+      setBirthdayFeedback({
+        type: 'error',
+        message: 'Please select your birthday month (January to December).',
+      });
+      return;
+    }
+    if (!birthdayConsentAccepted) {
+      setBirthdayFeedback({
+        type: 'error',
+        message: 'Please check the consent box to confirm you agree to the Birthday Rewards terms.',
+      });
+      return;
+    }
+
+    setSavingBirthdayMonth(true);
+    try {
+      const res = await registerBirthdayMonthApi({
+        uid: user.id,
+        email: user.email || customerProfile?.email,
+        customerName: user.name || customerProfile?.name,
+        phone: user.phone || customerProfile?.phone,
+        birthdayMonth: selectedBirthdayMonth,
+        consentAccepted: true,
+      });
+
+      if (!res.success) {
+        setBirthdayFeedback({
+          type: 'error',
+          message: res.error || 'Could not save your birthday month. Please try again.',
+        });
+      } else {
+        if (res.profile) setBirthdayProfile(res.profile);
+        if (res.status) setBirthdayStatus(res.status);
+        const savedMonthName = getMonthName(res.profile?.birthdayMonth || selectedBirthdayMonth);
+        setBirthdayFeedback({
+          type: 'success',
+          message: `Your birthday month is ${savedMonthName}. Your ₹${birthdayConfig.discountAmount} birthday reward unlocks on 15 ${savedMonthName} every year.`,
+        });
+        window.dispatchEvent(new CustomEvent('cotton-nest-birthday-profile-updated'));
+      }
+    } catch (err: any) {
+      setBirthdayFeedback({
+        type: 'error',
+        message: err?.message || 'Could not save your birthday month.',
+      });
+    } finally {
+      setSavingBirthdayMonth(false);
+    }
+  };
+
+  const handleSubmitBirthdayCorrection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCorrectionFeedback(null);
+    if (!user?.id || !birthdayProfile) return;
+    if (!correctionMonth || correctionMonth < 1 || correctionMonth > 12) {
+      setCorrectionFeedback({
+        type: 'error',
+        message: 'Please select the corrected birthday month.',
+      });
+      return;
+    }
+    if (correctionMonth === birthdayProfile.birthdayMonth) {
+      setCorrectionFeedback({
+        type: 'error',
+        message: `${getMonthName(correctionMonth)} is already your saved birthday month.`,
+      });
+      return;
+    }
+    if (correctionReason.trim().length < 5) {
+      setCorrectionFeedback({
+        type: 'error',
+        message: 'Please provide a brief reason for requesting this correction.',
+      });
+      return;
+    }
+
+    setSubmittingCorrection(true);
+    try {
+      const res = await requestBirthdayMonthCorrectionApi({
+        uid: user.id,
+        requestedMonth: correctionMonth,
+        reason: correctionReason.trim(),
+      });
+      if (!res.success) {
+        setCorrectionFeedback({
+          type: 'error',
+          message: res.error || 'Could not submit correction request.',
+        });
+      } else {
+        if (res.profile) setBirthdayProfile(res.profile);
+        setShowCorrectionForm(false);
+        setCorrectionReason('');
+        setCorrectionFeedback({
+          type: 'success',
+          message: 'Your birthday month correction request has been submitted for Cotton Nest support review.',
+        });
+      }
+    } catch (err: any) {
+      setCorrectionFeedback({
+        type: 'error',
+        message: err?.message || 'Failed to submit correction request.',
+      });
+    } finally {
+      setSubmittingCorrection(false);
+    }
+  };
 
   const handleCopyCoupon = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -473,7 +682,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         <div className="flex items-center gap-1 px-4 py-2 bg-white border-b border-[#EAE2D5] overflow-x-auto no-scrollbar shrink-0 text-xs">
           {[
             { id: 'overview', label: 'Overview', icon: User },
-            { id: 'loyalty', label: 'Nest Points & Rewards', count: `${activeAvailablePoints} pts`, icon: Award },
+            { id: 'loyalty', label: 'Nest Rewards Club', count: `${activeAvailablePoints} pts`, icon: Gift },
             { id: 'wishlist', label: 'Wishlist', count: wishlistItems.length, icon: Heart },
             { id: 'orders', label: 'My Orders', count: customerOrders.length, icon: Package },
             { id: 'profile', label: 'Address & Profile', icon: MapPin },
@@ -665,7 +874,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       onClick={() => setActiveTab('loyalty')}
                       className="text-[#8C2E46] font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      <span>Full Details &amp; Referrals</span>
+                      <span>Open Nest Rewards Club</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -850,15 +1059,463 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: NEST POINTS & REWARDS */}
+          {/* TAB 2: NEST REWARDS CLUB */}
           {activeTab === 'loyalty' && (
-            <div className="space-y-4">
-              {/* Primary Nest Points Balance & Equivalent Rupee Value */}
+            <div className="space-y-5">
+              {/* Nest Rewards Club Header Banner */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#2C2420] via-[#3A2D28] to-[#2C2420] text-white border border-[#DEC89B]/50 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#C29E57]/20 border border-[#DEC89B]/40 text-[10px] font-bold uppercase tracking-[0.18em] text-[#DEC89B]">
+                    <Sparkles className="w-3 h-3 text-[#DEC89B]" />
+                    <span>Nest Rewards Club</span>
+                  </div>
+                  <h4 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#FAF7F2]">
+                    Exclusive Member Privileges &amp; Annual Birthday Gifts
+                  </h4>
+                  <p className="text-xs text-[#D6CAB8]">
+                    Manage your Nest Points, claim your annual Birthday Reward, and explore available member coupons.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold shrink-0">
+                  <span className="px-2.5 py-1 rounded-xl bg-white/10 border border-white/15 text-[#FAF7F2]">
+                    My Nest Points
+                  </span>
+                  <span className="px-2.5 py-1 rounded-xl bg-[#8C2E46] border border-[#FAD1DC]/30 text-white">
+                    🎂 Birthday Rewards
+                  </span>
+                  <span className="px-2.5 py-1 rounded-xl bg-white/10 border border-white/15 text-[#FAF7F2]">
+                    Available Coupons
+                  </span>
+                </div>
+              </div>
+
+              {/* SECTION 2: BIRTHDAY REWARDS CARD */}
+              <div
+                data-testid="birthday-rewards-card"
+                className="relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br from-[#FAF7F2] via-[#FFFDF9] to-[#F5EFE6] border-2 border-[#DEC89B] shadow-xs space-y-4"
+              >
+                <div className="flex items-start justify-between flex-wrap gap-3">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-[#8C2E46] text-white flex items-center justify-center shrink-0 shadow-xs border border-[#DEC89B]">
+                      <Gift className="w-6 h-6 text-[#DEC89B]" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.18em] px-2.5 py-0.5 rounded-full bg-[#8C2E46]/10 text-[#8C2E46] border border-[#8C2E46]/20">
+                          Annual Birthday Privilege
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                          ₹{birthdayConfig.discountAmount} OFF · Min. Order ₹{birthdayConfig.minOrderValue.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <h4 className="font-serif-luxury text-lg sm:text-xl font-bold text-[#2C2420]">
+                        🎂 Your Birthday Gift Awaits!
+                      </h4>
+                      <p className="text-xs sm:text-sm text-[#5C4C42] leading-relaxed max-w-2xl">
+                        Tell us your birthday month and receive{' '}
+                        <strong className="text-[#8C2E46]">₹{birthdayConfig.discountAmount} OFF</strong> on orders of{' '}
+                        <strong className="text-[#2C2420]">₹{birthdayConfig.minOrderValue.toLocaleString('en-IN')}</strong> or more.
+                        Your exclusive birthday reward unlocks on the <strong>15th of your birthday month</strong>, every year!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Birthday Feedback Banner */}
+                {birthdayFeedback && (
+                  <div
+                    className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+                      birthdayFeedback.type === 'success'
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                        : 'bg-rose-50 border-rose-200 text-rose-800'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>{birthdayFeedback.message}</span>
+                  </div>
+                )}
+
+                {/* STATE A: NOT REGISTERED YET */}
+                {!birthdayProfile ? (
+                  <div className="p-4 rounded-2xl bg-white border border-[#EAE2D5] space-y-3.5">
+                    {!isAuthenticated || !user ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-[#2C2420]">
+                            Sign in to register your Birthday Month
+                          </p>
+                          <p className="text-[11px] text-[#7A6458]">
+                            Your birthday reward coupon is uniquely bound to your Cotton Nest account so it remains protected every year.
+                          </p>
+                        </div>
+                        <GoogleSignInButton variant="navbar" customText="Sign In to Join" />
+                      </div>
+                    ) : (
+                      <form onSubmit={handleSaveBirthdayMonth} className="space-y-3.5">
+                        <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] space-y-1.5 text-[11px] text-[#5C4C42]">
+                          <p className="font-bold text-[#2C2420] flex items-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5 text-[#8C2E46]" />
+                            <span>Privacy-First Birthday Reward Conditions</span>
+                          </p>
+                          <ul className="list-disc pl-4 space-y-0.5 text-[#6B5D55]">
+                            <li>
+                              <strong>Privacy Friendly:</strong> We only ask for your birthday month (optional)—never your birth date or birth year.
+                            </li>
+                            <li>
+                              <strong>Annual Reward Window:</strong> Unlocks at 12:00 AM IST on the 15th of your birthday month and remains valid until 11:59 PM IST on the last day of that month.
+                            </li>
+                            <li>
+                              <strong>Eligibility Cutoff:</strong> Register before the 15th of your birthday month to receive this year&apos;s gift; registrations on or after the 15th unlock next year.
+                            </li>
+                            <li>
+                              <strong>Single-Benefit Policy:</strong> Valid once per calendar year on product subtotals of ₹{birthdayConfig.minOrderValue.toLocaleString('en-IN')}+ (excluding delivery). Cannot be combined with Welcome Offer, Nest Points, or other coupons.
+                            </li>
+                          </ul>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                          <div>
+                            <label
+                              htmlFor="birthday-month-select"
+                              className="block text-[11px] font-bold uppercase tracking-wider text-[#2C2420] mb-1"
+                            >
+                              Select Birthday Month (Optional)
+                            </label>
+                            <select
+                              id="birthday-month-select"
+                              data-testid="birthday-month-select"
+                              value={selectedBirthdayMonth || ''}
+                              onChange={(e) => setSelectedBirthdayMonth(Number(e.target.value))}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#DEC89B] text-xs font-semibold text-[#2C2420] focus:outline-none focus:border-[#8C2E46]"
+                            >
+                              <option value="">Choose Month (January – December)</option>
+                              {MONTH_NAMES.map((mName, idx) => (
+                                <option key={mName} value={idx + 1}>
+                                  {mName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <button
+                            type="submit"
+                            data-testid="save-birthday-month-btn"
+                            disabled={savingBirthdayMonth || !selectedBirthdayMonth || !birthdayConsentAccepted}
+                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#8C2E46] hover:bg-[#70252D] disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer shadow-xs"
+                          >
+                            {savingBirthdayMonth ? 'Saving...' : 'Save Birthday Month'}
+                          </button>
+                        </div>
+
+                        <label className="flex items-start gap-2.5 text-[11px] text-[#5C4C42] cursor-pointer select-none pt-0.5">
+                          <input
+                            type="checkbox"
+                            data-testid="birthday-consent-checkbox"
+                            checked={birthdayConsentAccepted}
+                            onChange={(e) => setBirthdayConsentAccepted(e.target.checked)}
+                            className="mt-0.5 accent-[#8C2E46] w-3.5 h-3.5 rounded cursor-pointer"
+                          />
+                          <span>
+                            I consent to Cotton Nest storing my selected birthday month to issue my annual ₹{birthdayConfig.discountAmount} birthday reward coupon in accordance with the reward conditions above.
+                          </span>
+                        </label>
+                      </form>
+                    )}
+                  </div>
+                ) : (
+                  /* STATE B: REGISTERED CUSTOMER — DISPLAY SAVED MONTH & CURRENT UI STATE */
+                  <div className="space-y-3">
+                    {/* Saved Month Confirmation Bar */}
+                    <div className="p-3.5 rounded-xl bg-white border border-[#EAE2D5] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold text-sm shrink-0">
+                          🎂
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold text-[#2C2420]">
+                            Your birthday month is <span className="text-[#8C2E46]">{getMonthName(birthdayProfile.birthdayMonth)}</span>. Your ₹{birthdayConfig.discountAmount} birthday reward unlocks on 15 {getMonthName(birthdayProfile.birthdayMonth)} every year.
+                          </p>
+                          <p className="text-[11px] text-[#7A6458]">
+                            Account-bound to {birthdayProfile.email || user?.email || 'your account'} · Eligible from {birthdayProfile.eligibleFromYear}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCorrectionForm(!showCorrectionForm);
+                          setCorrectionFeedback(null);
+                        }}
+                        className="text-[11px] font-semibold text-[#8C2E46] hover:underline shrink-0 cursor-pointer"
+                      >
+                        {showCorrectionForm ? 'Close Correction Request' : 'Request Month Correction'}
+                      </button>
+                    </div>
+
+                    {/* UI STATE 1: BEFORE THE 15TH OR WAITING FOR NEXT YEAR */}
+                    {(birthdayStatus?.uiState === 'waiting_until_15th' ||
+                      birthdayStatus?.uiState === 'waiting_until_next_year') && (
+                      <div
+                        data-testid="birthday-state-waiting"
+                        className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Clock className="w-5 h-5 text-amber-800 shrink-0" />
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-amber-950">
+                              Your birthday surprise unlocks on 15 {getMonthName(birthdayProfile.birthdayMonth)}!
+                            </p>
+                            <p className="text-[11px] text-amber-900 mt-0.5">
+                              {birthdayStatus.subheadline}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white text-amber-900 border border-amber-300 shrink-0 self-start sm:self-center">
+                          Unlocks 15 {getMonthName(birthdayProfile.birthdayMonth)} {birthdayStatus.nextUnlockYear}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* UI STATE 2: FROM THE 15TH UNTIL MONTH-END (ACTIVE & AVAILABLE) */}
+                    {birthdayStatus?.uiState === 'active_available' && birthdayStatus.activeCoupon && (
+                      <div
+                        data-testid="birthday-state-active"
+                        className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#8C2E46] via-[#70252D] to-[#8C2E46] text-white border border-[#DEC89B] shadow-md space-y-3.5"
+                      >
+                        <div className="flex items-start justify-between flex-wrap gap-2">
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#DEC89B]/20 border border-[#DEC89B]/50 text-[10px] font-bold uppercase tracking-wider text-[#DEC89B]">
+                              <Sparkles className="w-3 h-3" />
+                              Unlocked for {getMonthName(birthdayProfile.birthdayMonth)} {birthdayStatus.activeCoupon.year}
+                            </span>
+                            <h5 className="font-serif-luxury text-lg sm:text-xl font-bold text-white">
+                              🎉 Your Birthday Reward is Here!
+                            </h5>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-2xl font-extrabold font-mono text-[#DEC89B] block">
+                              ₹{birthdayStatus.activeCoupon.discountAmount} OFF
+                            </span>
+                            <span className="text-[10px] text-[#FAD1DC] block">
+                              Minimum order ₹{birthdayStatus.activeCoupon.minOrderValue.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-white/10 border border-white/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-[#DEC89B] font-semibold block">
+                              Your Unique Account-Bound Code
+                            </span>
+                            <span
+                              data-testid="birthday-coupon-code"
+                              className="font-mono text-base sm:text-lg font-extrabold tracking-widest text-white"
+                            >
+                              {birthdayStatus.activeCoupon.code}
+                            </span>
+                            <span className="text-[11px] text-[#F5EFE6] block mt-0.5">
+                              Valid until{' '}
+                              {new Date(birthdayStatus.activeCoupon.expiresAt).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              })}{' '}
+                              (11:59 PM IST) · Single use
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              data-testid="copy-birthday-coupon-btn"
+                              onClick={() => handleCopyCoupon(birthdayStatus.activeCoupon!.code)}
+                              className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                            >
+                              {copiedCoupon === birthdayStatus.activeCoupon.code ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-300" />
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy Code</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              data-testid="apply-birthday-coupon-checkout-btn"
+                              onClick={() => handleApplyCouponCodeToCheckout(birthdayStatus.activeCoupon!.code)}
+                              className="px-4 py-2 rounded-xl bg-[#DEC89B] hover:bg-[#cfa861] text-[#2C2420] text-xs font-extrabold uppercase tracking-wider cursor-pointer transition-colors shadow-xs"
+                            >
+                              Apply at Checkout
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* UI STATE 3: AFTER REDEMPTION */}
+                    {birthdayStatus?.uiState === 'redeemed_this_year' && (
+                      <div
+                        data-testid="birthday-state-redeemed"
+                        className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between flex-wrap gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-emerald-950">
+                              Birthday Reward Used — See you next year!
+                            </p>
+                            <p className="text-[11px] text-emerald-800 mt-0.5">
+                              {birthdayStatus.subheadline}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-white text-emerald-900 border border-emerald-300">
+                          Next Gift: 15 {getMonthName(birthdayProfile.birthdayMonth)} {birthdayStatus.nextUnlockYear}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* UI STATE 4: AFTER EXPIRY */}
+                    {birthdayStatus?.uiState === 'expired_this_year' && (
+                      <div
+                        data-testid="birthday-state-expired"
+                        className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#DEC89B] flex items-center justify-between flex-wrap gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Clock className="w-5 h-5 text-[#8C7A70] shrink-0" />
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-[#2C2420]">
+                              Your birthday reward has expired. Your next gift arrives next year!
+                            </p>
+                            <p className="text-[11px] text-[#7A6458] mt-0.5">
+                              {birthdayStatus.subheadline}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-white text-[#7A6458] border border-[#EAE2D5]">
+                          Next Gift: 15 {getMonthName(birthdayProfile.birthdayMonth)} {birthdayStatus.nextUnlockYear}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Pending / Reviewed Correction Request Status Badge */}
+                    {birthdayProfile.correctionRequest && (
+                      <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] text-xs flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <span className="font-bold text-[#2C2420]">
+                            Birthday Month Correction Request:{' '}
+                          </span>
+                          <span className="text-[#5C4C42]">
+                            Change to <strong>{getMonthName(birthdayProfile.correctionRequest.requestedMonth)}</strong>
+                          </span>
+                          {birthdayProfile.correctionRequest.reviewNote && (
+                            <span className="block text-[11px] text-[#7A6458] mt-0.5">
+                              Note: {birthdayProfile.correctionRequest.reviewNote}
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full border ${
+                            birthdayProfile.correctionRequest.status === 'pending'
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : birthdayProfile.correctionRequest.status === 'approved'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-rose-100 text-rose-800 border-rose-300'
+                          }`}
+                        >
+                          {birthdayProfile.correctionRequest.status}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Support-Assisted Correction Request Form */}
+                    {showCorrectionForm && (
+                      <form
+                        onSubmit={handleSubmitBirthdayCorrection}
+                        className="p-3.5 rounded-xl bg-white border border-[#DEC89B] space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#2C2420]">
+                            Support-Assisted Birthday Month Correction
+                          </span>
+                          <span className="text-[10px] text-[#7A6458]">
+                            Reviewed by Cotton Nest Support to prevent reward abuse
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <select
+                            value={correctionMonth || ''}
+                            onChange={(e) => setCorrectionMonth(Number(e.target.value))}
+                            className="px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] text-xs font-semibold text-[#2C2420]"
+                          >
+                            <option value="">Select Correct Month</option>
+                            {MONTH_NAMES.map((mName, idx) => (
+                              <option key={mName} value={idx + 1} disabled={idx + 1 === birthdayProfile.birthdayMonth}>
+                                {mName}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={correctionReason}
+                            onChange={(e) => setCorrectionReason(e.target.value)}
+                            placeholder="Reason for correction (e.g., selected wrong month)"
+                            className="px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] text-xs text-[#2C2420]"
+                          />
+                        </div>
+                        {correctionFeedback && (
+                          <p
+                            className={`text-[11px] font-semibold ${
+                              correctionFeedback.type === 'success' ? 'text-emerald-700' : 'text-rose-600'
+                            }`}
+                          >
+                            {correctionFeedback.message}
+                          </p>
+                        )}
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowCorrectionForm(false)}
+                            className="px-3 py-1.5 rounded-lg text-xs text-[#7A6458] hover:bg-[#FAF7F2]"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={submittingCorrection}
+                            className="px-4 py-1.5 rounded-lg bg-[#8C2E46] hover:bg-[#70252D] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                          >
+                            {submittingCorrection ? 'Submitting...' : 'Submit Request'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
+
+                {correctionFeedback && !showCorrectionForm && (
+                  <p
+                    className={`text-xs font-semibold ${
+                      correctionFeedback.type === 'success' ? 'text-emerald-700' : 'text-rose-600'
+                    }`}
+                  >
+                    {correctionFeedback.message}
+                  </p>
+                )}
+              </div>
+
+              {/* SECTION 1: MY NEST POINTS (Existing System) */}
               <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-50 via-[#FAF7F2] to-amber-100/70 border border-amber-300 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Award className="w-4 h-4 text-[#C29E57]" />
-                    Customer Nest Points Account
+                    My Nest Points Account
                   </span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full">
@@ -992,88 +1649,151 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 </div>
               </div>
 
-              {/* 6. Referral Rewards Card */}
-              <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-3 shadow-2xs">
+              {/* SECTION 3: AVAILABLE COUPONS (Reusing Existing Functionality + Active Birthday Coupon) */}
+              <div className="p-4 sm:p-5 bg-white rounded-2xl border border-[#EAE2D5] space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <Gift className="w-4 h-4 text-[#8C2E46]" />
+                    <Tag className="w-4 h-4 text-[#8C2E46]" />
                     <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
-                      6. Referral Rewards (+{LOYALTY_REFERRAL_REWARD_POINTS} Nest Points)
+                      Available Coupons &amp; Member Offers
                     </h4>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCopyReferralCode}
-                      className="px-2.5 py-1 bg-[#FAF7F2] hover:bg-amber-50 text-[#8C2E46] border border-[#DEC89B] rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                      title="Copy referral code to clipboard"
-                    >
-                      {copiedReferral ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedReferral ? 'Copied!' : 'Copy Code'}</span>
-                    </button>
-                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Earned: {referralPointsEarned} pts
-                    </span>
-                  </div>
+                  <span className="text-[10px] font-semibold text-[#7A6458]">
+                    One discount benefit applies per order at checkout
+                  </span>
                 </div>
 
-                <p className="text-xs text-[#6B5D55]">
-                  Share your personal referral code with friends &amp; family. When they claim your code or place their first Cotton Nest order, you earn <strong>+{LOYALTY_REFERRAL_REWARD_POINTS} Nest Points (worth ₹{calculatePointsDiscount(LOYALTY_REFERRAL_REWARD_POINTS)})</strong>!
-                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* If customer has an active unredeemed Birthday Reward coupon, feature it first */}
+                  {birthdayStatus?.uiState === 'active_available' && birthdayStatus.activeCoupon && (
+                    <div className="p-3.5 rounded-xl bg-[#FDEAF0] border border-[#8C2E46]/30 flex flex-col justify-between gap-2.5">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs font-extrabold text-[#8C2E46] bg-white px-2 py-0.5 rounded border border-[#FAD1DC]">
+                            {birthdayStatus.activeCoupon.code}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#8C2E46] text-white">
+                            🎂 Birthday Gift · ₹{birthdayStatus.activeCoupon.discountAmount} OFF
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-[#2C2420]">
+                          Your Annual Birthday Month Reward
+                        </p>
+                        <p className="text-[11px] text-[#7A6458]">
+                          Min. order ₹{birthdayStatus.activeCoupon.minOrderValue.toLocaleString('en-IN')} · Expires{' '}
+                          {new Date(birthdayStatus.activeCoupon.expiresAt).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyCoupon(birthdayStatus.activeCoupon!.code)}
+                          className="flex-1 py-1.5 px-2.5 bg-white hover:bg-[#FAF7F2] text-[#8C2E46] font-bold text-[11px] rounded-lg border border-[#FAD1DC] flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                        >
+                          {copiedCoupon === birthdayStatus.activeCoupon.code ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>Copy Code</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCouponCodeToCheckout(birthdayStatus.activeCoupon!.code)}
+                          className="flex-1 py-1.5 px-2.5 bg-[#8C2E46] hover:bg-[#70252D] text-white font-bold text-[11px] rounded-lg cursor-pointer transition-colors"
+                        >
+                          Apply at Checkout
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-[#FAF7F2] rounded-xl border border-[#DEC89B]">
+                  {availableCoupons
+                    .filter((c) => c.isActive)
+                    .map((coupon) => (
+                      <div
+                        key={coupon.id || coupon.code}
+                        className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] flex flex-col justify-between gap-2.5"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-xs font-extrabold text-[#70252D] bg-white px-2 py-0.5 rounded border border-[#DEC89B]">
+                              {coupon.code}
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-full">
+                              {coupon.discountType === 'percentage'
+                                ? `${coupon.discountValue}% OFF`
+                                : `₹${coupon.discountValue} OFF`}
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-[#2C2420]">{coupon.title}</p>
+                          <p className="text-[11px] text-[#7A6458] line-clamp-2">{coupon.description}</p>
+                          {coupon.minOrderValue && coupon.minOrderValue > 0 ? (
+                            <p className="text-[10px] text-[#8C7A70]">
+                              Min. order: ₹{coupon.minOrderValue.toLocaleString('en-IN')}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCoupon(coupon.code)}
+                            className="flex-1 py-1.5 px-2.5 bg-white hover:bg-amber-50 text-[#8C2E46] font-bold text-[11px] rounded-lg border border-[#DEC89B] flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                          >
+                            {copiedCoupon === coupon.code ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy Code</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyCouponCodeToCheckout(coupon.code)}
+                            className="flex-1 py-1.5 px-2.5 bg-[#2C2420] hover:bg-[#8C2E46] text-white font-bold text-[11px] rounded-lg cursor-pointer transition-colors"
+                          >
+                            Apply at Checkout
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* SECTION 4: FUTURE REWARDS (Optional Placeholder Only) */}
+              <div className="p-4 bg-gradient-to-r from-[#FAF7F2] via-white to-[#FAF7F2] rounded-2xl border border-dashed border-[#DEC89B] flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#C29E57]/15 text-[#8A6D3B] flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4 text-[#C29E57]" />
+                  </div>
                   <div>
-                    <span className="text-[10px] text-[#7A6458] uppercase font-semibold block">Your Personal Referral Code</span>
-                    <span className="font-mono text-base font-extrabold text-[#70252D] tracking-wider">{referralCode}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCopyReferralCode}
-                      className="px-3 py-1.5 bg-white hover:bg-amber-50 text-[#2C2420] border border-[#DEC89B] rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      {copiedReferral ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedReferral ? 'Copied!' : 'Copy Code'}</span>
-                    </button>
-                    <a
-                      href={COMPANY_DETAILS.whatsappUrl(`Use my Cotton Nest Referral Code *${referralCode}* to claim +${LOYALTY_REFERRAL_REWARD_POINTS} Nest Points (worth ₹${calculatePointsDiscount(LOYALTY_REFERRAL_REWARD_POINTS)}) on luxury 100% pure cotton bedsheets!`)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                    >
-                      <span>Share on WhatsApp</span>
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-[#2C2420] uppercase tracking-wider">
+                        Future Rewards &amp; Atelier Privileges
+                      </h4>
+                      <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                        Coming Soon
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#7A6458] mt-0.5">
+                      More seasonal surprises and curated member benefits are being crafted for Nest Rewards Club members.
+                    </p>
                   </div>
                 </div>
-
-                {!referredByCode ? (
-                  <form onSubmit={handleClaimReferral} className="pt-1 flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={friendReferralInput}
-                      onChange={(e) => setFriendReferralInput(e.target.value.toUpperCase())}
-                      placeholder="Have a friend's referral code? Enter here"
-                      className="flex-1 px-3 py-1.5 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl text-xs uppercase font-semibold placeholder:normal-case placeholder:font-normal"
-                    />
-                    <button
-                      type="submit"
-                      disabled={claimingReferral || !friendReferralInput.trim()}
-                      className="px-3.5 py-1.5 bg-[#8C2E46] hover:bg-[#742438] text-white rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-50"
-                    >
-                      {claimingReferral ? 'Applying...' : 'Claim +100 Pts'}
-                    </button>
-                  </form>
-                ) : (
-                  <p className="text-[11px] text-emerald-700 font-semibold">
-                    ✓ Referred by code: {referredByCode} (+{LOYALTY_REFERRAL_REWARD_POINTS} Nest Points credited)
-                  </p>
-                )}
-
-                {referralStatus && (
-                  <p className={`text-[11px] font-semibold ${referralStatus.type === 'success' ? 'text-emerald-700' : 'text-rose-600'}`}>
-                    {referralStatus.message}
-                  </p>
-                )}
               </div>
 
               {/* Official Nest Points Terms & Conditions Box */}
@@ -1494,6 +2214,60 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           {/* TAB 5: SAVED ADDRESS BOOK & PROFILE */}
           {activeTab === 'profile' && (
             <div className="space-y-4">
+              {/* MY PROFILE — BIRTHDAY MONTH & NEST REWARDS SUMMARY */}
+              <div className="p-4 bg-white rounded-2xl border border-[#DEC89B] space-y-2.5 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs font-bold text-[#2C2420] uppercase tracking-wider flex items-center gap-1.5">
+                    <Gift className="w-4 h-4 text-[#8C2E46]" />
+                    <span>Birthday Rewards Profile</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('loyalty')}
+                    className="text-xs font-bold text-[#8C2E46] hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Open Nest Rewards Club</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {birthdayProfile ? (
+                  <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div>
+                      <p className="font-bold text-[#2C2420]">
+                        Your birthday month is <span className="text-[#8C2E46]">{getMonthName(birthdayProfile.birthdayMonth)}</span>.
+                      </p>
+                      <p className="text-[11px] text-[#7A6458] mt-0.5">
+                        Your ₹{birthdayConfig.discountAmount} birthday reward unlocks on 15 {getMonthName(birthdayProfile.birthdayMonth)} every year (Min. order ₹{birthdayConfig.minOrderValue.toLocaleString('en-IN')}).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('loyalty');
+                        setShowCorrectionForm(true);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-[#F4EFE6] text-[#8C2E46] border border-[#DEC89B] text-[11px] font-semibold shrink-0 cursor-pointer"
+                    >
+                      Request Month Correction
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <p className="text-[#5C4C42]">
+                      🎂 Add your birthday month (optional) to receive <strong>₹{birthdayConfig.discountAmount} OFF</strong> every year on orders of ₹{birthdayConfig.minOrderValue.toLocaleString('en-IN')} or more.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('loyalty')}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#8C2E46] hover:bg-[#70252D] text-white text-[11px] font-bold shrink-0 cursor-pointer"
+                    >
+                      Add Birthday Month
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* SAVED ADDRESS BOOK (Only Saved Addresses Visible) */}
               <div className="p-4 bg-white rounded-2xl border border-[#EAE2D5] space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between border-b border-[#EAE2D5] pb-2">

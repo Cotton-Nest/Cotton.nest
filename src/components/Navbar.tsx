@@ -31,6 +31,7 @@ interface NavbarProps {
   wishlistCount?: number;
   onOpenWishlist?: () => void;
   onOpenAccount?: () => void;
+  onOpenRewardsClub?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -54,6 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   wishlistCount = 0,
   onOpenWishlist,
   onOpenAccount,
+  onOpenRewardsClub,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = React.useState(false);
@@ -475,6 +477,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </button>
                         )}
 
+                        {(onOpenRewardsClub || onOpenAccount) && (
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              if (onOpenRewardsClub) {
+                                onOpenRewardsClub();
+                              } else if (onOpenAccount) {
+                                onOpenAccount();
+                                window.dispatchEvent(new CustomEvent('cotton-nest-open-rewards-club'));
+                              }
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8A6D3B] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer"
+                          >
+                            <Gift className="w-3.5 h-3.5 text-[#C29E57]" />
+                            <span>Nest Rewards Club</span>
+                          </button>
+                        )}
+
                         {isAdmin && (
                           <button
                             onClick={() => {
@@ -636,7 +656,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                             className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8C2E46] hover:bg-[#FDEAF0] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
                           >
                             <User className="w-3.5 h-3.5 text-[#8C2E46]" />
-                            <span>My Account & Points</span>
+                            <span>My Account &amp; Points</span>
+                          </button>
+                        )}
+
+                        {(onOpenRewardsClub || onOpenAccount) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileUserDropdownOpen(false);
+                              if (onOpenRewardsClub) {
+                                onOpenRewardsClub();
+                              } else if (onOpenAccount) {
+                                onOpenAccount();
+                                window.dispatchEvent(new CustomEvent('cotton-nest-open-rewards-club'));
+                              }
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-[#8A6D3B] hover:bg-[#FAF7F2] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                          >
+                            <Gift className="w-3.5 h-3.5 text-[#C29E57]" />
+                            <span>Nest Rewards Club</span>
                           </button>
                         )}
 
@@ -813,11 +852,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                       type="button"
                       onClick={() => {
                         setMobileMenuOpen(false);
-                        openLoyaltyModal();
+                        if (onOpenRewardsClub) {
+                          onOpenRewardsClub();
+                        } else {
+                          openLoyaltyModal();
+                        }
                       }}
                       className="flex-1 py-1.5 text-center text-xs font-semibold text-amber-900 bg-amber-50 rounded-lg border border-amber-200 cursor-pointer"
                     >
-                      {pointsBalance} Nest Pts
+                      Nest Rewards ({pointsBalance} Pts)
                     </button>
                     <button
                       type="button"

@@ -1,7 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BedsheetProduct } from '../data/products';
 import { CouponOffer, DiscountType, DiscountScope, INITIAL_COUPONS } from '../data/coupons';
-import { getCouponsApi, saveCouponApi, deleteCouponApi } from '../services/api';
+import {
+  getCouponsApi,
+  saveCouponApi,
+  deleteCouponApi,
+  getBirthdayRewardsAdminDataApi,
+  saveBirthdayRewardsConfigApi,
+  reviewBirthdayMonthCorrectionApi,
+} from '../services/api';
+import {
+  BirthdayRewardsConfig,
+  CustomerBirthdayProfile,
+  BirthdayRewardTransaction,
+  DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+  getMonthName,
+} from '../data/birthdayRewards';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -23,7 +37,9 @@ import {
   Layers,
   ArrowRight,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Gift,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface AdminCouponsSectionProps {
@@ -66,6 +82,78 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Birthday Rewards Admin State
+  const [bdayConfig, setBdayConfig] = useState<BirthdayRewardsConfig>(DEFAULT_BIRTHDAY_REWARDS_CONFIG);
+  const [bdayProfiles, setBdayProfiles] = useState<CustomerBirthdayProfile[]>([]);
+  const [bdayTransactions, setBdayTransactions] = useState<BirthdayRewardTransaction[]>([]);
+  const [bdaySummary, setBdaySummary] = useState({
+    totalRegistered: 0,
+    totalIssued: 0,
+    totalRedeemed: 0,
+    totalExpired: 0,
+    pendingCorrections: 0,
+  });
+  const [savingBdayConfig, setSavingBdayConfig] = useState(false);
+  const [reviewingUid, setReviewingUid] = useState<string | null>(null);
+  const [showBdayTransactions, setShowBdayTransactions] = useState(false);
+
+  const loadBirthdayAdminData = async () => {
+    try {
+      const data = await getBirthdayRewardsAdminDataApi();
+      setBdayConfig(data.config);
+      setBdayProfiles(data.profiles);
+      setBdayTransactions(data.transactions);
+      setBdaySummary(data.summary);
+    } catch {
+      // Ignore fallback error
+    }
+  };
+
+  useEffect(() => {
+    loadBirthdayAdminData();
+  }, []);
+
+  const handleSaveBirthdayConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingBdayConfig(true);
+    try {
+      const saved = await saveBirthdayRewardsConfigApi({
+        ...bdayConfig,
+        discountAmount: Math.max(1, Math.round(Number(bdayConfig.discountAmount) || 100)),
+        minOrderValue: Math.max(100, Math.round(Number(bdayConfig.minOrderValue) || 1299)),
+      });
+      setBdayConfig(saved);
+      onToast(
+        `Birthday Rewards settings saved (₹${saved.discountAmount} OFF on orders ₹${saved.minOrderValue.toLocaleString('en-IN')}+)!`
+      );
+    } catch (err: any) {
+      onToast(`Failed to save Birthday Rewards config: ${err?.message || 'Error'}`);
+    } finally {
+      setSavingBdayConfig(false);
+    }
+  };
+
+  const handleReviewCorrection = async (uid: string, approve: boolean) => {
+    setReviewingUid(uid);
+    try {
+      const res = await reviewBirthdayMonthCorrectionApi({
+        uid,
+        approve,
+        reviewNote: approve ? 'Approved by Cotton Nest Admin' : 'Declined by Cotton Nest Admin',
+      });
+      if (res.success) {
+        onToast(approve ? 'Birthday month correction approved!' : 'Birthday month correction declined.');
+        await loadBirthdayAdminData();
+      } else {
+        onToast(res.error || 'Could not process correction request.');
+      }
+    } catch (err: any) {
+      onToast(err?.message || 'Error reviewing correction request.');
+    } finally {
+      setReviewingUid(null);
+    }
+  };
 
   // Load coupons from Firestore with fallback to REST API
   useEffect(() => {
@@ -456,6 +544,278 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
           <div className="text-[11px] text-[#6B5D55] mt-0.5 font-medium">
             Times used by customers
           </div>
+        </div>
+      </div>
+
+      {/* BIRTHDAY REWARDS CLUB ADMIN CONTROLS SUBSECTION */}
+      <div
+        data-testid="admin-birthday-rewards-section"
+        className="p-5 rounded-2xl border-2 border-[#DEC89B] bg-gradient-to-br from-[#FAF7F2] via-[#FFFDF9] to-[#F5EFE6] shadow-xs space-y-5"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EAE2D5] pb-4">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-[#8C2E46] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Gift className="w-5 h-5 text-[#DEC89B]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+                  🎂 Birthday Rewards Club Controls
+                </h3>
+                <span
+                  className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full border ${
+                    bdayConfig.enabled
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}
+                >
+                  {bdayConfig.enabled ? 'Active' : 'Disabled'}
+                </span>
+              </div>
+              <p className="text-xs text-[#6B5D55] mt-0.5">
+                Configure annual birthday coupon value, minimum order threshold, and review support-assisted month corrections. Prospective changes do not alter already-issued annual coupons.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadBirthdayAdminData}
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#FAF7F2] text-[#70252D] border border-[#DEC89B] text-xs font-semibold shrink-0 cursor-pointer"
+          >
+            Refresh Stats
+          </button>
+        </div>
+
+        {/* Birthday KPI Cards: Issued, Redeemed, Expired, Pending Corrections */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3.5 rounded-xl bg-white border border-[#EAE2D5]">
+            <span className="text-[11px] font-medium text-[#7A6458] block">Issued Birthday Coupons</span>
+            <span className="text-xl font-serif-luxury font-bold text-[#2C2420] mt-0.5 block">
+              {bdaySummary.totalIssued}
+            </span>
+            <span className="text-[10px] text-[#8C7A70] block">
+              {bdaySummary.totalRegistered} registered member(s)
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white border border-emerald-200">
+            <span className="text-[11px] font-medium text-[#7A6458] block">Redeemed Coupons</span>
+            <span className="text-xl font-serif-luxury font-bold text-emerald-800 mt-0.5 block">
+              {bdaySummary.totalRedeemed}
+            </span>
+            <span className="text-[10px] text-emerald-700 block">
+              Verified order redemptions
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white border border-amber-200">
+            <span className="text-[11px] font-medium text-[#7A6458] block">Expired Coupons</span>
+            <span className="text-xl font-serif-luxury font-bold text-amber-900 mt-0.5 block">
+              {bdaySummary.totalExpired}
+            </span>
+            <span className="text-[10px] text-amber-800 block">
+              Unredeemed after month-end
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white border border-[#DEC89B]">
+            <span className="text-[11px] font-medium text-[#7A6458] block">Correction Requests</span>
+            <span className="text-xl font-serif-luxury font-bold text-[#8C2E46] mt-0.5 block">
+              {bdaySummary.pendingCorrections}
+            </span>
+            <span className="text-[10px] text-[#7A6458] block">
+              Pending support review
+            </span>
+          </div>
+        </div>
+
+        {/* Birthday Rewards Configuration Form */}
+        <form
+          onSubmit={handleSaveBirthdayConfig}
+          className="p-4 rounded-2xl bg-white border border-[#EAE2D5] grid grid-cols-1 sm:grid-cols-4 gap-4 items-end"
+        >
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#2C2420] mb-1">
+              Programme Status
+            </label>
+            <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#DEC89B] text-xs font-semibold text-[#2C2420] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bdayConfig.enabled}
+                onChange={(e) => setBdayConfig({ ...bdayConfig, enabled: e.target.checked })}
+                className="accent-[#8C2E46] w-4 h-4 rounded cursor-pointer"
+              />
+              <span>{bdayConfig.enabled ? 'Enabled (Active)' : 'Disabled'}</span>
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#2C2420] mb-1">
+              Birthday Discount (₹)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={5000}
+              value={bdayConfig.discountAmount}
+              onChange={(e) =>
+                setBdayConfig({ ...bdayConfig, discountAmount: Math.max(1, Number(e.target.value) || 0) })
+              }
+              className="w-full px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#DEC89B] text-xs font-bold text-[#8C2E46]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#2C2420] mb-1">
+              Minimum Order Value (₹)
+            </label>
+            <input
+              type="number"
+              min={100}
+              max={50000}
+              value={bdayConfig.minOrderValue}
+              onChange={(e) =>
+                setBdayConfig({ ...bdayConfig, minOrderValue: Math.max(100, Number(e.target.value) || 0) })
+              }
+              className="w-full px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#DEC89B] text-xs font-bold text-[#2C2420]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-1.5 text-[10px] text-[#6B5D55] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bdayConfig.allowAlreadyIssuedWhenDisabled}
+                onChange={(e) =>
+                  setBdayConfig({ ...bdayConfig, allowAlreadyIssuedWhenDisabled: e.target.checked })
+                }
+                className="accent-[#8C2E46] w-3.5 h-3.5 rounded"
+              />
+              <span>Honour already-issued coupons if disabled</span>
+            </label>
+            <button
+              type="submit"
+              disabled={savingBdayConfig}
+              className="w-full py-2 px-4 rounded-xl bg-[#8C2E46] hover:bg-[#70252D] text-white text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors disabled:opacity-50"
+            >
+              {savingBdayConfig ? 'Saving...' : 'Save Birthday Settings'}
+            </button>
+          </div>
+        </form>
+
+        {/* Pending Support-Assisted Birthday Month Correction Requests */}
+        {bdayProfiles.some((p) => p.correctionRequest?.status === 'pending') && (
+          <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300 space-y-2.5">
+            <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-[#8C2E46]" />
+              <span>Pending Birthday Month Correction Requests</span>
+            </h4>
+            <div className="space-y-2">
+              {bdayProfiles
+                .filter((p) => p.correctionRequest?.status === 'pending')
+                .map((p) => (
+                  <div
+                    key={p.uid}
+                    className="p-3 rounded-xl bg-white border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div>
+                      <p className="font-bold text-[#2C2420]">
+                        {p.customerName || p.email || p.uid}
+                      </p>
+                      <p className="text-[11px] text-[#5C4C42]">
+                        Current Month: <strong>{getMonthName(p.birthdayMonth)}</strong> → Requested:{' '}
+                        <strong className="text-[#8C2E46]">
+                          {getMonthName(p.correctionRequest!.requestedMonth)}
+                        </strong>
+                      </p>
+                      <p className="text-[11px] text-[#7A6458] italic">
+                        Reason: &ldquo;{p.correctionRequest!.reason}&rdquo;
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={reviewingUid === p.uid}
+                        onClick={() => handleReviewCorrection(p.uid, true)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={reviewingUid === p.uid}
+                        onClick={() => handleReviewCorrection(p.uid, false)}
+                        className="px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Minimal Privacy-Friendly Birthday Reward Transaction Records */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setShowBdayTransactions(!showBdayTransactions)}
+            className="text-xs font-bold text-[#8C2E46] hover:underline flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>
+              {showBdayTransactions
+                ? 'Hide Birthday Reward Transaction Records'
+                : `View Minimal Reward Transaction Records (${bdayTransactions.length})`}
+            </span>
+            <ArrowRight className={`w-3.5 h-3.5 transition-transform ${showBdayTransactions ? 'rotate-90' : ''}`} />
+          </button>
+
+          {showBdayTransactions && (
+            <div className="mt-3 max-h-60 overflow-y-auto space-y-1.5 pr-1">
+              {bdayTransactions.length === 0 ? (
+                <p className="text-xs text-[#7A6458] italic py-2">
+                  No birthday reward transactions recorded yet.
+                </p>
+              ) : (
+                bdayTransactions.slice(0, 40).map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="p-2.5 rounded-xl bg-white border border-[#EAE2D5] flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.2 rounded bg-[#FAF7F2] text-[#8C2E46] border border-[#DEC89B]">
+                          {tx.action.replace(/_/g, ' ')}
+                        </span>
+                        {tx.couponCode && (
+                          <span className="font-mono font-bold text-[#2C2420] text-[11px]">
+                            {tx.couponCode}
+                          </span>
+                        )}
+                        {tx.orderId && (
+                          <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded">
+                            Order #{tx.orderId}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#6B5D55] truncate mt-0.5">
+                        {tx.customerName || tx.customerEmail || `Account ${tx.uid.slice(0, 8)}`} · ₹{tx.discountAmount} OFF (Min ₹{tx.minOrderValue})
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-[#8C7A70] shrink-0">
+                      {new Date(tx.createdAt).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
 

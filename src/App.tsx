@@ -33,6 +33,7 @@ import { ProductCompareBar } from './components/ProductCompareBar';
 import { CartToastNotification, CartToastInfo } from './components/CartToastNotification';
 import { ChromeInstallPopout, OfflineIndicator } from './components/PWAInstallPrompt';
 import { ExitConfirmBanner } from './components/ExitConfirmBanner';
+import { BirthdayInvitationBanner } from './components/BirthdayInvitationBanner';
 
 // Lazy-loaded routes, admin/analytics dashboards, and conditional modals
 const ProductModal = lazy(() => import('./components/ProductModal').then((m) => ({ default: m.ProductModal })));
@@ -333,6 +334,7 @@ export default function App() {
 
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [accountInitialTab, setAccountInitialTab] = useState<'overview' | 'loyalty' | 'wishlist' | 'orders' | 'profile'>('overview');
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [pendingWishlistProduct, setPendingWishlistProduct] = useState<{
     product: BedsheetProduct;
@@ -2553,7 +2555,14 @@ export default function App() {
             comparedCount={comparedProductIds.length}
             wishlistCount={wishlistItems.length}
             onOpenWishlist={() => setIsWishlistOpen(true)}
-            onOpenAccount={() => setIsAccountModalOpen(true)}
+            onOpenAccount={() => {
+              setAccountInitialTab('overview');
+              setIsAccountModalOpen(true);
+            }}
+            onOpenRewardsClub={() => {
+              setAccountInitialTab('loyalty');
+              setIsAccountModalOpen(true);
+            }}
           />
 
           {/* Main Content Area */}
@@ -3047,7 +3056,10 @@ export default function App() {
             seasonalConfig={seasonalConfig}
             wishlistCount={wishlistItems.length}
             openWishlist={() => setIsWishlistOpen(true)}
-            onOpenAccount={() => setIsAccountModalOpen(true)}
+            onOpenAccount={() => {
+              setAccountInitialTab('overview');
+              setIsAccountModalOpen(true);
+            }}
           />
 
           {/* Global Footer with discrete owner access */}
@@ -3220,9 +3232,34 @@ export default function App() {
               setIsAccountModalOpen(false);
               setIsOwnerAuthOpen(true);
             }}
+            initialTab={accountInitialTab}
+            onApplyCouponAtCheckout={(code) => {
+              setIsAccountModalOpen(false);
+              setIsCartOpen(true);
+              setTimeout(() => {
+                window.dispatchEvent(
+                  new CustomEvent('cotton-nest-apply-coupon-at-checkout', {
+                    detail: { code },
+                  })
+                );
+              }, 80);
+            }}
           />
         </Suspense>
       )}
+
+      {/* Post-Login Dismissible Birthday Rewards Invitation Banner */}
+      <BirthdayInvitationBanner
+        userId={user?.id}
+        isAuthenticated={Boolean(user)}
+        isCartOpen={isCartOpen}
+        isAccountModalOpen={isAccountModalOpen}
+        isAdminOpen={isAdminOpen}
+        onAddBirthdayMonth={() => {
+          setAccountInitialTab('loyalty');
+          setIsAccountModalOpen(true);
+        }}
+      />
 
       {/* Floating Smooth Scroll-to-Top Button (Apple Liquid Glass Orb) */}
       <AnimatePresence>

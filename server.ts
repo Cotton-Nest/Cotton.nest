@@ -56,6 +56,17 @@ import {
   calculateCentralizedCheckoutBreakdown,
   BenefitOptionType,
 } from './src/data/welcomeOffer.ts';
+import {
+  BirthdayRewardsConfig,
+  CustomerBirthdayProfile,
+  BirthdayRewardTransaction,
+  DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+  getMonthName,
+  isBirthdayCouponCodeFormat,
+  createCustomerBirthdayProfile,
+  evaluateBirthdayRewardStatus,
+  validateBirthdayCouponForCheckout,
+} from './src/data/birthdayRewards.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -93,6 +104,9 @@ interface StoreDatabase {
   historicalSkus?: string[];
   welcomeOfferConfig?: WelcomeOfferConfig;
   welcomeOfferRedemptions?: Record<string, WelcomeOfferCustomerRecord>;
+  birthdayRewardsConfig?: BirthdayRewardsConfig;
+  birthdayRewardsProfiles?: Record<string, CustomerBirthdayProfile>;
+  birthdayRewardTransactions?: BirthdayRewardTransaction[];
 }
 
 function initDatabase(): StoreDatabase {
@@ -210,6 +224,18 @@ function initDatabase(): StoreDatabase {
         }
         if (!parsed.welcomeOfferRedemptions || typeof parsed.welcomeOfferRedemptions !== 'object') {
           parsed.welcomeOfferRedemptions = {};
+          needsSave = true;
+        }
+        if (!parsed.birthdayRewardsConfig || typeof parsed.birthdayRewardsConfig !== 'object') {
+          parsed.birthdayRewardsConfig = { ...DEFAULT_BIRTHDAY_REWARDS_CONFIG };
+          needsSave = true;
+        }
+        if (!parsed.birthdayRewardsProfiles || typeof parsed.birthdayRewardsProfiles !== 'object') {
+          parsed.birthdayRewardsProfiles = {};
+          needsSave = true;
+        }
+        if (!parsed.birthdayRewardTransactions || !Array.isArray(parsed.birthdayRewardTransactions)) {
+          parsed.birthdayRewardTransactions = [];
           needsSave = true;
         }
 
@@ -1400,10 +1426,81 @@ async function startServer() {
         newOrder.pointsDiscount = calculatePointsDiscount(rawPointsUsed);
         newOrder.couponCode = undefined;
         newOrder.couponDiscount = 0;
-      } else if (rawCouponDiscount > 0) {
-        newOrder.benefitType = 'coupon';
-        newOrder.pointsUsed = 0;
-        newOrder.pointsDiscount = 0;
+      } else if (rawCouponDiscount > 0 || (newOrder.couponCode && isBirthdayCouponCodeFormat(newOrder.couponCode))) {
+        const cleanOrderCoupon = String(newOrder.couponCode || '').trim().toUpperCase();
+        if (cleanOrderCoupon && isBirthdayCouponCodeFormat(cleanOrderCoupon)) {
+          if (!db.birthdayRewardsConfig) {
+            db.birthdayRewardsConfig = { ...DEFAULT_BIRTHDAY_REWARDS_CONFIG };
+          }
+          if (!db.birthdayRewardsProfiles) {
+            db.birthdayRewardsProfiles = {};
+          }
+          if (!db.birthdayRewardTransactions) {
+            db.birthdayRewardTransactions = [];
+          }
+          const uid = String(newOrder.userId || '').trim();
+          const bdayProfile = uid ? db.birthdayRewardsProfiles[uid] || null : null;
+          const bdayCheck = validateBirthdayCouponForCheckout({
+            couponCode: cleanOrderCoupon,
+            userId: uid,
+            profile: bdayProfile,
+            config: db.birthdayRewardsConfig,
+            productSubtotal: productSubtotalVal,
+            nowMs: Date.now(),
+            hasWelcomeOfferApplied: false,
+            pointsUsed: 0,
+            hasOtherCouponApplied: false,
+          });
+          if (!bdayCheck.valid || !bdayCheck.couponRecord || !bdayProfile) {
+            return res.status(400).json({
+              error: bdayCheck.error || 'Birthday reward coupon is invalid or not eligible for this order.',
+            });
+          }
+
+          const nowMs = Date.now();
+          const targetYear = bdayCheck.couponRecord.year;
+          const updatedCoupons = { ...(bdayProfile.annualCoupons || {}) };
+          updatedCoupons[String(targetYear)] = {
+            ...bdayCheck.couponRecord,
+            status: 'redeemed',
+            redeemedAt: nowMs,
+            redeemedOrderId: newOrder.id,
+          };
+          db.birthdayRewardsProfiles[uid] = {
+            ...bdayProfile,
+            annualCoupons: updatedCoupons,
+            updatedAt: nowMs,
+          };
+          db.birthdayRewardTransactions.unshift({
+            id: `bday_tx_${uid}_${targetYear}_redeemed_${nowMs}`,
+            uid,
+            customerEmail: newOrder.customerEmail || bdayProfile.email,
+            customerName: newOrder.customerName || bdayProfile.customerName,
+            year: targetYear,
+            birthdayMonth: bdayProfile.birthdayMonth,
+            couponCode: bdayCheck.couponRecord.code,
+            action: 'redeemed',
+            discountAmount: bdayCheck.discountAmount,
+            minOrderValue: bdayCheck.couponRecord.minOrderValue,
+            orderId: newOrder.id,
+            note: `Birthday coupon redeemed on Order #${newOrder.id}`,
+            createdAt: nowMs,
+          });
+
+          newOrder.benefitType = 'coupon';
+          newOrder.couponCode = bdayCheck.couponRecord.code;
+          newOrder.couponDiscount = bdayCheck.discountAmount;
+          newOrder.pointsUsed = 0;
+          newOrder.pointsDiscount = 0;
+          newOrder.totalAmount = Math.max(
+            0,
+            Math.round((productSubtotalVal - bdayCheck.discountAmount + shippingCostVal) * 100) / 100
+          );
+        } else {
+          newOrder.benefitType = 'coupon';
+          newOrder.pointsUsed = 0;
+          newOrder.pointsDiscount = 0;
+        }
       } else {
         newOrder.benefitType = 'none';
         newOrder.pointsUsed = 0;
@@ -1850,6 +1947,61 @@ async function startServer() {
           reservedAt: undefined,
           updatedAt: Date.now(),
         };
+      }
+    }
+
+    // Controlled Birthday Coupon reversal when an order is cancelled prior to delivery
+    const orderCouponCode = String(
+      previousOrder.couponCode || updated.couponCode || payloadOrderFields.couponCode || ''
+    ).trim().toUpperCase();
+    if (
+      isBecomingCancelled &&
+      previousOrder.status !== 'delivered' &&
+      !previousOrder.deliveredAt &&
+      orderUid &&
+      isBirthdayCouponCodeFormat(orderCouponCode)
+    ) {
+      if (!db.birthdayRewardsProfiles) db.birthdayRewardsProfiles = {};
+      if (!db.birthdayRewardTransactions) db.birthdayRewardTransactions = [];
+      const bdayProfile = db.birthdayRewardsProfiles[orderUid];
+      const canonicalOrderId = previousOrder.id || id;
+      if (bdayProfile && bdayProfile.annualCoupons) {
+        for (const [yrKey, cRec] of Object.entries(bdayProfile.annualCoupons)) {
+          if (
+            cRec &&
+            cRec.code.toUpperCase() === orderCouponCode &&
+            cRec.status === 'redeemed' &&
+            (!cRec.redeemedOrderId || cRec.redeemedOrderId === canonicalOrderId || cRec.redeemedOrderId === id)
+          ) {
+            const nowMs = Date.now();
+            const restoredStatus = nowMs <= cRec.expiresAt ? 'issued' : 'expired';
+            bdayProfile.annualCoupons[yrKey] = {
+              ...cRec,
+              status: restoredStatus,
+              redeemedAt: undefined,
+              redeemedOrderId: undefined,
+              reversedAt: nowMs,
+              reversedOrderId: canonicalOrderId,
+            };
+            bdayProfile.updatedAt = nowMs;
+            db.birthdayRewardTransactions.unshift({
+              id: `bday_tx_${orderUid}_${cRec.year}_reversed_${nowMs}`,
+              uid: orderUid,
+              customerEmail: bdayProfile.email,
+              customerName: bdayProfile.customerName,
+              year: cRec.year,
+              birthdayMonth: bdayProfile.birthdayMonth,
+              couponCode: cRec.code,
+              action: 'reversed',
+              discountAmount: cRec.discountAmount,
+              minOrderValue: cRec.minOrderValue,
+              orderId: canonicalOrderId,
+              note: `Birthday coupon restored after Order #${canonicalOrderId} was cancelled prior to delivery`,
+              createdAt: nowMs,
+            });
+            break;
+          }
+        }
       }
     }
 
@@ -2869,6 +3021,110 @@ async function startServer() {
       });
     }
 
+    // Intercept account-bound Birthday Reward coupon codes (BDAY-YYYY-XXXXXX)
+    if (isBirthdayCouponCodeFormat(cleanCode)) {
+      if (!db.birthdayRewardsConfig) {
+        db.birthdayRewardsConfig = { ...DEFAULT_BIRTHDAY_REWARDS_CONFIG };
+      }
+      if (!db.birthdayRewardsProfiles) {
+        db.birthdayRewardsProfiles = {};
+      }
+      if (!db.birthdayRewardTransactions) {
+        db.birthdayRewardTransactions = [];
+      }
+
+      const cleanUid = String(uid || req.body?.userId || '').trim();
+      const bdayProfile = cleanUid ? db.birthdayRewardsProfiles[cleanUid] || null : null;
+      const cartItemsList = Array.isArray(items) ? items : [];
+      const verifiedSubtotal =
+        cartItemsList.length > 0
+          ? cartItemsList.reduce((acc, it) => {
+              const pPrice = Number(it.product?.price ?? it.price) || 0;
+              const pQty = Math.max(1, Number(it.quantity) || 1);
+              return acc + pPrice * pQty;
+            }, 0)
+          : Math.max(0, Number(subtotal) || 0);
+
+      // Persist on-demand annual coupon issuance if newly unlocked during window
+      if (cleanUid && bdayProfile) {
+        const evalRes = evaluateBirthdayRewardStatus({
+          profile: bdayProfile,
+          config: db.birthdayRewardsConfig,
+          nowMs: Date.now(),
+        });
+        if (evalRes.newlyIssuedCoupon) {
+          const issued = evalRes.newlyIssuedCoupon;
+          const updatedCoupons = { ...(bdayProfile.annualCoupons || {}), [String(issued.year)]: issued };
+          db.birthdayRewardsProfiles[cleanUid] = {
+            ...bdayProfile,
+            annualCoupons: updatedCoupons,
+            updatedAt: Date.now(),
+          };
+          db.birthdayRewardTransactions.unshift({
+            id: `bday_tx_${cleanUid}_${issued.year}_issued`,
+            uid: cleanUid,
+            customerEmail: bdayProfile.email,
+            customerName: bdayProfile.customerName,
+            year: issued.year,
+            birthdayMonth: bdayProfile.birthdayMonth,
+            couponCode: issued.code,
+            action: 'issued',
+            discountAmount: issued.discountAmount,
+            minOrderValue: issued.minOrderValue,
+            note: `Issued ${getMonthName(bdayProfile.birthdayMonth)} ${issued.year} birthday reward coupon`,
+            createdAt: Date.now(),
+          });
+          saveDatabase();
+        }
+      }
+
+      const bdayValidation = validateBirthdayCouponForCheckout({
+        couponCode: cleanCode,
+        userId: cleanUid,
+        profile: cleanUid ? db.birthdayRewardsProfiles[cleanUid] || null : null,
+        config: db.birthdayRewardsConfig,
+        productSubtotal: verifiedSubtotal,
+        nowMs: Date.now(),
+        hasWelcomeOfferApplied: false,
+        pointsUsed: 0,
+        hasOtherCouponApplied: false,
+      });
+
+      if (!bdayValidation.valid || !bdayValidation.couponRecord) {
+        return res.json({
+          valid: false,
+          discountAmount: 0,
+          error: bdayValidation.error || 'This birthday reward coupon is not valid for your account.',
+        });
+      }
+
+      const bdayCouponOffer: CouponOffer = {
+        id: `bday_${bdayValidation.couponRecord.year}_${cleanUid}`,
+        code: bdayValidation.couponRecord.code,
+        title: `Birthday Month Reward (₹${bdayValidation.discountAmount} OFF)`,
+        description: `Exclusive birthday reward for orders of ₹${bdayValidation.couponRecord.minOrderValue.toLocaleString('en-IN')} or more.`,
+        discountType: 'fixed',
+        discountValue: bdayValidation.discountAmount,
+        minOrderValue: bdayValidation.couponRecord.minOrderValue,
+        scope: 'all',
+        startDate: new Date(bdayValidation.couponRecord.validFrom ?? bdayValidation.couponRecord.unlocksAt).toISOString().slice(0, 10),
+        expiryDate: new Date(bdayValidation.couponRecord.expiresAt).toISOString().slice(0, 10),
+        usedCount: 0,
+        oneUsePerCustomer: true,
+        isActive: true,
+        isAutomatic: false,
+        createdAt: bdayValidation.couponRecord.issuedAt,
+        updatedAt: bdayValidation.couponRecord.issuedAt,
+      };
+
+      return res.json({
+        valid: true,
+        coupon: bdayCouponOffer,
+        discountAmount: bdayValidation.discountAmount,
+        message: bdayValidation.message,
+      });
+    }
+
     if (!db.coupons) db.coupons = [...INITIAL_COUPONS];
     const coupon = db.coupons.find((c) => c.code.toUpperCase() === cleanCode);
 
@@ -3877,6 +4133,377 @@ async function startServer() {
       config: db.welcomeOfferConfig,
       records: customerRecords,
       orders: db.orders || [],
+    });
+  });
+
+  /* ------------------- BIRTHDAY REWARDS CLUB ENDPOINTS ------------------- */
+
+  app.get('/api/birthday-rewards/config', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.birthdayRewardsConfig) {
+      db.birthdayRewardsConfig = { ...DEFAULT_BIRTHDAY_REWARDS_CONFIG };
+    }
+    res.json(db.birthdayRewardsConfig);
+  });
+
+  app.put('/api/birthday-rewards/config', (req, res) => {
+    try {
+      const incoming = req.body || {};
+      const prev = db.birthdayRewardsConfig || DEFAULT_BIRTHDAY_REWARDS_CONFIG;
+      const sanitized: BirthdayRewardsConfig = {
+        enabled: typeof incoming.enabled === 'boolean' ? incoming.enabled : prev.enabled,
+        discountAmount: Math.max(
+          1,
+          Math.min(5000, Math.round(Number(incoming.discountAmount ?? prev.discountAmount) || DEFAULT_BIRTHDAY_REWARDS_CONFIG.discountAmount))
+        ),
+        minOrderValue: Math.max(
+          100,
+          Math.min(50000, Math.round(Number(incoming.minOrderValue ?? prev.minOrderValue) || DEFAULT_BIRTHDAY_REWARDS_CONFIG.minOrderValue))
+        ),
+        allowAlreadyIssuedWhenDisabled:
+          typeof incoming.allowAlreadyIssuedWhenDisabled === 'boolean'
+            ? incoming.allowAlreadyIssuedWhenDisabled
+            : prev.allowAlreadyIssuedWhenDisabled,
+        updatedAt: Date.now(),
+        updatedBy: String(incoming.updatedBy || 'admin').trim(),
+      };
+      db.birthdayRewardsConfig = sanitized;
+      saveDatabase();
+      res.json(sanitized);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to update Birthday Rewards config' });
+    }
+  });
+
+  app.get('/api/birthday-rewards/status', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.birthdayRewardsConfig) {
+      db.birthdayRewardsConfig = { ...DEFAULT_BIRTHDAY_REWARDS_CONFIG };
+    }
+    if (!db.birthdayRewardsProfiles) {
+      db.birthdayRewardsProfiles = {};
+    }
+    if (!db.birthdayRewardTransactions) {
+      db.birthdayRewardTransactions = [];
+    }
+
+    const uid = String(req.query.userId || '').trim();
+    const nowMs = Date.now();
+
+    if (!uid || uid.startsWith('guest_')) {
+      const guestStatus = evaluateBirthdayRewardStatus({
+        profile: null,
+        config: db.birthdayRewardsConfig,
+        nowMs,
+      });
+      return res.json({
+        config: db.birthdayRewardsConfig,
+        profile: null,
+        status: guestStatus,
+        serverTimeMs: nowMs,
+      });
+    }
+
+    let profile = db.birthdayRewardsProfiles[uid] || null;
+    const status = evaluateBirthdayRewardStatus({
+      profile,
+      config: db.birthdayRewardsConfig,
+      nowMs,
+    });
+
+    if (profile && status.newlyIssuedCoupon) {
+      const issued = status.newlyIssuedCoupon;
+      const updatedCoupons = { ...(profile.annualCoupons || {}), [String(issued.year)]: issued };
+      profile = {
+        ...profile,
+        annualCoupons: updatedCoupons,
+        updatedAt: nowMs,
+      };
+      db.birthdayRewardsProfiles[uid] = profile;
+      db.birthdayRewardTransactions.unshift({
+        id: `bday_tx_${uid}_${issued.year}_issued`,
+        uid,
+        customerEmail: profile.email,
+        customerName: profile.customerName,
+        year: issued.year,
+        birthdayMonth: profile.birthdayMonth,
+        couponCode: issued.code,
+        action: 'issued',
+        discountAmount: issued.discountAmount,
+        minOrderValue: issued.minOrderValue,
+        note: `Issued ${getMonthName(profile.birthdayMonth)} ${issued.year} birthday reward coupon`,
+        createdAt: nowMs,
+      });
+      saveDatabase();
+    }
+
+    res.json({
+      config: db.birthdayRewardsConfig,
+      profile,
+      status,
+      serverTimeMs: nowMs,
+    });
+  });
+
+  app.post('/api/birthday-rewards/register', (req, res) => {
+    try {
+      if (!db.birthdayRewardsConfig) {
+        db.birthdayRewardsConfig = { ...DEFAULT_BIRTHDAY_REWARDS_CONFIG };
+      }
+      if (!db.birthdayRewardsProfiles) {
+        db.birthdayRewardsProfiles = {};
+      }
+      if (!db.birthdayRewardTransactions) {
+        db.birthdayRewardTransactions = [];
+      }
+
+      const { uid, email, customerName, phone, birthdayMonth, consentAccepted } = req.body || {};
+      const cleanUid = String(uid || '').trim();
+      const existingProfile = cleanUid ? db.birthdayRewardsProfiles[cleanUid] || null : null;
+      const nowMs = Date.now();
+
+      const createRes = createCustomerBirthdayProfile({
+        uid: cleanUid,
+        email,
+        customerName,
+        phone,
+        birthdayMonth: Number(birthdayMonth),
+        consentAccepted: Boolean(consentAccepted),
+        nowMs,
+        existingProfile,
+      });
+
+      if (!createRes.success || !createRes.profile) {
+        return res.status(400).json({ error: createRes.error || 'Could not register birthday month.' });
+      }
+
+      let savedProfile = createRes.profile;
+      const status = evaluateBirthdayRewardStatus({
+        profile: savedProfile,
+        config: db.birthdayRewardsConfig,
+        nowMs,
+      });
+
+      if (status.newlyIssuedCoupon) {
+        const issued = status.newlyIssuedCoupon;
+        savedProfile = {
+          ...savedProfile,
+          annualCoupons: {
+            ...(savedProfile.annualCoupons || {}),
+            [String(issued.year)]: issued,
+          },
+        };
+      }
+
+      db.birthdayRewardsProfiles[cleanUid] = savedProfile;
+      db.birthdayRewardTransactions.unshift({
+        id: `bday_tx_${cleanUid}_registered_${nowMs}`,
+        uid: cleanUid,
+        customerEmail: savedProfile.email,
+        customerName: savedProfile.customerName,
+        year: status.currentIstYear,
+        birthdayMonth: savedProfile.birthdayMonth,
+        couponCode: status.activeCoupon?.code,
+        action: 'registered',
+        discountAmount: db.birthdayRewardsConfig.discountAmount,
+        minOrderValue: db.birthdayRewardsConfig.minOrderValue,
+        note: `Registered birthday month: ${getMonthName(savedProfile.birthdayMonth)} (Eligible from ${savedProfile.eligibleFromYear})`,
+        createdAt: nowMs,
+      });
+
+      if (status.newlyIssuedCoupon) {
+        const issued = status.newlyIssuedCoupon;
+        db.birthdayRewardTransactions.unshift({
+          id: `bday_tx_${cleanUid}_${issued.year}_issued`,
+          uid: cleanUid,
+          customerEmail: savedProfile.email,
+          customerName: savedProfile.customerName,
+          year: issued.year,
+          birthdayMonth: savedProfile.birthdayMonth,
+          couponCode: issued.code,
+          action: 'issued',
+          discountAmount: issued.discountAmount,
+          minOrderValue: issued.minOrderValue,
+          note: `Issued ${getMonthName(savedProfile.birthdayMonth)} ${issued.year} birthday reward coupon`,
+          createdAt: nowMs,
+        });
+      }
+
+      saveDatabase();
+      res.json({
+        success: true,
+        profile: savedProfile,
+        status,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Birthday month registration failed.' });
+    }
+  });
+
+  app.post('/api/birthday-rewards/correction-request', (req, res) => {
+    try {
+      if (!db.birthdayRewardsProfiles) db.birthdayRewardsProfiles = {};
+      if (!db.birthdayRewardTransactions) db.birthdayRewardTransactions = [];
+
+      const { uid, requestedMonth, reason } = req.body || {};
+      const cleanUid = String(uid || '').trim();
+      const monthInt = Number(requestedMonth);
+      const cleanReason = String(reason || '').trim();
+
+      if (!cleanUid || !db.birthdayRewardsProfiles[cleanUid]) {
+        return res.status(404).json({ error: 'No registered birthday profile found.' });
+      }
+      if (!Number.isInteger(monthInt) || monthInt < 1 || monthInt > 12) {
+        return res.status(400).json({ error: 'Please select a valid birthday month (January to December).' });
+      }
+      if (cleanReason.length < 5) {
+        return res.status(400).json({ error: 'Please provide a brief reason for your correction request.' });
+      }
+
+      const existing = db.birthdayRewardsProfiles[cleanUid];
+      if (existing.birthdayMonth === monthInt) {
+        return res.status(400).json({ error: `${getMonthName(monthInt)} is already your saved birthday month.` });
+      }
+
+      const nowMs = Date.now();
+      const updatedProfile: CustomerBirthdayProfile = {
+        ...existing,
+        correctionRequest: {
+          requestedMonth: monthInt,
+          reason: cleanReason.slice(0, 300),
+          requestedAt: nowMs,
+          status: 'pending',
+        },
+        updatedAt: nowMs,
+      };
+      db.birthdayRewardsProfiles[cleanUid] = updatedProfile;
+      db.birthdayRewardTransactions.unshift({
+        id: `bday_tx_${cleanUid}_corr_req_${nowMs}`,
+        uid: cleanUid,
+        customerEmail: existing.email,
+        customerName: existing.customerName,
+        year: new Date(nowMs).getFullYear(),
+        birthdayMonth: existing.birthdayMonth,
+        action: 'correction_requested',
+        discountAmount: DEFAULT_BIRTHDAY_REWARDS_CONFIG.discountAmount,
+        minOrderValue: DEFAULT_BIRTHDAY_REWARDS_CONFIG.minOrderValue,
+        note: `Requested change from ${getMonthName(existing.birthdayMonth)} to ${getMonthName(monthInt)}: "${cleanReason.slice(0, 120)}"`,
+        createdAt: nowMs,
+      });
+
+      saveDatabase();
+      res.json({ success: true, profile: updatedProfile });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Could not submit correction request.' });
+    }
+  });
+
+  app.post('/api/birthday-rewards/admin/review-correction', (req, res) => {
+    try {
+      if (!db.birthdayRewardsProfiles) db.birthdayRewardsProfiles = {};
+      if (!db.birthdayRewardTransactions) db.birthdayRewardTransactions = [];
+
+      const { uid, approve, reviewNote, reviewedBy } = req.body || {};
+      const cleanUid = String(uid || '').trim();
+      const existing = cleanUid ? db.birthdayRewardsProfiles[cleanUid] : null;
+      if (!existing || !existing.correctionRequest) {
+        return res.status(404).json({ error: 'No pending correction request found for this customer.' });
+      }
+
+      const nowMs = Date.now();
+      const reqMonth = existing.correctionRequest.requestedMonth;
+      const currentIstYear = new Date(nowMs).getFullYear();
+      const hasRedeemedThisYear = existing.annualCoupons?.[String(currentIstYear)]?.status === 'redeemed';
+
+      const updatedProfile: CustomerBirthdayProfile = {
+        ...existing,
+        birthdayMonth: approve ? reqMonth : existing.birthdayMonth,
+        birthdayMonthName: approve ? getMonthName(reqMonth) : existing.birthdayMonthName,
+        eligibleFromYear: approve
+          ? hasRedeemedThisYear
+            ? currentIstYear + 1
+            : existing.eligibleFromYear
+          : existing.eligibleFromYear,
+        correctionRequest: {
+          ...existing.correctionRequest,
+          status: approve ? 'approved' : 'rejected',
+          reviewedAt: nowMs,
+          reviewedBy: String(reviewedBy || 'admin').trim(),
+          reviewNote: reviewNote ? String(reviewNote).trim().slice(0, 200) : undefined,
+        },
+        updatedAt: nowMs,
+      };
+
+      db.birthdayRewardsProfiles[cleanUid] = updatedProfile;
+      db.birthdayRewardTransactions.unshift({
+        id: `bday_tx_${cleanUid}_corr_rev_${nowMs}`,
+        uid: cleanUid,
+        customerEmail: existing.email,
+        customerName: existing.customerName,
+        year: currentIstYear,
+        birthdayMonth: updatedProfile.birthdayMonth,
+        action: approve ? 'correction_approved' : 'correction_rejected',
+        discountAmount: (db.birthdayRewardsConfig || DEFAULT_BIRTHDAY_REWARDS_CONFIG).discountAmount,
+        minOrderValue: (db.birthdayRewardsConfig || DEFAULT_BIRTHDAY_REWARDS_CONFIG).minOrderValue,
+        note: approve
+          ? `Approved birthday month change to ${getMonthName(reqMonth)}`
+          : `Rejected birthday month change request to ${getMonthName(reqMonth)}`,
+        createdAt: nowMs,
+      });
+
+      saveDatabase();
+      res.json({ success: true, profile: updatedProfile });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to review correction request.' });
+    }
+  });
+
+  app.get('/api/birthday-rewards/admin', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    if (!db.birthdayRewardsConfig) {
+      db.birthdayRewardsConfig = { ...DEFAULT_BIRTHDAY_REWARDS_CONFIG };
+    }
+    if (!db.birthdayRewardsProfiles) {
+      db.birthdayRewardsProfiles = {};
+    }
+    if (!db.birthdayRewardTransactions) {
+      db.birthdayRewardTransactions = [];
+    }
+
+    const profiles = Object.values(db.birthdayRewardsProfiles);
+    const nowMs = Date.now();
+    let totalIssued = 0;
+    let totalRedeemed = 0;
+    let totalExpired = 0;
+    let pendingCorrections = 0;
+
+    profiles.forEach((p) => {
+      if (p.correctionRequest?.status === 'pending') {
+        pendingCorrections += 1;
+      }
+      const coupons = Object.values(p.annualCoupons || {});
+      coupons.forEach((c) => {
+        if (!c) return;
+        totalIssued += 1;
+        if (c.status === 'redeemed') {
+          totalRedeemed += 1;
+        } else if (c.status === 'expired' || nowMs > c.expiresAt) {
+          totalExpired += 1;
+        }
+      });
+    });
+
+    res.json({
+      config: db.birthdayRewardsConfig,
+      profiles: profiles.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)),
+      transactions: [...db.birthdayRewardTransactions].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+      summary: {
+        totalRegistered: profiles.length,
+        totalIssued,
+        totalRedeemed,
+        totalExpired,
+        pendingCorrections,
+      },
     });
   });
 

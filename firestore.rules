@@ -320,5 +320,100 @@ service cloud.firestore {
       allow create, update: if isValidId(uid) && (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid));
       allow delete: if isValidId(uid) && isOwnerOrAdmin();
     }
+
+    // Birthday Rewards Club Global Configuration
+    match /birthday_rewards_config/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(docId) && isOwnerOrAdmin();
+    }
+
+    // Per-Customer Privacy-Friendly Birthday Month Profile & Account-Bound Annual Coupons
+    // - Strictly isolated to the authenticated customer UID or authorized admins (never public).
+    // - Collects only birthdayMonth (1..12) with explicit consentAccepted == true.
+    // - Prevents non-admin clients from altering immutable firstRegisteredAt, birthdayMonth, or eligibleFromYear after registration.
+    match /birthday_rewards/{uid} {
+      allow get: if isValidId(uid) && (isOwnerOrAdmin() || (isSignedIn() && request.auth.uid == uid));
+      allow list: if isOwnerOrAdmin();
+      allow create: if isValidId(uid) && (
+        isOwnerOrAdmin() || (
+          isSignedIn() &&
+          request.auth.uid == uid &&
+          request.resource.data.uid == uid &&
+          request.resource.data.birthdayMonth is int &&
+          request.resource.data.birthdayMonth >= 1 &&
+          request.resource.data.birthdayMonth <= 12 &&
+          request.resource.data.consentAccepted == true &&
+          request.resource.data.firstRegisteredAt is number &&
+          request.resource.data.eligibleFromYear is number &&
+          request.resource.data.keys().hasOnly([
+            'uid',
+            'birthdayMonth',
+            'consentAccepted',
+            'consentTimestamp',
+            'firstRegisteredAt',
+            'registeredIstYear',
+            'registeredIstMonth',
+            'registeredIstDay',
+            'eligibleFromYear',
+            'annualCoupons',
+            'correctionRequest',
+            'updatedAt'
+          ])
+        )
+      );
+      allow update: if isValidId(uid) && (
+        isOwnerOrAdmin() || (
+          isSignedIn() &&
+          request.auth.uid == uid &&
+          request.resource.data.uid == uid &&
+          request.resource.data.consentAccepted == true &&
+          request.resource.data.firstRegisteredAt == resource.data.firstRegisteredAt &&
+          request.resource.data.birthdayMonth == resource.data.birthdayMonth &&
+          request.resource.data.eligibleFromYear == resource.data.eligibleFromYear &&
+          request.resource.data.keys().hasOnly([
+            'uid',
+            'birthdayMonth',
+            'consentAccepted',
+            'consentTimestamp',
+            'firstRegisteredAt',
+            'registeredIstYear',
+            'registeredIstMonth',
+            'registeredIstDay',
+            'eligibleFromYear',
+            'annualCoupons',
+            'correctionRequest',
+            'updatedAt'
+          ])
+        )
+      );
+      allow delete: if isValidId(uid) && isOwnerOrAdmin();
+    }
+
+    // Minimal Privacy-Preserving Birthday Reward Audit Transactions
+    match /birthday_reward_transactions/{txId} {
+      allow get: if isValidId(txId) && (isOwnerOrAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid));
+      allow list: if isOwnerOrAdmin();
+      allow create: if isValidId(txId) && (
+        isOwnerOrAdmin() || (
+          isSignedIn() &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.year is int &&
+          request.resource.data.birthdayMonth is int &&
+          request.resource.data.birthdayMonth >= 1 &&
+          request.resource.data.birthdayMonth <= 12 &&
+          request.resource.data.action in [
+            'registered',
+            'issued',
+            'reserved',
+            'redeemed',
+            'reversed',
+            'expired',
+            'correction_requested'
+          ] &&
+          request.resource.data.createdAt is number
+        )
+      );
+      allow update, delete: if isValidId(txId) && isOwnerOrAdmin();
+    }
   }
 }

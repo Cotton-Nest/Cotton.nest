@@ -72,6 +72,22 @@ import {
   evaluateCustomerWelcomeEligibility,
   calculateCentralizedCheckoutBreakdown,
 } from '../data/welcomeOffer';
+import {
+  BirthdayRewardsConfig,
+  CustomerBirthdayProfile,
+  AnnualBirthdayCouponRecord,
+  BirthdayRewardTransaction,
+  EvaluatedBirthdayRewardStatus,
+  DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+  parseBirthdayMonth,
+  getBirthdayMonthName,
+  getIstDateParts,
+  calculateEligibleFromYear,
+  createCustomerBirthdayProfile,
+  evaluateBirthdayRewardStatus,
+  isBirthdayCouponCodeFormat,
+  validateBirthdayCouponForCheckout,
+} from '../data/birthdayRewards';
 
 // Re-export Cloudinary & media service helpers
 export {
@@ -1158,11 +1174,98 @@ export async function saveOrder(order: Order): Promise<void> {
         );
         tx.set(orderRef, firestoreDoc, { merge: true });
       });
+    } else if (
+      !isWelcomeOfferApplied &&
+      isBirthdayCouponCodeFormat(safeOrder.couponCode) &&
+      safeOrder.userId &&
+      !isFirestoreWriteQuotaExhausted()
+    ) {
+      const bdayRef = doc(db, 'birthday_rewards', safeOrder.userId);
+      const bdayCfgRef = doc(db, 'birthday_rewards_config', 'config');
+      const orderRef = doc(db, 'orders', safeOrder.id);
+      const nowMs = Date.now();
+      const istNow = getIstDateParts(nowMs);
+      let redeemedRecord: AnnualBirthdayCouponRecord | null = null;
+      let bdayMonthForTx = 1;
+
+      await runTransaction(db, async (tx) => {
+        const [bdaySnap, cfgSnap] = await Promise.all([tx.get(bdayRef), tx.get(bdayCfgRef)]);
+        const bdayProfile = bdaySnap.exists() ? (bdaySnap.data() as CustomerBirthdayProfile) : null;
+        const bdayCfg = cfgSnap.exists()
+          ? ({ ...DEFAULT_BIRTHDAY_REWARDS_CONFIG, ...(cfgSnap.data() as Partial<BirthdayRewardsConfig>) })
+          : DEFAULT_BIRTHDAY_REWARDS_CONFIG;
+
+        const check = validateBirthdayCouponForCheckout({
+          couponCode: String(safeOrder.couponCode || ''),
+          uid: safeOrder.userId,
+          productSubtotal: Number(safeOrder.subtotal) || Number(safeOrder.totalAmount) || 0,
+          profile: bdayProfile,
+          config: bdayCfg,
+          nowMs,
+          welcomeOfferApplied: isWelcomeOfferApplied,
+          pointsRedeemed: Number(safeOrder.pointsUsed) || 0,
+          currentOrderId: safeOrder.id,
+        });
+
+        if (!check.valid || ! bdayProfile || !check.couponRecord) {
+          throw new Error(check.error || 'Birthday Reward coupon is not eligible for this order.');
+        }
+
+        bdayMonthForTx = bdayProfile.birthdayMonth;
+        redeemedRecord = {
+          ...check.couponRecord,
+          status: 'redeemed',
+          redeemedOrderId: safeOrder.id,
+          redeemedAt: nowMs,
+        };
+
+        const updatedCoupons: Record<string, AnnualBirthdayCouponRecord> = {
+          ...(bdayProfile.annualCoupons || {}),
+          [String(istNow.year)]: redeemedRecord,
+        };
+
+        tx.set(
+          bdayRef,
+          stripUndefined({
+            ...bdayProfile,
+            annualCoupons: updatedCoupons,
+            updatedAt: nowMs,
+          })
+        );
+        tx.set(orderRef, firestoreDoc, { merge: true });
+      });
+
+      if (redeemedRecord) {
+        const txId = `bday_tx_redeem_${safeOrder.userId}_${istNow.year}_${safeOrder.id}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        setDoc(
+          doc(db, 'birthday_reward_transactions', txId),
+          stripUndefined({
+            id: txId,
+            uid: safeOrder.userId,
+            year: istNow.year,
+            birthdayMonth: bdayMonthForTx,
+            couponCode: safeOrder.couponCode,
+            action: 'redeemed',
+            discountAmount: Number(safeOrder.couponDiscount) || (redeemedRecord as AnnualBirthdayCouponRecord).discountAmount,
+            minOrderValue: (redeemedRecord as AnnualBirthdayCouponRecord).minOrderValue,
+            orderId: safeOrder.id,
+            createdAt: nowMs,
+          })
+        ).catch(() => {});
+      }
+      try {
+        window.dispatchEvent(new Event('cotton-nest-birthday-rewards-updated'));
+      } catch {}
     } else {
       await setDoc(doc(db, 'orders', safeOrder.id), firestoreDoc, { merge: true });
     }
   } catch (error: any) {
-    if (error?.message && error.message.includes('already redeemed')) {
+    if (
+      error?.message &&
+      (error.message.includes('already redeemed') ||
+        error.message.includes('Birthday Reward') ||
+        error.message.includes('birthday'))
+    ) {
       throw error;
     }
     handleFirestoreError(error, OperationType.CREATE, path);
@@ -1638,6 +1741,87 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
           targetOrder.pointsRefunded = true;
         } catch (refundErr) {
           console.warn('Failed to refund Nest Points on cancellation:', refundErr);
+        }
+      }
+
+      // Controlled Birthday Coupon Reversal Policy:
+      // If a pending/confirmed order that redeemed a Birthday Coupon is cancelled (and was NOT already delivered),
+      // restore the annual birthday coupon so the customer does not lose their annual reward due to a cancelled order.
+      if (
+        isBirthdayCouponCodeFormat(targetOrder.couponCode) &&
+        targetOrder.userId &&
+        !targetOrder.deliveredAt &&
+        !isFirestoreWriteQuotaExhausted()
+      ) {
+        try {
+          const bdayRef = doc(db, 'birthday_rewards', targetOrder.userId);
+          const nowMs = Date.now();
+          let reversedYear = getIstDateParts(nowMs).year;
+          let reversedMonth = 1;
+          let didReverse = false;
+
+          await runTransaction(db, async (tx) => {
+            const snap = await tx.get(bdayRef);
+            if (!snap.exists()) return;
+            const profile = snap.data() as CustomerBirthdayProfile;
+            reversedMonth = profile.birthdayMonth;
+            const couponsMap = { ...(profile.annualCoupons || {}) };
+
+            for (const [yrKey, rec] of Object.entries(couponsMap)) {
+              if (
+                rec &&
+                rec.couponCode === targetOrder!.couponCode &&
+                (rec.redeemedOrderId === orderId || rec.reservedOrderId === orderId)
+              ) {
+                reversedYear = rec.year;
+                const nextStatus = nowMs <= rec.expiresAt ? 'issued' : 'expired';
+                couponsMap[yrKey] = stripUndefined({
+                  ...rec,
+                  status: nextStatus,
+                  redeemedOrderId: '',
+                  reservedOrderId: '',
+                  reversedAt: nowMs,
+                  reversedOrderId: orderId,
+                });
+                didReverse = true;
+              }
+            }
+
+            if (didReverse) {
+              tx.set(
+                bdayRef,
+                stripUndefined({
+                  ...profile,
+                  annualCoupons: couponsMap,
+                  updatedAt: nowMs,
+                })
+              );
+            }
+          });
+
+          if (didReverse) {
+            const txId = `bday_tx_rev_${targetOrder.userId}_${reversedYear}_${orderId}_${nowMs}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+            setDoc(
+              doc(db, 'birthday_reward_transactions', txId),
+              stripUndefined({
+                id: txId,
+                uid: targetOrder.userId,
+                year: reversedYear,
+                birthdayMonth: reversedMonth,
+                couponCode: targetOrder.couponCode,
+                action: 'reversed',
+                discountAmount: Number(targetOrder.couponDiscount) || 0,
+                orderId,
+                note: `Birthday coupon restored after Order #${orderId} was cancelled prior to delivery`,
+                createdAt: nowMs,
+              })
+            ).catch(() => {});
+            try {
+              window.dispatchEvent(new Event('cotton-nest-birthday-rewards-updated'));
+            } catch {}
+          }
+        } catch (bdayRevErr) {
+          console.warn('Birthday coupon cancellation reversal notice:', bdayRevErr);
         }
       }
     }
@@ -2166,6 +2350,58 @@ export async function validateCouponApi(
         welcomeCouponCode: welcomeCalc.couponCode,
         discountAmount: welcomeCalc.discountAmount,
         message: `Welcome Offer code ${welcomeCalc.couponCode} applied! ₹${formatRupeeAmount(welcomeCalc.discountAmount)} saved.`,
+      };
+    }
+
+    // Fallback: Check if the code is an Account-Bound Birthday Reward Coupon (BDAY-YYYY-XXXXXX)
+    if (isBirthdayCouponCodeFormat(cleanCode)) {
+      const activeUid = String(
+        welcomeContext?.uid || primaryAuth.currentUser?.uid || previewAuth.currentUser?.uid || ''
+      ).trim();
+      const bdayStatus = await getBirthdayRewardStatusApi(activeUid);
+      const bdayCheck = validateBirthdayCouponForCheckout({
+        couponCode: cleanCode,
+        uid: activeUid,
+        productSubtotal: subtotal,
+        profile: bdayStatus.profile,
+        config: bdayStatus.config,
+        nowMs: bdayStatus.serverTimeMs,
+      });
+
+      if (!bdayCheck.valid || !bdayCheck.couponRecord) {
+        return {
+          valid: false,
+          discountAmount: 0,
+          error: bdayCheck.error || 'This Birthday Reward coupon is not eligible for this order.',
+        };
+      }
+
+      const monthName = getBirthdayMonthName(bdayCheck.couponRecord.month);
+      const bdayCouponOffer: CouponOffer = {
+        id: `bday-${bdayCheck.year}-${activeUid}`,
+        code: cleanCode,
+        title: `🎂 Birthday Reward (₹${bdayCheck.discountAmount} OFF)`,
+        description: `Personal ${monthName} Birthday Gift — ₹${bdayCheck.discountAmount} OFF on orders ₹${bdayCheck.minOrderValue}+`,
+        discountType: 'fixed',
+        discountValue: bdayCheck.discountAmount,
+        minOrderValue: bdayCheck.minOrderValue,
+        startDate: new Date(bdayCheck.couponRecord.unlocksAt).toISOString().slice(0, 10),
+        expiryDate: new Date(bdayCheck.couponRecord.expiresAt).toISOString().slice(0, 10),
+        isActive: true,
+        isAutomatic: false,
+        usedCount: 0,
+        oneUsePerCustomer: true,
+        scope: 'all',
+        badgeText: 'BIRTHDAY GIFT',
+        createdAt: bdayCheck.couponRecord.issuedAt,
+        updatedAt: Date.now(),
+      };
+
+      return {
+        valid: true,
+        coupon: bdayCouponOffer,
+        discountAmount: bdayCheck.discountAmount,
+        message: bdayCheck.message,
       };
     }
 
@@ -3488,6 +3724,747 @@ export async function getWelcomeOfferAdminDataApi(): Promise<{
   const orders = await getOrders();
   return { config, records: [], redemptions: [], orders };
 }
+
+// ---------------- BIRTHDAY REWARDS CLUB API (FIRESTORE & BACKEND) ---------------- //
+
+export async function getBirthdayRewardsConfigApi(): Promise<BirthdayRewardsConfig> {
+  try {
+    const res = await fetch('/api/birthday-rewards/config', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data.discountAmount === 'number') {
+        const normalized: BirthdayRewardsConfig = {
+          ...DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+          ...data,
+        };
+        try {
+          localStorage.setItem('cotton_nest_birthday_rewards_config', JSON.stringify(normalized));
+        } catch {}
+        return normalized;
+      }
+    }
+  } catch {}
+
+  try {
+    const snap = await getDoc(doc(db, 'birthday_rewards_config', 'config'));
+    if (snap.exists()) {
+      const data = snap.data() as Partial<BirthdayRewardsConfig>;
+      const normalized: BirthdayRewardsConfig = {
+        ...DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+        ...data,
+      };
+      try {
+        localStorage.setItem('cotton_nest_birthday_rewards_config', JSON.stringify(normalized));
+      } catch {}
+      return normalized;
+    }
+  } catch {}
+
+  try {
+    const cached = localStorage.getItem('cotton_nest_birthday_rewards_config');
+    if (cached) {
+      return {
+        ...DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+        ...JSON.parse(cached),
+      };
+    }
+  } catch {}
+
+  return DEFAULT_BIRTHDAY_REWARDS_CONFIG;
+}
+
+export async function saveBirthdayRewardsConfigApi(
+  config: Partial<BirthdayRewardsConfig>
+): Promise<BirthdayRewardsConfig> {
+  let savedConfig: BirthdayRewardsConfig = {
+    ...DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+    ...config,
+    discountAmount: Math.max(1, Number(config.discountAmount ?? DEFAULT_BIRTHDAY_REWARDS_CONFIG.discountAmount)),
+    minOrderValue: Math.max(0, Number(config.minOrderValue ?? DEFAULT_BIRTHDAY_REWARDS_CONFIG.minOrderValue)),
+    updatedAt: Date.now(),
+  };
+
+  try {
+    const res = await fetch('/api/birthday-rewards/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(savedConfig),
+    });
+    if (res.ok) {
+      savedConfig = await res.json();
+    }
+  } catch (err) {
+    console.warn('Birthday rewards config server save notice:', err);
+  }
+
+  try {
+    localStorage.setItem('cotton_nest_birthday_rewards_config', JSON.stringify(savedConfig));
+  } catch {}
+
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      await setDoc(doc(db, 'birthday_rewards_config', 'config'), stripUndefined(savedConfig), { merge: true });
+    } catch (err) {
+      console.warn('Birthday rewards config Firestore save notice:', err);
+    }
+  }
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-birthday-rewards-updated'));
+  } catch {}
+
+  return savedConfig;
+}
+
+/**
+ * Fetches trusted server time (in ms) so reward unlock/expiry never trusts an unverified client browser clock.
+ */
+export async function getTrustedServerTimeMs(): Promise<number> {
+  try {
+    const res = await fetch('/api/sync-check', { cache: 'no-store' });
+    const dateHeader = res.headers.get('Date');
+    if (dateHeader) {
+      const parsed = Date.parse(dateHeader);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return Date.now();
+}
+
+export async function getBirthdayRewardStatusApi(uid?: string | null): Promise<{
+  config: BirthdayRewardsConfig;
+  profile: CustomerBirthdayProfile | null;
+  status: EvaluatedBirthdayRewardStatus;
+  serverTimeMs: number;
+}> {
+  const cleanUid = String(uid || primaryAuth.currentUser?.uid || previewAuth.currentUser?.uid || '').trim();
+
+  // 1. Try server endpoint first (authoritative server clock + on-demand annual coupon issuance)
+  let serverResult: {
+    config?: BirthdayRewardsConfig;
+    profile?: CustomerBirthdayProfile | null;
+    status?: EvaluatedBirthdayRewardStatus;
+    serverTimeMs?: number;
+  } | null = null;
+
+  try {
+    const qs = cleanUid ? `?uid=${encodeURIComponent(cleanUid)}` : '';
+    const res = await fetch(`/api/birthday-rewards/status${qs}`, { cache: 'no-store' });
+    if (res.ok) {
+      serverResult = await res.json();
+    }
+  } catch {}
+
+  const serverTimeMs =
+    serverResult?.serverTimeMs && Number.isFinite(serverResult.serverTimeMs)
+      ? serverResult.serverTimeMs
+      : await getTrustedServerTimeMs();
+
+  const config = serverResult?.config || (await getBirthdayRewardsConfigApi());
+
+  // 2. Fetch from Firestore `birthday_rewards/{uid}` (authoritative cloud persistence)
+  let firestoreProfile: CustomerBirthdayProfile | null = null;
+  if (cleanUid) {
+    try {
+      const snap = await getDoc(doc(db, 'birthday_rewards', cleanUid));
+      if (snap.exists()) {
+        firestoreProfile = snap.data() as CustomerBirthdayProfile;
+      }
+    } catch {}
+  }
+
+  // Merge Firestore and Server profile (preferring the profile that has an existing registration and latest coupon statuses)
+  let profile: CustomerBirthdayProfile | null = firestoreProfile || serverResult?.profile || null;
+  if (firestoreProfile && serverResult?.profile) {
+    const mergedCoupons: Record<string, AnnualBirthdayCouponRecord> = {
+      ...(serverResult.profile.annualCoupons || {}),
+      ...(firestoreProfile.annualCoupons || {}),
+    };
+    // Ensure 'redeemed' status wins across both stores
+    for (const yr of Object.keys(mergedCoupons)) {
+      const fRec = firestoreProfile.annualCoupons?.[yr];
+      const sRec = serverResult.profile.annualCoupons?.[yr];
+      if (fRec?.status === 'redeemed') mergedCoupons[yr] = fRec;
+      else if (sRec?.status === 'redeemed') mergedCoupons[yr] = sRec;
+    }
+    profile = {
+      ...serverResult.profile,
+      ...firestoreProfile,
+      firstRegisteredAt: Math.min(
+        firestoreProfile.firstRegisteredAt || serverTimeMs,
+        serverResult.profile.firstRegisteredAt || serverTimeMs
+      ),
+      annualCoupons: mergedCoupons,
+      correctionRequest: firestoreProfile.correctionRequest || serverResult.profile.correctionRequest || null,
+    };
+  }
+
+  // Fallback to account-scoped localStorage cache only if offline
+  if (!profile && cleanUid) {
+    try {
+      const cached = localStorage.getItem(`cotton_nest_birthday_profile_${cleanUid}`);
+      if (cached) {
+        profile = JSON.parse(cached) as CustomerBirthdayProfile;
+      }
+    } catch {}
+  }
+
+  const evaluated = evaluateBirthdayRewardStatus({
+    profile,
+    config,
+    nowMs: serverTimeMs,
+  });
+
+  // 3. On-demand annual coupon persistence: if customer is in active window and a new annual coupon was just issued, persist it atomically
+  if (cleanUid && profile && evaluated.newlyIssuedCoupon) {
+    const issued = evaluated.newlyIssuedCoupon;
+    const updatedProfile: CustomerBirthdayProfile = {
+      ...profile,
+      annualCoupons: {
+        ...(profile.annualCoupons || {}),
+        [String(issued.year)]: issued,
+      },
+      updatedAt: serverTimeMs,
+    };
+    profile = updatedProfile;
+
+    try {
+      localStorage.setItem(`cotton_nest_birthday_profile_${cleanUid}`, JSON.stringify(updatedProfile));
+    } catch {}
+
+    if (!isFirestoreWriteQuotaExhausted()) {
+      try {
+        await setDoc(doc(db, 'birthday_rewards', cleanUid), stripUndefined(updatedProfile));
+        const txId = `bday_tx_issue_${cleanUid}_${issued.year}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        await setDoc(
+          doc(db, 'birthday_reward_transactions', txId),
+          stripUndefined({
+            id: txId,
+            uid: cleanUid,
+            year: issued.year,
+            birthdayMonth: issued.month,
+            couponCode: issued.couponCode,
+            action: 'issued',
+            discountAmount: issued.discountAmount,
+            minOrderValue: issued.minOrderValue,
+            createdAt: serverTimeMs,
+          })
+        );
+      } catch (err) {
+        console.warn('Firestore on-demand birthday coupon issuance sync notice:', err);
+      }
+    }
+  } else if (cleanUid && profile) {
+    try {
+      localStorage.setItem(`cotton_nest_birthday_profile_${cleanUid}`, JSON.stringify(profile));
+    } catch {}
+  }
+
+  return {
+    config,
+    profile,
+    status: evaluated,
+    serverTimeMs,
+  };
+}
+
+export async function registerBirthdayMonthApi(params: {
+  uid: string;
+  birthdayMonth: number;
+  consentAccepted: boolean;
+  email?: string;
+  customerName?: string;
+  phone?: string;
+}): Promise<{
+  success: boolean;
+  profile?: CustomerBirthdayProfile;
+  status?: EvaluatedBirthdayRewardStatus;
+  error?: string;
+}> {
+  const cleanUid = String(params.uid || '').trim();
+  if (!cleanUid) {
+    return { success: false, error: 'Please sign in to your Cotton Nest account to save your birthday month.' };
+  }
+
+  const parsedMonth = parseBirthdayMonth(params.birthdayMonth);
+  if (!parsedMonth) {
+    return { success: false, error: 'Please select a valid birthday month (January to December).' };
+  }
+
+  if (params.consentAccepted !== true) {
+    return {
+      success: false,
+      error: 'Please check the consent box to allow Cotton Nest to use your birthday month for annual birthday rewards.',
+    };
+  }
+
+  const serverTimeMs = await getTrustedServerTimeMs();
+  const config = await getBirthdayRewardsConfigApi();
+
+  // 1. Register on Express backend (/api/birthday-rewards/register)
+  let serverProfile: CustomerBirthdayProfile | null = null;
+  try {
+    const res = await fetch('/api/birthday-rewards/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: cleanUid,
+        email: params.email,
+        customerName: params.customerName,
+        phone: params.phone,
+        birthdayMonth: parsedMonth,
+        consentAccepted: true,
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok && data?.error) {
+      return { success: false, error: data.error };
+    }
+    if (data?.profile) {
+      serverProfile = data.profile as CustomerBirthdayProfile;
+    }
+  } catch (err) {
+    console.warn('Backend birthday registration fallback to Firestore:', err);
+  }
+
+  // 2. Atomically create in Firestore `birthday_rewards/{uid}` (preventing duplicate profile records or overwriting existing month)
+  let finalProfile: CustomerBirthdayProfile | null = serverProfile;
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      const bdayRef = doc(db, 'birthday_rewards', cleanUid);
+      await runTransaction(db, async (tx) => {
+        const existingSnap = await tx.get(bdayRef);
+        const existingData = existingSnap.exists() ? (existingSnap.data() as CustomerBirthdayProfile) : null;
+        if (existingData && parseBirthdayMonth(existingData.birthdayMonth)) {
+          finalProfile = existingData;
+          throw new Error('ALREADY_REGISTERED');
+        }
+
+        const creation = createCustomerBirthdayProfile({
+          uid: cleanUid,
+          email: params.email,
+          customerName: params.customerName,
+          phone: params.phone,
+          birthdayMonth: parsedMonth,
+          consentAccepted: true,
+          nowMs: serverProfile?.firstRegisteredAt || serverTimeMs,
+          existingProfile: null,
+        });
+
+        if (!creation.valid || !creation.profile) {
+          throw new Error(creation.error || 'Could not create birthday profile.');
+        }
+
+        // Check if customer immediately qualifies for an active coupon right now (e.g. if evaluated during active window from prior registration)
+        const evalRes = evaluateBirthdayRewardStatus({
+          profile: creation.profile,
+          config,
+          nowMs: serverTimeMs,
+        });
+
+        const profileToSave: CustomerBirthdayProfile = evalRes.newlyIssuedCoupon
+          ? {
+              ...creation.profile,
+              annualCoupons: {
+                ...(creation.profile.annualCoupons || {}),
+                [String(evalRes.newlyIssuedCoupon.year)]: evalRes.newlyIssuedCoupon,
+              },
+            }
+          : creation.profile;
+
+        finalProfile = profileToSave;
+        tx.set(bdayRef, stripUndefined(profileToSave));
+      });
+
+      if (finalProfile) {
+        const ist = getIstDateParts(serverTimeMs);
+        const txId = `bday_tx_reg_${cleanUid}_${ist.year}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        await setDoc(
+          doc(db, 'birthday_reward_transactions', txId),
+          stripUndefined({
+            id: txId,
+            uid: cleanUid,
+            customerEmail: params.email,
+            customerName: params.customerName,
+            year: ist.year,
+            birthdayMonth: parsedMonth,
+            action: 'registered',
+            createdAt: serverTimeMs,
+          })
+        ).catch(() => {});
+      }
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_REGISTERED') {
+        return {
+          success: false,
+          profile: finalProfile || undefined,
+          error: 'Your birthday month is already saved. To request a correction, please use the support correction request option.',
+        };
+      }
+      console.warn('Firestore birthday registration notice:', err);
+    }
+  }
+
+  if (!finalProfile) {
+    const fallbackCreation = createCustomerBirthdayProfile({
+      uid: cleanUid,
+      email: params.email,
+      customerName: params.customerName,
+      phone: params.phone,
+      birthdayMonth: parsedMonth,
+      consentAccepted: true,
+      nowMs: serverTimeMs,
+    });
+    if (!fallbackCreation.valid || !fallbackCreation.profile) {
+      return { success: false, error: fallbackCreation.error || 'Registration failed.' };
+    }
+    finalProfile = fallbackCreation.profile;
+  }
+
+  try {
+    localStorage.setItem(`cotton_nest_birthday_profile_${cleanUid}`, JSON.stringify(finalProfile));
+    window.dispatchEvent(new Event('cotton-nest-birthday-rewards-updated'));
+  } catch {}
+
+  const status = evaluateBirthdayRewardStatus({
+    profile: finalProfile,
+    config,
+    nowMs: serverTimeMs,
+  });
+
+  return {
+    success: true,
+    profile: finalProfile,
+    status,
+  };
+}
+
+export async function requestBirthdayMonthCorrectionApi(params: {
+  uid: string;
+  requestedMonth: number;
+  reason: string;
+}): Promise<{
+  success: boolean;
+  profile?: CustomerBirthdayProfile;
+  error?: string;
+}> {
+  const cleanUid = String(params.uid || '').trim();
+  const parsedRequested = parseBirthdayMonth(params.requestedMonth);
+  const cleanReason = String(params.reason || '').trim();
+
+  if (!cleanUid) {
+    return { success: false, error: 'Please sign in to submit a correction request.' };
+  }
+  if (!parsedRequested) {
+    return { success: false, error: 'Please select the requested birthday month.' };
+  }
+  if (cleanReason.length < 5) {
+    return { success: false, error: 'Please provide a brief reason for the birthday month correction.' };
+  }
+
+  const nowMs = await getTrustedServerTimeMs();
+
+  try {
+    await fetch('/api/birthday-rewards/correction-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: cleanUid,
+        requestedMonth: parsedRequested,
+        reason: cleanReason,
+      }),
+    });
+  } catch {}
+
+  let updatedProfile: CustomerBirthdayProfile | null = null;
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      const bdayRef = doc(db, 'birthday_rewards', cleanUid);
+      const snap = await getDoc(bdayRef);
+      if (snap.exists()) {
+        const existing = snap.data() as CustomerBirthdayProfile;
+        if (existing.birthdayMonth === parsedRequested) {
+          return { success: false, error: 'The requested month is already your saved birthday month.' };
+        }
+        updatedProfile = {
+          ...existing,
+          correctionRequest: {
+            requestedMonth: parsedRequested,
+            previousMonth: existing.birthdayMonth,
+            reason: cleanReason.slice(0, 300),
+            status: 'pending',
+            requestedAt: nowMs,
+          },
+          updatedAt: nowMs,
+        };
+        await setDoc(bdayRef, stripUndefined(updatedProfile));
+
+        const ist = getIstDateParts(nowMs);
+        const txId = `bday_tx_corr_req_${cleanUid}_${nowMs}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        await setDoc(
+          doc(db, 'birthday_reward_transactions', txId),
+          stripUndefined({
+            id: txId,
+            uid: cleanUid,
+            year: ist.year,
+            birthdayMonth: parsedRequested,
+            action: 'correction_requested',
+            note: `Requested change from ${getBirthdayMonthName(existing.birthdayMonth)} to ${getBirthdayMonthName(parsedRequested)}`,
+            createdAt: nowMs,
+          })
+        ).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Firestore correction request notice:', err);
+    }
+  }
+
+  if (updatedProfile) {
+    try {
+      localStorage.setItem(`cotton_nest_birthday_profile_${cleanUid}`, JSON.stringify(updatedProfile));
+      window.dispatchEvent(new Event('cotton-nest-birthday-rewards-updated'));
+    } catch {}
+  }
+
+  return {
+    success: true,
+    profile: updatedProfile || undefined,
+  };
+}
+
+export async function reviewBirthdayMonthCorrectionApi(params: {
+  uid: string;
+  decision?: 'approved' | 'rejected';
+  approve?: boolean;
+  reviewNote?: string;
+  reviewedBy?: string;
+}): Promise<{
+  success: boolean;
+  profile?: CustomerBirthdayProfile;
+  error?: string;
+}> {
+  const cleanUid = String(params.uid || '').trim();
+  if (!cleanUid) {
+    return { success: false, error: 'Customer UID is required.' };
+  }
+
+  const decision: 'approved' | 'rejected' =
+    params.decision || (params.approve ? 'approved' : 'rejected');
+  const isApproved = decision === 'approved';
+
+  const nowMs = await getTrustedServerTimeMs();
+
+  try {
+    await fetch('/api/birthday-rewards/admin/review-correction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...params,
+        decision,
+        approve: isApproved,
+      }),
+    });
+  } catch {}
+
+  let updatedProfile: CustomerBirthdayProfile | null = null;
+  if (!isFirestoreWriteQuotaExhausted()) {
+    try {
+      const bdayRef = doc(db, 'birthday_rewards', cleanUid);
+      const snap = await getDoc(bdayRef);
+      if (snap.exists()) {
+        const existing = snap.data() as CustomerBirthdayProfile;
+        const req = existing.correctionRequest;
+        if (!req) {
+          return { success: false, error: 'No correction request found on this profile.' };
+        }
+        const targetMonth = isApproved ? req.requestedMonth : existing.birthdayMonth;
+        // When approved, calculate eligibility from the correction approval timestamp so customers cannot game the 15th cutoff
+        const eligCalc = calculateEligibleFromYear(
+          targetMonth,
+          isApproved ? nowMs : existing.firstRegisteredAt
+        );
+        const currentIstYear = getIstDateParts(nowMs).year;
+        const alreadyRedeemedThisYear = existing.annualCoupons?.[String(currentIstYear)]?.status === 'redeemed';
+
+        updatedProfile = {
+          ...existing,
+          birthdayMonth: targetMonth,
+          birthdayMonthName: getBirthdayMonthName(targetMonth),
+          eligibleFromYear: alreadyRedeemedThisYear
+            ? Math.max(eligCalc.eligibleFromYear, currentIstYear + 1)
+            : eligCalc.eligibleFromYear,
+          correctionRequest: {
+            ...req,
+            status: decision,
+            reviewedAt: nowMs,
+            reviewedBy: params.reviewedBy || 'Admin',
+            reviewNote: params.reviewNote ? params.reviewNote.trim().slice(0, 300) : undefined,
+          },
+          updatedAt: nowMs,
+        };
+
+        await setDoc(bdayRef, stripUndefined(updatedProfile));
+
+        const txId = `bday_tx_corr_${decision}_${cleanUid}_${nowMs}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        await setDoc(
+          doc(db, 'birthday_reward_transactions', txId),
+          stripUndefined({
+            id: txId,
+            uid: cleanUid,
+            year: currentIstYear,
+            birthdayMonth: targetMonth,
+            action: isApproved ? 'correction_approved' : 'correction_rejected',
+            note: params.reviewNote || `Admin ${decision} birthday month correction`,
+            createdAt: nowMs,
+          })
+        ).catch(() => {});
+      }
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to review correction request in Firestore.' };
+    }
+  }
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-birthday-rewards-updated'));
+  } catch {}
+
+  return {
+    success: true,
+    profile: updatedProfile || undefined,
+  };
+}
+
+export interface BirthdayRewardsAdminSummary {
+  config: BirthdayRewardsConfig;
+  profiles: CustomerBirthdayProfile[];
+  summary: {
+    totalRegistered: number;
+    totalIssued: number;
+    totalRedeemed: number;
+    totalExpired: number;
+    pendingCorrections: number;
+  };
+  stats: {
+    totalRegisteredCustomers: number;
+    totalIssuedCoupons: number;
+    totalRedeemedCoupons: number;
+    totalExpiredCoupons: number;
+    pendingCorrectionsCount: number;
+  };
+  pendingCorrections: Array<{
+    uid: string;
+    currentMonth: number;
+    requestedMonth: number;
+    reason: string;
+    requestedAt: number;
+  }>;
+  transactions: BirthdayRewardTransaction[];
+}
+
+export async function getBirthdayRewardsAdminDataApi(): Promise<BirthdayRewardsAdminSummary> {
+  const config = await getBirthdayRewardsConfigApi();
+  const nowMs = await getTrustedServerTimeMs();
+  const profileMap = new Map<string, CustomerBirthdayProfile>();
+  const txMap = new Map<string, BirthdayRewardTransaction>();
+
+  // 1. Fetch from Express server backend
+  try {
+    const res = await fetch('/api/birthday-rewards/admin', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.profiles)) {
+        data.profiles.forEach((p: CustomerBirthdayProfile) => {
+          if (p && p.uid) profileMap.set(p.uid, p);
+        });
+      }
+      if (Array.isArray(data.transactions)) {
+        data.transactions.forEach((t: BirthdayRewardTransaction) => {
+          if (t && t.id) txMap.set(t.id, t);
+        });
+      }
+    }
+  } catch {}
+
+  // 2. Fetch from Firestore collections (admin-only list permission)
+  try {
+    const [profilesSnap, txSnap] = await Promise.all([
+      getDocs(collection(db, 'birthday_rewards')),
+      getDocs(collection(db, 'birthday_reward_transactions')),
+    ]);
+    profilesSnap.forEach((d) => {
+      const p = d.data() as CustomerBirthdayProfile;
+      if (p && p.uid) {
+        const prev = profileMap.get(p.uid);
+        if (!prev || (p.updatedAt || 0) >= (prev.updatedAt || 0)) {
+          profileMap.set(p.uid, p);
+        }
+      }
+    });
+    txSnap.forEach((d) => {
+      const t = d.data() as BirthdayRewardTransaction;
+      if (t && t.id) {
+        txMap.set(t.id, t);
+      }
+    });
+  } catch (err) {
+    console.warn('Firestore admin birthday rewards fetch notice:', err);
+  }
+
+  let totalIssuedCoupons = 0;
+  let totalRedeemedCoupons = 0;
+  let totalExpiredCoupons = 0;
+  const pendingCorrections: BirthdayRewardsAdminSummary['pendingCorrections'] = [];
+
+  profileMap.forEach((profile) => {
+    const coupons = profile.annualCoupons ? Object.values(profile.annualCoupons) : [];
+    coupons.forEach((c) => {
+      if (!c) return;
+      totalIssuedCoupons += 1;
+      if (c.status === 'redeemed') {
+        totalRedeemedCoupons += 1;
+      } else if (c.status === 'expired' || nowMs > c.expiresAt) {
+        totalExpiredCoupons += 1;
+      }
+    });
+
+    if (profile.correctionRequest && profile.correctionRequest.status === 'pending') {
+      pendingCorrections.push({
+        uid: profile.uid,
+        currentMonth: profile.birthdayMonth,
+        requestedMonth: profile.correctionRequest.requestedMonth,
+        reason: profile.correctionRequest.reason,
+        requestedAt: profile.correctionRequest.requestedAt,
+      });
+    }
+  });
+
+  const profiles = Array.from(profileMap.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const transactions = Array.from(txMap.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  return {
+    config,
+    profiles,
+    summary: {
+      totalRegistered: profileMap.size,
+      totalIssued: totalIssuedCoupons,
+      totalRedeemed: totalRedeemedCoupons,
+      totalExpired: totalExpiredCoupons,
+      pendingCorrections: pendingCorrections.length,
+    },
+    stats: {
+      totalRegisteredCustomers: profileMap.size,
+      totalIssuedCoupons,
+      totalRedeemedCoupons,
+      totalExpiredCoupons,
+      pendingCorrectionsCount: pendingCorrections.length,
+    },
+    pendingCorrections,
+    transactions: transactions.slice(0, 50),
+  };
+}
+
 
 
 

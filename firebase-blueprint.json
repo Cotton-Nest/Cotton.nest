@@ -293,6 +293,59 @@
         "grantedAt": { "type": "number", "description": "Epoch timestamp when access was granted" }
       },
       "required": ["uid", "email", "role"]
+    },
+    "BirthdayRewardsConfig": {
+      "title": "BirthdayRewardsConfig",
+      "description": "Configuration for the Cotton Nest Birthday Rewards Club (default ₹100 OFF on orders ₹1,299+).",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Whether Birthday Rewards are active" },
+        "discountAmount": { "type": "number", "description": "Fixed birthday reward discount in INR (default 100)" },
+        "minOrderValue": { "type": "number", "description": "Minimum eligible product subtotal in INR (default 1299)" },
+        "allowAlreadyIssuedWhenDisabled": { "type": "boolean", "description": "Whether already-issued coupons remain redeemable when program is disabled" },
+        "updatedAt": { "type": "number", "description": "Last configuration update timestamp" },
+        "updatedBy": { "type": "string", "description": "Admin identifier who updated the configuration" }
+      },
+      "required": ["enabled", "discountAmount", "minOrderValue", "updatedAt"]
+    },
+    "CustomerBirthdayProfile": {
+      "title": "CustomerBirthdayProfile",
+      "description": "Privacy-friendly customer birthday month registration and account-bound annual birthday coupon records keyed by Firebase UID.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Customer Firebase Authentication UID" },
+        "birthdayMonth": { "type": "number", "description": "Birthday month number (1 to 12 only; never stores birth date or birth year)" },
+        "consentAccepted": { "type": "boolean", "description": "Customer explicit consent to use birthday month for annual rewards" },
+        "consentTimestamp": { "type": "number", "description": "Epoch timestamp when consent was given" },
+        "firstRegisteredAt": { "type": "number", "description": "Immutable epoch timestamp of initial birthday month registration" },
+        "registeredIstYear": { "type": "number", "description": "IST calendar year of initial registration" },
+        "registeredIstMonth": { "type": "number", "description": "IST calendar month of initial registration" },
+        "registeredIstDay": { "type": "number", "description": "IST day of month of initial registration" },
+        "eligibleFromYear": { "type": "number", "description": "First calendar year in which the customer qualifies for the birthday reward" },
+        "annualCoupons": { "type": "object", "description": "Map of calendar year to account-bound AnnualBirthdayCouponRecord" },
+        "correctionRequest": { "type": "object", "description": "Optional support-assisted birthday month correction request" },
+        "updatedAt": { "type": "number", "description": "Epoch timestamp of last update" }
+      },
+      "required": ["uid", "birthdayMonth", "consentAccepted", "firstRegisteredAt", "eligibleFromYear", "updatedAt"]
+    },
+    "BirthdayRewardTransaction": {
+      "title": "BirthdayRewardTransaction",
+      "description": "Minimal privacy-preserving audit record for birthday reward issuance, reservation, redemption, reversal, and month corrections.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique transaction ID" },
+        "uid": { "type": "string", "description": "Customer Firebase UID" },
+        "year": { "type": "number", "description": "Reward calendar year" },
+        "birthdayMonth": { "type": "number", "description": "Birthday month (1 to 12)" },
+        "couponCode": { "type": "string", "description": "Account-bound birthday coupon code" },
+        "action": { "type": "string", "enum": ["registered", "issued", "reserved", "redeemed", "reversed", "expired", "correction_requested", "correction_approved", "correction_rejected"], "description": "Audit action type" },
+        "discountAmount": { "type": "number", "description": "Discount amount in INR" },
+        "minOrderValue": { "type": "number", "description": "Minimum order value in INR" },
+        "orderId": { "type": "string", "description": "Associated order ID if reserved/redeemed/reversed" },
+        "note": { "type": "string", "description": "Minimal audit note" },
+        "createdAt": { "type": "number", "description": "Epoch timestamp" }
+      },
+      "required": ["id", "uid", "year", "birthdayMonth", "action", "createdAt"]
     }
   },
   "firestore": {
@@ -355,6 +408,18 @@
     "/admins/{uid}": {
       "schema": "AdminRole",
       "description": "Authorized Cotton Nest store owner and administrator role records"
+    },
+    "/birthday_rewards_config/{docId}": {
+      "schema": "BirthdayRewardsConfig",
+      "description": "Cotton Nest Birthday Rewards Club global configuration"
+    },
+    "/birthday_rewards/{uid}": {
+      "schema": "CustomerBirthdayProfile",
+      "description": "Per-customer privacy-friendly birthday month registration and account-bound annual coupon records"
+    },
+    "/birthday_reward_transactions/{txId}": {
+      "schema": "BirthdayRewardTransaction",
+      "description": "Minimal audit trail for birthday reward issuance, redemption, reversal, and correction requests"
     }
   }
 }

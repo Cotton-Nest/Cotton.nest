@@ -10,6 +10,7 @@ import {
   recordCouponUseApi,
   isVideoMedia,
   getWelcomeOfferStatusApi,
+  getBirthdayRewardStatusApi,
 } from '../services/api';
 import { sendWhatsAppCartOrder } from '../utils/whatsappOrder';
 import { OptimizedPicture } from './OptimizedPicture';
@@ -37,6 +38,14 @@ import {
 } from '../data/welcomeOffer';
 import { resolveBedsheetImage, handleImageFallback } from '../utils/imageUrl';
 import { CouponOffer, evaluateCouponEligibility } from '../data/coupons';
+import {
+  BirthdayRewardsConfig,
+  CustomerBirthdayProfile,
+  BirthdayRewardEvaluationResult,
+  DEFAULT_BIRTHDAY_REWARDS_CONFIG,
+  isBirthdayCouponCodeFormat,
+  validateBirthdayCouponForCheckout,
+} from '../data/birthdayRewards';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, formatFullAddress } from '../data/addresses';
 import { CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
@@ -242,6 +251,42 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       isMounted = false;
     };
   }, [isOpen, user?.id, user?.email, user?.phone, user?.authProvider, orders.length]);
+
+  // Customer Birthday Reward Status for Checkout
+  const [birthdayConfig, setBirthdayConfig] = useState<BirthdayRewardsConfig>(DEFAULT_BIRTHDAY_REWARDS_CONFIG);
+  const [birthdayProfile, setBirthdayProfile] = useState<CustomerBirthdayProfile | null>(null);
+  const [birthdayStatus, setBirthdayStatus] = useState<BirthdayRewardEvaluationResult | null>(null);
+  const [pendingExternalCouponCode, setPendingExternalCouponCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    getBirthdayRewardStatusApi(user?.id)
+      .then((res) => {
+        if (!isMounted) return;
+        setBirthdayConfig(res.config);
+        setBirthdayProfile(res.profile);
+        setBirthdayStatus(res.status);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, user?.id]);
+
+  useEffect(() => {
+    const handleExternalApply = (ev: Event) => {
+      const customEv = ev as CustomEvent<{ code?: string }>;
+      const code = customEv?.detail?.code?.trim().toUpperCase();
+      if (code) {
+        setPendingExternalCouponCode(code);
+      }
+    };
+    window.addEventListener('cotton-nest-apply-coupon-at-checkout', handleExternalApply);
+    return () => {
+      window.removeEventListener('cotton-nest-apply-coupon-at-checkout', handleExternalApply);
+    };
+  }, []);
 
   // Saved Addresses State strictly scoped to the individual customer
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() =>
@@ -643,6 +688,30 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
     // If an explicit manual coupon is already applied, re-validate it against current cart
     if (appliedCoupon && !appliedCoupon.isAutomatic) {
+      if (isBirthdayCouponCodeFormat(appliedCoupon.code)) {
+        const bdayEval = validateBirthdayCouponForCheckout({
+          couponCode: appliedCoupon.code,
+          userId: user?.id,
+          profile: birthdayProfile,
+          config: birthdayConfig,
+          productSubtotal: subtotal,
+          nowMs: Date.now(),
+          hasWelcomeOfferApplied: false,
+          pointsUsed: 0,
+          hasOtherCouponApplied: false,
+        });
+        if (bdayEval.valid) {
+          if (couponDiscount !== bdayEval.discountAmount) {
+            setCouponDiscount(bdayEval.discountAmount);
+          }
+          setCouponError(null);
+        } else {
+          setCouponError(bdayEval.error || 'Birthday reward coupon no longer qualifies for this updated bag.');
+          setCouponDiscount(0);
+        }
+        return;
+      }
+
       const evalRes = evaluateCouponEligibility(appliedCoupon, validItems, subtotal, customerPhone.trim() || user?.email);
       if (evalRes.isEligible) {
         if (couponDiscount !== evalRes.discountAmount) {
@@ -689,6 +758,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     availableCoupons.length,
     customerPhone,
     user?.email,
+    user?.id,
+    birthdayProfile,
+    birthdayConfig,
     effectiveSelectedBenefit,
     customerWelcomeEligibility.eligible,
   ]);
@@ -763,6 +835,20 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       setCouponLoading(false);
     }
   };
+
+  // Process pending external "Apply at Checkout" trigger from Nest Rewards Club
+  useEffect(() => {
+    if (!isOpen || !pendingExternalCouponCode) return;
+    const code = pendingExternalCouponCode;
+    setPendingExternalCouponCode(null);
+    if (validItems.length > 0) {
+      setCheckoutStep('checkout');
+      handleApplyCoupon(code);
+    } else {
+      setCouponCodeInput(code);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, pendingExternalCouponCode, validItems.length]);
 
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
@@ -915,11 +1001,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       }),
     };
 
-    // Save to server backend & local storage / Firestore
+    // Save to server backend & local storage / Firestore (enforces atomic Birthday Coupon redemption)
     try {
       await saveOrder(createdOrder);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('saveOrder notice:', err);
+      if (createdOrder.couponCode && isBirthdayCouponCodeFormat(createdOrder.couponCode)) {
+        setFormError(
+          err?.message || 'Birthday reward coupon could not be redeemed. Please verify eligibility and try again.'
+        );
+        return;
+      }
     }
 
     // Save address to saved addresses book for future instant checkout
@@ -962,7 +1054,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       }
 
       if (appliedCoupon) {
-        recordCouponUseApi(appliedCoupon.id, customerPhone.trim() || user?.email).catch(() => {});
+        if (isBirthdayCouponCodeFormat(appliedCoupon.code)) {
+          window.dispatchEvent(new CustomEvent('cotton-nest-birthday-profile-updated'));
+        } else {
+          recordCouponUseApi(appliedCoupon.id, customerPhone.trim() || user?.email).catch(() => {});
+        }
       }
     } else {
       window.dispatchEvent(new Event('cotton-nest-welcome-offer-updated'));
@@ -1382,11 +1478,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             </div>
                           )}
 
-                          {/* 3. Other Coupon Discount (if applied) */}
+                          {/* 3. Birthday Reward or Other Coupon Discount (if applied) */}
                           {!isWelcomeOfferApplied && appliedCoupon && effectiveCouponDiscount > 0 && (
                             <div className="flex items-center justify-between text-emerald-700">
                               <span className="text-[11px] font-medium">
-                                Coupon Discount ({appliedCoupon.code}):
+                                {isBirthdayCouponCodeFormat(appliedCoupon.code)
+                                  ? `🎂 Birthday Reward Discount (${appliedCoupon.code}):`
+                                  : `Coupon Discount (${appliedCoupon.code}):`}
                               </span>
                               <span className="font-semibold">-₹{formatRupeeAmount(effectiveCouponDiscount)}</span>
                             </div>
@@ -1597,7 +1695,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <Tag className="w-3 h-3 text-[#C29E57]" />
                       <span>Have a coupon code?</span>
                     </span>
-                    {availableCoupons.filter((c) => c.isActive).length > 0 && (
+                    {(availableCoupons.filter((c) => c.isActive).length > 0 ||
+                      (birthdayStatus?.uiState === 'active_available' && birthdayStatus.activeCoupon)) && (
                       <button
                         type="button"
                         onClick={() => setShowOffersList(!showOffersList)}
@@ -1608,6 +1707,38 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </button>
                     )}
                   </div>
+
+                  {/* Quick One-Tap Birthday Reward Offer Banner when customer has an active unredeemed Birthday Coupon */}
+                  {birthdayStatus?.uiState === 'active_available' &&
+                    birthdayStatus.activeCoupon &&
+                    appliedCoupon?.code !== birthdayStatus.activeCoupon.code && (
+                      <div
+                        data-testid="checkout-birthday-offer-banner"
+                        className="p-2.5 rounded-xl bg-gradient-to-r from-[#FAF7F2] via-[#FFF9FB] to-[#FAF7F2] border border-[#DEC89B] flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#8C2E46] text-white">
+                              🎂 Birthday Gift
+                            </span>
+                            <span className="font-mono font-bold text-[#70252D] text-[11px]">
+                              {birthdayStatus.activeCoupon.code}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[#5C4C42] mt-0.5">
+                            ₹{birthdayStatus.activeCoupon.discountAmount} OFF on orders ₹
+                            {birthdayStatus.activeCoupon.minOrderValue.toLocaleString('en-IN')}+
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCoupon(birthdayStatus.activeCoupon!.code)}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#8C2E46] hover:bg-[#70252D] text-white text-[10px] font-bold shrink-0 cursor-pointer transition-colors"
+                        >
+                          Apply ₹{birthdayStatus.activeCoupon.discountAmount} OFF
+                        </button>
+                      </div>
+                    )}
 
                   {/* Active Promotional Coupon Badge (Non-welcome coupon) */}
                   {!isWelcomeOfferApplied && appliedCoupon && (
@@ -1684,6 +1815,40 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   {/* Expandable Offers Picker in Checkout Step */}
                   {showOffersList && (
                     <div className="pt-1.5 border-t border-[#EAE2D5] space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {birthdayStatus?.uiState === 'active_available' && birthdayStatus.activeCoupon && (
+                        <div className="p-2 bg-[#FFF9FB] rounded-lg border border-[#DEC89B] text-xs space-y-0.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold tracking-wider text-[#8C2E46] bg-[#FDEAF0] px-1.5 py-0.5 rounded text-[10px]">
+                              🎂 {birthdayStatus.activeCoupon.code}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const isCurrentBday =
+                                  !isWelcomeOfferApplied && appliedCoupon?.code === birthdayStatus.activeCoupon!.code;
+                                if (isCurrentBday) {
+                                  handleRemoveCoupon();
+                                } else {
+                                  handleApplyCoupon(birthdayStatus.activeCoupon!.code);
+                                }
+                              }}
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                !isWelcomeOfferApplied && appliedCoupon?.code === birthdayStatus.activeCoupon.code
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-[#8C2E46] text-white hover:bg-[#70252D]'
+                              }`}
+                            >
+                              {!isWelcomeOfferApplied && appliedCoupon?.code === birthdayStatus.activeCoupon.code
+                                ? 'Applied ✓'
+                                : 'Apply Code'}
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-[#2C2420] font-medium">
+                            Birthday Month Reward — ₹{birthdayStatus.activeCoupon.discountAmount} OFF (Min ₹
+                            {birthdayStatus.activeCoupon.minOrderValue.toLocaleString('en-IN')})
+                          </p>
+                        </div>
+                      )}
                       {welcomeConfig.enabled && (
                         <div className="p-2 bg-[#FFF9FB] rounded-lg border border-[#FAD1DC] text-xs space-y-0.5">
                           <div className="flex items-center justify-between">
