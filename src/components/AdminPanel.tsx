@@ -8,10 +8,17 @@ import {
   STANDARD_PRODUCT_TYPES,
   POPULAR_BRANDS,
   AVAILABILITY_OPTIONS,
+  CANONICAL_BED_SIZE_CATEGORIES,
+  MULTIPLE_SIZES_LABEL,
+  SIZE_NOT_SPECIFIED_LABEL,
   normalizeAvailabilityType,
   normalizeProductCategory,
   doesProductMatchCategory,
   normalizeCustomPrice,
+  getAdminSizeSelectValue,
+  getProductNormalizedSizes,
+  getProductSizeBadgeInfo,
+  hasSavedProductSize,
 } from '../data/products';
 import { Order, OrderStatus } from '../data/orders';
 import { SiteContent, INITIAL_SITE_CONTENT, normalizeShippingFee, normalizeStudioAddress } from '../data/siteContent';
@@ -399,7 +406,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newProduct, setNewProduct] = useState<Partial<BedsheetProduct>>({
     name: '',
     collection: 'Signature Collection',
-    size: 'King',
+    size: 'Super King',
     productType: 'Bedsheet',
     brand: 'Cotton Nest',
     price: 1899,
@@ -821,6 +828,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     updateProductItem(id, (p) => ({ ...p, [field]: value }), isImmediateField);
     if (field === 'productType') {
       showToast(`Category synced: "${value}"`);
+    } else if (field === 'size') {
+      const sizeInfo = getProductSizeBadgeInfo({ size: typeof value === 'string' ? value : '' });
+      if (sizeInfo.hasSavedSize) {
+        showToast(`Bed size updated to "${sizeInfo.badgeLabel}"`);
+      } else {
+        showToast(`⚠️ ${SIZE_NOT_SPECIFIED_LABEL} — Please select a valid bed size.`);
+      }
     } else if (field === 'availabilityType') {
       const optLabel = value === 'atelier_touch' ? 'Atelier Touch & Feel' : 'Blank';
       showToast(`Store availability set to "${optLabel}"`);
@@ -1395,7 +1409,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const dedupedAdditional = Array.from(new Set(uploadedAdditionalUrls.filter(Boolean)));
     const uploadedVideos = dedupedAdditional.filter((u) => isVideoMedia(u));
 
-    const finalSize = newProduct.size === 'Other' ? (newProductCustomSize.trim() || 'Custom Size') : (newProduct.size || 'King');
+    const rawEnteredSize =
+      newProduct.size === 'Other' || newProduct.size === MULTIPLE_SIZES_LABEL
+        ? newProductCustomSize.trim()
+        : (newProduct.size || '').trim();
+
+    if (!hasSavedProductSize({ size: rawEnteredSize })) {
+      showToast(`⚠️ ${SIZE_NOT_SPECIFIED_LABEL}: Please specify the bedsheet size before saving.`);
+      return;
+    }
+
+    const finalSize = rawEnteredSize;
     const finalProductType = newProduct.productType === 'Other' ? (newProductCustomType.trim() || 'Custom') : (newProduct.productType || 'Bedsheet');
     const finalBrand = (newProduct.brand || 'Cotton Nest').trim() || 'Cotton Nest';
 
@@ -1705,7 +1729,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               id: safeId,
               name: rawName,
               collection: p.collection || 'Signature Collection',
-              size: p.size || 'King',
+              size: typeof p.size === 'string' ? p.size.trim() : '',
+              sizes: Array.isArray(p.sizes)
+                ? p.sizes.filter((s: unknown): s is string => typeof s === 'string' && s.trim().length > 0).map((s: string) => s.trim())
+                : undefined,
               productType: p.productType || p.category || 'Bedsheet',
               brand: p.brand || 'Cotton Nest',
               price: parsedPrice,
@@ -3223,6 +3250,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                       )}
                                     </div>
 
+                                    {(() => {
+                                      const skuSizeInfo = getProductSizeBadgeInfo(product);
+                                      return (
+                                        <span
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${
+                                            skuSizeInfo.hasSavedSize
+                                              ? 'bg-[#FAF7F2] text-[#8C2E46] border-[#DEC89B]'
+                                              : 'bg-amber-50 text-amber-900 border-amber-300'
+                                          }`}
+                                        >
+                                          {!skuSizeInfo.hasSavedSize && (
+                                            <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                          )}
+                                          <span>Size: {skuSizeInfo.badgeLabel}</span>
+                                        </span>
+                                      );
+                                    })()}
+
                                     <div
                                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
                                         isAvailable
@@ -3309,6 +3354,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Missing Size Warning Banner (Action Required for Products with "Size Not Specified") */}
+              {(() => {
+                const missingSizeProducts = (editableProducts || []).filter((p) => !hasSavedProductSize(p));
+                if (missingSizeProducts.length === 0) return null;
+                return (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-xs space-y-0.5">
+                        <p className="font-bold text-amber-900">
+                          {SIZE_NOT_SPECIFIED_LABEL} ({missingSizeProducts.length} {missingSizeProducts.length === 1 ? 'product requires' : 'products require'} size correction)
+                        </p>
+                        <p className="text-[11px] text-amber-800">
+                          Please select the actual bed-size category (Single Bed, Double Bed, Queen Size, King Size, or Super King) for:{' '}
+                          <span className="font-semibold">
+                            {missingSizeProducts.map((p) => `${p.name}${p.sku ? ` (${p.sku})` : ''}`).join(', ')}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Admin Category Filter Bar (Synced with Storefront Catalogue Categories) */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar text-xs">
@@ -3784,36 +3853,110 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         {/* Size, Type & Brand (Backend Only) */}
                         <div className="grid grid-cols-3 gap-1.5 pt-1">
                           {/* Size */}
-                          <div>
-                            <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-0.5">
-                              Size
-                            </label>
-                            <select
-                              value={STANDARD_SIZES.includes(product.size as any) ? product.size : 'Other'}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === 'Other') {
-                                  handleProductFieldChange(product.id, 'size', 'Custom Size');
-                                } else {
-                                  handleProductFieldChange(product.id, 'size', val);
-                                }
-                              }}
-                              className="w-full px-2 py-1 bg-white border border-[#EAE2D5] rounded-lg text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
-                            >
-                              {STANDARD_SIZES.map((s) => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
-                            {(!STANDARD_SIZES.includes(product.size as any) || product.size === 'Other') && (
-                              <input
-                                type="text"
-                                value={product.size || ''}
-                                onChange={(e) => handleProductFieldChange(product.id, 'size', e.target.value)}
-                                placeholder="Custom size"
-                                className="w-full mt-1 px-1.5 py-0.5 bg-white border border-[#DEC89B] rounded text-[11px] text-[#2C2420]"
-                              />
-                            )}
-                          </div>
+                          {(() => {
+                            const sizeInfo = getProductSizeBadgeInfo(product);
+                            const selectVal = getAdminSizeSelectValue(product);
+                            const currentSizes = getProductNormalizedSizes(product);
+                            const isCustomOrMulti =
+                              selectVal === 'Other' ||
+                              selectVal === MULTIPLE_SIZES_LABEL ||
+                              !sizeInfo.hasSavedSize;
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block">
+                                    Size
+                                  </label>
+                                  {!sizeInfo.hasSavedSize && (
+                                    <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1 rounded border border-amber-300">
+                                      Required
+                                    </span>
+                                  )}
+                                </div>
+                                <select
+                                  value={selectVal}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (!val) {
+                                      handleProductFieldChange(product.id, 'size', '');
+                                    } else if (val === 'Other') {
+                                      handleProductFieldChange(
+                                        product.id,
+                                        'size',
+                                        sizeInfo.hasSavedSize ? product.size : ''
+                                      );
+                                    } else if (val === MULTIPLE_SIZES_LABEL) {
+                                      const defaultMulti =
+                                        currentSizes.length >= 2
+                                          ? currentSizes.join(', ')
+                                          : currentSizes.length === 1
+                                          ? `${currentSizes[0]}, King Size`
+                                          : 'Single Bed, Double Bed';
+                                      handleProductFieldChange(product.id, 'size', defaultMulti);
+                                    } else {
+                                      handleProductFieldChange(product.id, 'size', val);
+                                    }
+                                  }}
+                                  className={`w-full px-2 py-1 bg-white border rounded-lg text-xs font-semibold focus:outline-hidden ${
+                                    sizeInfo.hasSavedSize
+                                      ? 'border-[#EAE2D5] text-[#2C2420] focus:border-[#C29E57]'
+                                      : 'border-amber-400 bg-amber-50/70 text-amber-900 focus:border-amber-600'
+                                  }`}
+                                >
+                                  <option value="">⚠️ {SIZE_NOT_SPECIFIED_LABEL}</option>
+                                  {STANDARD_SIZES.map((s) => (
+                                    <option key={s} value={s}>{s}</option>
+                                  ))}
+                                </select>
+                                {!sizeInfo.hasSavedSize && (
+                                  <p className="text-[10px] font-semibold text-amber-800 mt-1 leading-tight">
+                                    ⚠️ {SIZE_NOT_SPECIFIED_LABEL} — Please select the bed size above.
+                                  </p>
+                                )}
+                                {selectVal === MULTIPLE_SIZES_LABEL && (
+                                  <div className="mt-1.5 space-y-1">
+                                    <div className="flex flex-wrap gap-1">
+                                      {CANONICAL_BED_SIZE_CATEGORIES.map((cat) => {
+                                        const active = currentSizes.includes(cat);
+                                        return (
+                                          <button
+                                            key={cat}
+                                            type="button"
+                                            onClick={() => {
+                                              const next = active
+                                                ? currentSizes.filter((c) => c !== cat)
+                                                : [...currentSizes, cat];
+                                              handleProductFieldChange(product.id, 'size', next.join(', '));
+                                            }}
+                                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer transition-colors ${
+                                              active
+                                                ? 'bg-[#8C2E46] text-white border-[#8C2E46]'
+                                                : 'bg-[#FAF7F2] text-[#6B5D55] border-[#DEC89B] hover:border-[#8C2E46]'
+                                            }`}
+                                          >
+                                            {active ? `✓ ${cat}` : `+ ${cat}`}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {isCustomOrMulti && (
+                                  <input
+                                    type="text"
+                                    value={product.size || ''}
+                                    onChange={(e) => handleProductFieldChange(product.id, 'size', e.target.value)}
+                                    placeholder={
+                                      selectVal === MULTIPLE_SIZES_LABEL
+                                        ? 'e.g. Single Bed, Double Bed'
+                                        : 'Enter bed size (e.g. Single Bed)'
+                                    }
+                                    className="w-full mt-1 px-1.5 py-0.5 bg-white border border-[#DEC89B] rounded text-[11px] text-[#2C2420]"
+                                  />
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* Product Type */}
                           <div>
@@ -3886,7 +4029,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
 
                         <div className="flex items-center justify-between text-[11px] text-[#7A6458] pt-0.5">
-                          <span className="truncate">{product.dimensions} · {product.size || 'King'}</span>
+                          {(() => {
+                            const rowSizeInfo = getProductSizeBadgeInfo(product);
+                            return (
+                              <span className="truncate flex items-center gap-1.5">
+                                {product.dimensions ? <span>{product.dimensions} ·</span> : null}
+                                <span
+                                  className={`font-bold px-1.5 py-0.2 rounded border text-[10px] ${
+                                    rowSizeInfo.hasSavedSize
+                                      ? 'bg-[#FAF7F2] text-[#8C2E46] border-[#DEC89B]'
+                                      : 'bg-amber-50 text-amber-900 border-amber-300'
+                                  }`}
+                                >
+                                  {rowSizeInfo.badgeLabel}
+                                </span>
+                              </span>
+                            );
+                          })()}
                           <button
                             type="button"
                             onClick={() => toggleSpecsPanel(product.id)}
@@ -6604,33 +6763,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {/* Size */}
                 <div>
                   <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
-                    Size *
+                    Bed-Size Category *
                   </label>
                   <select
-                    value={newProduct.size || 'King'}
+                    value={newProduct.size || ''}
                     onChange={(e) => {
                       const val = e.target.value;
                       setNewProduct({ ...newProduct, size: val });
-                      if (val !== 'Other') {
+                      if (val === MULTIPLE_SIZES_LABEL && !newProductCustomSize) {
+                        setNewProductCustomSize('Single Bed, Double Bed');
+                      } else if (val !== 'Other' && val !== MULTIPLE_SIZES_LABEL) {
                         setNewProductCustomSize('');
                       }
                     }}
                     className="w-full px-3 py-2 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
                   >
+                    <option value="">Select Bed Size...</option>
                     {STANDARD_SIZES.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                  {newProduct.size === 'Other' && (
+                  {(newProduct.size === 'Other' || newProduct.size === MULTIPLE_SIZES_LABEL) && (
                     <input
                       type="text"
-                      placeholder="Enter custom size (e.g. 72x78 in)"
+                      placeholder={
+                        newProduct.size === MULTIPLE_SIZES_LABEL
+                          ? 'Enter sizes (e.g. Single Bed, Double Bed)'
+                          : 'Enter custom size (e.g. Diwan Size)'
+                      }
                       value={newProductCustomSize}
                       onChange={(e) => setNewProductCustomSize(e.target.value)}
                       className="w-full mt-1.5 px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs text-[#2C2420] focus:outline-hidden"
                     />
                   )}
-                  <p className="text-[10px] text-[#8C7A70] mt-1">Single, Double, Queen, King, Super King, or custom</p>
+                  <p className="text-[10px] text-[#8C7A70] mt-1">Single Bed, Double Bed, Queen Size, King Size, Super King, or Multiple Sizes</p>
                 </div>
 
                 {/* Product Type */}

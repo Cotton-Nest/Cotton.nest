@@ -1,4 +1,5 @@
 import {
+  getProductSizeBadgeInfo,
   isProductOutOfStock,
   normalizeCustomPrice,
   sortProductsByStockAvailability,
@@ -19,6 +20,7 @@ export interface PublicCatalogueProduct {
   collection: string;
   productType: string;
   size: string;
+  sizes?: string[];
   price: number;
   originalPrice: number;
   dimensions: string;
@@ -263,16 +265,23 @@ export async function fetchAuthoritativePublicCatalogue(
     const orderVal =
       typeof data.order === 'number' && Number.isFinite(data.order) ? data.order : 9999;
 
+    const rawSizes = Array.isArray(data.sizes)
+      ? data.sizes
+          .map((s) => sanitizeText(s))
+          .filter((s): s is string => s.length > 0)
+      : undefined;
+
     publicProducts.push({
       id,
       ...(sku ? { sku } : {}),
       name,
       collection: sanitizeText(data.collection, 'Signature Collection'),
       productType: sanitizeText(data.productType, 'Bedsheet'),
-      size: sanitizeText(data.size, 'King'),
+      size: sanitizeText(data.size, ''),
+      ...(rawSizes && rawSizes.length > 0 ? { sizes: rawSizes } : {}),
       price,
       originalPrice,
-      dimensions: sanitizeText(data.dimensions, '108 x 108 inches (274 x 274 cm)'),
+      dimensions: sanitizeText(data.dimensions, ''),
       pillowCovers: sanitizeText(data.pillowCovers, '2 Pillow Covers (45 x 70 cm)'),
       threadCount: sanitizeText(data.threadCount, '350 Thread Count'),
       fabric: sanitizeText(data.fabric, '100% Pure Percale Cotton'),
@@ -328,6 +337,7 @@ export function buildCatalogueJsonLd(products: PublicCatalogueProduct[]): Record
       numberOfItems: products.length,
       itemListOrder: 'https://schema.org/ItemListOrderAscending',
       itemListElement: products.map((product, index) => {
+        const sizeInfo = getProductSizeBadgeInfo(product);
         const productSchema: Record<string, unknown> = {
           '@type': 'Product',
           name: product.name,
@@ -335,7 +345,7 @@ export function buildCatalogueJsonLd(products: PublicCatalogueProduct[]): Record
           image: product.image,
           category: product.productType,
           material: product.fabric,
-          size: product.size,
+          ...(sizeInfo.hasSavedSize ? { size: sizeInfo.badgeLabel } : {}),
           offers: {
             '@type': 'Offer',
             priceCurrency: 'INR',
@@ -378,6 +388,17 @@ export function buildCataloguePrerenderBodyHtml(products: PublicCatalogueProduct
       const availabilityClass = product.inStock
         ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
         : 'text-amber-800 bg-amber-50 border-amber-200';
+      const sizeInfo = getProductSizeBadgeInfo(product);
+      const sizeBadgeClass = sizeInfo.hasSavedSize
+        ? 'bg-[#FAF7F2] text-[#8C2E46] border-[#DEC89B]'
+        : 'bg-amber-50 text-amber-900 border-amber-300';
+      const specsParts = [
+        product.productType,
+        sizeInfo.badgeLabel,
+        product.dimensions,
+        product.fabric,
+        product.threadCount,
+      ].filter((part) => Boolean(part && part.trim()));
 
       return [
         `          <article data-product-id="${escapeHtml(product.id)}" class="bg-white rounded-2xl border border-[#EAE2D5] overflow-hidden flex flex-col">`,
@@ -385,10 +406,11 @@ export function buildCataloguePrerenderBodyHtml(products: PublicCatalogueProduct
         `              <img src="${escapeHtml(product.image)}"${srcsetAttr} sizes="(max-width: 640px) 94vw, (max-width: 1024px) 46vw, 390px" alt="${escapeHtml(product.name)} — ${escapeHtml(product.fabric)}" width="800" height="600" loading="${idx < 3 ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer" class="w-full h-full object-cover object-center" />`,
         `            </div>`,
         `            <div class="p-4 flex-1 flex flex-col gap-2">`,
-        `              <div class="flex items-center justify-between gap-2 text-xs">`,
-        `                <span class="font-medium text-[#7A6458]">${escapeHtml(product.collection)}</span>`,
+        `              <div class="flex items-center justify-between gap-2 text-xs flex-wrap">`,
+        `                <span data-testid="product-size-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-md border text-[11px] font-bold tracking-wide ${sizeBadgeClass}">${escapeHtml(sizeInfo.badgeLabel)}</span>`,
         `                <span class="px-2 py-0.5 rounded-full border font-semibold ${availabilityClass}">${availabilityLabel}</span>`,
         `              </div>`,
+        `              <div class="text-xs font-medium text-[#7A6458]">${escapeHtml(product.collection)}</div>`,
         `              <h2 class="text-lg font-semibold text-[#2C2420]">${escapeHtml(product.name)}</h2>`,
         `              <p class="text-base font-bold text-[#8C2E46]">₹${escapeHtml(formatInrPrice(product.price))}${
           hasDiscount
@@ -397,7 +419,7 @@ export function buildCataloguePrerenderBodyHtml(products: PublicCatalogueProduct
               )}</del>`
             : ''
         }</p>`,
-        `              <p class="text-xs text-[#6B5D55]">${escapeHtml(product.productType)} · ${escapeHtml(product.size)} · ${escapeHtml(product.dimensions)} · ${escapeHtml(product.fabric)} · ${escapeHtml(product.threadCount)}</p>`,
+        `              <p class="text-xs text-[#6B5D55]">${specsParts.map((part) => escapeHtml(part)).join(' · ')}</p>`,
         `              <p class="text-xs text-[#4F433D] leading-relaxed">${escapeHtml(product.description)}</p>`,
         `            </div>`,
         `          </article>`,

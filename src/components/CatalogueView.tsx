@@ -42,8 +42,12 @@ import {
   STANDARD_SIZES,
   STANDARD_PRODUCT_TYPES,
   POPULAR_BRANDS,
+  CANONICAL_BED_SIZE_CATEGORIES,
+  MULTIPLE_SIZES_LABEL,
   normalizeProductCategory,
   doesProductMatchCategory,
+  doesProductMatchSizeFilter,
+  getProductNormalizedSizes,
 } from '../data/products';
 import { ProductCard, ProductCardViewMode } from './ProductCard';
 import { ProductReview, getProductRatingSummary } from '../data/reviews';
@@ -111,80 +115,13 @@ function parseSearchQuery(query: string) {
   return { text, queryMinPrice, queryMaxPrice, exactOrApproxPrice };
 }
 
-export function checkProductMatchesSizeFilter(filterLabel: string, itemSize?: string, dimensions?: string): boolean {
-  const cleanS = String(filterLabel || '').toLowerCase();
-  const d = String(dimensions || '').toLowerCase();
-  const sz = String(itemSize || '').toLowerCase();
-
-  // 1. Super King (108 × 108) / 108x108
-  if (
-    cleanS.includes('super king') ||
-    cleanS.includes('108 × 108') ||
-    cleanS.includes('108x108') ||
-    cleanS.includes('108 x 108') ||
-    cleanS.includes('super-king-size')
-  ) {
-    return (
-      sz.includes('super king') ||
-      d.includes('108 x 108') ||
-      d.includes('108x108') ||
-      d.includes('108 × 108') ||
-      (d.includes('108') && d.indexOf('108') !== d.lastIndexOf('108'))
-    );
-  }
-
-  // 2. Standard King (100 × 108) / 100x108
-  if (
-    cleanS.includes('king size (100') ||
-    cleanS.includes('king (100') ||
-    cleanS.includes('100 × 108') ||
-    cleanS.includes('100x108') ||
-    cleanS.includes('100 x 108') ||
-    (cleanS.includes('100') && cleanS.includes('108'))
-  ) {
-    return (
-      (d.includes('100') && d.includes('108')) ||
-      (sz.includes('king') && !sz.includes('super') && !sz.includes('120') && !d.includes('108 x 108') && !d.includes('108x108') && !d.includes('108 × 108'))
-    );
-  }
-
-  // 3. King Size XL (120 × 120)
-  if (cleanS.includes('xl') || cleanS.includes('120')) {
-    return d.includes('120') || sz.includes('xl');
-  }
-
-  // 4. Specific dimension combos
-  if (cleanS.includes('90') && cleanS.includes('108')) return d.includes('90') && d.includes('108');
-  if (cleanS.includes('90') && cleanS.includes('100')) return d.includes('90') && d.includes('100');
-  if (cleanS.includes('60') && cleanS.includes('100')) return d.includes('60') && d.includes('100');
-  if (cleanS.includes('60') && cleanS.includes('90')) return d.includes('60') && d.includes('90');
-  if (cleanS.includes('40')) return d.includes('40') && d.includes('60');
-
-  // 5. Generic King search
-  if (cleanS.includes('king')) {
-    if (cleanS.includes('super')) {
-      return (
-        sz.includes('super king') ||
-        d.includes('108 x 108') ||
-        d.includes('108x108') ||
-        d.includes('108 × 108')
-      );
-    }
-    // Standard King
-    return (
-      (sz.includes('king') && !sz.includes('super')) ||
-      (d.includes('100') && d.includes('108')) ||
-      (d.includes('108') && !d.includes('108 x 108') && !d.includes('108x108') && !d.includes('108 × 108'))
-    );
-  }
-
-  if (cleanS.includes('queen')) return sz.includes('queen') || d.includes('90');
-  if (cleanS.includes('double')) return sz.includes('double') || d.includes('90');
-  if (cleanS.includes('single')) return sz.includes('single') || d.includes('60');
-  if (cleanS.includes('diwan')) return sz.includes('diwan') || d.includes('60');
-  if (cleanS.includes('baby')) return sz.includes('baby') || d.includes('40');
-
-  return sz.includes(cleanS) || d.includes(cleanS);
+export function checkProductMatchesSizeFilter(
+  filterLabel: string,
+  itemSize?: string,
+  _dimensions?: string,
+  itemSizes?: string[]
+): boolean {
+  return doesProductMatchSizeFilter({ size: itemSize, sizes: itemSizes }, filterLabel);
 }
 
 type FilterCategoryTab = 'stock' | 'size' | 'material' | 'pattern' | 'productType' | 'price' | 'color' | 'brand' | 'quick';
@@ -281,8 +218,8 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     const brandsSet = new Set<string>();
     const colorsSet = new Set<string>();
 
-    // Seed with standard presets so catalog filters are rich and predictable
-    STANDARD_SIZES.filter((s) => s !== 'Other').forEach((s) => sizesSet.add(s));
+    // Seed with canonical bed-size categories and standard product types/brands
+    CANONICAL_BED_SIZE_CATEGORIES.forEach((s) => sizesSet.add(s));
     STANDARD_PRODUCT_TYPES.filter((t) => t !== 'Other').forEach((t) => typesSet.add(t));
     POPULAR_BRANDS.forEach((b) => brandsSet.add(b));
 
@@ -319,8 +256,12 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
 
     (products || []).forEach((p) => {
       if (!p) return;
-      if (p.size && typeof p.size === 'string' && p.size.trim()) sizesSet.add(p.size.trim());
-      
+      const productSizes = getProductNormalizedSizes(p);
+      productSizes.forEach((normSz) => sizesSet.add(normSz));
+      if (productSizes.length > 1) {
+        sizesSet.add(MULTIPLE_SIZES_LABEL);
+      }
+
       // Distinct Material extraction from custom uploaded products
       if (p.fabric && typeof p.fabric === 'string' && p.fabric.trim()) {
         const cleanFab = p.fabric.trim();
@@ -362,12 +303,13 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     };
   }, [products]);
 
-  // Clean, authentic Quick Filter Options for Cotton Nest with distinct Material and Pattern chips
+  // Clean, authentic Quick Filter Options for Cotton Nest with distinct Material, Pattern & Firestore Size chips
   const quickFilterDefs = [
     { id: 'pure-cotton', label: 'Material: 100% Cotton', icon: Feather },
     { id: 'floral-pattern', label: 'Pattern: Floral & Botanicals', icon: LayoutGrid },
-    { id: 'king-size', label: 'Size: King (100×108)', icon: Box },
-    { id: 'super-king-size', label: 'Size: Super King (108×108)', icon: Box },
+    { id: 'single-bed', label: 'Size: Single Bed', icon: Box },
+    { id: 'king-size', label: 'Size: King Size', icon: Box },
+    { id: 'super-king-size', label: 'Size: Super King', icon: Box },
     { id: 'top-rated', label: 'Top Rated 4.5★+', icon: Star },
   ];
 
@@ -442,10 +384,10 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
     return products
       .filter((product) => {
         if (!product) return false;
-        const itemSize = String(product.size || 'King').trim();
+        const itemSize = String(product.size || '').trim();
+        const normalizedProductSizes = getProductNormalizedSizes(product);
         const itemType = String(product.productType || 'Bedsheet').trim();
         const itemBrand = String(product.brand || 'Cotton Nest').trim();
-        const dims = String(product.dimensions || '');
         const prodName = String(product.name || '');
         const prodColl = String(product.collection || '');
 
@@ -459,9 +401,9 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
         const prodTC = String(product.threadCount || '');
         const prodDesc = String(product.description || '');
 
-        // 1. Size constraint (Multi-select: Match any selected size)
+        // 1. Size constraint (Multi-select: Match any selected size using the same Firestore size field as product cards)
         if (selectedSizes.length > 0) {
-          const matchesSize = selectedSizes.some((s) => checkProductMatchesSizeFilter(s, itemSize, dims));
+          const matchesSize = selectedSizes.some((s) => doesProductMatchSizeFilter(product, s));
           if (!matchesSize) return false;
         }
 
@@ -565,12 +507,16 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           const isFloral = pComb.includes('floral') || pComb.includes('flower') || pComb.includes('rose') || pComb.includes('botanical') || pComb.includes('wreath') || pComb.includes('vines') || pComb.includes('meadow') || pComb.includes('bouquet');
           if (!isFloral) return false;
         }
+        if (selectedQuickFilters.includes('single-bed')) {
+          const isSingle = doesProductMatchSizeFilter(product, 'Single Bed');
+          if (!isSingle) return false;
+        }
         if (selectedQuickFilters.includes('king-size')) {
-          const isKing = checkProductMatchesSizeFilter('King (100 × 108)', itemSize, dims);
+          const isKing = doesProductMatchSizeFilter(product, 'King Size');
           if (!isKing) return false;
         }
         if (selectedQuickFilters.includes('super-king-size')) {
-          const isSuper = checkProductMatchesSizeFilter('Super King (108 × 108)', itemSize, dims);
+          const isSuper = doesProductMatchSizeFilter(product, 'Super King');
           if (!isSuper) return false;
         }
 
@@ -585,7 +531,9 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
           const patternMatch = prodPatt.toLowerCase().includes(text);
           const colorToneMatch = prodColor.toLowerCase().includes(text);
           const descMatch = prodDesc.toLowerCase().includes(text);
-          const sizeMatch = itemSize.toLowerCase().includes(text);
+          const sizeMatch =
+            itemSize.toLowerCase().includes(text) ||
+            normalizedProductSizes.some((sz) => sz.toLowerCase().includes(text));
           const typeMatch = itemType.toLowerCase().includes(text);
 
           if (!nameMatch && !materialMatch && !collectionMatch && !patternMatch && !colorToneMatch && !descMatch && !sizeMatch && !typeMatch) {
@@ -656,7 +604,7 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
       if (selectedStockFilter === 'in-stock' && isOut) return false;
       if (selectedStockFilter === 'out-of-stock' && !isOut) return false;
       if (type === 'size') {
-        return checkProductMatchesSizeFilter(cleanVal, p.size, p.dimensions);
+        return doesProductMatchSizeFilter(p, value);
       }
       if (type === 'material') {
         const f = String(p.fabric || '').toLowerCase();
@@ -1522,55 +1470,60 @@ export const CatalogueView: React.FC<CatalogueViewProps> = ({
                   </div>
                 )}
 
-                {/* 2. Size Tab */}
+                {/* 2. Size Tab — Synchronized with Saved Firestore Product Sizes */}
                 {activeFilterTab === 'size' && (
                   <div className="space-y-1">
                     <p className="text-[11px] font-semibold text-[#8C7A70] uppercase tracking-wider mb-2">
-                      Select Bedsheet Size &amp; Mattress
+                      Select Bed-Size Category
                     </p>
-                    {[
-                      { label: 'King Size (100 × 108)', spec: 'Mattress: 72 × 78 (Standard King)' },
-                      { label: 'Super King Size (108 × 108)', spec: 'Mattress: 72 × 78 (Super King / Extra Drop)' },
-                      { label: 'King Size XL (120 × 120)', spec: 'Mattress: 72 × 78' },
-                      { label: 'Queen Size (90 × 100)', spec: 'Mattress: 60 × 78' },
-                      { label: 'Queen Size XL (90 × 108)', spec: 'Mattress: 60 × 78' },
-                      { label: 'Double Size (90 × 100)', spec: 'Mattress: 54 × 75' },
-                      { label: 'Single Size (60 × 90)', spec: 'Mattress: 36 × 75' },
-                      { label: 'Single XL (60 × 100)', spec: 'Mattress: 36 × 78' },
-                      { label: 'Diwan Size (60 × 90)', spec: 'Mattress: Diwan' },
-                      { label: 'Diwan XL (60 × 100)', spec: 'Mattress: Large Diwan' },
-                      { label: 'Baby Cot (40 × 60)', spec: 'Mattress: Baby cot' },
-                    ].map((item) => {
-                      const isChecked = selectedSizes.includes(item.label);
-                      const count = getCountForFilter('size', item.label);
-                      return (
-                        <button
-                          key={item.label}
-                          type="button"
-                          onClick={() => toggleSize(item.label)}
-                          className="w-full py-3 px-2 flex items-center justify-between text-left hover:bg-[#FAF7F2] rounded-xl transition-colors cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
-                              isChecked ? 'bg-[#8C2E46] text-white' : 'border border-[#C29E57]/60 group-hover:border-[#8C2E46]'
-                            }`}>
-                              {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                    {(() => {
+                      const sizeSpecLookup: Record<string, string> = {
+                        'Single Bed': 'Single Bed Sheet · Fits Single Mattress (36 × 75 in)',
+                        'Double Bed': 'Double Bed Sheet · Fits Double Mattress (54 × 75 in)',
+                        'Queen Size': 'Queen Size Sheet · Fits Queen Mattress (60 × 78 in)',
+                        'King Size': 'Standard King Sheet (100 × 108 in) · Fits King Mattress (72 × 78 in)',
+                        'Super King': 'Super King Sheet (108 × 108 in) · Extra Drop King Fit',
+                        'Multiple Sizes': 'Bedsheets available in more than one bed size',
+                        'Single XL': 'Single XL Sheet (60 × 100 in)',
+                        'Queen Size XL': 'Queen XL Sheet (90 × 108 in)',
+                        'King Size XL': 'King XL Sheet (120 × 120 in)',
+                        'Diwan Size': 'Diwan Bed Sheet (60 × 90 in)',
+                        'Diwan XL': 'Large Diwan Sheet (60 × 100 in)',
+                        'Baby Cot': 'Baby Cot Sheet (40 × 60 in)',
+                      };
+                      return availableFilterData.sizes.map((sizeLabel) => {
+                        const isChecked = selectedSizes.includes(sizeLabel);
+                        const count = getCountForFilter('size', sizeLabel);
+                        const spec = sizeSpecLookup[sizeLabel] || 'Saved Atelier Bed Size';
+                        return (
+                          <button
+                            key={sizeLabel}
+                            type="button"
+                            onClick={() => toggleSize(sizeLabel)}
+                            className="w-full py-3 px-2 flex items-center justify-between text-left hover:bg-[#FAF7F2] rounded-xl transition-colors cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
+                                isChecked ? 'bg-[#8C2E46] text-white' : 'border border-[#C29E57]/60 group-hover:border-[#8C2E46]'
+                              }`}>
+                                {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+                              <div>
+                                <span className={`text-xs block ${isChecked ? 'font-bold text-[#2C2420]' : 'text-[#6B5D55]'}`}>
+                                  {sizeLabel}
+                                </span>
+                                <span className="text-[10px] text-[#8C7A70] block">
+                                  {spec}
+                                </span>
+                              </div>
                             </div>
-                            <div>
-                              <span className={`text-xs block ${isChecked ? 'font-bold text-[#2C2420]' : 'text-[#6B5D55]'}`}>
-                                {item.label}
-                              </span>
-                              <span className="text-[10px] text-[#8C7A70] block">
-                                {item.spec}
-                              </span>
-                            </div>
-                          </div>
-                          <span className="text-[11px] text-[#8C7A70] tabular-nums font-medium">
-                            ({count})
-                          </span>
-                        </button>
-                      );
-                    })}
+                            <span className="text-[11px] text-[#8C7A70] tabular-nums font-medium">
+                              ({count})
+                            </span>
+                          </button>
+                        );
+                      });
+                    })()}
                   </div>
                 )}
 

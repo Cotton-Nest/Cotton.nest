@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'motion/react';
 import { X, Trash2, ShoppingBag, ArrowRight, CheckCircle2, MessageCircle, ShieldCheck, MapPin, Package, Truck, Tag, Sparkles, Check, Gift, Percent, AlertCircle, Award, Plus, Home, Briefcase, Bookmark, CheckSquare, Square, Mail, FileText, ChevronDown } from 'lucide-react';
-import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, getProductSizeBadgeInfo } from '../data/products';
 import { Order } from '../data/orders';
 import {
   saveOrder,
@@ -905,8 +905,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           productId: i?.product?.id || `item-${Date.now()}`,
           productName: vName ? `${pName} - ${vName}` : pName,
           productImage: i?.selectedVariant?.image || i?.product?.image || '',
-          dimensions: i?.product?.dimensions || '108 x 108 inches',
-          size: i?.product?.size || 'King',
+          dimensions: i?.product?.dimensions || '',
+          size: getProductSizeBadgeInfo(i?.product || {}).badgeLabel,
           variantId: i?.selectedVariant?.id,
           variantName: vName,
           price: typeof i?.product?.price === 'number' && !isNaN(i?.product?.price) ? i.product.price : 0,

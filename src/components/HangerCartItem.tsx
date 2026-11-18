@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Trash2, Eye, Sparkles, Plus, Minus, Package } from 'lucide-react';
-import { BedsheetProduct, BedsheetVariant } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, getProductSizeBadgeInfo } from '../data/products';
 import { resolveBedsheetImage, handleImageFallback, isVideoMedia } from '../utils/imageUrl';
 
 export interface HangerCartItemProps {
@@ -31,8 +31,8 @@ export const HangerCartItem: React.FC<HangerCartItemProps> = ({
   const prod = item?.product;
   const prodId = typeof prod?.id === 'string' ? prod.id : '';
   const prodName = typeof prod?.name === 'string' && prod.name.trim() !== '' ? prod.name.trim() : 'Handcrafted Bedsheet';
-  const prodDimensions = typeof prod?.dimensions === 'string' && prod.dimensions.trim() !== '' ? prod.dimensions.trim() : '108 x 108 inches (274 x 274 cm)';
-  const prodSize = typeof prod?.size === 'string' && prod.size.trim() !== '' ? prod.size.trim() : 'King (108 × 108)';
+  const prodDimensions = typeof prod?.dimensions === 'string' && prod.dimensions.trim() !== '' ? prod.dimensions.trim() : '';
+  const prodSize = getProductSizeBadgeInfo(prod || {}).badgeLabel;
   const itemPrice = typeof prod?.price === 'number' && !isNaN(prod.price) && prod.price >= 0 ? prod.price : 0;
 
   const variant = (

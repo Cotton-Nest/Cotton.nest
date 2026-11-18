@@ -12,6 +12,7 @@ import {
   normalizeCustomPrice,
   sortProductsByStockAvailability,
   isProductOutOfStock,
+  getProductSizeBadgeInfo,
 } from './data/products';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
@@ -1494,12 +1495,17 @@ export default function App() {
               id: docSnap.id,
               name: String(data.name).trim(),
               collection: String(data.collection || 'Signature Collection'),
-              size: data.size || 'King',
+              size: typeof data.size === 'string' ? data.size.trim() : '',
+              sizes: Array.isArray((data as any).sizes)
+                ? (data as any).sizes
+                    .filter((s: unknown): s is string => typeof s === 'string' && s.trim().length > 0)
+                    .map((s: string) => s.trim())
+                : undefined,
               productType: data.productType || 'Bedsheet',
               brand: data.brand || 'Cotton Nest',
               price: cleanPrice,
               originalPrice: cleanOrigPrice,
-              dimensions: String(data.dimensions || '108 x 108 inches (274 x 274 cm)'),
+              dimensions: String(data.dimensions || ''),
               pillowCovers: String(data.pillowCovers || '2 Pillow Covers (45 x 70 cm)'),
               threadCount: String(data.threadCount || '350 Thread Count'),
               fabric: String(data.fabric || '100% Pure Percale Cotton'),
@@ -2331,12 +2337,9 @@ export default function App() {
       });
     }, 2000);
 
-    // Trigger subtle cart confirmation toast with item name & size added
-    const sizeText = product.size
-      ? product.size
-      : product.dimensions
-      ? (product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions)
-      : 'Standard Size';
+    // Trigger subtle cart confirmation toast with item name & saved bed-size category
+    const sizeInfo = getProductSizeBadgeInfo(product);
+    const sizeText = sizeInfo.badgeLabel;
 
     setCartToast({
       id: String(Date.now()),

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { BedsheetProduct, COMPANY_DETAILS, normalizeCustomPrice } from '../data/products';
+import { BedsheetProduct, COMPANY_DETAILS, normalizeCustomPrice, getProductSizeBadgeInfo } from '../data/products';
 import { SeasonalConfig, SeasonalItemDiscount } from '../data/seasonal';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { OptimizedPicture } from './OptimizedPicture';
@@ -19,7 +19,9 @@ import {
   Gift,
   Truck,
   CheckCircle2,
-  Percent
+  Percent,
+  BedDouble,
+  AlertTriangle
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { FestiveAnimationOverlay, FestiveType } from './FestiveAnimationOverlay';
@@ -548,23 +550,56 @@ export const SeasonalView: React.FC<SeasonalViewProps> = ({
                       )}
                     </div>
 
-                    {/* King Size Spec Tag - Top Right */}
-                    <div className="absolute top-3 right-3 z-10">
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-white/90 backdrop-blur-xs text-[#2C2420] border border-[#DEC89B] shadow-xs">
-                        108″×108″ King
-                      </span>
-                    </div>
+                    {/* Saved Bed-Size Tag - Top Right */}
+                    {(() => {
+                      const sizeInfo = getProductSizeBadgeInfo(product);
+                      return (
+                        <div className="absolute top-3 right-3 z-10">
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-white/90 backdrop-blur-xs text-[#2C2420] border border-[#DEC89B] shadow-xs">
+                            {sizeInfo.badgeLabel}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Card Details Body */}
                   <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                     <div>
+                      {/* Bed-Size Category Badge — Directly Below Product Image & Above Product Name */}
+                      {(() => {
+                        const sizeInfo = getProductSizeBadgeInfo(product);
+                        return (
+                          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                            {sizeInfo.hasSavedSize ? (
+                              <span
+                                data-testid="product-size-badge"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#FAF7F2] text-[#8C2E46] border border-[#DEC89B] text-[11px] font-bold tracking-wide shadow-2xs"
+                              >
+                                <BedDouble className="w-3 h-3 text-[#C29E57] shrink-0" />
+                                <span>{sizeInfo.badgeLabel}</span>
+                              </span>
+                            ) : (
+                              <span
+                                data-testid="product-size-badge"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[11px] font-bold tracking-wide"
+                              >
+                                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span>{sizeInfo.badgeLabel}</span>
+                              </span>
+                            )}
+                            <span className="text-[11px] text-[var(--color-text-secondary,#6B5D55)]">
+                              {product.threadCount || 'Pure Percale'}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
                       {/* Sub-header info */}
                       <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary,#6B5D55)] mb-1">
                         <span className="font-semibold uppercase tracking-wider text-[10px]" style={{ color: 'var(--color-accent, #C29E57)' }}>
                           {product.collection || 'Signature Combed Cotton'}
                         </span>
-                        <span className="text-[11px]">{product.threadCount || 'Pure Percale'}</span>
                       </div>
 
                       {/* Title */}

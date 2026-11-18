@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Trash2, CheckCircle2, ChevronLeft, ChevronRight, Package, Sparkles, ShoppingBag } from 'lucide-react';
-import { BedsheetProduct, BedsheetVariant } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, getProductSizeBadgeInfo } from '../data/products';
 import { resolveBedsheetImage, handleImageFallback, isVideoMedia } from '../utils/imageUrl';
 
 export interface HangerProductDetailModalProps {
@@ -37,8 +37,8 @@ export const HangerProductDetailModal: React.FC<HangerProductDetailModalProps> =
   const prodId = typeof prod?.id === 'string' ? prod.id : '';
   const prodName = typeof prod?.name === 'string' && prod.name.trim() !== '' ? prod.name.trim() : 'Handcrafted Bedsheet';
   const prodCollection = typeof prod?.collection === 'string' ? prod.collection : 'Cotton Nest Atelier';
-  const prodDimensions = typeof prod?.dimensions === 'string' && prod.dimensions.trim() !== '' ? prod.dimensions.trim() : '108 x 108 inches (274 x 274 cm)';
-  const prodSize = typeof prod?.size === 'string' && prod.size.trim() !== '' ? prod.size.trim() : 'King (108 × 108)';
+  const prodDimensions = typeof prod?.dimensions === 'string' && prod.dimensions.trim() !== '' ? prod.dimensions.trim() : '';
+  const prodSize = getProductSizeBadgeInfo(prod || {}).badgeLabel;
   const prodType = typeof prod?.productType === 'string' && prod.productType.trim() !== '' ? prod.productType.trim() : 'Bedsheet';
   const prodFabric = typeof prod?.fabric === 'string' ? prod.fabric : '100% Pure Combed Natural Cotton';
   const prodThreadCount = typeof prod?.threadCount === 'string' ? prod.threadCount : '350 Thread Count';

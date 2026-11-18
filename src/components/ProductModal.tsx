@@ -1,7 +1,7 @@
 import React from 'react';
-import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon, Maximize2 } from 'lucide-react';
+import { X, Check, MessageCircle, ShoppingBag, ShieldCheck, Truck, RotateCcw, Sparkles, Edit3, Save, ImageIcon, Cloud, Loader2, Star, ThumbsUp, Upload, Plus, Trash2, Tag, Copy, ArrowLeftRight, Bell, Play, Video, Film, Link as LinkIcon, Maximize2, BedDouble, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
-import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS, normalizeAvailabilityType, normalizeCustomPrice } from '../data/products';
+import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, STANDARD_PRODUCT_TYPES, STANDARD_SIZES, AVAILABILITY_OPTIONS, SIZE_NOT_SPECIFIED_LABEL, normalizeAvailabilityType, normalizeCustomPrice, getProductSizeBadgeInfo, hasSavedProductSize } from '../data/products';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage } from '../utils/imageUrl';
@@ -79,7 +79,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [editDescription, setEditDescription] = React.useState('');
   const [editBadge, setEditBadge] = React.useState('');
   const [editProductType, setEditProductType] = React.useState('Bedsheet');
-  const [editSize, setEditSize] = React.useState('King');
+  const [editSize, setEditSize] = React.useState('');
   const [editAvailabilityType, setEditAvailabilityType] = React.useState('none');
   const [editInStock, setEditInStock] = React.useState(true);
   const [editStockQuantity, setEditStockQuantity] = React.useState(10);
@@ -134,7 +134,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setEditDescription(product.description);
       setEditBadge(product.badge || '');
       setEditProductType(product.productType || 'Bedsheet');
-      setEditSize(product.size || 'King');
+      setEditSize(typeof product.size === 'string' ? product.size.trim() : '');
       setEditAvailabilityType(normalizeAvailabilityType(product.availabilityType));
       setEditInStock(product.inStock);
       setEditStockQuantity(product.stockQuantity ?? 10);
@@ -177,6 +177,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   const handleSaveToFirebase = async () => {
     if (!product) return;
+    if (!hasSavedProductSize({ size: editSize })) {
+      setSaveSuccessMessage(`⚠️ ${SIZE_NOT_SPECIFIED_LABEL}: Please select a bed size before saving.`);
+      setTimeout(() => setSaveSuccessMessage(null), 3500);
+      return;
+    }
     setIsSaving(true);
     setSaveSuccessMessage(null);
     try {
@@ -191,7 +196,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         description: editDescription.trim() || product.description,
         badge: editBadge.trim() ? editBadge.trim() : '',
         productType: editProductType || product.productType || 'Bedsheet',
-        size: editSize || product.size || 'King',
+        size: editSize.trim(),
         availabilityType: normalizeAvailabilityType(editAvailabilityType),
         inStock: editInStock,
         stockQuantity: Number(editStockQuantity),
@@ -977,17 +982,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold text-[#8C7A70] uppercase tracking-wider block mb-1">
-                      Size
+                      Size *
                     </label>
                     <select
                       value={editSize}
                       onChange={(e) => setEditSize(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-[#DEC89B] rounded-xl text-xs font-semibold text-[#2C2420] focus:outline-hidden focus:border-[#C29E57]"
+                      className={`w-full px-3 py-1.5 bg-white border rounded-xl text-xs font-semibold focus:outline-hidden ${
+                        hasSavedProductSize({ size: editSize })
+                          ? 'border-[#DEC89B] text-[#2C2420] focus:border-[#C29E57]'
+                          : 'border-amber-400 bg-amber-50 text-amber-900 focus:border-amber-600'
+                      }`}
                     >
+                      <option value="">⚠️ {SIZE_NOT_SPECIFIED_LABEL}</option>
                       {STANDARD_SIZES.filter((s) => s !== 'Other').map((s) => (
                         <option key={s} value={s}>{s}</option>
                       ))}
-                      {!STANDARD_SIZES.includes(editSize as any) && (
+                      {editSize && !STANDARD_SIZES.includes(editSize as any) && (
                         <option value={editSize}>{editSize}</option>
                       )}
                     </select>
@@ -1137,8 +1147,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             ) : (
               <>
                 <div className="space-y-4">
-              {/* Category & Collection */}
+              {/* Category, Bed-Size Badge & Collection */}
               <div className="flex items-center flex-wrap gap-2 text-xs font-semibold tracking-wider uppercase text-[#A8823B]">
+                {(() => {
+                  const modalSizeInfo = getProductSizeBadgeInfo(product);
+                  return modalSizeInfo.hasSavedSize ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#FAF7F2] text-[#8C2E46] border border-[#DEC89B] text-[11px] font-bold normal-case tracking-wide shadow-2xs">
+                      <BedDouble className="w-3 h-3 text-[#C29E57] shrink-0" />
+                      <span>{modalSizeInfo.badgeLabel}</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[11px] font-bold normal-case tracking-wide">
+                      <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                      <span>{modalSizeInfo.badgeLabel}</span>
+                    </span>
+                  );
+                })()}
                 <span>{product.collection}</span>
                 <span>·</span>
                 <span className={isOutOfStock ? "text-amber-800" : "text-[#3E7D5A]"}>

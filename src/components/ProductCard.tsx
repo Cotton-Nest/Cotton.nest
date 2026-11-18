@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell, Heart, Sparkles, Play, Video, Film } from 'lucide-react';
-import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, normalizeAvailabilityType } from '../data/products';
+import { ShoppingBag, Eye, MessageCircle, Check, Truck, RotateCcw, Star, ArrowLeftRight, Bell, Heart, Sparkles, Play, Video, Film, BedDouble, AlertTriangle } from 'lucide-react';
+import { BedsheetProduct, BedsheetVariant, COMPANY_DETAILS, normalizeAvailabilityType, getProductSizeBadgeInfo } from '../data/products';
 import { sendWhatsAppProductOrder } from '../utils/whatsappOrder';
 import { resolveBedsheetImage } from '../utils/imageUrl';
 import { OptimizedPicture } from './OptimizedPicture';
@@ -53,6 +53,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const ratingSummary = getProductRatingSummary(product.id, reviews);
+  const sizeInfo = getProductSizeBadgeInfo(product);
 
   React.useEffect(() => {
     setSelectedVariantId(null);
@@ -306,13 +307,47 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         }`}
       >
         <div>
-          {/* Collection & Fabric specs */}
-          <div className="flex items-center justify-between text-xs text-[#7A6458] mb-1.5 font-medium tracking-wide">
-            <span className="uppercase text-[10px] sm:text-[11px] text-[var(--color-accent,#A8823B)] font-bold truncate max-w-[140px] sm:max-w-none">
-              {product.collection || 'Signature Cotton'}
+          {/* Bed-Size Category Badge — Directly Below Product Image & Above Product Name */}
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            {sizeInfo.hasSavedSize ? (
+              <div className="inline-flex items-center gap-1.5 flex-wrap">
+                <span
+                  data-testid="product-size-badge"
+                  title={sizeInfo.isMultiple ? `Available Sizes: ${sizeInfo.allSizesText}` : `Bed Size: ${sizeInfo.badgeLabel}`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#FAF7F2] text-[#8C2E46] border border-[#DEC89B] text-[11px] font-bold tracking-wide shadow-2xs"
+                >
+                  <BedDouble className="w-3 h-3 text-[#C29E57] shrink-0" />
+                  <span>{sizeInfo.badgeLabel}</span>
+                </span>
+                {sizeInfo.isMultiple && sizeInfo.categories.length > 2 && (
+                  <span className="text-[10px] font-semibold text-[#7A6458] bg-[#FAF7F2]/80 px-2 py-0.5 rounded border border-[#EAE2D5]">
+                    {sizeInfo.allSizesText}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span
+                data-testid="product-size-badge"
+                title="Size Not Specified in Firestore"
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[11px] font-bold tracking-wide"
+              >
+                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                <span>{sizeInfo.badgeLabel}</span>
+              </span>
+            )}
+
+            <span className="text-[10px] sm:text-[11px] text-[#6B5D55] font-medium shrink-0 ml-auto">
+              {product.threadCount || '300 TC'}
+              {product.dimensions
+                ? ` · ${product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions}`
+                : ''}
             </span>
-            <span className="text-[10px] sm:text-[11px] text-[#6B5D55] shrink-0">
-              {product.threadCount || '300 TC'} · {product.dimensions ? (product.dimensions.includes('(') ? product.dimensions.split('(')[0].trim() : product.dimensions) : '108 x 108 in'}
+          </div>
+
+          {/* Collection Label */}
+          <div className="flex items-center justify-between text-xs text-[#7A6458] mb-1 font-medium tracking-wide">
+            <span className="uppercase text-[10px] sm:text-[11px] text-[var(--color-accent,#A8823B)] font-bold truncate max-w-[180px] sm:max-w-none">
+              {product.collection || 'Signature Cotton'}
             </span>
           </div>
 

@@ -32,7 +32,8 @@ export interface BedsheetProduct {
   order?: number;
   updatedAt?: number;
   cloudinaryPublicId?: string;
-  size?: string;        // 'Single' | 'Double' | 'Queen' | 'King' | 'Super King' | custom size
+  size?: string;        // 'Single Bed' | 'Double Bed' | 'Queen Size' | 'King Size' | 'Super King' | custom size
+  sizes?: string[];     // Optional multiple available sizes saved in Firestore
   productType?: string; // 'Bedsheet' | 'Blanket' | 'Comforter' | custom type
   brand?: string;       // 'Cotton Nest' | 'Swayam' | 'Spaces' | etc. (Admin & Filter only, never shown on cards/details)
   availabilityType?: 'none' | 'atelier_touch' | 'on_order' | 'standard' | string; // 'none' (Blank) | 'atelier_touch' | 'on_order'
@@ -116,8 +117,341 @@ export function normalizeCustomPrice(val: any, fallback: number = 0): number {
   return fallback;
 }
 
-export const STANDARD_SIZES = ['Single', 'Double', 'Queen', 'King (100 × 108)', 'Super King (108 × 108)', 'Other'] as const;
+export const SIZE_NOT_SPECIFIED_LABEL = 'Size Not Specified';
+export const MULTIPLE_SIZES_LABEL = 'Multiple Sizes';
+
+export const CANONICAL_BED_SIZE_CATEGORIES = [
+  'Single Bed',
+  'Double Bed',
+  'Queen Size',
+  'King Size',
+  'Super King',
+] as const;
+
+export const STANDARD_SIZES = [
+  'Single Bed',
+  'Double Bed',
+  'Queen Size',
+  'King Size',
+  'Super King',
+  'Multiple Sizes',
+  'Other',
+] as const;
 export type StandardSize = (typeof STANDARD_SIZES)[number];
+
+/**
+ * Normalizes a single saved bed-size string from Firestore into a clean, canonical
+ * display category (e.g. "Single Bed", "Double Bed", "Queen Size", "King Size", "Super King").
+ * IMPORTANT: Never infers or guesses size from product dimensions, product name, or image URLs.
+ */
+export function normalizeSingleBedSizeCategory(rawSize?: string | null): string {
+  if (!rawSize || typeof rawSize !== 'string') return '';
+  const trimmed = rawSize.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+
+  if (
+    lower === 'size not specified' ||
+    lower === 'not specified' ||
+    lower === 'unspecified' ||
+    lower === 'none' ||
+    lower === 'n/a' ||
+    lower === 'na' ||
+    lower === 'null' ||
+    lower === 'undefined' ||
+    lower === 'other' ||
+    lower === 'custom size'
+  ) {
+    return '';
+  }
+
+  if (lower === 'multiple sizes' || lower === 'multi size' || lower === 'multi-size' || lower === 'all sizes') {
+    return MULTIPLE_SIZES_LABEL;
+  }
+
+  // Super King
+  if (lower.startsWith('super king') || lower.startsWith('super-king')) {
+    return 'Super King';
+  }
+
+  // King XL vs Standard King
+  if (
+    lower.startsWith('king xl') ||
+    lower.startsWith('king size xl') ||
+    lower.startsWith('king-xl') ||
+    lower.startsWith('king (120') ||
+    lower.startsWith('king size (120')
+  ) {
+    return 'King Size XL';
+  }
+  if (
+    lower === 'king' ||
+    lower === 'king size' ||
+    lower === 'king bed' ||
+    lower.startsWith('king (') ||
+    lower.startsWith('king size (') ||
+    lower.startsWith('king bed (')
+  ) {
+    return 'King Size';
+  }
+
+  // Queen XL vs Standard Queen
+  if (
+    lower.startsWith('queen xl') ||
+    lower.startsWith('queen size xl') ||
+    lower.startsWith('queen-xl') ||
+    lower.startsWith('queen (90 × 108') ||
+    lower.startsWith('queen (90 x 108')
+  ) {
+    return 'Queen Size XL';
+  }
+  if (
+    lower === 'queen' ||
+    lower === 'queen size' ||
+    lower === 'queen bed' ||
+    lower.startsWith('queen (') ||
+    lower.startsWith('queen size (') ||
+    lower.startsWith('queen bed (')
+  ) {
+    return 'Queen Size';
+  }
+
+  // Double Bed
+  if (
+    lower === 'double' ||
+    lower === 'double bed' ||
+    lower === 'double size' ||
+    lower.startsWith('double (') ||
+    lower.startsWith('double bed (') ||
+    lower.startsWith('double size (')
+  ) {
+    return 'Double Bed';
+  }
+
+  // Single XL vs Standard Single Bed
+  if (
+    lower.startsWith('single xl') ||
+    lower.startsWith('single size xl') ||
+    lower.startsWith('single-xl') ||
+    lower.startsWith('single (60 × 100') ||
+    lower.startsWith('single (60 x 100')
+  ) {
+    return 'Single XL';
+  }
+  if (
+    lower === 'single' ||
+    lower === 'single bed' ||
+    lower === 'single size' ||
+    lower.startsWith('single (') ||
+    lower.startsWith('single bed (') ||
+    lower.startsWith('single size (')
+  ) {
+    return 'Single Bed';
+  }
+
+  // Diwan
+  if (lower.startsWith('diwan xl')) {
+    return 'Diwan XL';
+  }
+  if (
+    lower === 'diwan' ||
+    lower === 'diwan size' ||
+    lower === 'diwan bed' ||
+    lower.startsWith('diwan (') ||
+    lower.startsWith('diwan size (')
+  ) {
+    return 'Diwan Size';
+  }
+
+  // Baby Cot
+  if (lower === 'baby cot' || lower.startsWith('baby cot (')) {
+    return 'Baby Cot';
+  }
+
+  return trimmed;
+}
+
+/**
+ * Splits a raw size string into individual size tokens when multiple sizes are
+ * delimited by ',', '/', '|', ';', or '+' outside of parentheses.
+ */
+export function splitRawSizeTokens(raw?: string | null): string[] {
+  if (!raw || typeof raw !== 'string') return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  const tokens: string[] = [];
+  let current = '';
+  let parenDepth = 0;
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (ch === '(') {
+      parenDepth++;
+      current += ch;
+    } else if (ch === ')') {
+      parenDepth = Math.max(0, parenDepth - 1);
+      current += ch;
+    } else if (parenDepth === 0 && (ch === ',' || ch === '/' || ch === '|' || ch === ';' || ch === '+')) {
+      if (current.trim()) tokens.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) {
+    tokens.push(current.trim());
+  }
+  return tokens;
+}
+
+/**
+ * Extracts all normalized bed-size categories saved on a product in Firestore
+ * (`product.sizes` array and/or `product.size` string).
+ * Never derives size from product dimensions, product name, or images.
+ */
+export function getProductNormalizedSizes(
+  product?: { size?: string | null; sizes?: string[] | null } | null
+): string[] {
+  if (!product) return [];
+
+  const rawTokens: string[] = [];
+  if (Array.isArray(product.sizes)) {
+    for (const entry of product.sizes) {
+      if (typeof entry === 'string' && entry.trim()) {
+        rawTokens.push(...splitRawSizeTokens(entry));
+      }
+    }
+  }
+  if (typeof product.size === 'string' && product.size.trim()) {
+    rawTokens.push(...splitRawSizeTokens(product.size));
+  }
+
+  const normalized: string[] = [];
+  for (const token of rawTokens) {
+    const norm = normalizeSingleBedSizeCategory(token);
+    if (!norm) continue;
+    if (!normalized.some((existing) => existing.toLowerCase() === norm.toLowerCase())) {
+      normalized.push(norm);
+    }
+  }
+
+  // If concrete sizes exist alongside a generic "Multiple Sizes" marker, keep the concrete sizes
+  if (normalized.length > 1) {
+    const concreteOnly = normalized.filter((s) => s !== MULTIPLE_SIZES_LABEL);
+    if (concreteOnly.length > 0) {
+      return concreteOnly;
+    }
+  }
+
+  return normalized;
+}
+
+/**
+ * Checks whether a product has an actual saved bed size in Firestore.
+ */
+export function hasSavedProductSize(
+  product?: { size?: string | null; sizes?: string[] | null } | null
+): boolean {
+  return getProductNormalizedSizes(product).length > 0;
+}
+
+export interface ProductSizeBadgeInfo {
+  hasSavedSize: boolean;
+  isMultiple: boolean;
+  categories: string[];
+  badgeLabel: string;
+  allSizesText: string;
+}
+
+/**
+ * Computes the authoritative bed-size badge information for a product card.
+ * - Single saved size -> e.g. "Single Bed", "Double Bed", "Queen Size", "King Size", "Super King"
+ * - Multiple saved sizes -> e.g. "Single Bed · Double Bed" (or "Multiple Sizes: ..." when >2)
+ * - No saved size -> "Size Not Specified" (never invents a fallback size)
+ */
+export function getProductSizeBadgeInfo(
+  product?: { size?: string | null; sizes?: string[] | null } | null
+): ProductSizeBadgeInfo {
+  const categories = getProductNormalizedSizes(product);
+
+  if (categories.length === 0) {
+    return {
+      hasSavedSize: false,
+      isMultiple: false,
+      categories: [],
+      badgeLabel: SIZE_NOT_SPECIFIED_LABEL,
+      allSizesText: SIZE_NOT_SPECIFIED_LABEL,
+    };
+  }
+
+  if (categories.length === 1) {
+    const single = categories[0];
+    const isMultiLiteral = single === MULTIPLE_SIZES_LABEL;
+    return {
+      hasSavedSize: true,
+      isMultiple: isMultiLiteral,
+      categories,
+      badgeLabel: single,
+      allSizesText: single,
+    };
+  }
+
+  const joined = categories.join(' · ');
+  return {
+    hasSavedSize: true,
+    isMultiple: true,
+    categories,
+    badgeLabel: categories.length <= 2 ? joined : `${MULTIPLE_SIZES_LABEL} (${categories.join(', ')})`,
+    allSizesText: joined,
+  };
+}
+
+/**
+ * Authoritative size filter matcher used by CatalogueView and filter counts.
+ * Uses strictly the product's saved Firestore size field (`size` / `sizes`)
+ * so the Size filter always matches the size badge displayed on the product card.
+ */
+export function doesProductMatchSizeFilter(
+  product: { size?: string | null; sizes?: string[] | null } | null | undefined,
+  filterLabel: string
+): boolean {
+  if (!product || !filterLabel) return false;
+  const trimmedFilter = filterLabel.trim();
+  if (!trimmedFilter) return false;
+
+  const categories = getProductNormalizedSizes(product);
+
+  if (trimmedFilter.toLowerCase() === SIZE_NOT_SPECIFIED_LABEL.toLowerCase()) {
+    return categories.length === 0;
+  }
+
+  const normalizedFilter = normalizeSingleBedSizeCategory(trimmedFilter);
+  if (!normalizedFilter) return false;
+
+  if (normalizedFilter === MULTIPLE_SIZES_LABEL) {
+    return categories.length > 1 || categories.includes(MULTIPLE_SIZES_LABEL);
+  }
+
+  return categories.some((cat) => cat.toLowerCase() === normalizedFilter.toLowerCase());
+}
+
+/**
+ * Maps a product's saved size to the Admin Panel select dropdown value.
+ * Returns '' when the product has no saved size so Admin Panel displays "Size Not Specified".
+ */
+export function getAdminSizeSelectValue(
+  product?: { size?: string | null; sizes?: string[] | null } | null
+): string {
+  const info = getProductSizeBadgeInfo(product);
+  if (!info.hasSavedSize) return '';
+  if (info.isMultiple) return MULTIPLE_SIZES_LABEL;
+  const primary = info.categories[0];
+  if ((CANONICAL_BED_SIZE_CATEGORIES as readonly string[]).includes(primary)) {
+    return primary;
+  }
+  return 'Other';
+}
 
 export const STANDARD_PRODUCT_TYPES = [
   'Bedsheet',
