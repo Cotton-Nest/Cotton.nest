@@ -71,6 +71,17 @@ import {
   CustomerBirthdayProfile,
   BirthdayRewardEvaluationResult,
 } from '../data/birthdayRewards';
+import {
+  REFERRAL_CARD_DESCRIPTION,
+  REFERRAL_APPLY_BUTTON_LABEL,
+  REFERRAL_APPLIED_SUCCESS_MESSAGE,
+  REFERRAL_MIN_ORDER_SUBTOTAL_INR,
+  REFERRAL_REWARD_POINTS_EACH,
+  REFERRAL_REWARD_INR_VALUE_EACH,
+  ReferralLifecycleStatus,
+  buildWhatsAppReferralShareUrl,
+  getReferralStatusBadgeMeta,
+} from '../data/referrals';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
 import { PincodeAddressFields } from './PincodeAddressFields';
 import { isValidIndianPincodeFormat, sanitizePincodeInput } from '../services/pincodeLookup';
@@ -119,12 +130,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
     referralPointsEarned,
     referralCode,
     referredByCode,
+    referralSummary,
     nextExpiryTimestamp,
     preferRedeemAtCheckout,
     setPreferRedeemAtCheckout,
     claimReferralReward,
     transactions,
     refreshLoyalty,
+    refreshReferrals,
     loadTransactions,
   } = useLoyalty();
 
@@ -1648,6 +1661,291 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* SECTION 2B: REFERRAL REWARDS & INVITE FRIENDS (Preserved & Upgraded with Status Tracking) */}
+              {(() => {
+                const appliedRef = referralSummary?.appliedReferral || null;
+                const referralsMade = referralSummary?.referralsMadeByMe || [];
+                const pendingReferralPoints = referralSummary?.pendingRewardsPoints || 0;
+                const earnedReferralPoints = Math.max(
+                  referralPointsEarned,
+                  referralSummary?.earnedRewardsPoints || 0
+                );
+                const successfulReferralsCount = referralSummary?.successfulReferralsCount || 0;
+
+                const getBadgeClasses = (tone: 'gold' | 'amber' | 'emerald' | 'rose' | 'stone') => {
+                  switch (tone) {
+                    case 'emerald':
+                      return 'bg-emerald-100 text-emerald-900 border-emerald-300';
+                    case 'amber':
+                      return 'bg-amber-100 text-amber-900 border-amber-300';
+                    case 'rose':
+                      return 'bg-rose-100 text-rose-800 border-rose-300';
+                    case 'stone':
+                      return 'bg-stone-100 text-stone-700 border-stone-300';
+                    case 'gold':
+                    default:
+                      return 'bg-[#FAF7F2] text-[#70252D] border-[#DEC89B]';
+                  }
+                };
+
+                const appliedStatus: ReferralLifecycleStatus | null = appliedRef
+                  ? appliedRef.status
+                  : referredByCode
+                  ? 'reward_earned'
+                  : null;
+                const appliedBadgeMeta = appliedStatus ? getReferralStatusBadgeMeta(appliedStatus) : null;
+
+                return (
+                  <div
+                    data-testid="referral-rewards-card"
+                    className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#FAF7F2] via-white to-[#F5EFE6] border border-[#DEC89B] shadow-2xs space-y-4"
+                  >
+                    <div className="flex items-start justify-between flex-wrap gap-2">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-[#70252D] uppercase tracking-wider flex items-center gap-1.5">
+                            <Gift className="w-4 h-4 text-[#8C2E46]" />
+                            6. Referral Rewards — Invite Friends
+                          </span>
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#FDEAF0] text-[#8C2E46] border border-[#FAD1DC]">
+                            +{REFERRAL_REWARD_POINTS_EACH} Pts (₹{REFERRAL_REWARD_INR_VALUE_EACH}) Each
+                          </span>
+                        </div>
+                        <p
+                          data-testid="referral-card-description"
+                          className="text-xs text-[#5C4C42] leading-relaxed max-w-2xl"
+                        >
+                          {REFERRAL_CARD_DESCRIPTION}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Personal Referral Code + Copy Code + Share on WhatsApp */}
+                    <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#DEC89B] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                          Your Personal Referral Code
+                        </span>
+                        <span
+                          data-testid="personal-referral-code"
+                          className="font-mono text-base sm:text-lg font-extrabold tracking-widest text-[#70252D] mt-0.5 block"
+                        >
+                          {referralCode}
+                        </span>
+                        <span className="text-[10px] text-[#7A6458] block mt-0.5">
+                          Qualifying first order: ₹{REFERRAL_MIN_ORDER_SUBTOTAL_INR.toLocaleString('en-IN')}+ product subtotal (excluding delivery)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap shrink-0">
+                        <button
+                          type="button"
+                          data-testid="copy-referral-code-btn"
+                          onClick={handleCopyReferralCode}
+                          className="px-3.5 py-2 rounded-xl bg-[#FAF7F2] hover:bg-amber-50 text-[#70252D] border border-[#DEC89B] text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                        >
+                          {copiedReferral ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-700" />
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy Code</span>
+                            </>
+                          )}
+                        </button>
+
+                        <a
+                          href={buildWhatsAppReferralShareUrl(referralCode)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-testid="whatsapp-referral-share-btn"
+                          className="px-3.5 py-2 rounded-xl bg-[#8C2E46] hover:bg-[#70252D] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Share on WhatsApp</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Section 4: Referral Status Tracking Metrics (Pending Rewards, Earned Rewards, Successful Referrals) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      <div
+                        data-testid="referral-pending-rewards-box"
+                        className="p-3 bg-white rounded-xl border border-[#EAE2D5]"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                          Pending Rewards
+                        </span>
+                        <span className="text-lg font-extrabold font-mono text-amber-800 mt-0.5 block">
+                          {pendingReferralPoints} pts
+                        </span>
+                        <span className="text-[10px] text-[#7A6458] block">
+                          ₹{calculatePointsDiscount(pendingReferralPoints)} value · Awaiting delivery &amp; payment
+                        </span>
+                      </div>
+
+                      <div
+                        data-testid="referral-earned-rewards-box"
+                        className="p-3 bg-white rounded-xl border border-[#EAE2D5]"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                          Earned Rewards
+                        </span>
+                        <span className="text-lg font-extrabold font-mono text-emerald-800 mt-0.5 block">
+                          +{earnedReferralPoints} pts
+                        </span>
+                        <span className="text-[10px] text-[#7A6458] block">
+                          ₹{calculatePointsDiscount(earnedReferralPoints)} redemption value credited
+                        </span>
+                      </div>
+
+                      <div
+                        data-testid="referral-successful-count-box"
+                        className="p-3 bg-white rounded-xl border border-[#EAE2D5]"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A6458] block">
+                          Successful Referrals
+                        </span>
+                        <span className="text-lg font-extrabold font-mono text-[#70252D] mt-0.5 block">
+                          {successfulReferralsCount}
+                        </span>
+                        <span className="text-[10px] text-[#7A6458] block">
+                          Delivered &amp; paid referral orders
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Apply a Friend's Referral Code OR Display Applied Referral Lifecycle Status */}
+                    <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#EAE2D5] space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-xs font-bold text-[#2C2420]">
+                          Have a Friend&apos;s Referral Code?
+                        </span>
+                        {appliedBadgeMeta && (
+                          <span
+                            data-testid="applied-referral-status-badge"
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${getBadgeClasses(
+                              appliedBadgeMeta.tone
+                            )}`}
+                          >
+                            {appliedBadgeMeta.label}
+                          </span>
+                        )}
+                      </div>
+
+                      {!appliedRef && !referredByCode ? (
+                        <form onSubmit={handleClaimReferral} className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="text"
+                            data-testid="referral-code-input"
+                            value={friendReferralInput}
+                            onChange={(e) => setFriendReferralInput(e.target.value.toUpperCase())}
+                            placeholder="Enter friend's referral code (e.g. NEST-ABCD123)"
+                            className="flex-1 px-3.5 py-2 rounded-xl bg-[#FAF7F2] border border-[#DEC89B] text-xs font-mono uppercase text-[#2C2420] focus:outline-none focus:border-[#8C2E46]"
+                          />
+                          <button
+                            type="submit"
+                            data-testid="apply-referral-code-btn"
+                            disabled={claimingReferral || !friendReferralInput.trim()}
+                            className="px-4 py-2 rounded-xl bg-[#8C2E46] hover:bg-[#70252D] text-white text-xs font-bold cursor-pointer disabled:opacity-50 transition-colors shrink-0"
+                          >
+                            {claimingReferral ? 'Applying...' : REFERRAL_APPLY_BUTTON_LABEL}
+                          </button>
+                        </form>
+                      ) : (
+                        <div
+                          data-testid="applied-referral-summary"
+                          className="p-3 rounded-xl bg-[#FAF7F2] border border-[#DEC89B] space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="text-xs font-semibold text-[#2C2420]">
+                              Applied Referral Code:{' '}
+                              <strong className="font-mono text-[#70252D]">
+                                {appliedRef?.referralCode || referredByCode}
+                              </strong>
+                            </span>
+                            {appliedRef?.qualifyingOrderId && (
+                              <span className="text-[11px] font-mono text-[#7A6458]">
+                                Order #{appliedRef.qualifyingOrderId}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[#5C4C42]">
+                            {appliedStatus === 'code_applied' || appliedStatus === 'order_pending'
+                              ? REFERRAL_APPLIED_SUCCESS_MESSAGE
+                              : appliedBadgeMeta?.description}
+                          </p>
+                          {appliedRef?.ineligibleReason && (
+                            <p className="text-[11px] text-rose-700 font-medium">
+                              Note: {appliedRef.ineligibleReason}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {referralStatus && (
+                        <div
+                          data-testid="referral-feedback-message"
+                          className={`p-3 rounded-xl text-xs font-semibold border ${
+                            referralStatus.type === 'success'
+                              ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                              : 'bg-rose-50 text-rose-800 border-rose-200'
+                          }`}
+                        >
+                          {referralStatus.message}
+                        </div>
+                      )}
+
+                      {/* List of Friends Invited by This Customer (if any) */}
+                      {referralsMade.length > 0 && (
+                        <div className="pt-2.5 border-t border-[#EAE2D5] space-y-2">
+                          <span className="text-[11px] font-bold text-[#70252D] uppercase tracking-wider block">
+                            Friends Using Your Referral Code ({referralsMade.length})
+                          </span>
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                            {referralsMade.map((rec) => {
+                              const badge = getReferralStatusBadgeMeta(rec.status);
+                              return (
+                                <div
+                                  key={rec.id}
+                                  className="px-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#EAE2D5] flex items-center justify-between flex-wrap gap-2 text-xs"
+                                >
+                                  <div>
+                                    <span className="font-semibold text-[#2C2420]">
+                                      {rec.referredName || 'Cotton Nest Friend'}
+                                    </span>
+                                    <span className="text-[10px] text-[#7A6458] block">
+                                      {badge.description}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {rec.status === 'reward_earned' && (
+                                      <span className="font-mono font-bold text-emerald-800 text-xs">
+                                        +{rec.referrerPointsAwarded || REFERRAL_REWARD_POINTS_EACH} pts
+                                      </span>
+                                    )}
+                                    <span
+                                      className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full border ${getBadgeClasses(
+                                        badge.tone
+                                      )}`}
+                                    >
+                                      {badge.label}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* SECTION 3: AVAILABLE COUPONS (Reusing Existing Functionality + Active Birthday Coupon) */}
               <div className="p-4 sm:p-5 bg-white rounded-2xl border border-[#EAE2D5] space-y-3 shadow-2xs">

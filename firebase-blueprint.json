@@ -346,6 +346,53 @@
         "createdAt": { "type": "number", "description": "Epoch timestamp" }
       },
       "required": ["id", "uid", "year", "birthdayMonth", "action", "createdAt"]
+    },
+    "ReferralRewardsConfig": {
+      "title": "ReferralRewardsConfig",
+      "description": "Configuration for the Cotton Nest Referral Rewards system (default 100 Nest Points each on first eligible order of ₹1,299+).",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Whether future referral rewards are enabled" },
+        "rewardPointsReferrer": { "type": "number", "description": "Nest Points credited to referrer after delivery and payment (default 100)" },
+        "rewardPointsReferred": { "type": "number", "description": "Nest Points credited to referred friend after delivery and payment (default 100)" },
+        "minOrderSubtotalInr": { "type": "number", "description": "Minimum qualifying product subtotal in INR excluding delivery (default 1299)" },
+        "updatedAt": { "type": "number", "description": "Last configuration update timestamp" },
+        "updatedBy": { "type": "string", "description": "Admin identifier who updated configuration" }
+      },
+      "required": ["enabled", "rewardPointsReferrer", "rewardPointsReferred", "minOrderSubtotalInr", "updatedAt"]
+    },
+    "ReferralRecord": {
+      "title": "ReferralRecord",
+      "description": "Tracks a customer referral claim keyed by the referred customer's Firebase UID, linking them to the referrer and tracking order delivery qualification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Referred customer Firebase UID" },
+        "referredUid": { "type": "string", "description": "Referred customer Firebase UID" },
+        "referredAccountId": { "type": "string", "description": "Referred customer loyalty account ID" },
+        "referredEmail": { "type": "string", "description": "Optional referred customer email" },
+        "referredPhone": { "type": "string", "description": "Optional referred customer phone" },
+        "referredName": { "type": "string", "description": "Optional referred customer name" },
+        "referralCode": { "type": "string", "description": "Referrer personal code applied (e.g. NEST-XXXX123)" },
+        "referrerUid": { "type": "string", "description": "Referrer Firebase UID if available" },
+        "referrerAccountId": { "type": "string", "description": "Referrer loyalty account ID" },
+        "referrerName": { "type": "string", "description": "Optional referrer display name" },
+        "status": { "type": "string", "enum": ["code_applied", "order_pending", "reward_earned", "cancelled", "expired_ineligible"], "description": "Current referral lifecycle status" },
+        "statusReason": { "type": "string", "description": "Human-readable status explanation" },
+        "qualifyingOrderId": { "type": "string", "description": "Order ID of the referred customer's first qualifying purchase" },
+        "qualifyingOrderSubtotal": { "type": "number", "description": "Product subtotal of the qualifying order excluding delivery" },
+        "referrerPointsAwarded": { "type": "number", "description": "Nest Points credited to referrer upon delivery" },
+        "referredPointsAwarded": { "type": "number", "description": "Nest Points credited to referred customer upon delivery" },
+        "rewardCredited": { "type": "boolean", "description": "Whether referral points have been credited after delivery and payment" },
+        "rewardCreditedAt": { "type": "number", "description": "Timestamp when referral points were credited" },
+        "rewardReversed": { "type": "boolean", "description": "Whether credited points were reversed due to full order refund" },
+        "rewardReversedAt": { "type": "number", "description": "Timestamp when points were reversed" },
+        "rewardReversedOrderId": { "type": "string", "description": "Refunded order ID" },
+        "referrerTxId": { "type": "string", "description": "Ledger transaction ID for referrer credit" },
+        "referredTxId": { "type": "string", "description": "Ledger transaction ID for referred customer credit" },
+        "appliedAt": { "type": "number", "description": "Timestamp when referral code was applied" },
+        "updatedAt": { "type": "number", "description": "Timestamp of last status update" }
+      },
+      "required": ["id", "referredUid", "referredAccountId", "referralCode", "referrerAccountId", "status", "rewardCredited", "appliedAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -420,6 +467,14 @@
     "/birthday_reward_transactions/{txId}": {
       "schema": "BirthdayRewardTransaction",
       "description": "Minimal audit trail for birthday reward issuance, redemption, reversal, and correction requests"
+    },
+    "/referral_rewards_config/{docId}": {
+      "schema": "ReferralRewardsConfig",
+      "description": "Cotton Nest Referral Rewards global configuration"
+    },
+    "/referrals/{referredUid}": {
+      "schema": "ReferralRecord",
+      "description": "Per-customer referral registration, order qualification, and reward credit records keyed by referred customer UID"
     }
   }
 }

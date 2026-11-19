@@ -5089,6 +5089,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     dispatched: { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
                     delivered: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
                     cancelled: { bg: 'bg-gray-200', text: 'text-gray-700', border: 'border-gray-300' },
+                    refunded: { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-300' },
                   };
 
                   const safeStatus: OrderStatus = order.status && statusColors[order.status] ? order.status : 'pending';
@@ -5178,6 +5179,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <option value="dispatched">Dispatched</option>
                             <option value="delivered">Delivered</option>
                             <option value="cancelled">Cancelled</option>
+                            <option value="refunded">Refunded</option>
                           </select>
 
                           <button

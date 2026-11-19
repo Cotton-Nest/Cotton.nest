@@ -46,6 +46,13 @@ import {
   isBirthdayCouponCodeFormat,
   validateBirthdayCouponForCheckout,
 } from '../data/birthdayRewards';
+import {
+  isReferralCodeFormat,
+  evaluateReferralCheckoutCompatibility,
+  REFERRAL_REWARD_POINTS_EACH,
+  REFERRAL_REWARD_INR_VALUE_EACH,
+  REFERRAL_MIN_ORDER_SUBTOTAL_INR,
+} from '../data/referrals';
 import { SavedAddress, getSavedAddresses, saveAddressToBook, deleteSavedAddress, formatFullAddress } from '../data/addresses';
 import { CustomerProfile, saveCurrentCustomerProfile } from '../data/wishlist';
 import { InvoiceModal, buildOrderGmailUrl } from './InvoiceModal';
@@ -183,6 +190,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     openLoyaltyModal,
     preferRedeemAtCheckout,
     setPreferRedeemAtCheckout,
+    referralSummary,
+    claimReferralReward,
   } = useLoyalty();
   const [checkoutStep, setCheckoutStep] = React.useState<'cart' | 'checkout' | 'success'>('cart');
   const [customerName, setCustomerName] = React.useState('');
@@ -628,6 +637,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const pointsToEarn = checkoutBreakdown.pointsEarned; // Strictly 0 when Welcome Offer is applied
   const totalSavings = Number((catalogSavings + checkoutBreakdown.totalDiscount).toFixed(2));
 
+  // Section 6: Evaluate Referral Rewards checkout compatibility (never silently remove an applied discount)
+  const referralCompatibility = React.useMemo(() => {
+    return evaluateReferralCheckoutCompatibility({
+      referralRecord: referralSummary?.appliedReferral || null,
+      productSubtotal: subtotal,
+      welcomeOfferApplied: isWelcomeOfferApplied,
+      pointsRedeemed: pointsToRedeem,
+      customerOrders: orders,
+    });
+  }, [referralSummary?.appliedReferral, subtotal, isWelcomeOfferApplied, pointsToRedeem, orders]);
+
   // Handlers for switching between Welcome Offer and Nest Points (Mutually Exclusive)
   const handleSelectWelcomeOffer = () => {
     setUserHasManuallySelectedBenefit(true);
@@ -776,6 +796,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     setCouponError(null);
 
     try {
+      // Section 6: Referral codes are reward-earning codes, not immediate price discount coupons
+      if (isReferralCodeFormat(targetCode)) {
+        const res = await claimReferralReward(targetCode, customerPhone.trim() || user?.phone);
+        if (res.success) {
+          setCouponSuccessMessage(
+            `✓ Referral code ${targetCode} registered! Referral codes earn +${REFERRAL_REWARD_POINTS_EACH} Nest Points (₹${REFERRAL_REWARD_INR_VALUE_EACH}) each after delivery & payment (not an immediate price discount).`
+          );
+          setCouponError(null);
+          setCouponCodeInput('');
+        } else {
+          setCouponError(
+            `${res.message} (Note: Referral codes earn +${REFERRAL_REWARD_POINTS_EACH} Nest Points after delivery rather than reducing the immediate checkout total.)`
+          );
+          setCouponSuccessMessage(null);
+        }
+        return;
+      }
+
       const result = await validateCouponApi(
         targetCode,
         validItems,
@@ -984,6 +1022,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       pointsDiscount: !isWelcomeOfferApplied && effectivePointsDiscount > 0 ? effectivePointsDiscount : 0,
       pointsEarned: isWelcomeOfferApplied ? 0 : pointsToEarn,
       pointsCredited: false,
+      referralCodeApplied: referralCompatibility.hasActivePendingReferral
+        ? referralSummary?.appliedReferral?.referralCode
+        : undefined,
+      referralQualifyingOrder: referralCompatibility.hasActivePendingReferral
+        ? referralCompatibility.qualifiesForThisOrder
+        : undefined,
       items: validItems.map((i) => {
         const pName = i?.product?.name || 'Handcrafted Bedsheet';
         const vName = i?.selectedVariant?.name;
@@ -1685,6 +1729,75 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         </div>
                       </>
                     )}
+                  </div>
+                )}
+
+                {/* Section 6: Referral Reward Checkout Compatibility & Conflict Choice Banner */}
+                {referralCompatibility.hasActivePendingReferral && referralCompatibility.isFirstOrder && (
+                  <div className="pt-2 border-t border-[#EAE2D5]">
+                    {referralCompatibility.hasDiscountConflict ? (
+                      <div
+                        data-testid="referral-checkout-conflict-banner"
+                        className="p-3 rounded-xl bg-amber-50 border border-amber-300 space-y-2 text-xs"
+                      >
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-800 shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <p className="font-bold text-amber-950">
+                              Referral Code ({referralSummary?.appliedReferral?.referralCode}) vs. Active Checkout Discount
+                            </p>
+                            <p className="text-[11px] text-amber-900 leading-relaxed">
+                              {referralCompatibility.statusMessage}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            data-testid="referral-switch-to-qualify-btn"
+                            onClick={() => {
+                              if (isWelcomeOfferApplied) {
+                                handleRemoveWelcomeOffer();
+                              }
+                              if (useLoyaltyPoints) {
+                                handleSelectNestPointsBenefit(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-[#8C2E46] hover:bg-[#70252D] text-white text-[11px] font-bold cursor-pointer transition-colors"
+                          >
+                            Switch to Qualify for +{REFERRAL_REWARD_POINTS_EACH} Pts Referral Reward
+                          </button>
+                          <span className="text-[10px] text-amber-900 font-medium">
+                            Or keep your current discount applied above
+                          </span>
+                        </div>
+                      </div>
+                    ) : referralCompatibility.qualifiesForThisOrder ? (
+                      <div
+                        data-testid="referral-checkout-qualifying-banner"
+                        className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2 text-xs"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-emerald-950 text-[11px]">
+                            🎁 Qualifying Referral Order ({referralSummary?.appliedReferral?.referralCode})
+                          </p>
+                          <p className="text-[10px] text-emerald-800 mt-0.5">
+                            You and your friend will each earn +{REFERRAL_REWARD_POINTS_EACH} Nest Points (worth ₹{REFERRAL_REWARD_INR_VALUE_EACH} each) after this order is delivered and paid.
+                          </p>
+                        </div>
+                      </div>
+                    ) : !referralCompatibility.meetsMinSubtotal ? (
+                      <div
+                        data-testid="referral-checkout-shortfall-banner"
+                        className="p-2.5 rounded-xl bg-[#FAF7F2] border border-[#DEC89B] text-[11px] text-[#5C4C42]"
+                      >
+                        <strong className="text-[#70252D]">
+                          Referral Code {referralSummary?.appliedReferral?.referralCode} Applied:
+                        </strong>{' '}
+                        Add ₹{formatRupeeAmount(Math.max(0, REFERRAL_MIN_ORDER_SUBTOTAL_INR - subtotal))} more in products (min ₹{REFERRAL_MIN_ORDER_SUBTOTAL_INR.toLocaleString('en-IN')} excluding delivery) for you and your friend to earn +{REFERRAL_REWARD_POINTS_EACH} Nest Points each after delivery.
+                      </div>
+                    ) : null}
                   </div>
                 )}
 

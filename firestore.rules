@@ -415,5 +415,68 @@ service cloud.firestore {
       );
       allow update, delete: if isValidId(txId) && isOwnerOrAdmin();
     }
+
+    // Referral Rewards Global Configuration
+    match /referral_rewards_config/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(docId) && isOwnerOrAdmin();
+    }
+
+    // Per-Customer Referral Rewards Registration & Qualification Tracking (keyed by referredUid)
+    // - Prevents self-referrals (referrerUid != referredUid).
+    // - Prevents multiple claims by the same Firebase UID (one document per referredUid).
+    // - Prevents clients from directly setting status to 'reward_earned' or rewardCredited == true on creation or client update.
+    match /referrals/{referredUid} {
+      allow get: if isValidId(referredUid) && (
+        isOwnerOrAdmin() ||
+        (isSignedIn() && (
+          request.auth.uid == referredUid ||
+          (resource != null && resource.data.referrerUid == request.auth.uid)
+        ))
+      );
+      allow list: if isOwnerOrAdmin() || (
+        isSignedIn() && (
+          resource.data.referredUid == request.auth.uid ||
+          resource.data.referrerUid == request.auth.uid
+        )
+      );
+      allow create: if isValidId(referredUid) && (
+        isOwnerOrAdmin() || (
+          isSignedIn() &&
+          request.auth.uid == referredUid &&
+          request.resource.data.id == referredUid &&
+          request.resource.data.referredUid == referredUid &&
+          request.resource.data.referralCode is string &&
+          request.resource.data.referralCode.size() >= 6 &&
+          request.resource.data.referralCode.size() <= 24 &&
+          request.resource.data.referrerAccountId is string &&
+          request.resource.data.referrerAccountId.size() > 0 &&
+          request.resource.data.referrerAccountId.size() <= 128 &&
+          (!('referrerUid' in request.resource.data) || request.resource.data.referrerUid != referredUid) &&
+          request.resource.data.status == 'code_applied' &&
+          request.resource.data.rewardCredited == false &&
+          request.resource.data.referrerPointsAwarded == 0 &&
+          request.resource.data.referredPointsAwarded == 0 &&
+          request.resource.data.appliedAt is number &&
+          request.resource.data.updatedAt is number
+        )
+      );
+      allow update: if isValidId(referredUid) && (
+        isOwnerOrAdmin() || (
+          isSignedIn() &&
+          request.auth.uid == referredUid &&
+          request.resource.data.referredUid == resource.data.referredUid &&
+          request.resource.data.referralCode == resource.data.referralCode &&
+          request.resource.data.referrerAccountId == resource.data.referrerAccountId &&
+          request.resource.data.appliedAt == resource.data.appliedAt &&
+          request.resource.data.rewardCredited == resource.data.rewardCredited &&
+          request.resource.data.referrerPointsAwarded == resource.data.referrerPointsAwarded &&
+          request.resource.data.referredPointsAwarded == resource.data.referredPointsAwarded &&
+          request.resource.data.status in ['code_applied', 'order_pending', 'expired_ineligible', 'cancelled'] &&
+          request.resource.data.updatedAt is number
+        )
+      );
+      allow delete: if isValidId(referredUid) && isOwnerOrAdmin();
+    }
   }
 }

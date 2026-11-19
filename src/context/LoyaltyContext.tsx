@@ -9,6 +9,7 @@ import {
   generateReferralCode,
   sanitizeLoyaltyKey,
 } from '../data/loyalty';
+import { CustomerReferralSummary, REFERRAL_APPLIED_SUCCESS_MESSAGE } from '../data/referrals';
 import {
   getLoyaltyAccountApi,
   earnLoyaltyPointsApi,
@@ -16,6 +17,7 @@ import {
   claimReferralRewardApi,
   getLoyaltyTransactionsApi,
   getActiveLoyaltyKey,
+  getCustomerReferralSummaryApi,
 } from '../services/loyaltyApi';
 import { useAuth } from './AuthContext';
 
@@ -30,6 +32,7 @@ interface LoyaltyContextType {
   referralPointsEarned: number;
   referralCode: string;
   referredByCode?: string;
+  referralSummary: CustomerReferralSummary | null;
   nextExpiryTimestamp: number | null;
   transactions: LoyaltyTransaction[];
   isLoading: boolean;
@@ -39,6 +42,7 @@ interface LoyaltyContextType {
   openLoyaltyModal: () => void;
   closeLoyaltyModal: () => void;
   refreshLoyalty: (explicitKey?: string) => Promise<LoyaltyAccount | null>;
+  refreshReferrals: () => Promise<CustomerReferralSummary | null>;
   earnPoints: (
     eligibleAmountExcludingDelivery: number,
     orderId: string,
@@ -59,6 +63,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { user } = useAuth();
   const [account, setAccount] = useState<LoyaltyAccount | null>(null);
   const [transactions, setTransactions] = useState<LoyaltyTransaction[]>([]);
+  const [referralSummary, setReferralSummary] = useState<CustomerReferralSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState<boolean>(false);
   const [preferRedeemAtCheckout, setPreferRedeemAtCheckout] = useState<boolean>(false);
@@ -100,6 +105,25 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [activeKey, user]
   );
 
+  const refreshReferrals = useCallback(async (): Promise<CustomerReferralSummary | null> => {
+    try {
+      const code =
+        account?.referralCode ||
+        generateReferralCode(user?.name || user?.email || user?.phone || activeKey);
+      const summary = await getCustomerReferralSummaryApi({
+        uid: user?.id,
+        accountId: activeKey,
+        myReferralCode: code,
+        myLoyaltyAccount: account,
+      });
+      setReferralSummary(summary);
+      return summary;
+    } catch (err) {
+      console.warn('Error refreshing referral summary:', err);
+      return null;
+    }
+  }, [account, user, activeKey]);
+
   const loadTransactions = useCallback(async (explicitKey?: string): Promise<LoyaltyTransaction[]> => {
     let resolvedPhone = user?.phone;
     try {
@@ -124,20 +148,24 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     refreshLoyalty();
     loadTransactions();
+    refreshReferrals();
 
     const handleLoyaltyUpdate = () => {
       refreshLoyalty();
       loadTransactions();
+      refreshReferrals();
     };
 
     window.addEventListener('cotton-nest-loyalty-updated', handleLoyaltyUpdate);
+    window.addEventListener('cotton-nest-referrals-updated', handleLoyaltyUpdate);
     window.addEventListener('storage', handleLoyaltyUpdate);
 
     return () => {
       window.removeEventListener('cotton-nest-loyalty-updated', handleLoyaltyUpdate);
+      window.removeEventListener('cotton-nest-referrals-updated', handleLoyaltyUpdate);
       window.removeEventListener('storage', handleLoyaltyUpdate);
     };
-  }, [refreshLoyalty, loadTransactions]);
+  }, [refreshLoyalty, loadTransactions, refreshReferrals]);
 
   const earnPoints = useCallback(
     async (
@@ -191,10 +219,13 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
           userId: user?.id,
         });
         setAccount(res.account);
-        setTransactions((prev) => [res.tx, ...prev]);
+        if (res.tx) {
+          setTransactions((prev) => [res.tx!, ...prev]);
+        }
+        await refreshReferrals();
         return {
           success: true,
-          message: `🎉 +${res.pointsAwarded} Nest Points credited from referral code!`,
+          message: res.message || REFERRAL_APPLIED_SUCCESS_MESSAGE,
           pointsAwarded: res.pointsAwarded,
         };
       } catch (err: any) {
@@ -205,7 +236,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         };
       }
     },
-    [activeKey, user]
+    [activeKey, user, refreshReferrals]
   );
 
   // Calculate active non-expired metrics: strictly Earned (credited) minus Used (debited)
@@ -220,7 +251,12 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const dedupTxMap = new Map<string, LoyaltyTransaction>();
     (transactions || []).forEach((t) => {
       if (!t) return;
-      const key = t.orderId ? `${(t.type || '').toLowerCase()}_${t.orderId}` : t.id;
+      const typeLower = (t.type || '').toLowerCase();
+      // Preserve distinct referral transactions (customer can earn multiple referrer rewards across different friend orders)
+      const key =
+        t.orderId && typeLower !== 'referral' && typeLower !== 'adjustment'
+          ? `${typeLower}_${t.orderId}`
+          : t.id;
       if (!dedupTxMap.has(key)) {
         dedupTxMap.set(key, t);
       }
@@ -237,10 +273,15 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const pts = Number(t.points) || 0;
       return pts > 0 && (type === 'referral' || type === 'bonus');
     });
+    const negativeAdjustmentTxs = uniqueTxs.filter((t) => {
+      const type = (t.type || '').toLowerCase();
+      const pts = Number(t.points) || 0;
+      return pts < 0 && type === 'adjustment';
+    });
     const redeemedTxs = uniqueTxs.filter((t) => {
       const type = (t.type || '').toLowerCase();
       const pts = Number(t.points) || 0;
-      return pts < 0 || type === 'redeemed' || type === 'debit';
+      return (pts < 0 && type !== 'adjustment') || type === 'redeemed' || type === 'debit';
     });
     const refundedTxs = uniqueTxs.filter((t) => {
       const type = (t.type || '').toLowerCase();
@@ -254,7 +295,9 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
 
-    const calcReferralEarned = referralTxs.reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+    const rawReferralEarned = referralTxs.reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
+    const calcNegativeAdjustments = negativeAdjustmentTxs.reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
+    const calcReferralEarned = Math.max(0, rawReferralEarned - calcNegativeAdjustments);
     const calcRedeemedSpent = redeemedTxs.reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
     const calcRefundedPoints = refundedTxs.reduce((sum, t) => sum + Math.abs(Number(t.points) || 0), 0);
 
@@ -263,7 +306,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .reduce((sum, t) => sum + Math.max(0, Number(t.points) || 0), 0);
 
     const totalEarnedFromTxs = calcPurchaseEarned + calcReferralEarned;
-    const totalEarned = totalEarnedFromTxs > 0 ? totalEarnedFromTxs : (account?.lifetimeEarned || 0);
+    const totalEarned = totalEarnedFromTxs > 0 || calcNegativeAdjustments > 0 ? totalEarnedFromTxs : (account?.lifetimeEarned || 0);
 
     const rawSpent = calcRedeemedSpent > 0 ? calcRedeemedSpent : (account?.lifetimeSpent || 0);
     const netSpent = Math.max(0, rawSpent - calcRefundedPoints);
@@ -290,7 +333,7 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
           : Math.max(0, totalEarned - (account?.referralPointsEarned || calcReferralEarned)),
       pointsUsed: netSpent,
       referralPointsEarned:
-        calcReferralEarned > 0 ? calcReferralEarned : account?.referralPointsEarned || 0,
+        rawReferralEarned > 0 ? calcReferralEarned : account?.referralPointsEarned || 0,
       nextExpiryTimestamp: earliestExpiry,
     };
   }, [account, transactions]);
@@ -314,7 +357,8 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         pointsUsed,
         referralPointsEarned,
         referralCode,
-        referredByCode: account?.referredByCode,
+        referredByCode: account?.referredByCode || referralSummary?.appliedReferral?.referralCode,
+        referralSummary,
         nextExpiryTimestamp,
         transactions,
         isLoading,
@@ -325,9 +369,11 @@ export const LoyaltyProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setIsLoyaltyModalOpen(true);
           refreshLoyalty();
           loadTransactions();
+          refreshReferrals();
         },
         closeLoyaltyModal: () => setIsLoyaltyModalOpen(false),
         refreshLoyalty,
+        refreshReferrals,
         earnPoints,
         redeemPoints,
         claimReferralReward,

@@ -67,6 +67,18 @@ import {
   evaluateBirthdayRewardStatus,
   validateBirthdayCouponForCheckout,
 } from './src/data/birthdayRewards.ts';
+import {
+  ReferralRewardsConfig,
+  ReferralRecord,
+  DEFAULT_REFERRAL_REWARDS_CONFIG,
+  REFERRAL_APPLIED_SUCCESS_MESSAGE,
+  validateAndCreateReferralApplication,
+  evaluateReferralOnOrderPlaced,
+  settleReferralRewardOnDelivery,
+  reverseReferralOnCancellationOrRefund,
+  computeCustomerReferralSummary,
+  computeAdminReferralSummary,
+} from './src/data/referrals.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -107,6 +119,8 @@ interface StoreDatabase {
   birthdayRewardsConfig?: BirthdayRewardsConfig;
   birthdayRewardsProfiles?: Record<string, CustomerBirthdayProfile>;
   birthdayRewardTransactions?: BirthdayRewardTransaction[];
+  referralRewardsConfig?: ReferralRewardsConfig;
+  referrals?: Record<string, ReferralRecord>;
 }
 
 function initDatabase(): StoreDatabase {
@@ -1608,6 +1622,29 @@ async function startServer() {
       });
     }
 
+    // Evaluate referral lifecycle on order placement (transitions code_applied -> order_pending if qualifying first order)
+    const refUid = String(newOrder.userId || '').trim();
+    if (refUid) {
+      if (!db.referrals) db.referrals = {};
+      if (!db.referralRewardsConfig) db.referralRewardsConfig = { ...DEFAULT_REFERRAL_REWARDS_CONFIG };
+      const existingRefRec = db.referrals[refUid];
+      if (existingRefRec && existingRefRec.status === 'code_applied') {
+        const priorOrders = (db.orders || []).filter((o) => o && o.id !== newOrder.id);
+        const refEval = evaluateReferralOnOrderPlaced({
+          record: existingRefRec,
+          order: newOrder,
+          priorOrders,
+          config: db.referralRewardsConfig,
+          nowMs: Date.now(),
+        });
+        if (refEval.updatedRecord) {
+          db.referrals[refUid] = refEval.updatedRecord;
+          newOrder.referralCodeApplied = existingRefRec.referralCode;
+          newOrder.referralQualifyingOrder = refEval.isQualifyingOrder;
+        }
+      }
+    }
+
     // Rule 1 & 6: Never generate or send an invoice when an order is placed.
     // Invoice is generated and emailed strictly when Admin changes order status to 'confirmed'.
     newOrder.status = 'pending';
@@ -2172,6 +2209,156 @@ async function startServer() {
           });
         }
         pointsCreditedFlag = true;
+      }
+
+      // Referral Reward Settlement on Delivery (+100 Nest Points to referrer & +100 Nest Points to referred customer)
+      if (!db.referrals) db.referrals = {};
+      if (!db.referralRewardsConfig) db.referralRewardsConfig = { ...DEFAULT_REFERRAL_REWARDS_CONFIG };
+      const matchedRefRecord =
+        (orderUid && db.referrals[orderUid]) ||
+        Object.values(db.referrals).find(
+          (r) =>
+            r &&
+            (r.qualifyingOrderId === canonicalOrderId ||
+              r.qualifyingOrderId === id ||
+              (orderUid && r.referredUid === orderUid))
+        );
+
+      if (matchedRefRecord && !matchedRefRecord.rewardCredited) {
+        const loyaltyAccountsMap = db.loyaltyAccounts || (db.loyaltyAccounts = {});
+        const loyaltyTransactionsList = db.loyaltyTransactions || (db.loyaltyTransactions = []);
+        const nowMs = Date.now();
+
+        const referredKey = sanitizeLoyaltyKey(
+          matchedRefRecord.referredAccountId || matchedRefRecord.referredPhone || matchedRefRecord.referredEmail || matchedRefRecord.referredUid
+        );
+        const referrerKey = sanitizeLoyaltyKey(
+          matchedRefRecord.referrerAccountId || matchedRefRecord.referrerUid
+        );
+
+        const referredAccount = loyaltyAccountsMap[referredKey] || {
+          id: referredKey,
+          customerName: matchedRefRecord.referredName || previousOrder.customerName || 'Cotton Nest Client',
+          phone: matchedRefRecord.referredPhone || previousOrder.customerPhone,
+          email: matchedRefRecord.referredEmail || previousOrder.customerEmail,
+          userId: matchedRefRecord.referredUid,
+          pointsBalance: 0,
+          lifetimeEarned: 0,
+          lifetimeSpent: 0,
+          referralPointsEarned: 0,
+          referralCode: generateReferralCode(matchedRefRecord.referredName || referredKey),
+          referralCount: 0,
+          updatedAt: nowMs,
+        };
+
+        const referrerAccount = loyaltyAccountsMap[referrerKey] || {
+          id: referrerKey,
+          customerName: matchedRefRecord.referrerName || 'Cotton Nest Advocate',
+          userId: matchedRefRecord.referrerUid,
+          pointsBalance: 0,
+          lifetimeEarned: 0,
+          lifetimeSpent: 0,
+          referralPointsEarned: 0,
+          referralCode: matchedRefRecord.referralCode,
+          referralCount: 0,
+          updatedAt: nowMs,
+        };
+
+        const mergedDeliveredOrder = {
+          ...previousOrder,
+          ...payloadOrderFields,
+          ...updated,
+          id: canonicalOrderId,
+          status: 'delivered' as const,
+        };
+        const settlement = settleReferralRewardOnDelivery({
+          record: matchedRefRecord,
+          order: mergedDeliveredOrder,
+          referrerAccount,
+          referredAccount,
+          config: db.referralRewardsConfig,
+          nowMs,
+        });
+
+        if (settlement.settled && settlement.referredTx && settlement.referrerTx && settlement.updatedReferredAccount && settlement.updatedReferrerAccount) {
+          db.referrals[matchedRefRecord.referredUid] = settlement.updatedRecord;
+          previousOrder.referralCodeApplied = matchedRefRecord.referralCode;
+          previousOrder.referralQualifyingOrder = true;
+          previousOrder.referralRewardCredited = true;
+
+          if (referredKey && !loyaltyTransactionsList.some((t) => t.id === settlement.referredTx!.id)) {
+            loyaltyAccountsMap[referredKey] = settlement.updatedReferredAccount;
+            loyaltyTransactionsList.unshift({
+              ...settlement.referredTx,
+              accountId: referredKey,
+            });
+          }
+
+          if (referrerKey && !loyaltyTransactionsList.some((t) => t.id === settlement.referrerTx!.id)) {
+            loyaltyAccountsMap[referrerKey] = settlement.updatedReferrerAccount;
+            loyaltyTransactionsList.unshift({
+              ...settlement.referrerTx,
+              accountId: referrerKey,
+            });
+          }
+        }
+      }
+    }
+
+    // Referral Cancellation or Full Refund Reversal Handling
+    if (newStatus === 'cancelled' || newStatus === 'refunded') {
+      if (!db.referrals) db.referrals = {};
+      const canonicalOrderId = previousOrder.id || id;
+      const matchedRefRecord =
+        Object.values(db.referrals).find(
+          (r) =>
+            r &&
+            (r.qualifyingOrderId === canonicalOrderId ||
+              r.qualifyingOrderId === id ||
+              (orderUid && r.referredUid === orderUid && r.status === 'order_pending'))
+        ) || null;
+
+      if (matchedRefRecord) {
+        const loyaltyAccountsMap = db.loyaltyAccounts || (db.loyaltyAccounts = {});
+        const loyaltyTransactionsList = db.loyaltyTransactions || (db.loyaltyTransactions = []);
+        const nowMs = Date.now();
+
+        const referredKey = sanitizeLoyaltyKey(
+          matchedRefRecord.referredAccountId || matchedRefRecord.referredPhone || matchedRefRecord.referredEmail || matchedRefRecord.referredUid
+        );
+        const referrerKey = sanitizeLoyaltyKey(
+          matchedRefRecord.referrerAccountId || matchedRefRecord.referrerUid
+        );
+
+        const revResult = reverseReferralOnCancellationOrRefund({
+          record: matchedRefRecord,
+          orderId: canonicalOrderId,
+          orderStatus: newStatus === 'refunded' ? 'refunded' : 'cancelled',
+          referrerAccount: referredKey ? loyaltyAccountsMap[referrerKey] || null : null,
+          referredAccount: referredKey ? loyaltyAccountsMap[referredKey] || null : null,
+          nowMs,
+        });
+        db.referrals[matchedRefRecord.referredUid] = revResult.updatedRecord;
+
+        if (revResult.pointsReversed) {
+          previousOrder.referralRewardReversed = true;
+
+          if (referredKey && revResult.updatedReferredAccount && revResult.referredReversalTx && !loyaltyTransactionsList.some((t) => t.id === revResult.referredReversalTx!.id)) {
+            loyaltyAccountsMap[referredKey] = revResult.updatedReferredAccount;
+            loyaltyTransactionsList.unshift({
+              ...revResult.referredReversalTx,
+              accountId: referredKey,
+            });
+          }
+
+          if (referrerKey && revResult.updatedReferrerAccount && revResult.referrerReversalTx && !loyaltyTransactionsList.some((t) => t.id === revResult.referrerReversalTx!.id)) {
+            loyaltyAccountsMap[referrerKey] = revResult.updatedReferrerAccount;
+            loyaltyTransactionsList.unshift({
+              ...revResult.referrerReversalTx,
+              accountId: referrerKey,
+            });
+          }
+        }
       }
     }
 
@@ -3736,6 +3923,185 @@ async function startServer() {
     const userTxs = Array.from(dedupTxMap.values());
     userTxs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     res.json(userTxs);
+  });
+
+  /* ------------------- REFERRAL REWARDS LIFECYCLE API ------------------- */
+  app.get('/api/referrals/config', (_req, res) => {
+    if (!db.referralRewardsConfig) {
+      db.referralRewardsConfig = { ...DEFAULT_REFERRAL_REWARDS_CONFIG };
+    }
+    res.json(db.referralRewardsConfig);
+  });
+
+  app.post('/api/referrals/config', (req, res) => {
+    const incoming = req.body || {};
+    db.referralRewardsConfig = {
+      ...DEFAULT_REFERRAL_REWARDS_CONFIG,
+      ...(db.referralRewardsConfig || {}),
+      enabled: incoming.enabled !== undefined ? Boolean(incoming.enabled) : true,
+      rewardPointsReferrer: DEFAULT_REFERRAL_REWARDS_CONFIG.rewardPointsReferrer,
+      rewardPointsReferred: DEFAULT_REFERRAL_REWARDS_CONFIG.rewardPointsReferred,
+      minOrderSubtotalInr: DEFAULT_REFERRAL_REWARDS_CONFIG.minOrderSubtotalInr,
+      updatedAt: Date.now(),
+      updatedBy: incoming.updatedBy ? String(incoming.updatedBy) : undefined,
+    };
+    saveDatabase();
+    res.json(db.referralRewardsConfig);
+  });
+
+  // Apply referral code (registers code_applied status; NEVER awards immediate points)
+  const handleApplyReferralRoute = (req: express.Request, res: express.Response) => {
+    if (!db.referralRewardsConfig) {
+      db.referralRewardsConfig = { ...DEFAULT_REFERRAL_REWARDS_CONFIG };
+    }
+    if (!db.referrals) db.referrals = {};
+    if (!db.loyaltyAccounts) db.loyaltyAccounts = {};
+
+    const body = req.body || {};
+    const referralCodeInput = String(body.referralCodeInput || body.referralCode || '').trim().toUpperCase();
+    const referredUid = String(body.referredUid || body.userId || body.accountId || '').trim();
+    const referredAccountKey = sanitizeLoyaltyKey(body.referredAccountId || body.referredAccountKey || body.accountId || referredUid);
+    const referredName = body.referredName || body.name;
+    const referredEmail = body.referredEmail || body.email;
+    const referredPhone = body.referredPhone || body.phone;
+
+    // Locate referrer account by referralCode in db.loyaltyAccounts
+    let referrerAcc: LoyaltyAccount | null = body.referrerAccount || null;
+    if (!referrerAcc && referralCodeInput) {
+      for (const acc of Object.values(db.loyaltyAccounts)) {
+        if (acc && String(acc.referralCode || '').trim().toUpperCase() === referralCodeInput) {
+          referrerAcc = acc;
+          break;
+        }
+      }
+    }
+
+    const referredAcc = db.loyaltyAccounts[referredAccountKey] || {
+      id: referredAccountKey,
+      customerName: referredName,
+      email: referredEmail,
+      phone: referredPhone,
+      userId: referredUid,
+      pointsBalance: 0,
+      lifetimeEarned: 0,
+      lifetimeSpent: 0,
+      referralPointsEarned: 0,
+      referralCode: body.referredOwnReferralCode || generateReferralCode(referredName || referredEmail || referredPhone || referredAccountKey),
+      referralCount: 0,
+      updatedAt: Date.now(),
+    };
+
+    const existingRefRecord = db.referrals[referredUid] || db.referrals[referredAccountKey] || null;
+    const customerOrders = (db.orders || []).filter((o) => {
+      if (!o) return false;
+      const matchUid = Boolean(referredUid && o.userId && String(o.userId).trim() === referredUid);
+      const matchEmail = Boolean(
+        referredEmail && o.customerEmail && o.customerEmail.toLowerCase().trim() === String(referredEmail).toLowerCase().trim()
+      );
+      return matchUid || matchEmail;
+    });
+
+    const validation = validateAndCreateReferralApplication({
+      referralCodeInput,
+      referredUid: referredUid || referredAccountKey,
+      referredAccountId: referredAccountKey,
+      referredName,
+      referredEmail,
+      referredPhone,
+      referredOwnReferralCode: referredAcc.referralCode,
+      alreadyReferredByCodeOnAccount: referredAcc.referredByCode,
+      existingReferralForUser: existingRefRecord,
+      referrerAccount: referrerAcc,
+      customerOrders,
+      config: db.referralRewardsConfig,
+      nowMs: Date.now(),
+    });
+
+    if (!validation.valid || !validation.record) {
+      return res.status(400).json({ error: validation.error || 'Could not apply referral code.' });
+    }
+
+    db.referrals[validation.record.referredUid] = validation.record;
+    referredAcc.referredByCode = validation.record.referralCode;
+    referredAcc.updatedAt = Date.now();
+    db.loyaltyAccounts[referredAccountKey] = referredAcc;
+    saveDatabase();
+
+    return res.json({
+      account: referredAcc,
+      record: validation.record,
+      referralRecord: validation.record,
+      referrerAccount: referrerAcc,
+      pointsAwarded: 0,
+      message: validation.message || REFERRAL_APPLIED_SUCCESS_MESSAGE,
+    });
+  };
+
+  app.post('/api/referrals/apply', handleApplyReferralRoute);
+  app.post('/api/loyalty/referral', handleApplyReferralRoute);
+
+  app.get('/api/referrals/status', (req, res) => {
+    if (!db.referralRewardsConfig) {
+      db.referralRewardsConfig = { ...DEFAULT_REFERRAL_REWARDS_CONFIG };
+    }
+    if (!db.referrals) db.referrals = {};
+
+    const uid = String(req.query.uid || '').trim();
+    const accountKey = String(req.query.accountKey || '').trim();
+    const code = String(req.query.code || '').trim().toUpperCase();
+
+    const appliedReferral =
+      (uid && db.referrals[uid]) ||
+      (accountKey && db.referrals[accountKey]) ||
+      Object.values(db.referrals).find(
+        (r) => r && ((uid && r.referredUid === uid) || (accountKey && r.referredAccountId === accountKey))
+      ) ||
+      null;
+
+    const referralsMadeByMe = Object.values(db.referrals).filter(
+      (r) =>
+        r &&
+        ((code && String(r.referralCode || '').toUpperCase() === code) ||
+          (uid && r.referrerUid === uid) ||
+          (accountKey && r.referrerAccountId === accountKey))
+    );
+
+    const myLoyaltyAccount =
+      (accountKey && db.loyaltyAccounts?.[sanitizeLoyaltyKey(accountKey)]) ||
+      (uid && db.loyaltyAccounts?.[sanitizeLoyaltyKey(uid)]) ||
+      null;
+
+    const summary = computeCustomerReferralSummary({
+      config: db.referralRewardsConfig,
+      myReferralCode: code || myLoyaltyAccount?.referralCode || '',
+      myLoyaltyAccount,
+      appliedReferral,
+      referralsMadeByMe,
+    });
+
+    res.json({
+      config: db.referralRewardsConfig,
+      appliedReferral,
+      referralsMadeByMe,
+      summary,
+    });
+  });
+
+  app.get('/api/referrals/admin', (_req, res) => {
+    if (!db.referralRewardsConfig) {
+      db.referralRewardsConfig = { ...DEFAULT_REFERRAL_REWARDS_CONFIG };
+    }
+    if (!db.referrals) db.referrals = {};
+    const records = Object.values(db.referrals).sort((a, b) => (b.appliedAt || 0) - (a.appliedAt || 0));
+    const summary = computeAdminReferralSummary({
+      config: db.referralRewardsConfig,
+      records,
+    });
+    res.json({
+      config: db.referralRewardsConfig,
+      records,
+      summary,
+    });
   });
 
   // Reset database back to default factory settings

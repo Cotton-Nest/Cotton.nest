@@ -16,6 +16,17 @@ import {
   DEFAULT_BIRTHDAY_REWARDS_CONFIG,
   getMonthName,
 } from '../data/birthdayRewards';
+import {
+  ReferralRewardsConfig,
+  ReferralRecord,
+  AdminReferralSummary,
+  DEFAULT_REFERRAL_REWARDS_CONFIG,
+  getReferralStatusBadgeMeta,
+} from '../data/referrals';
+import {
+  getReferralAdminDataApi,
+  saveReferralRewardsConfigApi,
+} from '../services/loyaltyApi';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -98,6 +109,50 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
   const [reviewingUid, setReviewingUid] = useState<string | null>(null);
   const [showBdayTransactions, setShowBdayTransactions] = useState(false);
 
+  // Referral Rewards Admin State (Section 9)
+  const [referralConfig, setReferralConfig] = useState<ReferralRewardsConfig>(DEFAULT_REFERRAL_REWARDS_CONFIG);
+  const [referralRecords, setReferralRecords] = useState<ReferralRecord[]>([]);
+  const [referralStats, setReferralStats] = useState<AdminReferralSummary['stats']>({
+    totalCodesApplied: 0,
+    pendingReferralsCount: 0,
+    successfulReferralsCount: 0,
+    totalNestPointsAwarded: 0,
+    cancelledOrIneligibleCount: 0,
+  });
+  const [savingReferralConfig, setSavingReferralConfig] = useState(false);
+  const [showReferralRecords, setShowReferralRecords] = useState(false);
+
+  const loadReferralAdminData = async () => {
+    try {
+      const data = await getReferralAdminDataApi();
+      setReferralConfig(data.config);
+      setReferralRecords(data.records);
+      setReferralStats(data.stats);
+    } catch {
+      // Ignore fallback error
+    }
+  };
+
+  const handleToggleReferralProgramme = async (nextEnabled: boolean) => {
+    setSavingReferralConfig(true);
+    try {
+      const saved = await saveReferralRewardsConfigApi({
+        ...referralConfig,
+        enabled: nextEnabled,
+      });
+      setReferralConfig(saved);
+      onToast(
+        saved.enabled
+          ? 'Referral Rewards programme is now Enabled for future referral codes.'
+          : 'Referral Rewards programme is now Disabled for future referral applications.'
+      );
+    } catch (err: any) {
+      onToast(`Failed to update Referral Rewards status: ${err?.message || 'Error'}`);
+    } finally {
+      setSavingReferralConfig(false);
+    }
+  };
+
   const loadBirthdayAdminData = async () => {
     try {
       const data = await getBirthdayRewardsAdminDataApi();
@@ -112,6 +167,7 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
 
   useEffect(() => {
     loadBirthdayAdminData();
+    loadReferralAdminData();
   }, []);
 
   const handleSaveBirthdayConfig = async (e: React.FormEvent) => {
@@ -813,6 +869,210 @@ export const AdminCouponsSection: React.FC<AdminCouponsSectionProps> = ({
                     </span>
                   </div>
                 ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* SECTION 9: REFERRAL REWARDS ADMIN TRACKING & PROGRAMME CONTROLS */}
+      <div
+        data-testid="admin-referral-rewards-section"
+        className="p-5 rounded-2xl border-2 border-[#DEC89B] bg-gradient-to-br from-[#FAF7F2] via-[#FFFDF9] to-[#F5EFE6] shadow-xs space-y-5"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EAE2D5] pb-4">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-[#70252D] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Users className="w-5 h-5 text-[#DEC89B]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-serif-luxury text-lg font-bold text-[#2C2420]">
+                  🤝 Referral Rewards Tracking &amp; Controls
+                </h3>
+                <span
+                  data-testid="admin-referral-status-badge"
+                  className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full border ${
+                    referralConfig.enabled
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}
+                >
+                  {referralConfig.enabled ? 'Active' : 'Disabled'}
+                </span>
+              </div>
+              <p className="text-xs text-[#6B5D55] mt-0.5">
+                Referrer &amp; referred friend each earn <strong>+{referralConfig.rewardPointsReferrer} Nest Points (₹50)</strong> after the friend&apos;s first eligible order of <strong>₹{referralConfig.minOrderSubtotalInr.toLocaleString('en-IN')}+</strong> (excluding delivery) is delivered and paid.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <label
+              data-testid="admin-referral-enable-toggle"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-[#DEC89B] text-xs font-semibold text-[#2C2420] cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={referralConfig.enabled}
+                disabled={savingReferralConfig}
+                onChange={(e) => handleToggleReferralProgramme(e.target.checked)}
+                className="accent-[#8C2E46] w-4 h-4 rounded cursor-pointer"
+              />
+              <span>
+                {savingReferralConfig
+                  ? 'Updating...'
+                  : referralConfig.enabled
+                  ? 'Future Referrals Enabled'
+                  : 'Future Referrals Disabled'}
+              </span>
+            </label>
+
+            <button
+              type="button"
+              onClick={loadReferralAdminData}
+              className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#FAF7F2] text-[#70252D] border border-[#DEC89B] text-xs font-semibold shrink-0 cursor-pointer"
+            >
+              Refresh Stats
+            </button>
+          </div>
+        </div>
+
+        {/* 5 Referral KPI Cards required by Section 9 */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div
+            data-testid="admin-referral-total-applied"
+            className="p-3.5 rounded-xl bg-white border border-[#EAE2D5]"
+          >
+            <span className="text-[11px] font-medium text-[#7A6458] block">Total Codes Applied</span>
+            <span className="text-xl font-serif-luxury font-bold text-[#2C2420] mt-0.5 block">
+              {referralStats.totalCodesApplied}
+            </span>
+            <span className="text-[10px] text-[#8C7A70] block">Registered referral links</span>
+          </div>
+
+          <div
+            data-testid="admin-referral-pending"
+            className="p-3.5 rounded-xl bg-white border border-amber-200"
+          >
+            <span className="text-[11px] font-medium text-[#7A6458] block">Pending Referrals</span>
+            <span className="text-xl font-serif-luxury font-bold text-amber-900 mt-0.5 block">
+              {referralStats.pendingReferralsCount}
+            </span>
+            <span className="text-[10px] text-amber-800 block">Awaiting order / delivery</span>
+          </div>
+
+          <div
+            data-testid="admin-referral-successful"
+            className="p-3.5 rounded-xl bg-white border border-emerald-200"
+          >
+            <span className="text-[11px] font-medium text-[#7A6458] block">Successful Referrals</span>
+            <span className="text-xl font-serif-luxury font-bold text-emerald-800 mt-0.5 block">
+              {referralStats.successfulReferralsCount}
+            </span>
+            <span className="text-[10px] text-emerald-700 block">Delivered &amp; paid orders</span>
+          </div>
+
+          <div
+            data-testid="admin-referral-points-awarded"
+            className="p-3.5 rounded-xl bg-white border border-[#DEC89B]"
+          >
+            <span className="text-[11px] font-medium text-[#7A6458] block">Total Nest Points Awarded</span>
+            <span className="text-xl font-serif-luxury font-bold text-[#8C2E46] mt-0.5 block">
+              {referralStats.totalNestPointsAwarded.toLocaleString('en-IN')} pts
+            </span>
+            <span className="text-[10px] text-[#7A6458] block">
+              ₹{Math.round(referralStats.totalNestPointsAwarded * 0.5).toLocaleString('en-IN')} total value
+            </span>
+          </div>
+
+          <div
+            data-testid="admin-referral-cancelled-ineligible"
+            className="p-3.5 rounded-xl bg-white border border-rose-200 col-span-2 sm:col-span-1"
+          >
+            <span className="text-[11px] font-medium text-[#7A6458] block">Cancelled / Ineligible</span>
+            <span className="text-xl font-serif-luxury font-bold text-rose-800 mt-0.5 block">
+              {referralStats.cancelledOrIneligibleCount}
+            </span>
+            <span className="text-[10px] text-rose-700 block">Cancelled or refunded</span>
+          </div>
+        </div>
+
+        {/* Collapsible Referral Records Ledger */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setShowReferralRecords(!showReferralRecords)}
+            className="text-xs font-bold text-[#8C2E46] hover:underline flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>
+              {showReferralRecords
+                ? 'Hide Referral Lifecycle Records'
+                : `View Referral Lifecycle Records (${referralRecords.length})`}
+            </span>
+            <ArrowRight className={`w-3.5 h-3.5 transition-transform ${showReferralRecords ? 'rotate-90' : ''}`} />
+          </button>
+
+          {showReferralRecords && (
+            <div className="mt-3 max-h-64 overflow-y-auto space-y-1.5 pr-1">
+              {referralRecords.length === 0 ? (
+                <p className="text-xs text-[#7A6458] italic py-2">
+                  No referral code applications recorded yet.
+                </p>
+              ) : (
+                referralRecords.slice(0, 50).map((rec) => {
+                  const badge = getReferralStatusBadgeMeta(rec.status);
+                  const badgeColor =
+                    badge.tone === 'emerald'
+                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                      : badge.tone === 'amber'
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : badge.tone === 'rose'
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : badge.tone === 'stone'
+                      ? 'bg-stone-100 text-stone-700 border-stone-300'
+                      : 'bg-[#FAF7F2] text-[#70252D] border-[#DEC89B]';
+
+                  return (
+                    <div
+                      key={rec.id}
+                      className="p-2.5 rounded-xl bg-white border border-[#EAE2D5] flex items-center justify-between flex-wrap gap-2 text-xs"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                            {badge.label}
+                          </span>
+                          <span className="font-mono font-bold text-[#70252D] text-[11px]">
+                            Code: {rec.referralCode}
+                          </span>
+                          {rec.qualifyingOrderId && (
+                            <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded">
+                              Order #{rec.qualifyingOrderId}
+                            </span>
+                          )}
+                          {rec.status === 'reward_earned' && (
+                            <span className="text-[10px] font-bold text-emerald-800">
+                              +{(rec.referrerPointsAwarded || 0) + (rec.referredPointsAwarded || 0)} pts awarded
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[#6B5D55] truncate">
+                          Referred: {rec.referredName || rec.referredEmail || (rec.referredUid || '').slice(0, 8)} · Referrer:{' '}
+                          {rec.referrerName || (rec.referrerUid || '').slice(0, 8)}
+                          {rec.ineligibleReason ? ` (${rec.ineligibleReason})` : ''}
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-[#8C7A70] shrink-0">
+                        {new Date(rec.updatedAt || rec.appliedAt).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                  );
+                })
               )}
             </div>
           )}

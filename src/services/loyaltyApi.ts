@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, limit, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   LoyaltyAccount,
@@ -12,10 +12,27 @@ import {
   generateReferralCode,
   sanitizeLoyaltyKey,
 } from '../data/loyalty';
+import {
+  ReferralRecord,
+  ReferralRewardsConfig,
+  CustomerReferralSummary,
+  AdminReferralSummary,
+  DEFAULT_REFERRAL_REWARDS_CONFIG,
+  REFERRAL_APPLIED_SUCCESS_MESSAGE,
+  validateAndCreateReferralApplication,
+  evaluateReferralOnOrderPlaced,
+  settleReferralRewardOnDelivery,
+  reverseReferralOnCancellationOrRefund,
+  computeCustomerReferralSummary,
+  computeAdminReferralSummary,
+} from '../data/referrals';
+import { Order } from '../data/orders';
 import { stripUndefined } from './api';
 
 const LOCAL_STORAGE_LOYALTY_KEY = 'cotton_nest_loyalty_accounts';
 const LOCAL_STORAGE_TX_KEY = 'cotton_nest_loyalty_transactions';
+const LOCAL_STORAGE_REFERRALS_KEY = 'cotton_nest_referral_records';
+const LOCAL_STORAGE_REFERRAL_CONFIG_KEY = 'cotton_nest_referral_config';
 
 function getLocalAccounts(): Record<string, LoyaltyAccount> {
   try {
@@ -670,84 +687,657 @@ export async function refundLoyaltyPointsApi(
   return { account: updatedAccount, tx };
 }
 
+function getLocalReferralRecords(): Record<string, ReferralRecord> {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_REFERRALS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalReferralRecord(record: ReferralRecord): void {
+  try {
+    const map = getLocalReferralRecords();
+    map[record.referredUid] = record;
+    localStorage.setItem(LOCAL_STORAGE_REFERRALS_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+export async function getReferralRewardsConfigApi(): Promise<ReferralRewardsConfig> {
+  try {
+    const res = await fetch('/api/referrals/config', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data.enabled === 'boolean') {
+        const cfg: ReferralRewardsConfig = {
+          ...DEFAULT_REFERRAL_REWARDS_CONFIG,
+          ...data,
+        };
+        try {
+          localStorage.setItem(LOCAL_STORAGE_REFERRAL_CONFIG_KEY, JSON.stringify(cfg));
+        } catch {}
+        return cfg;
+      }
+    }
+  } catch {}
+
+  try {
+    const snap = await getDoc(doc(db, 'referral_rewards_config', 'config'));
+    if (snap.exists()) {
+      const cfg: ReferralRewardsConfig = {
+        ...DEFAULT_REFERRAL_REWARDS_CONFIG,
+        ...(snap.data() as Partial<ReferralRewardsConfig>),
+      };
+      try {
+        localStorage.setItem(LOCAL_STORAGE_REFERRAL_CONFIG_KEY, JSON.stringify(cfg));
+      } catch {}
+      return cfg;
+    }
+  } catch {}
+
+  try {
+    const cached = localStorage.getItem(LOCAL_STORAGE_REFERRAL_CONFIG_KEY);
+    if (cached) {
+      return { ...DEFAULT_REFERRAL_REWARDS_CONFIG, ...JSON.parse(cached) };
+    }
+  } catch {}
+
+  return { ...DEFAULT_REFERRAL_REWARDS_CONFIG };
+}
+
+export async function saveReferralRewardsConfigApi(
+  partial: Partial<ReferralRewardsConfig>
+): Promise<ReferralRewardsConfig> {
+  const current = await getReferralRewardsConfigApi();
+  const updated: ReferralRewardsConfig = {
+    ...current,
+    ...partial,
+    rewardPointsReferrer: Math.max(
+      1,
+      Math.round(Number(partial.rewardPointsReferrer ?? current.rewardPointsReferrer) || LOYALTY_REFERRAL_REWARD_POINTS)
+    ),
+    rewardPointsReferred: Math.max(
+      1,
+      Math.round(Number(partial.rewardPointsReferred ?? current.rewardPointsReferred) || LOYALTY_REFERRAL_REWARD_POINTS)
+    ),
+    minOrderSubtotalInr: Math.max(
+      100,
+      Math.round(Number(partial.minOrderSubtotalInr ?? current.minOrderSubtotalInr) || 1299)
+    ),
+    updatedAt: Date.now(),
+  };
+
+  try {
+    localStorage.setItem(LOCAL_STORAGE_REFERRAL_CONFIG_KEY, JSON.stringify(updated));
+  } catch {}
+
+  try {
+    await fetch('/api/referrals/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    });
+  } catch {}
+
+  try {
+    await setDoc(doc(db, 'referral_rewards_config', 'config'), stripUndefined(updated), { merge: true });
+  } catch {}
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-referrals-updated'));
+  } catch {}
+
+  return updated;
+}
+
 /**
- * Claim a Referral Reward by applying a friend's referral code.
- * Awards +100 Nest Points (₹50 value), valid for 12 months.
+ * Finds an existing referrer LoyaltyAccount by its personal `referralCode` (e.g., NEST-XXXX123).
+ */
+async function findReferrerAccountByCode(cleanCode: string): Promise<LoyaltyAccount | null> {
+  // 1. Check Firestore `loyalty` collection
+  try {
+    const q = query(collection(db, 'loyalty'), where('referralCode', '==', cleanCode), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const d = snap.docs[0];
+      return { ...(d.data() as LoyaltyAccount), id: d.id };
+    }
+  } catch {}
+
+  // 2. Check local cached loyalty accounts
+  const localMap = getLocalAccounts();
+  for (const acc of Object.values(localMap)) {
+    if (acc && acc.referralCode && acc.referralCode.trim().toUpperCase() === cleanCode) {
+      return acc;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Apply a friend's referral code (`Apply Referral Code`).
+ * IMPORTANT (Section 2, 3, 5):
+ * - Entering or applying a referral code MUST NOT immediately credit points.
+ * - Both referrer (+100 Nest Points) and referred customer (+100 Nest Points) are credited ONLY after
+ *   the referred customer's first eligible order (subtotal >= ₹1,299, no Welcome Offer, no Nest Points redeemed)
+ *   is marked Delivered and paid.
  */
 export async function claimReferralRewardApi(
   rawKey: string,
   referralCodeInput: string,
-  extra?: { name?: string; phone?: string; email?: string; userId?: string }
-): Promise<{ account: LoyaltyAccount; pointsAwarded: number; tx: LoyaltyTransaction }> {
+  extra?: { name?: string; phone?: string; email?: string; userId?: string; orders?: Order[] }
+): Promise<{
+  account: LoyaltyAccount;
+  pointsAwarded: number;
+  tx?: LoyaltyTransaction;
+  record: ReferralRecord;
+  message: string;
+}> {
   const cleanCode = (referralCodeInput || '').trim().toUpperCase();
-  if (!cleanCode || cleanCode.length < 4) {
-    throw new Error('Please enter a valid Cotton Nest referral code.');
+  const cleanUid = String(extra?.userId || '').trim();
+  const accountId = sanitizeLoyaltyKey(rawKey || cleanUid);
+
+  if (!cleanUid || cleanUid === 'guest_default_wallet') {
+    throw new Error('Please sign in to your Cotton Nest account to apply a referral code.');
   }
 
-  const accountId = sanitizeLoyaltyKey(rawKey);
-  const current = await getLoyaltyAccountApi(accountId, extra);
+  const [config, current] = await Promise.all([
+    getReferralRewardsConfigApi(),
+    getLoyaltyAccountApi(accountId, extra),
+  ]);
 
-  if (current.referralCode && current.referralCode.toUpperCase() === cleanCode) {
-    throw new Error('You cannot apply your own referral code.');
-  }
-
-  if (current.referredByCode) {
-    throw new Error(`Referral reward already claimed using code ${current.referredByCode}.`);
-  }
-
-  const now = Date.now();
-  const expiresAt = getTransactionExpiryDate(now);
-  const pointsAwarded = LOYALTY_REFERRAL_REWARD_POINTS;
-
-  const updatedAccount: LoyaltyAccount = {
-    ...current,
-    pointsBalance: (current.pointsBalance || 0) + pointsAwarded,
-    lifetimeEarned: (current.lifetimeEarned || 0) + pointsAwarded,
-    referralPointsEarned: (current.referralPointsEarned || 0) + pointsAwarded,
-    referredByCode: cleanCode,
-    referralCount: (current.referralCount || 0) + 1,
-    updatedAt: now,
-  };
-
-  const tx: LoyaltyTransaction = {
-    id: `tx_ref_${now}_${Math.random().toString(36).substring(2, 6)}`,
-    accountId,
-    type: 'referral',
-    points: pointsAwarded,
-    amountInr: calculatePointsDiscount(pointsAwarded),
-    description: `Referral Reward Bonus (Code: ${cleanCode})`,
-    createdAt: now,
-    expiresAt,
-    status: 'credited',
-  };
-
-  saveLocalAccount(updatedAccount);
-  saveLocalTransaction(tx);
-
+  // 1. Call Express backend `/api/referrals/apply` first for server-side verification
+  let serverRecord: ReferralRecord | null = null;
+  let serverReferrerAccount: LoyaltyAccount | null = null;
   try {
-    fetch('/api/loyalty/earn', {
+    const res = await fetch('/api/referrals/apply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        accountId,
-        points: pointsAwarded,
-        amountInr: calculatePointsDiscount(pointsAwarded),
-        orderId: `REF-${cleanCode}`,
-        account: updatedAccount,
-        tx,
+        referralCodeInput: cleanCode,
+        referredUid: cleanUid,
+        referredAccountId: accountId,
+        referredEmail: extra?.email || current.email,
+        referredPhone: extra?.phone || current.phone,
+        referredName: extra?.name || current.customerName,
+        referredOwnReferralCode: current.referralCode,
       }),
-    }).catch(() => {});
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok && data?.error) {
+      throw new Error(data.error);
+    }
+    if (data?.record) {
+      serverRecord = data.record as ReferralRecord;
+    }
+    if (data?.referrerAccount) {
+      serverReferrerAccount = data.referrerAccount as LoyaltyAccount;
+    }
+  } catch (err: any) {
+    if (
+      err?.message &&
+      !err.message.includes('Failed to fetch') &&
+      !err.message.includes('NetworkError')
+    ) {
+      throw err;
+    }
+  }
+
+  // 2. Verify existing referral record and customer order history
+  let existingReferral: ReferralRecord | null = getLocalReferralRecords()[cleanUid] || null;
+  try {
+    const refSnap = await getDoc(doc(db, 'referrals', cleanUid));
+    if (refSnap.exists()) {
+      existingReferral = refSnap.data() as ReferralRecord;
+    }
   } catch {}
+
+  let customerOrders: Order[] = Array.isArray(extra?.orders) ? extra!.orders! : [];
+  if (customerOrders.length === 0) {
+    try {
+      const rawOrders = localStorage.getItem('cotton_nest_orders');
+      if (rawOrders) {
+        const parsed = JSON.parse(rawOrders);
+        if (Array.isArray(parsed)) customerOrders = parsed;
+      }
+    } catch {}
+  }
+
+  const referrerAccount =
+    serverReferrerAccount || (await findReferrerAccountByCode(cleanCode));
+
+  if (!serverRecord) {
+    const validation = validateAndCreateReferralApplication({
+      referralCodeInput: cleanCode,
+      referredUid: cleanUid,
+      referredAccountId: accountId,
+      referredEmail: extra?.email || current.email,
+      referredPhone: extra?.phone || current.phone,
+      referredName: extra?.name || current.customerName,
+      referredOwnReferralCode: current.referralCode,
+      existingReferralForUser: existingReferral,
+      alreadyReferredByCodeOnAccount: current.referredByCode || null,
+      referrerAccount,
+      customerOrders,
+      config,
+      nowMs: Date.now(),
+    });
+
+    if (!validation.valid || !validation.record) {
+      throw new Error(validation.error || 'Could not apply referral code.');
+    }
+    serverRecord = validation.record;
+  }
+
+  // 3. Atomically save in Firestore `referrals/{cleanUid}` to prevent duplicate claims
+  try {
+    const refDoc = doc(db, 'referrals', cleanUid);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(refDoc);
+      if (snap.exists()) {
+        const existingData = snap.data() as ReferralRecord;
+        if (existingData && existingData.referralCode) {
+          throw new Error(
+            `You have already applied referral code ${existingData.referralCode}. Each customer can claim only one referral code.`
+          );
+        }
+      }
+      tx.set(refDoc, stripUndefined(serverRecord!));
+    });
+  } catch (err: any) {
+    if (err?.message && err.message.includes('already applied referral code')) {
+      throw err;
+    }
+  }
+
+  // 4. Update customer's LoyaltyAccount with `referredByCode` (0 points awarded at application time!)
+  const now = Date.now();
+  const updatedAccount: LoyaltyAccount = {
+    ...current,
+    userId: cleanUid,
+    referredByCode: cleanCode,
+    updatedAt: now,
+  };
+
+  saveLocalAccount(updatedAccount);
+  saveLocalReferralRecord(serverRecord);
 
   try {
     await Promise.all([
       setDoc(doc(db, 'site_content', `loyalty_${accountId}`), stripUndefined(updatedAccount), { merge: true }).catch(() => {}),
       setDoc(doc(db, 'loyalty', accountId), stripUndefined(updatedAccount), { merge: true }).catch(() => {}),
-      setDoc(doc(db, 'loyalty_transactions', tx.id), stripUndefined(tx), { merge: true }).catch(() => {}),
     ]);
   } catch {}
 
-  return { account: updatedAccount, pointsAwarded, tx };
+  try {
+    window.dispatchEvent(new Event('cotton-nest-referrals-updated'));
+    window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
+  } catch {}
+
+  return {
+    account: updatedAccount,
+    pointsAwarded: 0, // Strictly 0 until qualifying order is delivered & paid
+    record: serverRecord,
+    message: REFERRAL_APPLIED_SUCCESS_MESSAGE,
+  };
+}
+
+/**
+ * Fetches a customer's complete referral status summary (applied referral, referrals made by them,
+ * Pending Rewards, Earned Rewards, and Successful Referrals).
+ */
+export async function getCustomerReferralSummaryApi(params: {
+  uid?: string | null;
+  accountId?: string | null;
+  myReferralCode: string;
+  myLoyaltyAccount?: LoyaltyAccount | null;
+}): Promise<CustomerReferralSummary> {
+  const cleanUid = String(params.uid || '').trim();
+  const cleanCode = String(params.myReferralCode || '').trim().toUpperCase();
+  const config = await getReferralRewardsConfigApi();
+
+  let appliedReferral: ReferralRecord | null = null;
+  const madeByMeMap = new Map<string, ReferralRecord>();
+
+  // 1. Check local cache first
+  const localRecords = getLocalReferralRecords();
+  if (cleanUid && localRecords[cleanUid]) {
+    appliedReferral = localRecords[cleanUid];
+  }
+  Object.values(localRecords).forEach((r) => {
+    if (r && cleanCode && r.referralCode === cleanCode && r.referredUid !== cleanUid) {
+      madeByMeMap.set(r.referredUid, r);
+    }
+  });
+
+  // 2. Fetch from Express server
+  if (cleanUid || cleanCode) {
+    try {
+      const q = new URLSearchParams();
+      if (cleanUid) q.set('uid', cleanUid);
+      if (cleanCode) q.set('code', cleanCode);
+      const res = await fetch(`/api/referrals/status?${q.toString()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.appliedReferral) {
+          appliedReferral = data.appliedReferral as ReferralRecord;
+          saveLocalReferralRecord(appliedReferral);
+        }
+        if (Array.isArray(data?.referralsMadeByMe)) {
+          data.referralsMadeByMe.forEach((r: ReferralRecord) => {
+            if (r && r.referredUid) {
+              madeByMeMap.set(r.referredUid, r);
+              saveLocalReferralRecord(r);
+            }
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Fetch from Firestore `referrals`
+  if (cleanUid) {
+    try {
+      const appliedSnap = await getDoc(doc(db, 'referrals', cleanUid));
+      if (appliedSnap.exists()) {
+        const fsApplied = appliedSnap.data() as ReferralRecord;
+        if (!appliedReferral || (fsApplied.updatedAt || 0) >= (appliedReferral.updatedAt || 0)) {
+          appliedReferral = fsApplied;
+          saveLocalReferralRecord(fsApplied);
+        }
+      }
+    } catch {}
+
+    try {
+      const qMade = query(collection(db, 'referrals'), where('referrerUid', '==', cleanUid), limit(50));
+      const snapMade = await getDocs(qMade);
+      snapMade.forEach((d) => {
+        const rec = d.data() as ReferralRecord;
+        if (rec && rec.referredUid) {
+          madeByMeMap.set(rec.referredUid, rec);
+          saveLocalReferralRecord(rec);
+        }
+      });
+    } catch {}
+  }
+
+  return computeCustomerReferralSummary({
+    config,
+    myReferralCode: cleanCode,
+    myLoyaltyAccount: params.myLoyaltyAccount || null,
+    appliedReferral,
+    referralsMadeByMe: Array.from(madeByMeMap.values()),
+  });
+}
+
+/**
+ * Updates a referred customer's `code_applied` ReferralRecord when they place an order.
+ */
+export async function handleReferralOnOrderPlacedApi(
+  order: Order,
+  priorOrders: Order[] = []
+): Promise<ReferralRecord | null> {
+  const cleanUid = String(order.userId || '').trim();
+  if (!cleanUid) return null;
+
+  let existingRecord: ReferralRecord | null = getLocalReferralRecords()[cleanUid] || null;
+  try {
+    const snap = await getDoc(doc(db, 'referrals', cleanUid));
+    if (snap.exists()) {
+      existingRecord = snap.data() as ReferralRecord;
+    }
+  } catch {}
+
+  if (!existingRecord || existingRecord.status !== 'code_applied') {
+    return existingRecord;
+  }
+
+  const config = await getReferralRewardsConfigApi();
+  const { updatedRecord, isQualifyingOrder } = evaluateReferralOnOrderPlaced({
+    record: existingRecord,
+    order,
+    priorOrders,
+    config,
+    nowMs: Date.now(),
+  });
+
+  order.referralCodeApplied = updatedRecord.referralCode;
+  order.referralQualifyingOrder = isQualifyingOrder;
+
+  saveLocalReferralRecord(updatedRecord);
+  try {
+    await setDoc(doc(db, 'referrals', cleanUid), stripUndefined(updatedRecord), { merge: true });
+  } catch {}
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-referrals-updated'));
+  } catch {}
+
+  return updatedRecord;
+}
+
+/**
+ * Idempotently settles referral rewards (+100 Nest Points to referrer and +100 Nest Points to referred friend)
+ * when a qualifying order is marked Delivered.
+ */
+export async function handleReferralOnOrderDeliveredApi(order: Order): Promise<boolean> {
+  const cleanUid = String(order.userId || '').trim();
+  if (!cleanUid || order.status !== 'delivered') return false;
+
+  let existingRecord: ReferralRecord | null = getLocalReferralRecords()[cleanUid] || null;
+  try {
+    const snap = await getDoc(doc(db, 'referrals', cleanUid));
+    if (snap.exists()) {
+      existingRecord = snap.data() as ReferralRecord;
+    }
+  } catch {}
+
+  if (!existingRecord || existingRecord.rewardCredited || existingRecord.status === 'reward_earned') {
+    return false;
+  }
+
+  if (existingRecord.qualifyingOrderId && existingRecord.qualifyingOrderId !== order.id) {
+    return false;
+  }
+
+  const config = await getReferralRewardsConfigApi();
+  const [referrerAccount, referredAccount] = await Promise.all([
+    getLoyaltyAccountApi(existingRecord.referrerAccountId, {
+      userId: existingRecord.referrerUid,
+      name: existingRecord.referrerName,
+    }),
+    getLoyaltyAccountApi(existingRecord.referredAccountId, {
+      userId: existingRecord.referredUid,
+      name: existingRecord.referredName || order.customerName,
+      email: existingRecord.referredEmail || order.customerEmail,
+      phone: existingRecord.referredPhone || order.customerPhone,
+    }),
+  ]);
+
+  const settlement = settleReferralRewardOnDelivery({
+    record: existingRecord,
+    order,
+    referrerAccount,
+    referredAccount,
+    config,
+    nowMs: Date.now(),
+  });
+
+  if (!settlement.settled) {
+    if (settlement.updatedRecord.status !== existingRecord.status) {
+      saveLocalReferralRecord(settlement.updatedRecord);
+      try {
+        await setDoc(doc(db, 'referrals', cleanUid), stripUndefined(settlement.updatedRecord), { merge: true });
+      } catch {}
+    }
+    return false;
+  }
+
+  saveLocalReferralRecord(settlement.updatedRecord);
+  if (settlement.updatedReferrerAccount) saveLocalAccount(settlement.updatedReferrerAccount);
+  if (settlement.updatedReferredAccount) saveLocalAccount(settlement.updatedReferredAccount);
+  if (settlement.referrerTx) saveLocalTransaction(settlement.referrerTx);
+  if (settlement.referredTx) saveLocalTransaction(settlement.referredTx);
+
+  try {
+    await Promise.all([
+      setDoc(doc(db, 'referrals', cleanUid), stripUndefined(settlement.updatedRecord), { merge: true }).catch(() => {}),
+      settlement.updatedReferrerAccount
+        ? setDoc(doc(db, 'loyalty', settlement.updatedReferrerAccount.id), stripUndefined(settlement.updatedReferrerAccount), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      settlement.updatedReferrerAccount
+        ? setDoc(doc(db, 'site_content', `loyalty_${settlement.updatedReferrerAccount.id}`), stripUndefined(settlement.updatedReferrerAccount), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      settlement.updatedReferredAccount
+        ? setDoc(doc(db, 'loyalty', settlement.updatedReferredAccount.id), stripUndefined(settlement.updatedReferredAccount), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      settlement.updatedReferredAccount
+        ? setDoc(doc(db, 'site_content', `loyalty_${settlement.updatedReferredAccount.id}`), stripUndefined(settlement.updatedReferredAccount), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      settlement.referrerTx
+        ? setDoc(doc(db, 'loyalty_transactions', settlement.referrerTx.id), stripUndefined(settlement.referrerTx), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      settlement.referredTx
+        ? setDoc(doc(db, 'loyalty_transactions', settlement.referredTx.id), stripUndefined(settlement.referredTx), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+    ]);
+  } catch {}
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-referrals-updated'));
+    window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
+  } catch {}
+
+  return true;
+}
+
+/**
+ * Handles referral state cancellation or point reversal when an order is marked Cancelled or Refunded.
+ */
+export async function handleReferralOnOrderCancelledOrRefundedApi(
+  order: Order,
+  status: 'cancelled' | 'refunded'
+): Promise<boolean> {
+  const cleanUid = String(order.userId || '').trim();
+  if (!cleanUid) return false;
+
+  let existingRecord: ReferralRecord | null = getLocalReferralRecords()[cleanUid] || null;
+  try {
+    const snap = await getDoc(doc(db, 'referrals', cleanUid));
+    if (snap.exists()) {
+      existingRecord = snap.data() as ReferralRecord;
+    }
+  } catch {}
+
+  if (!existingRecord) return false;
+  if (existingRecord.qualifyingOrderId && existingRecord.qualifyingOrderId !== order.id) {
+    return false;
+  }
+
+  let referrerAccount: LoyaltyAccount | null = null;
+  let referredAccount: LoyaltyAccount | null = null;
+
+  if (existingRecord.rewardCredited && !existingRecord.rewardReversed) {
+    [referrerAccount, referredAccount] = await Promise.all([
+      getLoyaltyAccountApi(existingRecord.referrerAccountId, { userId: existingRecord.referrerUid }),
+      getLoyaltyAccountApi(existingRecord.referredAccountId, { userId: existingRecord.referredUid }),
+    ]);
+  }
+
+  const reversal = reverseReferralOnCancellationOrRefund({
+    record: existingRecord,
+    orderId: order.id,
+    orderStatus: status,
+    referrerAccount,
+    referredAccount,
+    nowMs: Date.now(),
+  });
+
+  if (!reversal.changed) return false;
+
+  saveLocalReferralRecord(reversal.updatedRecord);
+  if (reversal.updatedReferrerAccount) saveLocalAccount(reversal.updatedReferrerAccount);
+  if (reversal.updatedReferredAccount) saveLocalAccount(reversal.updatedReferredAccount);
+  if (reversal.referrerReversalTx) saveLocalTransaction(reversal.referrerReversalTx);
+  if (reversal.referredReversalTx) saveLocalTransaction(reversal.referredReversalTx);
+
+  try {
+    await Promise.all([
+      setDoc(doc(db, 'referrals', cleanUid), stripUndefined(reversal.updatedRecord), { merge: true }).catch(() => {}),
+      reversal.updatedReferrerAccount
+        ? setDoc(doc(db, 'loyalty', reversal.updatedReferrerAccount.id), stripUndefined(reversal.updatedReferrerAccount), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      reversal.updatedReferrerAccount
+        ? setDoc(doc(db, 'site_content', `loyalty_${reversal.updatedReferrerAccount.id}`), stripUndefined(reversal.updatedReferrerAccount), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      reversal.updatedReferredAccount
+        ? setDoc(doc(db, 'loyalty', reversal.updatedReferredAccount.id), stripUndefined(reversal.updatedReferredAccount), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      reversal.updatedReferredAccount
+        ? setDoc(doc(db, 'site_content', `loyalty_${reversal.updatedReferredAccount.id}`), stripUndefined(reversal.updatedReferredAccount), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      reversal.referrerReversalTx
+        ? setDoc(doc(db, 'loyalty_transactions', reversal.referrerReversalTx.id), stripUndefined(reversal.referrerReversalTx), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+      reversal.referredReversalTx
+        ? setDoc(doc(db, 'loyalty_transactions', reversal.referredReversalTx.id), stripUndefined(reversal.referredReversalTx), { merge: true }).catch(() => {})
+        : Promise.resolve(),
+    ]);
+  } catch {}
+
+  try {
+    window.dispatchEvent(new Event('cotton-nest-referrals-updated'));
+    window.dispatchEvent(new Event('cotton-nest-loyalty-updated'));
+  } catch {}
+
+  return true;
+}
+
+/**
+ * Fetches aggregated referral tracking metrics and records for the Admin Panel.
+ */
+export async function getReferralAdminDataApi(): Promise<AdminReferralSummary> {
+  const config = await getReferralRewardsConfigApi();
+  const recordMap = new Map<string, ReferralRecord>();
+
+  // 1. Local cache
+  Object.values(getLocalReferralRecords()).forEach((r) => {
+    if (r && r.referredUid) recordMap.set(r.referredUid, r);
+  });
+
+  // 2. Express server
+  try {
+    const res = await fetch('/api/referrals/admin', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.records)) {
+        data.records.forEach((r: ReferralRecord) => {
+          if (r && r.referredUid) recordMap.set(r.referredUid, r);
+        });
+      }
+    }
+  } catch {}
+
+  // 3. Firestore collection (admin list permission)
+  try {
+    const snap = await getDocs(collection(db, 'referrals'));
+    snap.forEach((d) => {
+      const r = d.data() as ReferralRecord;
+      if (r && r.referredUid) {
+        const prev = recordMap.get(r.referredUid);
+        if (!prev || (r.updatedAt || 0) >= (prev.updatedAt || 0)) {
+          recordMap.set(r.referredUid, r);
+        }
+      }
+    });
+  } catch {}
+
+  return computeAdminReferralSummary({
+    config,
+    records: Array.from(recordMap.values()),
+  });
 }
 
 /**
@@ -776,7 +1366,7 @@ export async function getLoyaltyTransactionsApi(rawKey: string): Promise<Loyalty
         return orderStatusMap.get(String(t.orderId)) === 'delivered';
       }
     }
-    if ((t.type === 'redeemed' || t.points < 0) && Math.abs(t.points) > LOYALTY_MAX_REDEMPTION_POINTS) {
+    if ((t.type === 'redeemed' || t.points < 0) && t.type !== 'adjustment' && Math.abs(t.points) > LOYALTY_MAX_REDEMPTION_POINTS) {
       return false;
     }
     return true;

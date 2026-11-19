@@ -56,6 +56,9 @@ import {
   earnLoyaltyPointsApi,
   redeemLoyaltyPointsApi,
   refundLoyaltyPointsApi,
+  handleReferralOnOrderPlacedApi,
+  handleReferralOnOrderDeliveredApi,
+  handleReferralOnOrderCancelledOrRefundedApi,
 } from './loyaltyApi';
 import {
   WelcomeOfferConfig,
@@ -1310,6 +1313,17 @@ export async function saveOrder(order: Order): Promise<void> {
     } catch {}
   }
 
+  // 3c. Evaluate referral lifecycle on order placement (transitions code_applied -> order_pending if qualifying first order)
+  if (safeOrder.userId) {
+    try {
+      const customerOrders = await getUserOrders(safeOrder.userId).catch(() => []);
+      const priorOrders = customerOrders.filter((o) => o && o.id !== safeOrder.id);
+      await handleReferralOnOrderPlacedApi(safeOrder, priorOrders);
+    } catch (refOrderErr) {
+      console.warn('Referral evaluation on order placement notice:', refOrderErr);
+    }
+  }
+
   // 4. Create in-app + device notification bar alert for newly placed order
   try {
     const recipient = safeOrder.customerEmail || safeOrder.customerPhone || safeOrder.userId || 'all';
@@ -1687,6 +1701,13 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       }
     }
 
+    // 3b. Settle referral reward (+100 pts each to referrer & referred customer) if this is a qualifying referral order
+    try {
+      await handleReferralOnOrderDeliveredApi(targetOrder);
+    } catch (refDelivErr) {
+      console.warn('Referral reward settlement on delivery notice:', refDelivErr);
+    }
+
     // Broadcast loyalty balance update so customer modal & header reflect immediately
     try {
       window.dispatchEvent(
@@ -1696,6 +1717,12 @@ export async function updateOrderStatus(orderId: string, status: string, orderDa
       );
     } catch {}
   } else if ((status === 'cancelled' || status === 'refunded') && targetOrder) {
+    // Cancel pending referral or safely reverse credited referral points on full refund
+    try {
+      await handleReferralOnOrderCancelledOrRefundedApi(targetOrder, status as 'cancelled' | 'refunded');
+    } catch (refRevErr) {
+      console.warn('Referral cancellation/refund handler notice:', refRevErr);
+    }
     if (isWelcomeOfferOrder) {
       if (targetOrder.userId && !isFirestoreWriteQuotaExhausted()) {
         try {

@@ -10,7 +10,7 @@ export interface OrderItem {
   quantity: number;
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'dispatched' | 'delivered' | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'dispatched' | 'delivered' | 'cancelled' | 'refunded';
 
 export interface OrderTimelineStep {
   status: OrderStatus;
@@ -44,6 +44,10 @@ export interface Order {
   pointsEarned?: number;
   pointsCredited?: boolean;
   pointsRefunded?: boolean;
+  referralCodeApplied?: string;
+  referralQualifyingOrder?: boolean;
+  referralRewardCredited?: boolean;
+  referralRewardReversed?: boolean;
   status: OrderStatus;
   deliveredAt?: string;
   updatedAt?: number;

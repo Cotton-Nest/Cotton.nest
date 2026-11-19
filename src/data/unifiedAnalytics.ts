@@ -393,6 +393,7 @@ const ORDER_STATUS_PROGRESSION: Record<OrderStatus, number> = {
   dispatched: 3,
   delivered: 4,
   cancelled: 5,
+  refunded: 6,
 };
 
 /**
